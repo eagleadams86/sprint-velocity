@@ -65,8 +65,30 @@ in yellow, which would look like a bug. That's the only time you'll see a decima
 - **Rolling 5** — the last five sprints for a team, crossing PI boundaries. Velocity and
   commitment completion on one chart, and an instability chart plotting break-in, removed
   and carryover against shaded 15% / 20% threshold bands.
-- **All teams** — every team's rolling averages side by side, so the one that needs
-  attention is obvious.
+- **All teams** — every team's rolling averages side by side, plus each team's next-sprint
+  target in one column, so the one that needs attention is obvious.
+
+## Target capacity for the next sprint
+
+The Rolling 5 view turns the history into a number you can take into planning: **how many
+points this team should commit to next sprint**.
+
+It's the team's **average committed points completed** over the rolling window — the amount
+of commitment they have actually been finishing, sprint after sprint.
+
+The tempting number is average *velocity*, and it's the wrong one. Velocity includes the
+break-in work that turns up mid-sprint. Commit to that figure and you've booked out the
+very capacity the break-in is going to consume, so the team starts every sprint already
+over-committed. That gap is how a fast team still misses its commitment every time.
+
+The card also splits the total into what's **already carried over** from last sprint and
+how much **new work** that leaves to pull off the backlog, and shows the recent range so
+you can see how much faith the number deserves. It warns you when there are fewer than
+three sprints of history, when the team's delivery swings by more than 30%, and when the
+next sprint up is the IP sprint.
+
+It's a starting point for the planning conversation, not a quota — adjust it for leave,
+holidays and whatever else the team knows about that the numbers don't.
 
 ### Sprint 6 and the rolling average
 

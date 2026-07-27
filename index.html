@@ -125,6 +125,11 @@ textarea { width: 100%; resize: vertical; min-height: 64px; }
 .tile.yellow .value { color: var(--amber); }
 .tile.red    .value { color: var(--red); }
 .glyph { font-size: 15px; font-weight: 700; margin-left: 6px; vertical-align: 2px; }
+/* The one number on the page someone acts on, so it gets the weight. */
+.tile.hero { background: var(--bg-card); border-color: var(--focus-border);
+  border-left-color: var(--focus-border); }
+.tile.hero .value { font-size: 40px; }
+.tile.hero .label { color: var(--text-primary); }
 
 .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px;
   font-weight: 700; border: 1px solid; }
@@ -481,6 +486,61 @@ function sum(sprints, key) {
   return sprints.reduce((a, s) => a + metrics(s)[key], 0);
 }
 
+/* Which sprint comes after the last one recorded for a team. Runs off true
+   chronology (sprint 6 included), regardless of whether the rolling average
+   counts the IP sprint. */
+function nextSprintSlot(teamId) {
+  const all = teamSprints(teamId);
+  if (!all.length) return null;
+  const last = all[all.length - 1];
+  if (last.sprintNumber < SPRINTS_PER_PI)
+    return { piId: last.piId, sprintNumber: last.sprintNumber + 1, last };
+  const nextPi = state.pis[piIndex(last.piId) + 1];
+  return nextPi ? { piId: nextPi.id, sprintNumber: 1, last } : { piId: null, sprintNumber: 1, last };
+}
+
+/* How much the team should commit to next sprint, from the rolling window.
+   The honest predictor of "how much commitment can this team finish" is how much
+   commitment they have been finishing — the mean of committed points completed.
+   Average *velocity* is the tempting number and the wrong one: it includes the
+   break-in work that arrives mid-sprint, so committing to it books out the very
+   capacity the break-in is going to consume, and the team starts the sprint
+   already over-committed. That gap is the whole reason a team can be fast and
+   still miss its commitment every time.
+
+   Carry-out from the last sprint is already spoken for next sprint, so it's shown
+   separately: the recommendation is the total to commit, and "new work" is what's
+   left to pull off the backlog on top of the carryover. */
+function nextSprintTarget(teamId, includeSix) {
+  const rs = rollingSprints(teamId, includeSix);
+  if (!rs.length) return null;
+
+  const done = rs.map(s => metrics(s).committedCompleted);
+  const recommended = done.reduce((a, b) => a + b, 0) / done.length;
+  const low = Math.min(...done), high = Math.max(...done);
+  const slot = nextSprintSlot(teamId);
+  const carriedIn = slot && slot.last ? metrics(slot.last).carriedOut : 0;
+
+  /* Spread relative to the mean. A team whose delivery swings widely gets a
+     recommendation worth much less, and should be told so rather than handed a
+     precise-looking number. */
+  const spread = recommended > 0 ? ((high - low) / recommended) * 100 : 0;
+
+  return {
+    recommended,
+    newWork: Math.max(0, recommended - carriedIn),
+    carriedIn,
+    low, high, spread,
+    sprints: rs.length,
+    avgVelocity: avg(rs, 'velocity'),
+    avgCommitted: avg(rs, 'committed'),
+    steady: spread <= 30,
+    thin: rs.length < 3,
+    slot,
+    isIpSprint: !!slot && slot.sprintNumber === IP_SPRINT
+  };
+}
+
 /* ── Formatting ─────────────────────────────────────────────────────────── */
 
 /* Percentages show as whole numbers, except where rounding would put the figure on
@@ -503,10 +563,10 @@ function sprintLabel(s) {
   return (pi ? pi.name : 'PI?') + ' · S' + s.sprintNumber;
 }
 
-function tile(label, valueHtml, ragClass, foot) {
+function tile(label, valueHtml, ragClass, foot, hero) {
   const status = RAG_TEXT[ragClass || 'none'];
   const glyph = RAG_GLYPH[ragClass || 'none'];
-  return `<div class="tile ${ragClass || ''}">
+  return `<div class="tile ${ragClass || ''}${hero ? ' hero' : ''}">
     <div class="label">${esc(label)}</div>
     <div class="value">${valueHtml}${glyph ? `<span class="glyph" aria-hidden="true">${glyph}</span>` : ''}
       ${ragClass && ragClass !== 'none' ? `<span class="sr-only">— ${status}</span>` : ''}</div>
@@ -951,6 +1011,8 @@ function renderRollingView() {
       </div>
     </div>
 
+    ${targetCapacityCard(team, includeSix)}
+
     <div class="card">
       <h2>Velocity and commitment completion</h2>
       <p class="sub">How much the team delivers, next to how much of what they promised they finished.
@@ -1064,6 +1126,70 @@ function renderRollingView() {
   });
 }
 
+/* The actionable takeaway from the rolling window: what to commit to at the next
+   planning session. Sits high on the view, right under the averages it comes from. */
+function targetCapacityCard(team, includeSix) {
+  const t = nextSprintTarget(team.id, includeSix);
+  if (!t) return '';
+
+  const slotName = t.slot && t.slot.piId
+    ? esc(piById(t.slot.piId).name) + ' · S' + t.slot.sprintNumber
+    : 'the next sprint';
+  const overCommitting = t.avgCommitted !== null && t.avgCommitted - t.recommended >= 1;
+
+  const caveats = [];
+  if (t.thin)
+    caveats.push(`Only ${t.sprints} sprint${t.sprints === 1 ? '' : 's'} of history so far — treat this as a rough
+      starting point and let it settle as you record more.`);
+  if (!t.steady)
+    caveats.push(`This team's delivery swings a fair bit (${fmtNum(t.low)}–${fmtNum(t.high)} points across
+      the window), so the number is a guide rather than a forecast. Worth asking at the retro what's
+      driving the variation.`);
+  if (t.isIpSprint)
+    caveats.push(`Sprint ${IP_SPRINT} is the innovation &amp; planning sprint — this figure is a delivery
+      estimate, so scale it down for whatever IP work is planned.`);
+
+  return `<div class="card">
+    <h2>Target capacity for ${slotName}</h2>
+    <p class="sub">What ${esc(team.name)} can realistically commit to, based on the last
+      ${t.sprints} sprint${t.sprints === 1 ? '' : 's'}.</p>
+    <div class="tiles">
+      ${tile('Recommended commitment', fmtNum(Math.round(t.recommended)), null,
+        'story points', true)}
+      ${tile('Already carried over', fmtNum(t.carriedIn), null,
+        t.slot && t.slot.last ? `from ${esc(sprintLabel(t.slot.last))}` : 'from the last sprint')}
+      ${tile('New work to pull in', fmtNum(Math.round(t.newWork)), null,
+        'on top of the carryover')}
+      ${tile('Recent range', `${fmtNum(t.low)}–${fmtNum(t.high)}`, null,
+        'committed points finished per sprint')}
+    </div>
+    <details class="datatable" style="margin-top:16px">
+      <summary>How this is worked out</summary>
+      <div style="font-size:14px;color:var(--text-secondary);margin-top:10px;max-width:70ch">
+        <p style="margin:0 0 10px">Over the last ${t.sprints} sprint${t.sprints === 1 ? '' : 's'},
+          ${esc(team.name)} finished an average of <strong>${fmtNum(t.recommended)}</strong> of the points
+          they committed to. That is the amount of commitment they have actually been able to deliver,
+          so that is the recommendation.</p>
+        <p style="margin:0 0 10px">Their average <em>velocity</em> is higher —
+          <strong>${fmtNum(t.avgVelocity)}</strong> points — but committing to that would over-commit them.
+          Velocity counts the break-in work that turns up mid-sprint, and if that capacity is booked out in
+          advance there is nothing left to absorb it. That gap is how a fast team still misses its
+          commitment every sprint.</p>
+        <p style="margin:0">${t.carriedIn > 0
+          ? `<strong>${fmtNum(t.carriedIn)}</strong> point${t.carriedIn === 1 ? ' is' : 's are'} already
+             carried over from the last sprint and count towards the total, leaving about
+             <strong>${fmtNum(Math.round(t.newWork))}</strong> points of new work to pull off the backlog.`
+          : 'Nothing was carried over from the last sprint, so the whole commitment is new work.'}</p>
+        ${overCommitting ? `<p style="margin:10px 0 0">For context, they have been committing to
+          <strong>${fmtNum(t.avgCommitted)}</strong> points a sprint on average — about
+          <strong>${fmtNum(Math.round(t.avgCommitted - t.recommended))}</strong> more than they finish.
+          Committing closer to the figure above is what moves commitment completion towards the 85% target.</p>` : ''}
+      </div>
+    </details>
+    ${caveats.length ? `<p class="sub" style="margin:14px 0 0">⚠ ${caveats.join(' ')}</p>` : ''}
+  </div>`;
+}
+
 function rollingToolbar(includeSix) {
   return `<div class="card">
     <div class="row spread">
@@ -1096,7 +1222,8 @@ function renderTeamsView() {
       breakIn: avg(rs, 'breakInPct'),
       removed: avg(rs, 'removedPct'),
       carry: avg(rs, 'carryoverPct'),
-      vel: avg(rs, 'velocity')
+      vel: avg(rs, 'velocity'),
+      target: nextSprintTarget(t.id, includeSix)
     };
   });
   const withData = rowsData.filter(r => r.count > 0);
@@ -1112,11 +1239,13 @@ function renderTeamsView() {
 
     <div class="card">
       <h2>Comparison</h2>
-      <p class="sub">Click a team to switch to it.</p>
+      <p class="sub">Click a team to switch to it. <strong>Next sprint target</strong> is the
+        commitment each team can realistically take on — see the Rolling 5 view for the working.</p>
       <div class="tablewrap">
       <table>
         <thead><tr><th>Team</th><th>Sprints</th><th>Commitment completion</th>
-          <th>Break-in</th><th>Removed</th><th>Carryover</th><th>Avg velocity</th></tr></thead>
+          <th>Break-in</th><th>Removed</th><th>Carryover</th><th>Avg velocity</th>
+          <th>Next sprint target</th></tr></thead>
         <tbody>${rowsData.map(r => `<tr class="clickable" data-id="${r.team.id}">
           <td>${esc(r.team.name)}</td>
           <td>${r.count}</td>
@@ -1124,7 +1253,8 @@ function renderTeamsView() {
           <td>${pill(r.breakIn, 'churn')}</td>
           <td>${pill(r.removed, 'churn')}</td>
           <td>${pill(r.carry, 'churn')}</td>
-          <td>${fmtNum(r.vel)}</td></tr>`).join('')}</tbody>
+          <td>${fmtNum(r.vel)}</td>
+          <td>${r.target ? '<strong>' + fmtNum(Math.round(r.target.recommended)) + '</strong>' : '—'}</td></tr>`).join('')}</tbody>
       </table></div>
     </div>`;
 

@@ -23,6 +23,10 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   threshold, so a displayed figure never contradicts the colour next to it (84.6% must not
   render as "85%" in yellow). Any new percentage display must pass its scale.
 - Sprint 6 is the IP sprint: **excluded from the rolling window by default**, with a toggle.
+- `nextSprintTarget()` recommends a commitment from **mean committed-points-completed**,
+  deliberately *not* mean velocity — velocity includes break-in, so committing to it
+  over-commits the team. Don't "improve" it into a velocity-based figure; the reasoning is
+  in the comment above the function and in the card's "How this is worked out".
 - RAG state must never be conveyed by colour alone — tiles and pills carry a glyph and an
   `sr-only` status. Both themes are WCAG AA; keep them that way.
 - Charts resolve their colours from CSS custom properties at construction time, so a theme
