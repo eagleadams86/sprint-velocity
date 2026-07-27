@@ -117,9 +117,13 @@ starting point.
 
 ## Cross-device sync (Firebase, free tier — optional)
 
-Sync is **off** in this deployment: `FIREBASE_CONFIG` at the bottom `<script type="module">`
-block of `index.html` is `null`, the sync button stays hidden, and the app is entirely
-local. To turn it on:
+Sync is **enabled** in this deployment, backed by the `sprintvelocity-141b7` Firebase
+project — the `FIREBASE_CONFIG` object at the bottom `<script type="module">` block of
+`index.html` points at it. Signing in is entirely optional: the app is fully usable, and
+fully local, without it. Setting that constant back to `null` returns it to local-only mode
+and hides all sync UI.
+
+To recreate the setup from scratch (e.g. in a fork):
 
 1. At [console.firebase.google.com](https://console.firebase.google.com), create a project
    (Analytics not needed)

@@ -32,10 +32,13 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
 - Charts resolve their colours from CSS custom properties at construction time, so a theme
   switch has to rebuild them (`render()` does this). Chart animation is deliberately off.
 - Optional cross-device sync is ported from PAPTrack: Google sign-in + one Firestore doc
-  per user at `sprintvelocity/{uid}`. `FIREBASE_CONFIG` is currently `null` (fully local
-  mode, sync button hidden) until a Firebase project is set up — see README for the steps.
-  The first-sign-in "which copy do you want to keep?" dialog is load-bearing; don't replace
-  it with timestamp guessing.
+  per user at `sprintvelocity/{uid}`, backed by the `sprintvelocity-141b7` Firebase project.
+  `FIREBASE_CONFIG` controls it; set it to `null` to force fully-local mode. The config is
+  a public client config, not a secret — access is enforced by the Firestore rules. The
+  first-sign-in "which copy do you want to keep?" dialog is load-bearing; don't replace it
+  with timestamp guessing.
+- Firebase authorized domain is `eagleadams86.github.io`, so sync works at this
+  `/sprint-velocity/` path unchanged.
 - **README.md is the index** — keep it current whenever the app meaningfully changes.
 - After changes: **browser-test locally first** (`python3 -m http.server 8012`, or the
   desktop app's preview pane via `.claude/launch.json`), then commit, push, verify the

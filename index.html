@@ -1652,7 +1652,14 @@ render();
    the code guessing by timestamp — that guesswork once wiped a browser's data in the
    sibling app. After that first reconciliation, and for live updates arriving from
    another device, the newer side by 'sv-updated' wins. */
-const FIREBASE_CONFIG = null;
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCAEyY7SEh2Py4pcFiYrJH-s8wYoCGIZ8Y",
+  authDomain: "sprintvelocity-141b7.firebaseapp.com",
+  projectId: "sprintvelocity-141b7",
+  storageBucket: "sprintvelocity-141b7.firebasestorage.app",
+  messagingSenderId: "255575017001",
+  appId: "1:255575017001:web:5ab6eceff78bd825827e38"
+};
 
 const SDK = 'https://www.gstatic.com/firebasejs/12.16.0/';
 const btn = document.getElementById('syncBtn');
