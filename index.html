@@ -170,12 +170,22 @@ details.datatable summary { cursor: pointer; font-size: 13px; color: var(--text-
 .row.spread { justify-content: space-between; }
 label.field { display: block; font-size: 13px; color: var(--text-secondary);
   font-weight: 600; margin-bottom: 4px; }
-.grid-fields { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
-.grid-fields input { width: 100%; }
+.grid-fields { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+/* Fields line up on their boxes, not their labels. A cell is a full-height column
+   with the control pushed to the bottom, so a label that wraps onto two lines
+   ("Committed points completed") doesn't shunt its box below its neighbours'. */
+.grid-fields > div { display: flex; flex-direction: column; }
+/* One height for every control, because selects, date inputs and number inputs
+   each default to a different one (35.5 / 40.5 / 38.5px in Chrome) and a row
+   mixing them lines up on neither edge. */
+.grid-fields > div > input,
+.grid-fields > div > select { width: 100%; margin-top: auto; height: 40px; }
 dialog {
   border: 1px solid var(--border-strong); border-radius: var(--radius);
   background: var(--bg-card); color: var(--text-primary);
-  padding: 20px; max-width: 620px; width: calc(100% - 32px); box-shadow: var(--shadow);
+  /* Wide enough that the four PI/date fields and the four change-during-the-sprint
+     fields each sit on one line; still shrinks to fit a phone. */
+  padding: 20px; max-width: 880px; width: calc(100% - 32px); box-shadow: var(--shadow);
 }
 dialog::backdrop { background: rgba(0,0,0,.55); }
 dialog h3 { margin: 0 0 12px; font-size: 17px; }
@@ -237,22 +247,22 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
 <dialog id="sprintDialog">
   <form method="dialog" id="sprintForm">
     <h3 id="sprintDialogTitle">Sprint</h3>
-    <div class="row">
-      <div style="flex:1 1 160px">
+    <div class="grid-fields">
+      <div>
         <label class="field" for="f_pi">PI</label>
-        <select id="f_pi" style="width:100%"></select>
+        <select id="f_pi"></select>
       </div>
-      <div style="flex:1 1 110px">
+      <div>
         <label class="field" for="f_num">Sprint</label>
-        <select id="f_num" style="width:100%"></select>
+        <select id="f_num"></select>
       </div>
-      <div style="flex:1 1 130px">
+      <div>
         <label class="field" for="f_start">Start date</label>
-        <input type="date" id="f_start" style="width:100%">
+        <input type="date" id="f_start">
       </div>
-      <div style="flex:1 1 130px">
+      <div>
         <label class="field" for="f_end">End date</label>
-        <input type="date" id="f_end" style="width:100%">
+        <input type="date" id="f_end">
       </div>
     </div>
 
