@@ -1,0 +1,1666 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sprint Velocity — predictability tracker</title>
+<meta name="description" content="Track sprint predictability across teams: commitment completion, break-in, carryover, and velocity.">
+<link rel="icon" href="favicon.ico">
+<script>
+  /* Apply the saved theme before first paint so there's no light flash. */
+  try {
+    var t = localStorage.getItem('sv-theme');
+    document.documentElement.setAttribute('data-theme', t === 'light' ? 'light' : 'midnight');
+  } catch (e) {}
+</script>
+<link rel="stylesheet" href="theme.css">
+<!-- Vendored Chart.js (minified UMD build) — third-party library, do not hand-edit. -->
+<script src="chart.min.js"></script>
+<style>
+/* ── App-specific tokens ──────────────────────────────────────────────────────
+   theme.css is the canonical shared palette (copied from the lottery repo) and is
+   deliberately left untouched. Everything below is only what this app adds on top:
+   the categorical chart series colors and the translucent threshold bands, which
+   need a value per theme because CSS custom properties can't be alpha-blended at
+   read time by the charting code. All series colors clear 3:1 against their
+   theme's card background (WCAG 1.4.11, non-text contrast). */
+:root {
+  --c-committed:  #64748b;
+  --c-completed:  #2563eb;
+  --c-velocity:   #0f766e;
+  --c-added:      #b45309;
+  --c-removed:    #7c3aed;
+  --c-carry:      #be123c;
+  --band-green:   rgba(26,110,60,.09);
+  --band-yellow:  rgba(217,150,10,.22);
+  --band-red:     rgba(185,28,28,.14);
+  --shadow: 0 1px 2px rgba(0,0,0,.06), 0 4px 12px rgba(0,0,0,.04);
+}
+[data-theme="midnight"] {
+  --c-committed:  #94a3b8;
+  --c-completed:  #60a5fa;
+  --c-velocity:   #2dd4bf;
+  --c-added:      #fbbf24;
+  --c-removed:    #c4b5fd;
+  --c-carry:      #fb7185;
+  --band-green:   rgba(74,222,128,.09);
+  --band-yellow:  rgba(252,211,77,.16);
+  --band-red:     rgba(251,113,133,.15);
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.3);
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text-primary);
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 16px 64px; }
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+header {
+  position: sticky; top: 0; z-index: 20;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 0;
+  margin-bottom: 20px;
+}
+.headbar { max-width: 1180px; margin: 0 auto; padding: 0 16px;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.brand { font-size: 17px; font-weight: 700; letter-spacing: -.01em; margin-right: auto; }
+.brand span { color: var(--text-muted); font-weight: 500; }
+
+button, select, input, textarea { font: inherit; color: inherit; }
+.btn {
+  background: var(--bg-card-alt); color: var(--text-primary);
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  padding: 7px 12px; cursor: pointer; white-space: nowrap;
+}
+.btn:hover { border-color: var(--text-muted); }
+.btn.primary { background: var(--btn-bg); color: var(--btn-text); border-color: var(--btn-bg); }
+.btn.small { padding: 4px 9px; font-size: 13px; }
+select, input[type=text], input[type=number], input[type=date], textarea {
+  background: var(--bg-card); border: 1px solid var(--input-border);
+  border-radius: var(--radius-sm); padding: 7px 9px;
+}
+textarea { width: 100%; resize: vertical; min-height: 64px; }
+:focus-visible { outline: 2px solid var(--focus-border); outline-offset: 2px; }
+
+/* ── Tabs ───────────────────────────────────────────────────────────────── */
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 20px; }
+.tab {
+  background: none; border: 1px solid transparent; border-radius: var(--radius-sm);
+  padding: 8px 14px; cursor: pointer; color: var(--text-secondary); font-weight: 500;
+}
+.tab:hover { background: var(--bg-card-alt); color: var(--text-primary); }
+.tab[aria-selected="true"] {
+  background: var(--bg-card); border-color: var(--border-strong);
+  color: var(--text-primary); font-weight: 600;
+}
+
+/* ── Cards, tiles ───────────────────────────────────────────────────────── */
+.card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 18px; margin-bottom: 18px; box-shadow: var(--shadow);
+}
+.card > h2 { margin: 0 0 4px; font-size: 16px; letter-spacing: -.01em; }
+.card > .sub { margin: 0 0 16px; color: var(--text-secondary); font-size: 13px; }
+.tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+.tile {
+  border: 1px solid var(--border); border-left-width: 4px;
+  border-radius: var(--radius-sm); padding: 12px 14px; background: var(--bg-card-alt);
+}
+.tile .label { font-size: 12px; color: var(--text-secondary); text-transform: uppercase;
+  letter-spacing: .04em; font-weight: 600; }
+.tile .value { font-size: 26px; font-weight: 700; letter-spacing: -.02em; margin-top: 2px; }
+.tile .foot { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+/* RAG state. Colour is never the only signal: every tile also carries a glyph and
+   an aria-label spelling the status out (WCAG 1.4.1 use of colour). */
+.tile.green  { border-left-color: var(--green); }
+.tile.yellow { border-left-color: var(--amber); }
+.tile.red    { border-left-color: var(--red); }
+.tile.green  .value { color: var(--green); }
+.tile.yellow .value { color: var(--amber); }
+.tile.red    .value { color: var(--red); }
+.glyph { font-size: 15px; font-weight: 700; margin-left: 6px; vertical-align: 2px; }
+
+.pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px;
+  font-weight: 700; border: 1px solid; }
+.pill.green  { color: var(--green); background: var(--green-bg); border-color: var(--green); }
+.pill.yellow { color: var(--amber); background: var(--amber-bg); border-color: var(--amber); }
+.pill.red    { color: var(--red);   background: var(--red-bg);   border-color: var(--red); }
+.pill.none   { color: var(--text-muted); border-color: var(--border-strong); }
+
+/* ── Tables ─────────────────────────────────────────────────────────────── */
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: right; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+th:first-child, td:first-child { text-align: left; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--text-secondary); font-weight: 600; white-space: nowrap; }
+tbody tr:hover { background: var(--bg-card-alt); }
+tr.clickable { cursor: pointer; }
+tfoot td { font-weight: 700; border-top: 2px solid var(--border-strong); border-bottom: none; }
+td.muted, .muted { color: var(--text-muted); }
+
+/* ── Charts ─────────────────────────────────────────────────────────────── */
+.chartbox { position: relative; height: 320px; margin-top: 8px; }
+.chartbox.short { height: 260px; }
+.charts2 { display: grid; gap: 18px; grid-template-columns: 1fr; }
+@media (min-width: 900px) { .charts2 { grid-template-columns: 1fr 1fr; } }
+figcaption { font-size: 13px; color: var(--text-secondary); margin-bottom: 6px; }
+details.datatable { margin-top: 10px; }
+details.datatable summary { cursor: pointer; font-size: 13px; color: var(--text-secondary); }
+
+/* ── Toolbar rows, dialogs, misc ────────────────────────────────────────── */
+.row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.row.spread { justify-content: space-between; }
+label.field { display: block; font-size: 13px; color: var(--text-secondary);
+  font-weight: 600; margin-bottom: 4px; }
+.grid-fields { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.grid-fields input { width: 100%; }
+dialog {
+  border: 1px solid var(--border-strong); border-radius: var(--radius);
+  background: var(--bg-card); color: var(--text-primary);
+  padding: 20px; max-width: 620px; width: calc(100% - 32px); box-shadow: var(--shadow);
+}
+dialog::backdrop { background: rgba(0,0,0,.55); }
+dialog h3 { margin: 0 0 12px; font-size: 17px; }
+fieldset { border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 12px; margin: 14px 0 0; }
+legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--text-secondary); font-weight: 700; padding: 0 6px; }
+.warn { color: var(--err); font-size: 13px; margin-top: 10px; }
+.empty { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
+.empty h2 { color: var(--text-primary); }
+#toast {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+  background: var(--btn-bg); color: var(--btn-text); padding: 10px 18px;
+  border-radius: 999px; font-size: 14px; font-weight: 600; z-index: 100;
+  opacity: 0; pointer-events: none; transition: opacity .2s;
+}
+#toast.show { opacity: 1; }
+.privacy { font-size: 12px; color: var(--text-muted); text-align: center;
+  margin: 28px auto 0; max-width: 680px; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px;
+  color: var(--text-secondary); margin-top: 8px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px;
+  margin-right: 5px; vertical-align: 0; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="headbar">
+    <div class="brand">Sprint&nbsp;Velocity <span>· predictability tracker</span></div>
+    <label class="sr-only" for="teamSel">Team</label>
+    <select id="teamSel" title="Which team you're looking at"></select>
+    <button class="btn small" id="manageBtn" title="Add or rename teams and PIs">Teams &amp; PIs</button>
+    <button class="btn small" id="themeBtn" title="Switch between the light and midnight themes">Theme</button>
+    <button class="btn small" id="dataBtn" title="Back up or restore your data">Data</button>
+    <button class="btn small" id="syncBtn" hidden></button>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="tabs" role="tablist" aria-label="Views">
+    <button class="tab" role="tab" data-view="sprint"  aria-selected="true">Sprint</button>
+    <button class="tab" role="tab" data-view="pi"      aria-selected="false">Current PI</button>
+    <button class="tab" role="tab" data-view="rolling" aria-selected="false">Rolling 5</button>
+    <button class="tab" role="tab" data-view="teams"   aria-selected="false">All teams</button>
+  </div>
+
+  <main id="views"></main>
+
+  <p class="privacy" id="privacyNote">🔒 Private — your data is stored in this browser only. No account
+    needed. Sign in with Google if you want the same data on your other devices.</p>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<!-- ── Sprint editor ─────────────────────────────────────────────────────── -->
+<dialog id="sprintDialog">
+  <form method="dialog" id="sprintForm">
+    <h3 id="sprintDialogTitle">Sprint</h3>
+    <div class="row">
+      <div style="flex:1 1 160px">
+        <label class="field" for="f_pi">PI</label>
+        <select id="f_pi" style="width:100%"></select>
+      </div>
+      <div style="flex:1 1 110px">
+        <label class="field" for="f_num">Sprint</label>
+        <select id="f_num" style="width:100%"></select>
+      </div>
+      <div style="flex:1 1 130px">
+        <label class="field" for="f_start">Start date</label>
+        <input type="date" id="f_start" style="width:100%">
+      </div>
+      <div style="flex:1 1 130px">
+        <label class="field" for="f_end">End date</label>
+        <input type="date" id="f_end" style="width:100%">
+      </div>
+    </div>
+
+    <fieldset>
+      <legend>Commitment</legend>
+      <div class="grid-fields">
+        <div>
+          <label class="field" for="f_committed">Points committed</label>
+          <input type="number" id="f_committed" min="0" step="0.5" inputmode="decimal">
+        </div>
+        <div>
+          <label class="field" for="f_committedCompleted">Committed points completed</label>
+          <input type="number" id="f_committedCompleted" min="0" step="0.5" inputmode="decimal">
+        </div>
+        <div>
+          <label class="field" for="f_totalCompleted">Total points completed</label>
+          <input type="number" id="f_totalCompleted" min="0" step="0.5" inputmode="decimal">
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Change during the sprint</legend>
+      <div class="grid-fields">
+        <div>
+          <label class="field" for="f_added">Added after start</label>
+          <input type="number" id="f_added" min="0" step="0.5" inputmode="decimal">
+        </div>
+        <div>
+          <label class="field" for="f_removed">Removed after start</label>
+          <input type="number" id="f_removed" min="0" step="0.5" inputmode="decimal">
+        </div>
+        <div>
+          <label class="field" for="f_carriedIn">Carried in (from last sprint)</label>
+          <input type="number" id="f_carriedIn" min="0" step="0.5" inputmode="decimal">
+        </div>
+        <div>
+          <label class="field" for="f_carriedOut">Carried out (to next sprint)</label>
+          <input type="number" id="f_carriedOut" min="0" step="0.5" inputmode="decimal">
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Why? (optional)</legend>
+      <label class="field" for="f_n_added">Work added</label>
+      <textarea id="f_n_added" placeholder="e.g. production defect, unplanned dependency from Team B"></textarea>
+      <label class="field" for="f_n_removed" style="margin-top:10px">Work removed</label>
+      <textarea id="f_n_removed" placeholder="e.g. descoped by PO, blocked on vendor"></textarea>
+      <label class="field" for="f_n_carriedOut" style="margin-top:10px">Work carried over</label>
+      <textarea id="f_n_carriedOut" placeholder="e.g. story underestimated, key engineer out sick"></textarea>
+      <label class="field" for="f_n_general" style="margin-top:10px">General notes</label>
+      <textarea id="f_n_general" placeholder="Anything else worth remembering at the retro"></textarea>
+    </fieldset>
+
+    <p class="warn" id="sprintWarn" hidden></p>
+    <div class="row spread" style="margin-top:16px">
+      <button type="button" class="btn" id="sprintDeleteBtn">Delete</button>
+      <span class="row">
+        <button type="button" class="btn" id="sprintCancelBtn">Cancel</button>
+        <button type="button" class="btn primary" id="sprintSaveBtn">Save sprint</button>
+      </span>
+    </div>
+  </form>
+</dialog>
+
+<!-- ── Teams & PIs ───────────────────────────────────────────────────────── -->
+<dialog id="manageDialog">
+  <h3>Teams &amp; PIs</h3>
+  <div class="row spread"><strong style="font-size:14px">Teams</strong>
+    <button class="btn small" id="addTeamBtn">+ Add team</button></div>
+  <div class="tablewrap"><table><tbody id="teamRows"></tbody></table></div>
+  <div class="row spread" style="margin-top:20px"><strong style="font-size:14px">Program Increments</strong>
+    <button class="btn small" id="addPiBtn">+ Add PI</button></div>
+  <p class="sub muted" style="font-size:12px;margin:4px 0 0">Each PI holds 6 sprints. They're listed
+    oldest first — that order is what the rolling window walks back through.</p>
+  <div class="tablewrap"><table><tbody id="piRows"></tbody></table></div>
+  <div class="row" style="justify-content:flex-end;margin-top:18px">
+    <button class="btn primary" id="manageCloseBtn">Done</button>
+  </div>
+</dialog>
+
+<!-- ── Backup / restore ──────────────────────────────────────────────────── -->
+<dialog id="dataDialog">
+  <h3>Back up &amp; restore</h3>
+  <p class="sub">Your data lives in this browser. Export a JSON file to keep a backup, move to
+    another browser, or hand a colleague a starting point.</p>
+  <div class="row">
+    <button class="btn" id="exportBtn">⬇ Export JSON</button>
+    <button class="btn" id="importBtn">⬆ Import JSON…</button>
+    <input type="file" id="importFile" accept="application/json,.json" hidden>
+  </div>
+  <p class="sub muted" style="margin-top:14px">Importing replaces everything currently in this
+    browser. You'll be asked to confirm first.</p>
+  <div class="row" style="justify-content:flex-end;margin-top:18px">
+    <button class="btn primary" id="dataCloseBtn">Close</button>
+  </div>
+</dialog>
+
+<!-- ── First-sync reconciliation ─────────────────────────────────────────── -->
+<dialog id="syncChoiceDialog">
+  <h3>Two copies of your data</h3>
+  <p id="syncChoiceBody"></p>
+  <div class="row" style="justify-content:flex-end;margin-top:18px">
+    <button class="btn" id="syncKeepDeviceBtn">Keep this device's data</button>
+    <button class="btn primary" id="syncKeepGoogleBtn">Keep Google's data</button>
+  </div>
+</dialog>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   Sprint Velocity — sprint predictability tracking for Scrum Masters.
+
+   Everything is local-first: localStorage is the source of truth, and the
+   optional Firebase module at the bottom of this file only mirrors it. That
+   ordering matters — the app must keep working with no network and no account.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const STORAGE_KEY = 'sv-data';
+const SPRINTS_PER_PI = 6;
+const IP_SPRINT = 6;          // sprint 6 is the innovation & planning sprint
+const ROLLING_WINDOW = 5;
+
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+
+function blankState() {
+  return {
+    version: 1,
+    teams: [],
+    pis: [],
+    sprints: [],
+    settings: { activeTeamId: null, activePiId: null, includeSprint6InRolling: false, view: 'sprint' }
+  };
+}
+
+let state = load();
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return blankState();
+    const parsed = JSON.parse(raw);
+    return Object.assign(blankState(), parsed,
+      { settings: Object.assign(blankState().settings, parsed.settings || {}) });
+  } catch (e) {
+    console.warn('Could not read saved data', e);
+    return blankState();
+  }
+}
+
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  localStorage.setItem('sv-updated', String(Date.now()));
+  if (window.cloudPush) window.cloudPush();
+}
+
+/* ── Domain helpers ─────────────────────────────────────────────────────── */
+
+const teamById = (id) => state.teams.find(t => t.id === id) || null;
+const piById   = (id) => state.pis.find(p => p.id === id) || null;
+const piIndex  = (id) => state.pis.findIndex(p => p.id === id);
+
+function activeTeam() {
+  return teamById(state.settings.activeTeamId) || state.teams[0] || null;
+}
+
+/* Sprints for a team in program order: PI order first (the list in Teams & PIs is
+   oldest-first), then sprint number within the PI. */
+function teamSprints(teamId) {
+  return state.sprints
+    .filter(s => s.teamId === teamId)
+    .sort((a, b) => (piIndex(a.piId) - piIndex(b.piId)) || (a.sprintNumber - b.sprintNumber));
+}
+
+function findSprint(teamId, piId, num) {
+  return state.sprints.find(s => s.teamId === teamId && s.piId === piId && s.sprintNumber === num) || null;
+}
+
+/* The rolling window: the most recent N sprints for a team, crossing PI
+   boundaries. Sprint 6 is the IP sprint — excluded by default, because an
+   innovation-and-planning sprint isn't meant to look like a delivery sprint and
+   dragging it into the average makes every team look worse than they are. When
+   it's excluded the window simply reaches further back, so it's still N sprints. */
+function rollingSprints(teamId, includeSix) {
+  const all = teamSprints(teamId).filter(s => includeSix || s.sprintNumber !== IP_SPRINT);
+  return all.slice(-ROLLING_WINDOW);
+}
+
+/* ── Metrics ────────────────────────────────────────────────────────────────
+   The single place any of these numbers are calculated. Every tile, table and
+   chart reads from here, so a threshold or formula only ever changes in one spot.
+   All four percentages use committed points as the denominator. A sprint with
+   nothing committed returns nulls rather than zeros — it renders as "—" and drops
+   out of averages, instead of dragging them down as a fake 0%. */
+function metrics(s) {
+  const c = num(s.committed);
+  const pct = (v) => (c > 0 ? (num(v) / c) * 100 : null);
+  return {
+    committed:          c,
+    committedCompleted: num(s.committedCompleted),
+    added:              num(s.added),
+    removed:            num(s.removed),
+    carriedIn:          num(s.carriedIn),
+    carriedOut:         num(s.carriedOut),
+    velocity:           num(s.totalCompleted),
+    commitCompletePct:  pct(s.committedCompleted),
+    breakInPct:         pct(s.added),
+    removedPct:         pct(s.removed),
+    carryoverPct:       pct(s.carriedOut),
+    churnPct:           pct(num(s.added) + num(s.removed))
+  };
+}
+
+const num = (v) => (typeof v === 'number' && isFinite(v) ? v : parseFloat(v) || 0);
+
+/* RAG scales. 'completion' is higher-is-better, 'churn' is lower-is-better.
+   The stated bands left a gap between 84% and 85%, so the boundaries are pinned
+   here explicitly: >=85 green, 75–<85 yellow, <75 red; and <=15 green,
+   >15–<=20 yellow, >20 red. */
+function rag(value, scale) {
+  if (value === null || value === undefined || !isFinite(value)) return 'none';
+  if (scale === 'completion') return value >= 85 ? 'green' : value >= 75 ? 'yellow' : 'red';
+  return value <= 15 ? 'green' : value <= 20 ? 'yellow' : 'red';
+}
+
+const RAG_TEXT  = { green: 'On target', yellow: 'Watch', red: 'Off target', none: 'No data' };
+const RAG_GLYPH = { green: '✓', yellow: '!', red: '✕', none: '' };
+
+/* Mean of a metric across sprints, skipping the nulls described above. */
+function avg(sprints, key) {
+  const vals = sprints.map(s => metrics(s)[key]).filter(v => v !== null && isFinite(v));
+  if (!vals.length) return null;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+
+function sum(sprints, key) {
+  return sprints.reduce((a, s) => a + metrics(s)[key], 0);
+}
+
+/* ── Formatting ─────────────────────────────────────────────────────────── */
+
+const fmtPct = (v) => (v === null || v === undefined || !isFinite(v) ? '—' : v.toFixed(0) + '%');
+const fmtNum = (v) => (v === null || v === undefined || !isFinite(v) ? '—'
+  : (Math.round(v * 10) / 10).toLocaleString());
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
+  ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+
+function sprintLabel(s) {
+  const pi = piById(s.piId);
+  return (pi ? pi.name : 'PI?') + ' · S' + s.sprintNumber;
+}
+
+function tile(label, valueHtml, ragClass, foot) {
+  const status = RAG_TEXT[ragClass || 'none'];
+  const glyph = RAG_GLYPH[ragClass || 'none'];
+  return `<div class="tile ${ragClass || ''}">
+    <div class="label">${esc(label)}</div>
+    <div class="value">${valueHtml}${glyph ? `<span class="glyph" aria-hidden="true">${glyph}</span>` : ''}
+      ${ragClass && ragClass !== 'none' ? `<span class="sr-only">— ${status}</span>` : ''}</div>
+    ${foot ? `<div class="foot">${foot}</div>` : ''}
+  </div>`;
+}
+
+function pill(value, scale) {
+  const r = rag(value, scale);
+  return `<span class="pill ${r}">${fmtPct(value)}<span class="sr-only"> — ${RAG_TEXT[r]}</span></span>`;
+}
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.classList.remove('show'), 2600);
+}
+window.toast = toast;
+
+/* ═══════════════════════════════ Charts ═══════════════════════════════════
+   Chart.js reads its colours from the CSS custom properties so the two themes
+   stay in charge of the palette. Charts are destroyed and rebuilt on a theme
+   switch (see setTheme) because those values are resolved at construction time. */
+
+const charts = {};
+const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+function makeChart(canvasId, config) {
+  const el = document.getElementById(canvasId);
+  if (!el) return;
+  if (charts[canvasId]) charts[canvasId].destroy();
+  Chart.defaults.color = cssVar('--chart-tick');
+  Chart.defaults.borderColor = cssVar('--chart-grid');
+  Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+  charts[canvasId] = new Chart(el, config);
+}
+
+function destroyCharts() {
+  Object.keys(charts).forEach(k => { charts[k].destroy(); delete charts[k]; });
+}
+
+/* Shades the green/yellow/red zones behind the churn chart so a line crossing a
+   threshold is visible at a glance rather than needing a look at the axis. */
+const thresholdBands = {
+  id: 'thresholdBands',
+  beforeDatasetsDraw(chart, args, opts) {
+    if (!opts || !opts.bands) return;
+    const y = chart.scales.y, area = chart.chartArea;
+    if (!y || !area) return;
+    const { ctx } = chart;
+    ctx.save();
+    opts.bands.forEach(b => {
+      const top = y.getPixelForValue(Math.min(b.to, y.max));
+      const bottom = y.getPixelForValue(Math.max(b.from, y.min));
+      if (bottom <= top) return;
+      ctx.fillStyle = b.color;
+      ctx.fillRect(area.left, top, area.right - area.left, bottom - top);
+    });
+    ctx.restore();
+  }
+};
+Chart.register(thresholdBands);
+
+const gridOpts = () => ({ grid: { color: cssVar('--chart-grid') },
+  ticks: { color: cssVar('--chart-tick') } });
+
+function baseOptions(extra) {
+  return Object.assign({
+    responsive: true,
+    maintainAspectRatio: false,
+    /* No entry animation. This is a dashboard people scan, not a presentation —
+       and an animating chart is one you can't screenshot or read straight away. */
+    animation: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { labels: { color: cssVar('--text-secondary'), boxWidth: 12, boxHeight: 12,
+        usePointStyle: true, pointStyle: 'rectRounded' } },
+      tooltip: {
+        backgroundColor: cssVar('--bg-card-alt'),
+        titleColor: cssVar('--text-primary'),
+        bodyColor: cssVar('--text-secondary'),
+        borderColor: cssVar('--border-strong'),
+        borderWidth: 1, padding: 10
+      }
+    }
+  }, extra || {});
+}
+
+const pctAxis = (title) => Object.assign(gridOpts(), {
+  beginAtZero: true,
+  title: { display: !!title, text: title, color: cssVar('--text-secondary') },
+  ticks: { color: cssVar('--chart-tick'), callback: (v) => v + '%' }
+});
+
+/* ═══════════════════════════════ Views ════════════════════════════════════ */
+
+const viewsEl = document.getElementById('views');
+
+function render() {
+  renderTeamPicker();
+  destroyCharts();
+
+  if (!state.teams.length) { renderWelcome(); return; }
+
+  const view = state.settings.view || 'sprint';
+  document.querySelectorAll('.tab').forEach(t =>
+    t.setAttribute('aria-selected', String(t.dataset.view === view)));
+
+  if (view === 'sprint')       renderSprintView();
+  else if (view === 'pi')      renderPiView();
+  else if (view === 'rolling') renderRollingView();
+  else                         renderTeamsView();
+}
+
+function renderTeamPicker() {
+  const sel = document.getElementById('teamSel');
+  const active = activeTeam();
+  sel.innerHTML = state.teams.map(t =>
+    `<option value="${t.id}"${active && t.id === active.id ? ' selected' : ''}>${esc(t.name)}</option>`).join('');
+  sel.hidden = state.teams.length === 0;
+}
+
+function renderWelcome() {
+  viewsEl.innerHTML = `
+    <div class="card empty">
+      <h2>Track how predictable your teams are</h2>
+      <p>Record what each team committed to, what they finished, and what changed mid-sprint.
+         The app works out commitment completion, break-in, carryover and velocity, and flags
+         each against your targets.</p>
+      <div class="row" style="justify-content:center;margin-top:18px">
+        <button class="btn primary" id="welcomeAddBtn">Add your first team</button>
+        <button class="btn" id="welcomeSampleBtn">Load sample data</button>
+      </div>
+      <p class="muted" style="font-size:13px;margin-top:20px">
+        Targets: commitment completion <strong>≥85%</strong> green, 75–84% yellow, under 75% red ·
+        break-in, removed and carryover each <strong>≤15%</strong> green, 16–20% yellow, over 20% red.</p>
+    </div>`;
+  document.getElementById('welcomeAddBtn').onclick = () => { openManage(); addTeam(); };
+  document.getElementById('welcomeSampleBtn').onclick = loadSample;
+}
+
+/* ── View 1: single sprint ──────────────────────────────────────────────── */
+
+function renderSprintView() {
+  const team = activeTeam();
+  if (!state.pis.length) return renderNeedPi();
+
+  const pis = state.pis;
+  let piId = state.settings.activePiId && piById(state.settings.activePiId)
+    ? state.settings.activePiId : pis[pis.length - 1].id;
+  const numSel = state.settings.activeSprintNum || 1;
+  const s = findSprint(team.id, piId, numSel);
+  const m = s ? metrics(s) : null;
+
+  const selector = `
+    <div class="card">
+      <div class="row spread">
+        <div class="row">
+          <label class="sr-only" for="piSel">PI</label>
+          <select id="piSel">${pis.map(p =>
+            `<option value="${p.id}"${p.id === piId ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
+          <label class="sr-only" for="numSel">Sprint</label>
+          <select id="numSel">${Array.from({ length: SPRINTS_PER_PI }, (_, i) => i + 1).map(n =>
+            `<option value="${n}"${n === numSel ? ' selected' : ''}>Sprint ${n}${
+              n === IP_SPRINT ? ' (IP)' : ''}${findSprint(team.id, piId, n) ? '' : ' — no data'}</option>`).join('')}</select>
+        </div>
+        <button class="btn primary" id="editSprintBtn">${s ? 'Edit this sprint' : 'Add data for this sprint'}</button>
+      </div>
+    </div>`;
+
+  if (!s) {
+    viewsEl.innerHTML = selector + `<div class="card empty">
+      <h2>Nothing recorded yet</h2>
+      <p>${esc(team.name)} has no data for sprint ${numSel} of ${esc(piById(piId).name)}.</p>
+    </div>`;
+    wireSprintSelectors(piId, numSel);
+    return;
+  }
+
+  const notes = [
+    ['Work added', s.notes && s.notes.added],
+    ['Work removed', s.notes && s.notes.removed],
+    ['Work carried over', s.notes && s.notes.carriedOut],
+    ['General', s.notes && s.notes.general]
+  ].filter(([, v]) => v && v.trim());
+
+  const dropped = Math.max(0, m.committed - m.committedCompleted - m.carriedOut);
+  const addedDone = Math.max(0, m.velocity - m.committedCompleted);
+
+  viewsEl.innerHTML = selector + `
+    <div class="card">
+      <h2>${esc(team.name)} — ${esc(sprintLabel(s))}</h2>
+      <p class="sub">${s.startDate || s.endDate
+        ? esc([s.startDate, s.endDate].filter(Boolean).join(' → ')) : 'No dates set'}</p>
+      <div class="tiles">
+        ${tile('Commitment completion', fmtPct(m.commitCompletePct), rag(m.commitCompletePct, 'completion'),
+          `${fmtNum(m.committedCompleted)} of ${fmtNum(m.committed)} committed points`)}
+        ${tile('Break-in', fmtPct(m.breakInPct), rag(m.breakInPct, 'churn'),
+          `${fmtNum(m.added)} points added after start`)}
+        ${tile('Removed', fmtPct(m.removedPct), rag(m.removedPct, 'churn'),
+          `${fmtNum(m.removed)} points pulled out`)}
+        ${tile('Carryover', fmtPct(m.carryoverPct), rag(m.carryoverPct, 'churn'),
+          `${fmtNum(m.carriedOut)} points to next sprint`)}
+        ${tile('Velocity', fmtNum(m.velocity), null, 'total points completed')}
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Where the points went</h2>
+      <p class="sub">The top bar breaks the original commitment apart; the bottom bar shows everything
+        the team actually delivered, including work that arrived mid-sprint.</p>
+      <figure style="margin:0">
+        <div class="chartbox short">
+          <canvas id="sprintChart" role="img"
+            aria-label="Commitment of ${fmtNum(m.committed)} points: ${fmtNum(m.committedCompleted)} completed, ${fmtNum(m.carriedOut)} carried out, ${fmtNum(dropped)} dropped. Delivered ${fmtNum(m.velocity)} points total, of which ${fmtNum(addedDone)} was added work."></canvas>
+        </div>
+      </figure>
+      <div class="row" style="margin-top:12px">
+        <span class="muted" style="font-size:13px">Also this sprint:
+          <strong>${fmtNum(m.carriedIn)}</strong> points carried in ·
+          <strong>${fmtNum(m.added)}</strong> added ·
+          <strong>${fmtNum(m.removed)}</strong> removed</span>
+      </div>
+    </div>
+
+    ${notes.length ? `<div class="card">
+      <h2>Why</h2>
+      ${notes.map(([k, v]) => `<p style="margin:0 0 12px"><strong>${esc(k)}:</strong> ${esc(v)}</p>`).join('')}
+    </div>` : ''}`;
+
+  wireSprintSelectors(piId, numSel);
+
+  makeChart('sprintChart', {
+    type: 'bar',
+    data: {
+      labels: ['Committed', 'Delivered'],
+      datasets: [
+        { label: 'Completed from commitment', data: [m.committedCompleted, m.committedCompleted],
+          backgroundColor: cssVar('--c-completed'), maxBarThickness: 72 },
+        { label: 'Carried out', data: [m.carriedOut, 0], backgroundColor: cssVar('--c-carry'), maxBarThickness: 72 },
+        { label: 'Dropped', data: [dropped, 0], backgroundColor: cssVar('--c-committed'), maxBarThickness: 72 },
+        { label: 'Added work completed', data: [0, addedDone], backgroundColor: cssVar('--c-added'), maxBarThickness: 72 }
+      ]
+    },
+    options: baseOptions({
+      indexAxis: 'y',
+      scales: {
+        x: Object.assign(gridOpts(), { stacked: true, beginAtZero: true,
+          title: { display: true, text: 'Story points', color: cssVar('--text-secondary') } }),
+        y: Object.assign(gridOpts(), { stacked: true })
+      }
+    })
+  });
+}
+
+function wireSprintSelectors(piId, numSel) {
+  const piEl = document.getElementById('piSel');
+  const numEl = document.getElementById('numSel');
+  if (piEl) piEl.onchange = () => { state.settings.activePiId = piEl.value; save(); render(); };
+  if (numEl) numEl.onchange = () => {
+    state.settings.activeSprintNum = Number(numEl.value); save(); render();
+  };
+  const edit = document.getElementById('editSprintBtn');
+  if (edit) edit.onclick = () => openSprint(activeTeam().id, piId, numSel);
+}
+
+function renderNeedPi() {
+  viewsEl.innerHTML = `<div class="card empty">
+    <h2>Add a Program Increment first</h2>
+    <p>Sprints live inside a PI. Create one — "PI 2026.3", say — and you can start entering data.</p>
+    <div class="row" style="justify-content:center;margin-top:16px">
+      <button class="btn primary" id="needPiBtn">Add a PI</button></div>
+  </div>`;
+  document.getElementById('needPiBtn').onclick = () => { openManage(); addPi(); };
+}
+
+/* ── View 2: current PI ─────────────────────────────────────────────────── */
+
+function renderPiView() {
+  const team = activeTeam();
+  if (!state.pis.length) return renderNeedPi();
+
+  const piId = state.settings.activePiId && piById(state.settings.activePiId)
+    ? state.settings.activePiId : state.pis[state.pis.length - 1].id;
+  const pi = piById(piId);
+  const nums = Array.from({ length: SPRINTS_PER_PI }, (_, i) => i + 1);
+  const rows = nums.map(n => ({ n, s: findSprint(team.id, piId, n) }));
+  const present = rows.filter(r => r.s).map(r => r.s);
+
+  const piCommitted = sum(present, 'committed');
+  const piCompleted = sum(present, 'committedCompleted');
+  const piVelocity = sum(present, 'velocity');
+  const piCommitPct = piCommitted > 0 ? (piCompleted / piCommitted) * 100 : null;
+  const avgCommitPct = avg(present, 'commitCompletePct');
+
+  viewsEl.innerHTML = `
+    <div class="card">
+      <div class="row spread">
+        <div class="row">
+          <label class="sr-only" for="piSel2">PI</label>
+          <select id="piSel2">${state.pis.map(p =>
+            `<option value="${p.id}"${p.id === piId ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
+        </div>
+        <span class="muted" style="font-size:13px">${present.length} of ${SPRINTS_PER_PI} sprints recorded</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>${esc(team.name)} — ${esc(pi.name)}</h2>
+      <p class="sub">Totals across every sprint recorded in this PI.</p>
+      <div class="tiles">
+        ${tile('PI commitment completion', fmtPct(piCommitPct), rag(piCommitPct, 'completion'),
+          `${fmtNum(piCompleted)} of ${fmtNum(piCommitted)} committed points`)}
+        ${tile('Average per sprint', fmtPct(avgCommitPct), rag(avgCommitPct, 'completion'),
+          'mean of each sprint’s completion')}
+        ${tile('Total delivered', fmtNum(piVelocity), null, 'points completed this PI')}
+        ${tile('Break-in', fmtPct(avg(present, 'breakInPct')), rag(avg(present, 'breakInPct'), 'churn'),
+          `${fmtNum(sum(present, 'added'))} points added in total`)}
+        ${tile('Carryover', fmtPct(avg(present, 'carryoverPct')), rag(avg(present, 'carryoverPct'), 'churn'),
+          `${fmtNum(sum(present, 'carriedOut'))} points carried out`)}
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Sprint by sprint</h2>
+      <p class="sub">Bars are story points on the left axis; the line is commitment completion on the right.</p>
+      <div class="chartbox"><canvas id="piChart" role="img"
+        aria-label="Committed, completed and delivered points per sprint for ${esc(pi.name)}, with commitment completion percentage. Full figures in the table below."></canvas></div>
+    </div>
+
+    <div class="card">
+      <h2>The numbers</h2>
+      <p class="sub">Click any sprint to add or edit its data.</p>
+      <div class="tablewrap">
+      <table>
+        <thead><tr>
+          <th>Sprint</th><th>Committed</th><th>Cmt. done</th><th>Complete %</th>
+          <th>Added</th><th>Removed</th><th>Carried in</th><th>Carried out</th>
+          <th>Total done</th><th>Notes</th>
+        </tr></thead>
+        <tbody>${rows.map(({ n, s }) => {
+          if (!s) return `<tr class="clickable" data-num="${n}"><td>Sprint ${n}${
+            n === IP_SPRINT ? ' (IP)' : ''}</td><td colspan="9" class="muted">No data — click to add</td></tr>`;
+          const m = metrics(s);
+          const hasNotes = s.notes && Object.values(s.notes).some(v => v && v.trim());
+          return `<tr class="clickable" data-num="${n}">
+            <td>Sprint ${n}${n === IP_SPRINT ? ' (IP)' : ''}</td>
+            <td>${fmtNum(m.committed)}</td>
+            <td>${fmtNum(m.committedCompleted)}</td>
+            <td>${pill(m.commitCompletePct, 'completion')}</td>
+            <td>${fmtNum(m.added)}</td>
+            <td>${fmtNum(m.removed)}</td>
+            <td>${fmtNum(m.carriedIn)}</td>
+            <td>${fmtNum(m.carriedOut)}</td>
+            <td>${fmtNum(m.velocity)}</td>
+            <td>${hasNotes ? '💬' : ''}</td></tr>`;
+        }).join('')}</tbody>
+        <tfoot><tr>
+          <td>PI total</td><td>${fmtNum(piCommitted)}</td><td>${fmtNum(piCompleted)}</td>
+          <td>${pill(piCommitPct, 'completion')}</td>
+          <td>${fmtNum(sum(present, 'added'))}</td><td>${fmtNum(sum(present, 'removed'))}</td>
+          <td>${fmtNum(sum(present, 'carriedIn'))}</td><td>${fmtNum(sum(present, 'carriedOut'))}</td>
+          <td>${fmtNum(piVelocity)}</td><td></td>
+        </tr></tfoot>
+      </table></div>
+    </div>`;
+
+  document.getElementById('piSel2').onchange = (e) => {
+    state.settings.activePiId = e.target.value; save(); render();
+  };
+  viewsEl.querySelectorAll('tr.clickable').forEach(tr => {
+    tr.onclick = () => openSprint(team.id, piId, Number(tr.dataset.num));
+  });
+
+  makeChart('piChart', {
+    data: {
+      labels: nums.map(n => 'S' + n + (n === IP_SPRINT ? ' (IP)' : '')),
+      datasets: [
+        { type: 'bar', label: 'Committed', yAxisID: 'y',
+          data: rows.map(r => r.s ? metrics(r.s).committed : null),
+          backgroundColor: cssVar('--c-committed'), maxBarThickness: 56 },
+        { type: 'bar', label: 'Committed completed', yAxisID: 'y',
+          data: rows.map(r => r.s ? metrics(r.s).committedCompleted : null),
+          backgroundColor: cssVar('--c-completed'), maxBarThickness: 56 },
+        { type: 'bar', label: 'Total completed', yAxisID: 'y',
+          data: rows.map(r => r.s ? metrics(r.s).velocity : null),
+          backgroundColor: cssVar('--c-velocity'), maxBarThickness: 56 },
+        { type: 'line', label: 'Commitment completion %', yAxisID: 'y1',
+          data: rows.map(r => r.s ? metrics(r.s).commitCompletePct : null),
+          borderColor: cssVar('--text-primary'), backgroundColor: cssVar('--text-primary'),
+          borderWidth: 2, tension: .25, pointRadius: 4, spanGaps: true }
+      ]
+    },
+    options: baseOptions({
+      scales: {
+        x: gridOpts(),
+        y: Object.assign(gridOpts(), { beginAtZero: true,
+          title: { display: true, text: 'Story points', color: cssVar('--text-secondary') } }),
+        y1: Object.assign(pctAxis('Completion'), { position: 'right', max: 110,
+          grid: { drawOnChartArea: false } })
+      }
+    })
+  });
+}
+
+/* ── View 3: rolling 5 sprints ──────────────────────────────────────────── */
+
+function renderRollingView() {
+  const team = activeTeam();
+  const includeSix = !!state.settings.includeSprint6InRolling;
+  const rs = rollingSprints(team.id, includeSix);
+
+  if (!rs.length) {
+    viewsEl.innerHTML = rollingToolbar(includeSix) + `<div class="card empty">
+      <h2>No sprints recorded yet</h2>
+      <p>Add some sprint data for ${esc(team.name)} and the rolling trend will build itself.</p>
+    </div>`;
+    wireRollingToolbar();
+    return;
+  }
+
+  const aCommit = avg(rs, 'commitCompletePct');
+  const aBreak  = avg(rs, 'breakInPct');
+  const aRemove = avg(rs, 'removedPct');
+  const aCarry  = avg(rs, 'carryoverPct');
+  const aVel    = avg(rs, 'velocity');
+  const labels  = rs.map(sprintLabel);
+
+  viewsEl.innerHTML = rollingToolbar(includeSix) + `
+    <div class="card">
+      <h2>${esc(team.name)} — last ${rs.length} sprint${rs.length === 1 ? '' : 's'}</h2>
+      <p class="sub">${esc(labels[0])} → ${esc(labels[labels.length - 1])}${
+        includeSix ? '' : ' · sprint 6 (IP) excluded'}</p>
+      <div class="tiles">
+        ${tile('Avg commitment completion', fmtPct(aCommit), rag(aCommit, 'completion'), 'target ≥85%')}
+        ${tile('Avg break-in', fmtPct(aBreak), rag(aBreak, 'churn'), 'target ≤15%')}
+        ${tile('Avg removed', fmtPct(aRemove), rag(aRemove, 'churn'), 'target ≤15%')}
+        ${tile('Avg carryover', fmtPct(aCarry), rag(aCarry, 'churn'), 'target ≤15%')}
+        ${tile('Avg velocity', fmtNum(aVel), null, 'points completed per sprint')}
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Velocity and commitment completion</h2>
+      <p class="sub">How much the team delivers, next to how much of what they promised they finished.
+        A team can be fast and unpredictable, or steady and reliable — this is where you see which.</p>
+      <div class="chartbox"><canvas id="rollChart" role="img"
+        aria-label="Total points completed and committed points completed per sprint as bars, with commitment completion percentage as a line. Figures in the table below."></canvas></div>
+      <div class="legend"><span><i style="background:var(--green)"></i>≥85% target line on the right axis</span></div>
+    </div>
+
+    <div class="card">
+      <h2>Instability: break-in, removed, carryover</h2>
+      <p class="sub">Each as a share of what was committed. The background is shaded green up to 15%,
+        yellow to 20%, red above — a line drifting up out of the green band is the early warning.</p>
+      <div class="chartbox"><canvas id="churnChart" role="img"
+        aria-label="Break-in, removed and carryover percentages per sprint against the 15 percent and 20 percent thresholds. Figures in the table below."></canvas></div>
+    </div>
+
+    <div class="card">
+      <h2>The numbers</h2>
+      <p class="sub">Click any sprint to edit it.</p>
+      <div class="tablewrap">
+      <table>
+        <thead><tr><th>Sprint</th><th>Committed</th><th>Cmt. done</th><th>Complete %</th>
+          <th>Break-in %</th><th>Removed %</th><th>Carryover %</th><th>Velocity</th></tr></thead>
+        <tbody>${rs.map(s => {
+          const m = metrics(s);
+          return `<tr class="clickable" data-id="${s.id}">
+            <td>${esc(sprintLabel(s))}</td>
+            <td>${fmtNum(m.committed)}</td>
+            <td>${fmtNum(m.committedCompleted)}</td>
+            <td>${pill(m.commitCompletePct, 'completion')}</td>
+            <td>${pill(m.breakInPct, 'churn')}</td>
+            <td>${pill(m.removedPct, 'churn')}</td>
+            <td>${pill(m.carryoverPct, 'churn')}</td>
+            <td>${fmtNum(m.velocity)}</td></tr>`;
+        }).join('')}</tbody>
+        <tfoot><tr><td>Average</td><td>${fmtNum(avg(rs, 'committed'))}</td>
+          <td>${fmtNum(avg(rs, 'committedCompleted'))}</td>
+          <td>${pill(aCommit, 'completion')}</td><td>${pill(aBreak, 'churn')}</td>
+          <td>${pill(aRemove, 'churn')}</td><td>${pill(aCarry, 'churn')}</td>
+          <td>${fmtNum(aVel)}</td></tr></tfoot>
+      </table></div>
+    </div>`;
+
+  wireRollingToolbar();
+  viewsEl.querySelectorAll('tr.clickable').forEach(tr => {
+    const s = state.sprints.find(x => x.id === tr.dataset.id);
+    tr.onclick = () => openSprint(s.teamId, s.piId, s.sprintNumber);
+  });
+
+  makeChart('rollChart', {
+    data: {
+      labels,
+      datasets: [
+        { type: 'bar', label: 'Total completed (velocity)', yAxisID: 'y',
+          data: rs.map(s => metrics(s).velocity), backgroundColor: cssVar('--c-velocity'), maxBarThickness: 56 },
+        { type: 'bar', label: 'Committed completed', yAxisID: 'y',
+          data: rs.map(s => metrics(s).committedCompleted), backgroundColor: cssVar('--c-completed'), maxBarThickness: 56 },
+        { type: 'line', label: 'Commitment completion %', yAxisID: 'y1',
+          data: rs.map(s => metrics(s).commitCompletePct),
+          borderColor: cssVar('--text-primary'), backgroundColor: cssVar('--text-primary'),
+          borderWidth: 2, tension: .25, pointRadius: 4, spanGaps: true },
+        { type: 'line', label: 'Target 85%', yAxisID: 'y1', data: rs.map(() => 85),
+          borderColor: cssVar('--green'), borderWidth: 1.5, borderDash: [6, 4],
+          pointRadius: 0, fill: false }
+      ]
+    },
+    options: baseOptions({
+      scales: {
+        x: gridOpts(),
+        y: Object.assign(gridOpts(), { beginAtZero: true,
+          title: { display: true, text: 'Story points', color: cssVar('--text-secondary') } }),
+        y1: Object.assign(pctAxis('Completion'), { position: 'right', max: 110,
+          grid: { drawOnChartArea: false } })
+      }
+    })
+  });
+
+  makeChart('churnChart', {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Break-in %', data: rs.map(s => metrics(s).breakInPct),
+          borderColor: cssVar('--c-added'), backgroundColor: cssVar('--c-added'),
+          borderWidth: 2, tension: .25, pointRadius: 4, spanGaps: true },
+        { label: 'Removed %', data: rs.map(s => metrics(s).removedPct),
+          borderColor: cssVar('--c-removed'), backgroundColor: cssVar('--c-removed'),
+          borderWidth: 2, tension: .25, pointRadius: 4, spanGaps: true, borderDash: [5, 3] },
+        { label: 'Carryover %', data: rs.map(s => metrics(s).carryoverPct),
+          borderColor: cssVar('--c-carry'), backgroundColor: cssVar('--c-carry'),
+          borderWidth: 2, tension: .25, pointRadius: 4, spanGaps: true }
+      ]
+    },
+    options: baseOptions({
+      plugins: {
+        thresholdBands: { bands: [
+          { from: 0,  to: 15,   color: cssVar('--band-green') },
+          { from: 15, to: 20,   color: cssVar('--band-yellow') },
+          { from: 20, to: 1000, color: cssVar('--band-red') }
+        ] },
+        legend: { labels: { color: cssVar('--text-secondary'), boxWidth: 12, boxHeight: 12,
+          usePointStyle: true, pointStyle: 'rectRounded' } }
+      },
+      scales: { x: gridOpts(),
+        /* Always show past the 20% line even when a team is comfortably inside the
+           green band — otherwise the axis auto-scales to the data, the yellow and
+           red zones vanish, and two teams' charts can't be compared by eye. */
+        y: Object.assign(pctAxis('% of committed points'), { suggestedMax: 25 }) }
+    })
+  });
+}
+
+function rollingToolbar(includeSix) {
+  return `<div class="card">
+    <div class="row spread">
+      <label class="row" style="gap:8px;cursor:pointer;font-size:14px">
+        <input type="checkbox" id="incSix"${includeSix ? ' checked' : ''}>
+        Include sprint 6 (IP) in the rolling average
+      </label>
+      <span class="muted" style="font-size:13px">Off by default — the IP sprint is for innovation
+        and planning, not delivery.</span>
+    </div>
+  </div>`;
+}
+
+function wireRollingToolbar() {
+  const el = document.getElementById('incSix');
+  if (el) el.onchange = () => {
+    state.settings.includeSprint6InRolling = el.checked; save(); render();
+  };
+}
+
+/* ── View 4: all teams ──────────────────────────────────────────────────── */
+
+function renderTeamsView() {
+  const includeSix = !!state.settings.includeSprint6InRolling;
+  const rowsData = state.teams.map(t => {
+    const rs = rollingSprints(t.id, includeSix);
+    return {
+      team: t, count: rs.length,
+      commit: avg(rs, 'commitCompletePct'),
+      breakIn: avg(rs, 'breakInPct'),
+      removed: avg(rs, 'removedPct'),
+      carry: avg(rs, 'carryoverPct'),
+      vel: avg(rs, 'velocity')
+    };
+  });
+  const withData = rowsData.filter(r => r.count > 0);
+
+  viewsEl.innerHTML = rollingToolbar(includeSix) + `
+    <div class="card">
+      <h2>All teams — rolling ${ROLLING_WINDOW}-sprint averages</h2>
+      <p class="sub">Every team you support, side by side${includeSix ? '' : ', with sprint 6 excluded'}.
+        ${withData.length ? '' : 'No team has sprint data yet.'}</p>
+      ${withData.length ? `<div class="chartbox"><canvas id="teamsChart" role="img"
+        aria-label="Average commitment completion percentage by team against the 85 percent target. Figures in the table below."></canvas></div>` : ''}
+    </div>
+
+    <div class="card">
+      <h2>Comparison</h2>
+      <p class="sub">Click a team to switch to it.</p>
+      <div class="tablewrap">
+      <table>
+        <thead><tr><th>Team</th><th>Sprints</th><th>Commitment completion</th>
+          <th>Break-in</th><th>Removed</th><th>Carryover</th><th>Avg velocity</th></tr></thead>
+        <tbody>${rowsData.map(r => `<tr class="clickable" data-id="${r.team.id}">
+          <td>${esc(r.team.name)}</td>
+          <td>${r.count}</td>
+          <td>${pill(r.commit, 'completion')}</td>
+          <td>${pill(r.breakIn, 'churn')}</td>
+          <td>${pill(r.removed, 'churn')}</td>
+          <td>${pill(r.carry, 'churn')}</td>
+          <td>${fmtNum(r.vel)}</td></tr>`).join('')}</tbody>
+      </table></div>
+    </div>`;
+
+  viewsEl.querySelectorAll('tr.clickable').forEach(tr => {
+    tr.onclick = () => {
+      state.settings.activeTeamId = tr.dataset.id;
+      state.settings.view = 'rolling';
+      save(); render();
+    };
+  });
+  wireRollingToolbar();
+
+  if (withData.length) {
+    makeChart('teamsChart', {
+      data: {
+        labels: withData.map(r => r.team.name),
+        datasets: [
+          { type: 'bar', label: 'Avg commitment completion %',
+            data: withData.map(r => r.commit),
+            maxBarThickness: 72,
+            backgroundColor: withData.map(r => {
+              const key = rag(r.commit, 'completion');
+              return key === 'green' ? cssVar('--green') : key === 'yellow' ? cssVar('--amber') : cssVar('--red');
+            }) },
+          { type: 'line', label: 'Target 85%', data: withData.map(() => 85),
+            borderColor: cssVar('--text-secondary'), borderWidth: 1.5, borderDash: [6, 4],
+            pointRadius: 0 }
+        ]
+      },
+      options: baseOptions({
+        plugins: { legend: { display: false } },
+        scales: { x: gridOpts(), y: Object.assign(pctAxis('Commitment completion'), { max: 110 }) }
+      })
+    });
+  }
+}
+
+/* ═════════════════════════════ Sprint editor ══════════════════════════════ */
+
+let editing = null;   // { teamId, piId, sprintNumber, id? }
+
+const F = (id) => document.getElementById(id);
+const sprintDialog = F('sprintDialog');
+
+function openSprint(teamId, piId, sprintNumber) {
+  const existing = findSprint(teamId, piId, sprintNumber);
+  editing = { teamId, piId, sprintNumber, id: existing ? existing.id : null };
+
+  F('sprintDialogTitle').textContent =
+    `${teamById(teamId).name} — ${piById(piId).name} · Sprint ${sprintNumber}`;
+  F('f_pi').innerHTML = state.pis.map(p =>
+    `<option value="${p.id}"${p.id === piId ? ' selected' : ''}>${esc(p.name)}</option>`).join('');
+  F('f_num').innerHTML = Array.from({ length: SPRINTS_PER_PI }, (_, i) => i + 1).map(n =>
+    `<option value="${n}"${n === sprintNumber ? ' selected' : ''}>Sprint ${n}${
+      n === IP_SPRINT ? ' (IP)' : ''}</option>`).join('');
+
+  const s = existing || {};
+  const n = s.notes || {};
+  F('f_start').value = s.startDate || '';
+  F('f_end').value = s.endDate || '';
+  ['committed', 'committedCompleted', 'totalCompleted', 'added', 'removed', 'carriedIn', 'carriedOut']
+    .forEach(k => { F('f_' + k).value = (s[k] === 0 || s[k]) ? s[k] : ''; });
+  F('f_n_added').value = n.added || '';
+  F('f_n_removed').value = n.removed || '';
+  F('f_n_carriedOut').value = n.carriedOut || '';
+  F('f_n_general').value = n.general || '';
+
+  /* Carried-out and total-completed have obvious defaults, but only until the user
+     types their own — some unfinished work gets dropped rather than carried, and
+     total completed usually exceeds the committed part once break-in lands. */
+  F('f_carriedOut').dataset.touched = existing && existing.carriedOut != null ? '1' : '';
+  F('f_totalCompleted').dataset.touched = existing && existing.totalCompleted != null ? '1' : '';
+
+  F('sprintDeleteBtn').hidden = !existing;
+  checkSprintForm();
+  sprintDialog.showModal();
+}
+
+function autofillSprintForm() {
+  const committed = parseFloat(F('f_committed').value);
+  const done = parseFloat(F('f_committedCompleted').value);
+  if (isFinite(committed) && isFinite(done)) {
+    if (!F('f_carriedOut').dataset.touched) F('f_carriedOut').value = Math.max(0, committed - done);
+    if (!F('f_totalCompleted').dataset.touched) F('f_totalCompleted').value = done;
+  }
+}
+
+function checkSprintForm() {
+  const v = (id) => parseFloat(F(id).value) || 0;
+  const msgs = [];
+  if (v('f_committedCompleted') > v('f_committed'))
+    msgs.push('Committed points completed is higher than points committed.');
+  if (F('f_totalCompleted').value !== '' && v('f_totalCompleted') < v('f_committedCompleted'))
+    msgs.push('Total completed is lower than the committed points completed.');
+  if (v('f_carriedOut') > v('f_committed'))
+    msgs.push('Carried out is higher than points committed.');
+  const el = F('sprintWarn');
+  el.hidden = !msgs.length;
+  el.textContent = msgs.length ? '⚠ ' + msgs.join(' ') + ' Saving anyway is fine if that’s right.' : '';
+}
+
+['f_committed', 'f_committedCompleted'].forEach(id =>
+  F(id).addEventListener('input', () => { autofillSprintForm(); checkSprintForm(); }));
+['f_carriedOut', 'f_totalCompleted'].forEach(id =>
+  F(id).addEventListener('input', (e) => { e.target.dataset.touched = '1'; checkSprintForm(); }));
+['f_added', 'f_removed', 'f_carriedIn'].forEach(id =>
+  F(id).addEventListener('input', checkSprintForm));
+
+F('sprintCancelBtn').onclick = () => sprintDialog.close();
+
+F('sprintSaveBtn').onclick = () => {
+  const val = (id) => { const raw = F(id).value; return raw === '' ? 0 : (parseFloat(raw) || 0); };
+  const piId = F('f_pi').value;
+  const sprintNumber = Number(F('f_num').value);
+
+  /* Moving a sprint onto a slot that already has data would silently create a
+     duplicate, so block it rather than quietly merging the two. */
+  const clash = findSprint(editing.teamId, piId, sprintNumber);
+  if (clash && clash.id !== editing.id) {
+    toast('That sprint already has data — edit it instead');
+    return;
+  }
+
+  const record = {
+    id: editing.id || uid(),
+    teamId: editing.teamId,
+    piId, sprintNumber,
+    startDate: F('f_start').value || '',
+    endDate: F('f_end').value || '',
+    committed: val('f_committed'),
+    committedCompleted: val('f_committedCompleted'),
+    totalCompleted: val('f_totalCompleted'),
+    added: val('f_added'),
+    removed: val('f_removed'),
+    carriedIn: val('f_carriedIn'),
+    carriedOut: val('f_carriedOut'),
+    notes: {
+      added: F('f_n_added').value.trim(),
+      removed: F('f_n_removed').value.trim(),
+      carriedOut: F('f_n_carriedOut').value.trim(),
+      general: F('f_n_general').value.trim()
+    }
+  };
+
+  const i = state.sprints.findIndex(s => s.id === record.id);
+  if (i >= 0) state.sprints[i] = record; else state.sprints.push(record);
+
+  state.settings.activePiId = piId;
+  state.settings.activeSprintNum = sprintNumber;
+  save();
+  sprintDialog.close();
+  render();
+  toast('Sprint saved');
+};
+
+F('sprintDeleteBtn').onclick = () => {
+  if (!editing || !editing.id) return;
+  if (!confirm('Delete this sprint’s data? This can’t be undone.')) return;
+  state.sprints = state.sprints.filter(s => s.id !== editing.id);
+  save();
+  sprintDialog.close();
+  render();
+  toast('Sprint deleted');
+};
+
+/* ═════════════════════════ Teams & PIs management ═════════════════════════ */
+
+const manageDialog = F('manageDialog');
+
+function openManage() { renderManage(); manageDialog.showModal(); }
+
+function renderManage() {
+  F('teamRows').innerHTML = state.teams.length ? state.teams.map(t => `
+    <tr><td>${esc(t.name)}</td>
+      <td class="muted">${state.sprints.filter(s => s.teamId === t.id).length} sprints</td>
+      <td style="white-space:nowrap">
+        <button class="btn small" data-rename-team="${t.id}">Rename</button>
+        <button class="btn small" data-del-team="${t.id}">Delete</button></td></tr>`).join('')
+    : '<tr><td class="muted">No teams yet.</td></tr>';
+
+  F('piRows').innerHTML = state.pis.length ? state.pis.map((p, i) => `
+    <tr><td>${esc(p.name)}</td>
+      <td class="muted">${state.sprints.filter(s => s.piId === p.id).length} sprints</td>
+      <td style="white-space:nowrap">
+        <button class="btn small" data-up-pi="${p.id}"${i === 0 ? ' disabled' : ''} title="Move earlier">↑</button>
+        <button class="btn small" data-down-pi="${p.id}"${i === state.pis.length - 1 ? ' disabled' : ''} title="Move later">↓</button>
+        <button class="btn small" data-rename-pi="${p.id}">Rename</button>
+        <button class="btn small" data-del-pi="${p.id}">Delete</button></td></tr>`).join('')
+    : '<tr><td class="muted">No PIs yet.</td></tr>';
+
+  manageDialog.querySelectorAll('[data-rename-team]').forEach(b => b.onclick = () => {
+    const t = teamById(b.dataset.renameTeam);
+    const name = prompt('Team name', t.name);
+    if (name && name.trim()) { t.name = name.trim(); save(); renderManage(); render(); }
+  });
+  manageDialog.querySelectorAll('[data-del-team]').forEach(b => b.onclick = () => {
+    const t = teamById(b.dataset.delTeam);
+    const n = state.sprints.filter(s => s.teamId === t.id).length;
+    if (!confirm(`Delete ${t.name}${n ? ` and its ${n} sprint${n === 1 ? '' : 's'} of data` : ''}? This can’t be undone.`)) return;
+    state.teams = state.teams.filter(x => x.id !== t.id);
+    state.sprints = state.sprints.filter(s => s.teamId !== t.id);
+    if (state.settings.activeTeamId === t.id)
+      state.settings.activeTeamId = state.teams[0] ? state.teams[0].id : null;
+    save(); renderManage(); render();
+  });
+  manageDialog.querySelectorAll('[data-rename-pi]').forEach(b => b.onclick = () => {
+    const p = piById(b.dataset.renamePi);
+    const name = prompt('PI name', p.name);
+    if (name && name.trim()) { p.name = name.trim(); save(); renderManage(); render(); }
+  });
+  manageDialog.querySelectorAll('[data-del-pi]').forEach(b => b.onclick = () => {
+    const p = piById(b.dataset.delPi);
+    const n = state.sprints.filter(s => s.piId === p.id).length;
+    if (!confirm(`Delete ${p.name}${n ? ` and its ${n} sprint${n === 1 ? '' : 's'} of data (all teams)` : ''}? This can’t be undone.`)) return;
+    state.pis = state.pis.filter(x => x.id !== p.id);
+    state.sprints = state.sprints.filter(s => s.piId !== p.id);
+    if (state.settings.activePiId === p.id) state.settings.activePiId = null;
+    save(); renderManage(); render();
+  });
+  manageDialog.querySelectorAll('[data-up-pi]').forEach(b => b.onclick = () => movePi(b.dataset.upPi, -1));
+  manageDialog.querySelectorAll('[data-down-pi]').forEach(b => b.onclick = () => movePi(b.dataset.downPi, 1));
+}
+
+/* PI order is the app's sense of time — the rolling window walks back through this
+   list — so it's reorderable rather than fixed to creation order. */
+function movePi(id, delta) {
+  const i = piIndex(id);
+  const j = i + delta;
+  if (i < 0 || j < 0 || j >= state.pis.length) return;
+  const [p] = state.pis.splice(i, 1);
+  state.pis.splice(j, 0, p);
+  save(); renderManage(); render();
+}
+
+function addTeam() {
+  const name = prompt('Team name', '');
+  if (!name || !name.trim()) return;
+  const t = { id: uid(), name: name.trim() };
+  state.teams.push(t);
+  if (!state.settings.activeTeamId) state.settings.activeTeamId = t.id;
+  save(); renderManage(); render();
+}
+
+function addPi() {
+  const suggestion = state.pis.length ? '' : 'PI 1';
+  const name = prompt('PI name (e.g. "PI 2026.3")', suggestion);
+  if (!name || !name.trim()) return;
+  state.pis.push({ id: uid(), name: name.trim(), sprintCount: SPRINTS_PER_PI });
+  save(); renderManage(); render();
+}
+
+F('addTeamBtn').onclick = addTeam;
+F('addPiBtn').onclick = addPi;
+F('manageCloseBtn').onclick = () => manageDialog.close();
+F('manageBtn').onclick = openManage;
+
+/* ═══════════════════════════ Backup & restore ═════════════════════════════ */
+
+const dataDialog = F('dataDialog');
+F('dataBtn').onclick = () => dataDialog.showModal();
+F('dataCloseBtn').onclick = () => dataDialog.close();
+
+F('exportBtn').onclick = () => {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `sprint-velocity-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('Exported');
+};
+
+F('importBtn').onclick = () => F('importFile').click();
+F('importFile').onchange = (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const parsed = JSON.parse(reader.result);
+      if (!parsed || !Array.isArray(parsed.teams) || !Array.isArray(parsed.sprints))
+        throw new Error('not a Sprint Velocity export');
+      const msg = `Replace everything in this browser with ${parsed.teams.length} team(s) and `
+        + `${parsed.sprints.length} sprint(s) from this file? Your current data will be lost.`;
+      if (!confirm(msg)) return;
+      state = Object.assign(blankState(), parsed,
+        { settings: Object.assign(blankState().settings, parsed.settings || {}) });
+      save();
+      applyTheme();
+      render();
+      toast('Data imported');
+      dataDialog.close();
+    } catch (err) {
+      toast('That file doesn’t look like a Sprint Velocity export');
+      console.warn('import failed', err);
+    } finally {
+      e.target.value = '';
+    }
+  };
+  reader.readAsText(file);
+};
+
+/* ═══════════════════════════════ Sample data ══════════════════════════════ */
+
+function loadSample() {
+  if (!confirm('Load two sample teams with a PI and a bit of history? You can delete them later.')) return;
+  const piA = { id: uid(), name: 'PI 2026.2', sprintCount: 6 };
+  const piB = { id: uid(), name: 'PI 2026.3', sprintCount: 6 };
+  const t1 = { id: uid(), name: 'Team Kestrel' };
+  const t2 = { id: uid(), name: 'Team Otter' };
+  state.pis.push(piA, piB);
+  state.teams.push(t1, t2);
+
+  const mk = (teamId, piId, n, committed, done, added, removed, carriedIn, total, notes) => ({
+    id: uid(), teamId, piId, sprintNumber: n, startDate: '', endDate: '',
+    committed, committedCompleted: done, totalCompleted: total,
+    added, removed, carriedIn, carriedOut: Math.max(0, committed - done),
+    notes: Object.assign({ added: '', removed: '', carriedOut: '', general: '' }, notes || {})
+  });
+
+  state.sprints.push(
+    mk(t1.id, piA.id, 4, 34, 30, 3, 0, 4, 33),
+    mk(t1.id, piA.id, 5, 36, 33, 5, 2, 4, 36, { added: 'Prod defect from the release.' }),
+    mk(t1.id, piA.id, 6, 20, 18, 0, 0, 3, 18, { general: 'IP sprint — hack days and PI planning.' }),
+    mk(t1.id, piB.id, 1, 38, 35, 4, 0, 2, 38),
+    mk(t1.id, piB.id, 2, 40, 36, 6, 3, 3, 40, { added: 'Two urgent asks from the platform team.',
+      removed: 'Payments story descoped by the PO.' }),
+    mk(t1.id, piB.id, 3, 38, 34, 3, 0, 4, 36, { carriedOut: 'Search story was badly underestimated.' }),
+    mk(t2.id, piB.id, 1, 30, 21, 9, 4, 6, 26, { added: 'Support escalations all sprint.',
+      carriedOut: 'Two engineers pulled onto the audit.' }),
+    mk(t2.id, piB.id, 2, 28, 19, 8, 2, 9, 24, { added: 'More escalations.' }),
+    mk(t2.id, piB.id, 3, 26, 22, 4, 1, 8, 25)
+  );
+
+  state.settings.activeTeamId = t1.id;
+  state.settings.activePiId = piB.id;
+  state.settings.activeSprintNum = 3;
+  save(); render();
+  toast('Sample data loaded');
+}
+
+/* ═════════════════════════════ Theme & chrome ═════════════════════════════ */
+
+function applyTheme() {
+  const t = localStorage.getItem('sv-theme') === 'light' ? 'light' : 'midnight';
+  document.documentElement.setAttribute('data-theme', t);
+  F('themeBtn').textContent = t === 'light' ? '🌙 Midnight' : '☀️ Light';
+  F('themeBtn').setAttribute('aria-label',
+    t === 'light' ? 'Switch to the midnight dark theme' : 'Switch to the light theme');
+}
+
+F('themeBtn').onclick = () => {
+  const next = localStorage.getItem('sv-theme') === 'light' ? 'midnight' : 'light';
+  localStorage.setItem('sv-theme', next);
+  applyTheme();
+  render();   // charts resolve their colours at construction, so rebuild them
+};
+
+document.getElementById('teamSel').onchange = (e) => {
+  state.settings.activeTeamId = e.target.value; save(); render();
+};
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.onclick = () => { state.settings.view = tab.dataset.view; save(); render(); };
+});
+
+/* ── Hooks the sync module calls ────────────────────────────────────────── */
+window.svGet = () => state;
+window.svAdopt = (incoming, ts) => {
+  state = Object.assign(blankState(), incoming,
+    { settings: Object.assign(blankState().settings, (incoming && incoming.settings) || {}) });
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  localStorage.setItem('sv-updated', String(ts || Date.now()));
+  render();
+};
+window.svCounts = (d) => ({
+  teams: (d && d.teams ? d.teams.length : 0),
+  sprints: (d && d.sprints ? d.sprints.length : 0)
+});
+
+applyTheme();
+render();
+</script>
+
+<script type="module">
+/* ───────────────────────── Optional cross-device sync ─────────────────────────
+   Google sign-in + Firestore (free tier), ported from the PAPTrack app. The config
+   below is Firebase's public client config, not a secret — access is enforced by the
+   Firestore security rules, not this key. While FIREBASE_CONFIG is null the sync
+   button stays hidden and the app is 100% local; see the README for the five console
+   steps that turn it on. localStorage remains the source of truth either way.
+
+   The first time a given Google account syncs in a given browser, if both sides
+   already hold data the user is asked which to keep (chooseSyncSource) rather than
+   the code guessing by timestamp — that guesswork once wiped a browser's data in the
+   sibling app. After that first reconciliation, and for live updates arriving from
+   another device, the newer side by 'sv-updated' wins. */
+const FIREBASE_CONFIG = null;
+
+const SDK = 'https://www.gstatic.com/firebasejs/12.16.0/';
+const btn = document.getElementById('syncBtn');
+const privacyNote = document.getElementById('privacyNote');
+const localTs = () => Number(localStorage.getItem('sv-updated') || 0);
+
+if (FIREBASE_CONFIG) {
+  init().catch((e) => { console.warn('Sync unavailable:', e); btn.hidden = true; });
+}
+
+let A, Fs, auth, db, user = null, unsub = null, pushTimer = null;
+
+async function init() {
+  const [{ initializeApp }, authMod, fsMod] = await Promise.all([
+    import(SDK + 'firebase-app.js'),
+    import(SDK + 'firebase-auth.js'),
+    import(SDK + 'firebase-firestore.js'),
+  ]);
+  A = authMod; Fs = fsMod;
+  const app = initializeApp(FIREBASE_CONFIG);
+  auth = A.getAuth(app);
+  db = Fs.getFirestore(app);
+  A.onAuthStateChanged(auth, (u) => {
+    user = u;
+    updateUI();
+    if (unsub) { unsub(); unsub = null; }
+    if (u) startSync().catch((e) => console.warn('sync failed', e));
+  });
+  A.getRedirectResult(auth).catch(() => {}); // completes a mobile redirect sign-in, if one is in flight
+  btn.hidden = false;
+  btn.addEventListener('click', onClick);
+}
+
+function updateUI() {
+  if (user) {
+    btn.textContent = `☁️ ${user.displayName ? user.displayName.split(' ')[0] : user.email}`;
+    btn.title = 'Syncing across your devices — click to sign out';
+    privacyNote.textContent = `☁️ Signed in as ${user.email} — your sprint data syncs privately to your own account and still works offline.`;
+  } else {
+    btn.textContent = '☁️ Sign in to sync';
+    btn.title = 'Sign in with Google to see the same data on all your devices';
+    privacyNote.textContent = '🔒 Private — your data is stored in this browser only. No account needed. Sign in with Google if you want the same data on your other devices.';
+  }
+}
+
+async function onClick() {
+  if (user) {
+    if (confirm('Sign out? The app keeps working with the local copy on this device.')) A.signOut(auth);
+    return;
+  }
+  const provider = new A.GoogleAuthProvider();
+  try {
+    await A.signInWithPopup(auth, provider);
+  } catch (e) {
+    // Popups are unreliable on mobile Safari — fall back to a full-page redirect.
+    if (e && /popup|operation-not-supported/.test(String(e.code))) {
+      try { await A.signInWithRedirect(auth, provider); return; } catch { /* fall through */ }
+    }
+    if (String(e && e.code) !== 'auth/popup-closed-by-user') {
+      window.toast('Sign-in failed — check the Firebase setup');
+      console.warn('sign-in error', e);
+    }
+  }
+}
+
+const docRef = () => Fs.doc(db, 'sprintvelocity', user.uid);
+
+/* Resolves true to keep Google's copy, false to keep this device's. Escape or a
+   backdrop dismiss resolves false — the non-destructive choice, since it just
+   re-pushes what's already here instead of overwriting anything. */
+function chooseSyncSource(local, remote, remoteUpdatedAt) {
+  return new Promise((resolve) => {
+    const dlg = document.getElementById('syncChoiceDialog');
+    const body = document.getElementById('syncChoiceBody');
+    const when = remoteUpdatedAt ? new Date(remoteUpdatedAt).toLocaleString() : 'an earlier sign-in';
+    const l = window.svCounts(local), r = window.svCounts(remote);
+    const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+    body.textContent =
+      `This device has ${plural(l.teams, 'team')} and ${plural(l.sprints, 'sprint')} saved. `
+      + `Your Google account already has ${plural(r.teams, 'team')} and ${plural(r.sprints, 'sprint')} `
+      + `(last updated ${when}). Pick which to keep — the other copy will be replaced.`;
+    const deviceBtn = document.getElementById('syncKeepDeviceBtn');
+    const googleBtn = document.getElementById('syncKeepGoogleBtn');
+    const preventCancel = (e) => e.preventDefault();
+    function finish(keepGoogle) {
+      deviceBtn.removeEventListener('click', onDevice);
+      googleBtn.removeEventListener('click', onGoogle);
+      dlg.removeEventListener('cancel', preventCancel);
+      dlg.close();
+      resolve(keepGoogle);
+    }
+    const onDevice = () => finish(false);
+    const onGoogle = () => finish(true);
+    deviceBtn.addEventListener('click', onDevice);
+    googleBtn.addEventListener('click', onGoogle);
+    dlg.addEventListener('cancel', preventCancel);
+    dlg.showModal();
+  });
+}
+
+const hasData = (d) => !!(d && ((d.teams && d.teams.length) || (d.sprints && d.sprints.length)));
+
+async function startSync() {
+  const snap = await Fs.getDoc(docRef());
+  const remote = snap.exists() ? snap.data() : null;
+  const local = window.svGet();
+  // Only ask once per account per browser — after the first reconciliation both sides
+  // are caught up and ordinary timestamp-wins sync is enough. A different Google
+  // account signing in on this browser re-prompts.
+  const firstSyncForAccount = localStorage.getItem('sv-sync-uid') !== user.uid;
+  if (firstSyncForAccount && remote && hasData(remote.data) && hasData(local)) {
+    const keepGoogle = await chooseSyncSource(local, remote.data, remote.updatedAt);
+    if (keepGoogle) {
+      window.svAdopt(remote.data, remote.updatedAt);
+      window.toast('Loaded your data from the cloud ☁️');
+    } else {
+      await pushNow();
+      window.toast('Kept this device’s data');
+    }
+  } else if (remote && remote.updatedAt > localTs()) {
+    window.svAdopt(remote.data, remote.updatedAt);
+    window.toast('Loaded your data from the cloud ☁️');
+  } else {
+    await pushNow();
+  }
+  localStorage.setItem('sv-sync-uid', user.uid);
+  unsub = Fs.onSnapshot(docRef(), (s) => {
+    if (s.metadata.hasPendingWrites || !s.exists()) return;
+    const r = s.data();
+    if (r.updatedAt > localTs()) {
+      window.svAdopt(r.data, r.updatedAt);
+      window.toast('Synced from another device ☁️');
+    }
+  });
+}
+
+async function pushNow() {
+  if (!user) return;
+  await Fs.setDoc(docRef(), { data: window.svGet(), updatedAt: localTs() || Date.now() });
+}
+
+/* Called by save() on every local change; debounced so rapid edits batch up. */
+window.cloudPush = () => {
+  if (!user) return;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => pushNow().catch((e) => console.warn('push failed', e)), 1200);
+};
+</script>
+</body>
+</html>
