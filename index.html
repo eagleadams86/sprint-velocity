@@ -25,6 +25,11 @@
    read time by the charting code. All series colors clear 3:1 against their
    theme's card background (WCAG 1.4.11, non-text contrast). */
 :root {
+  /* Tells the browser to render its own controls — the date picker's calendar
+     button, number-input spinners, scrollbars — to match the theme. Without it the
+     dark theme gets a near-black calendar icon on a near-black field, and a white
+     spinner box glued to the side of a dark input. */
+  color-scheme: light;
   --c-committed:  #64748b;
   --c-completed:  #2563eb;
   --c-velocity:   #0f766e;
@@ -37,6 +42,7 @@
   --shadow: 0 1px 2px rgba(0,0,0,.06), 0 4px 12px rgba(0,0,0,.04);
 }
 [data-theme="midnight"] {
+  color-scheme: dark;
   --c-committed:  #94a3b8;
   --c-completed:  #60a5fa;
   --c-velocity:   #2dd4bf;
@@ -255,15 +261,15 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
       <div class="grid-fields">
         <div>
           <label class="field" for="f_committed">Points committed</label>
-          <input type="number" id="f_committed" min="0" step="0.5" inputmode="decimal">
+          <input type="number" id="f_committed" min="0" step="1" inputmode="numeric">
         </div>
         <div>
           <label class="field" for="f_committedCompleted">Committed points completed</label>
-          <input type="number" id="f_committedCompleted" min="0" step="0.5" inputmode="decimal">
+          <input type="number" id="f_committedCompleted" min="0" step="1" inputmode="numeric">
         </div>
         <div>
           <label class="field" for="f_totalCompleted">Total points completed</label>
-          <input type="number" id="f_totalCompleted" min="0" step="0.5" inputmode="decimal">
+          <input type="number" id="f_totalCompleted" min="0" step="1" inputmode="numeric">
         </div>
       </div>
     </fieldset>
@@ -273,19 +279,19 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
       <div class="grid-fields">
         <div>
           <label class="field" for="f_added">Added after start</label>
-          <input type="number" id="f_added" min="0" step="0.5" inputmode="decimal">
+          <input type="number" id="f_added" min="0" step="1" inputmode="numeric">
         </div>
         <div>
           <label class="field" for="f_removed">Removed after start</label>
-          <input type="number" id="f_removed" min="0" step="0.5" inputmode="decimal">
+          <input type="number" id="f_removed" min="0" step="1" inputmode="numeric">
         </div>
         <div>
           <label class="field" for="f_carriedIn">Carried in (from last sprint)</label>
-          <input type="number" id="f_carriedIn" min="0" step="0.5" inputmode="decimal">
+          <input type="number" id="f_carriedIn" min="0" step="1" inputmode="numeric">
         </div>
         <div>
           <label class="field" for="f_carriedOut">Carried out (to next sprint)</label>
-          <input type="number" id="f_carriedOut" min="0" step="0.5" inputmode="decimal">
+          <input type="number" id="f_carriedOut" min="0" step="1" inputmode="numeric">
         </div>
       </div>
     </fieldset>
@@ -1366,7 +1372,13 @@ function checkSprintForm() {
 F('sprintCancelBtn').onclick = () => sprintDialog.close();
 
 F('sprintSaveBtn').onclick = () => {
-  const val = (id) => { const raw = F(id).value; return raw === '' ? 0 : (parseFloat(raw) || 0); };
+  /* Story points are whole numbers — there is no such thing as half a point — so a
+     decimal typed by hand is rounded rather than stored. Averages and targets computed
+     from these are still fractional; it's only the recorded values that are integers. */
+  const val = (id) => {
+    const raw = F(id).value;
+    return raw === '' ? 0 : Math.max(0, Math.round(parseFloat(raw) || 0));
+  };
   const piId = F('f_pi').value;
   const sprintNumber = Number(F('f_num').value);
 
