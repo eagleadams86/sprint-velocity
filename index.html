@@ -919,7 +919,11 @@ function renderSprintView() {
             `<option value="${n}"${n === numSel ? ' selected' : ''}>Sprint ${n}${
               n === IP_SPRINT ? ' (IP)' : ''}${sprintPickerNote(team.id, piId, n)}</option>`).join('')}</select>
         </div>
-        <button class="btn primary" id="editSprintBtn">${s ? 'Edit this sprint' : 'Add data for this sprint'}</button>
+        <!-- Plain .btn, not .primary: this sits in a toolbar alongside the header
+             chrome, so the inverted treatment made it the one loud thing on the
+             page. .primary stays for dialogs and empty states, where a single
+             strong call to action is the point. -->
+        <button class="btn" id="editSprintBtn">${s ? 'Edit this sprint' : 'Add data for this sprint'}</button>
       </div>
     </div>`;
 
