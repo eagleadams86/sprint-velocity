@@ -53,6 +53,10 @@ screen-reader status, so the app is readable without colour vision.
 A sprint with nothing committed shows `—` rather than 0%, and is left out of averages
 instead of dragging them down.
 
+Percentages display as whole numbers, except when rounding would land on the wrong side of
+a target — 33 of 39 points is 84.6%, so it shows as `84.6%` in yellow rather than as `85%`
+in yellow, which would look like a bug. That's the only time you'll see a decimal.
+
 ## The four views
 
 - **Sprint** — one sprint in detail: the RAG tiles, a breakdown of where the committed

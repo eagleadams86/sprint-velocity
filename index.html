@@ -483,7 +483,16 @@ function sum(sprints, key) {
 
 /* ── Formatting ─────────────────────────────────────────────────────────── */
 
-const fmtPct = (v) => (v === null || v === undefined || !isFinite(v) ? '—' : v.toFixed(0) + '%');
+/* Percentages show as whole numbers, except where rounding would put the figure on
+   the wrong side of its target: 84.6% must not display as "85%" next to a yellow
+   flag when the target is "85% or better". In that one case a decimal is shown, so
+   the number and the colour beside it never contradict each other. */
+const fmtPct = (v, scale) => {
+  if (v === null || v === undefined || !isFinite(v)) return '—';
+  const rounded = Math.round(v);
+  if (scale && rag(rounded, scale) !== rag(v, scale)) return v.toFixed(1) + '%';
+  return rounded + '%';
+};
 const fmtNum = (v) => (v === null || v === undefined || !isFinite(v) ? '—'
   : (Math.round(v * 10) / 10).toLocaleString());
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
@@ -507,7 +516,7 @@ function tile(label, valueHtml, ragClass, foot) {
 
 function pill(value, scale) {
   const r = rag(value, scale);
-  return `<span class="pill ${r}">${fmtPct(value)}<span class="sr-only"> — ${RAG_TEXT[r]}</span></span>`;
+  return `<span class="pill ${r}">${fmtPct(value, scale)}<span class="sr-only"> — ${RAG_TEXT[r]}</span></span>`;
 }
 
 function toast(msg) {
@@ -695,13 +704,13 @@ function renderSprintView() {
       <p class="sub">${s.startDate || s.endDate
         ? esc([s.startDate, s.endDate].filter(Boolean).join(' → ')) : 'No dates set'}</p>
       <div class="tiles">
-        ${tile('Commitment completion', fmtPct(m.commitCompletePct), rag(m.commitCompletePct, 'completion'),
+        ${tile('Commitment completion', fmtPct(m.commitCompletePct, 'completion'), rag(m.commitCompletePct, 'completion'),
           `${fmtNum(m.committedCompleted)} of ${fmtNum(m.committed)} committed points`)}
-        ${tile('Break-in', fmtPct(m.breakInPct), rag(m.breakInPct, 'churn'),
+        ${tile('Break-in', fmtPct(m.breakInPct, 'churn'), rag(m.breakInPct, 'churn'),
           `${fmtNum(m.added)} points added after start`)}
-        ${tile('Removed', fmtPct(m.removedPct), rag(m.removedPct, 'churn'),
+        ${tile('Removed', fmtPct(m.removedPct, 'churn'), rag(m.removedPct, 'churn'),
           `${fmtNum(m.removed)} points pulled out`)}
-        ${tile('Carryover', fmtPct(m.carryoverPct), rag(m.carryoverPct, 'churn'),
+        ${tile('Carryover', fmtPct(m.carryoverPct, 'churn'), rag(m.carryoverPct, 'churn'),
           `${fmtNum(m.carriedOut)} points to next sprint`)}
         ${tile('Velocity', fmtNum(m.velocity), null, 'total points completed')}
       </div>
@@ -811,14 +820,14 @@ function renderPiView() {
       <h2>${esc(team.name)} — ${esc(pi.name)}</h2>
       <p class="sub">Totals across every sprint recorded in this PI.</p>
       <div class="tiles">
-        ${tile('PI commitment completion', fmtPct(piCommitPct), rag(piCommitPct, 'completion'),
+        ${tile('PI commitment completion', fmtPct(piCommitPct, 'completion'), rag(piCommitPct, 'completion'),
           `${fmtNum(piCompleted)} of ${fmtNum(piCommitted)} committed points`)}
-        ${tile('Average per sprint', fmtPct(avgCommitPct), rag(avgCommitPct, 'completion'),
+        ${tile('Average per sprint', fmtPct(avgCommitPct, 'completion'), rag(avgCommitPct, 'completion'),
           'mean of each sprint’s completion')}
         ${tile('Total delivered', fmtNum(piVelocity), null, 'points completed this PI')}
-        ${tile('Break-in', fmtPct(avg(present, 'breakInPct')), rag(avg(present, 'breakInPct'), 'churn'),
+        ${tile('Break-in', fmtPct(avg(present, 'breakInPct'), 'churn'), rag(avg(present, 'breakInPct'), 'churn'),
           `${fmtNum(sum(present, 'added'))} points added in total`)}
-        ${tile('Carryover', fmtPct(avg(present, 'carryoverPct')), rag(avg(present, 'carryoverPct'), 'churn'),
+        ${tile('Carryover', fmtPct(avg(present, 'carryoverPct'), 'churn'), rag(avg(present, 'carryoverPct'), 'churn'),
           `${fmtNum(sum(present, 'carriedOut'))} points carried out`)}
       </div>
     </div>
@@ -934,10 +943,10 @@ function renderRollingView() {
       <p class="sub">${esc(labels[0])} → ${esc(labels[labels.length - 1])}${
         includeSix ? '' : ' · sprint 6 (IP) excluded'}</p>
       <div class="tiles">
-        ${tile('Avg commitment completion', fmtPct(aCommit), rag(aCommit, 'completion'), 'target ≥85%')}
-        ${tile('Avg break-in', fmtPct(aBreak), rag(aBreak, 'churn'), 'target ≤15%')}
-        ${tile('Avg removed', fmtPct(aRemove), rag(aRemove, 'churn'), 'target ≤15%')}
-        ${tile('Avg carryover', fmtPct(aCarry), rag(aCarry, 'churn'), 'target ≤15%')}
+        ${tile('Avg commitment completion', fmtPct(aCommit, 'completion'), rag(aCommit, 'completion'), 'target ≥85%')}
+        ${tile('Avg break-in', fmtPct(aBreak, 'churn'), rag(aBreak, 'churn'), 'target ≤15%')}
+        ${tile('Avg removed', fmtPct(aRemove, 'churn'), rag(aRemove, 'churn'), 'target ≤15%')}
+        ${tile('Avg carryover', fmtPct(aCarry, 'churn'), rag(aCarry, 'churn'), 'target ≤15%')}
         ${tile('Avg velocity', fmtNum(aVel), null, 'points completed per sprint')}
       </div>
     </div>

@@ -19,6 +19,9 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   calculated.** Every tile, table and chart reads from them. Thresholds change in one spot.
 - Sprints with `committed === 0` must keep returning `null` percentages, not zeros — they
   render as `—` and drop out of averages.
+- `fmtPct()` takes the RAG scale and drops to one decimal when rounding would cross a
+  threshold, so a displayed figure never contradicts the colour next to it (84.6% must not
+  render as "85%" in yellow). Any new percentage display must pass its scale.
 - Sprint 6 is the IP sprint: **excluded from the rolling window by default**, with a toggle.
 - RAG state must never be conveyed by colour alone — tiles and pills carry a glyph and an
   `sr-only` status. Both themes are WCAG AA; keep them that way.
