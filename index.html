@@ -652,25 +652,51 @@ const gridOpts = () => ({ grid: { color: cssVar('--chart-grid') },
   ticks: { color: cssVar('--chart-tick') } });
 
 function baseOptions(extra) {
-  return Object.assign({
+  extra = extra || {};
+
+  /* Chart.js measures index-mode hover distance along `interaction.axis`, which it
+     defaults to 'x'. That's right for the vertical charts, where hovering anywhere
+     in a column should pick that sprint. It is wrong for a horizontal bar chart
+     (indexAxis 'y'), whose rows stack vertically: measuring horizontally makes the
+     tooltip flip between rows according to how far right the pointer is, which
+     looks random. Deriving the axis from indexAxis keeps hover on the row the
+     pointer is actually over, and stops any future horizontal chart repeating it. */
+  const axis = extra.indexAxis === 'y' ? 'y' : 'x';
+
+  const basePlugins = {
+    legend: { labels: { color: cssVar('--text-secondary'), boxWidth: 12, boxHeight: 12,
+      usePointStyle: true, pointStyle: 'rectRounded' } },
+    tooltip: {
+      backgroundColor: cssVar('--bg-card-alt'),
+      titleColor: cssVar('--text-primary'),
+      bodyColor: cssVar('--text-secondary'),
+      borderColor: cssVar('--border-strong'),
+      borderWidth: 1, padding: 10
+    }
+  };
+
+  const opts = Object.assign({
     responsive: true,
     maintainAspectRatio: false,
     /* No entry animation. This is a dashboard people scan, not a presentation —
        and an animating chart is one you can't screenshot or read straight away. */
     animation: false,
-    interaction: { mode: 'index', intersect: false },
-    plugins: {
-      legend: { labels: { color: cssVar('--text-secondary'), boxWidth: 12, boxHeight: 12,
-        usePointStyle: true, pointStyle: 'rectRounded' } },
-      tooltip: {
-        backgroundColor: cssVar('--bg-card-alt'),
-        titleColor: cssVar('--text-primary'),
-        bodyColor: cssVar('--text-secondary'),
-        borderColor: cssVar('--border-strong'),
-        borderWidth: 1, padding: 10
-      }
-    }
-  }, extra || {});
+    interaction: { mode: 'index', axis, intersect: false },
+    plugins: basePlugins
+  }, extra);
+
+  /* Object.assign is shallow, so a caller passing its own `plugins` would silently
+     drop the themed legend and tooltip above. Merge that key one level deeper. */
+  if (extra.plugins) {
+    const merged = Object.assign({}, basePlugins);
+    Object.keys(extra.plugins).forEach(k => {
+      merged[k] = (basePlugins[k] && extra.plugins[k] && typeof extra.plugins[k] === 'object')
+        ? Object.assign({}, basePlugins[k], extra.plugins[k])
+        : extra.plugins[k];
+    });
+    opts.plugins = merged;
+  }
+  return opts;
 }
 
 const pctAxis = (title) => Object.assign(gridOpts(), {
@@ -831,6 +857,10 @@ function renderSprintView() {
     },
     options: baseOptions({
       indexAxis: 'y',
+      /* Each row only uses some of the four series — "Delivered" has no carryover or
+         dropped work by definition — so listing the zeros just pads the tooltip with
+         rows that can never be anything else. */
+      plugins: { tooltip: { filter: (item) => item.parsed.x > 0 } },
       scales: {
         x: Object.assign(gridOpts(), { stacked: true, beginAtZero: true,
           title: { display: true, text: 'Story points', color: cssVar('--text-secondary') } }),
@@ -1129,9 +1159,7 @@ function renderRollingView() {
           { from: 0,  to: 15,   color: cssVar('--band-green') },
           { from: 15, to: 20,   color: cssVar('--band-yellow') },
           { from: 20, to: 1000, color: cssVar('--band-red') }
-        ] },
-        legend: { labels: { color: cssVar('--text-secondary'), boxWidth: 12, boxHeight: 12,
-          usePointStyle: true, pointStyle: 'rectRounded' } }
+        ] }
       },
       scales: { x: gridOpts(),
         /* Always show past the 20% line even when a team is comfortably inside the
