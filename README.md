@@ -57,6 +57,42 @@ Percentages display as whole numbers, except when rounding would land on the wro
 a target — 33 of 39 points is 84.6%, so it shows as `84.6%` in yellow rather than as `85%`
 in yellow, which would look like a bug. That's the only time you'll see a decimal.
 
+## Recording a sprint before it's over
+
+You can create a sprint at planning time and top it up as it runs. An unfinished sprint is
+**shown but never counted** — it stays out of every average, the rolling window, the PI
+figures and the capacity target until it's done, so a sprint with a commitment and no
+results yet doesn't read as a 0% disaster.
+
+Status comes from the dates and looks after itself:
+
+| | |
+|---|---|
+| Start date hasn't arrived | **Planned** |
+| Today is on or before the end date | **In progress** |
+| End date has passed | **Complete** |
+| No dates at all | **Complete** |
+
+A sprint with no dates counts as complete, so everything recorded before this existed keeps
+working exactly as it did. The **Status** field on the sprint form overrides the dates
+either way — useful if your team doesn't record dates, or closes a sprint late. An
+overridden sprint stops looking after itself, and the form says so.
+
+While a sprint is running the Sprint view swaps the result tiles for a progress read: points
+done so far, **pace** (how much of the commitment is done against how much of the sprint has
+elapsed — a rough guide, since work lands in lumps near the end), and break-in and removed
+flagged against the usual 15% target, because those *are* meaningful mid-sprint. The
+capacity target points at the running sprint and sits next to what the team actually
+committed, so an over-commitment can be descoped now rather than carried over later.
+
+Nothing is excluded silently — every view names what it's leaving out.
+
+### Blank isn't zero
+
+A box left empty stays empty. It shows as `—` and drops out of averages, rather than
+counting as a real zero. That matters mid-sprint, and it also fixes a quieter case: a team
+that simply never records removals used to report a confident 0% removed.
+
 ## The four views
 
 - **Sprint** — one sprint in detail: the RAG tiles, a breakdown of where the committed

@@ -136,6 +136,12 @@ textarea { width: 100%; resize: vertical; min-height: 64px; }
   border-left-color: var(--focus-border); }
 .tile.hero .value { font-size: 40px; }
 .tile.hero .label { color: var(--text-primary); }
+/* An in-flight sprint is easy to misread as a bad one, so say so up front. */
+.card.banner { border-left: 4px solid var(--amber); background: var(--bg-card-alt); }
+.card.banner > h2 { color: var(--amber); }
+.badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px;
+  font-weight: 700; border: 1px solid var(--amber); color: var(--amber);
+  background: var(--amber-bg); white-space: nowrap; }
 
 .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px;
   font-weight: 700; border: 1px solid; }
@@ -264,7 +270,17 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
         <label class="field" for="f_end">End date</label>
         <input type="date" id="f_end">
       </div>
+      <div>
+        <label class="field" for="f_status">Status</label>
+        <select id="f_status">
+          <option value="auto">Auto (from dates)</option>
+          <option value="planned">Planned</option>
+          <option value="active">In progress</option>
+          <option value="complete">Complete</option>
+        </select>
+      </div>
     </div>
+    <p class="sub" id="statusHint" style="margin:8px 0 0"></p>
 
     <fieldset>
       <legend>Commitment</legend>
@@ -441,13 +457,103 @@ function findSprint(teamId, piId, num) {
   return state.sprints.find(s => s.teamId === teamId && s.piId === piId && s.sprintNumber === num) || null;
 }
 
+/* ── Sprint lifecycle ───────────────────────────────────────────────────────
+   A sprint can be recorded before it's over — at planning, then topped up as the
+   sprint runs — so it has to be possible to say "these numbers aren't a result
+   yet". Only complete sprints feed averages, the rolling window, the PI figures
+   and the capacity target; the rest are shown but never counted.
+
+   Status resolves from the dates by default so there's no housekeeping, and
+   auto-corrects itself the day a sprint ends. `status: 'auto'` (the default) can
+   be overridden per sprint for teams that don't record dates or that close late.
+
+   A sprint with no dates resolves complete on purpose: every sprint recorded
+   before this existed is dateless, and they were all entered as finished work.
+   Anything else would silently pull real history out of the averages. */
+const todayISO = () => {
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+};
+
+function sprintStatus(s) {
+  if (s.status && s.status !== 'auto') return s.status;
+  const today = todayISO();
+  if (s.startDate && today < s.startDate) return 'planned';
+  if (s.endDate && today <= s.endDate) return 'active';
+  return 'complete';
+}
+
+const isCounted = (s) => sprintStatus(s) === 'complete';
+
+const STATUS_TEXT  = { planned: 'Planned', active: 'In progress', complete: 'Complete' };
+const STATUS_SHORT = { planned: 'planned', active: 'in progress', complete: '' };
+const STATUS_BADGE = { planned: '◴', active: '◐', complete: '' };
+
+/* The in-flight sprints for a team, newest last — used to say out loud which
+   sprints a view is leaving out, so nothing sits outside the numbers unnoticed. */
+function openSprints(teamId) {
+  return teamSprints(teamId).filter(s => !isCounted(s));
+}
+
+/* "S2 in progress" / "S4 planned, S5 planned" — the phrase views append to their
+   subtitles. Empty string when everything is counted. */
+/* How far through a running sprint the team is, against how much of the
+   commitment is done. A rough guide only — work lands in lumps near the end
+   rather than evenly — so it's captioned as such and never drives a red flag on
+   its own. Returns null when there aren't dates to measure against. */
+function sprintPace(s) {
+  if (sprintStatus(s) !== 'active' || !s.startDate || !s.endDate) return null;
+  const day = 86400000;
+  const start = Date.parse(s.startDate + 'T00:00:00');
+  const end = Date.parse(s.endDate + 'T00:00:00');
+  const today = Date.parse(todayISO() + 'T00:00:00');
+  if (!isFinite(start) || !isFinite(end) || end < start) return null;
+
+  const totalDays = Math.round((end - start) / day) + 1;
+  const dayOf = Math.min(totalDays, Math.max(1, Math.round((today - start) / day) + 1));
+  const elapsedPct = (dayOf / totalDays) * 100;
+
+  const m = metrics(s);
+  if (!(m.committed > 0) || m.committedCompleted === null) return { dayOf, totalDays, elapsedPct,
+    donePct: null, label: `Day ${dayOf} of ${totalDays}`, rag: null };
+
+  const donePct = (m.committedCompleted / m.committed) * 100;
+  const gap = donePct - elapsedPct;
+  return {
+    dayOf, totalDays, elapsedPct, donePct,
+    label: gap >= -5 ? 'On track' : gap >= -20 ? 'Slightly behind' : 'Behind',
+    rag: gap >= -5 ? 'green' : gap >= -20 ? 'yellow' : 'red'
+  };
+}
+
+/* The "— no data" / "— in progress" suffix on the sprint picker, so an excluded
+   sprint is identifiable before you open it. */
+function sprintPickerNote(teamId, piId, n) {
+  const s = findSprint(teamId, piId, n);
+  if (!s) return ' — no data';
+  const st = sprintStatus(s);
+  return st === 'complete' ? '' : ' — ' + STATUS_SHORT[st];
+}
+
+function openSprintsNote(teamId) {
+  const open = openSprints(teamId);
+  if (!open.length) return '';
+  return open.map(s => 'S' + s.sprintNumber + ' ' + STATUS_SHORT[sprintStatus(s)]).join(', ');
+}
+
 /* The rolling window: the most recent N sprints for a team, crossing PI
    boundaries. Sprint 6 is the IP sprint — excluded by default, because an
    innovation-and-planning sprint isn't meant to look like a delivery sprint and
    dragging it into the average makes every team look worse than they are. When
    it's excluded the window simply reaches further back, so it's still N sprints. */
 function rollingSprints(teamId, includeSix) {
-  const all = teamSprints(teamId).filter(s => includeSix || s.sprintNumber !== IP_SPRINT);
+  const all = teamSprints(teamId)
+    /* Unfinished sprints never enter the window. This one filter covers the
+       Rolling 5 view, the All teams comparison and the capacity target, since all
+       three read from here — a sprint recorded mid-flight would otherwise count
+       as a 0% result and take a slot from a real sprint. */
+    .filter(isCounted)
+    .filter(s => includeSix || s.sprintNumber !== IP_SPRINT);
   return all.slice(-ROLLING_WINDOW);
 }
 
@@ -459,24 +565,32 @@ function rollingSprints(teamId, includeSix) {
    out of averages, instead of dragging them down as a fake 0%. */
 function metrics(s) {
   const c = num(s.committed);
-  const pct = (v) => (c > 0 ? (num(v) / c) * 100 : null);
+  /* A figure that hasn't been entered yet stays null all the way through, so it
+     renders as "—" and avg() skips it, rather than counting as a real zero. That
+     matters most mid-sprint, but it also fixes a quieter case: a team that never
+     records removals used to report a confident 0% removed. */
+  const pct = (v) => {
+    const n = numOrNull(v);
+    return (c > 0 && n !== null) ? (n / c) * 100 : null;
+  };
+  const added = numOrNull(s.added), removed = numOrNull(s.removed);
   return {
     committed:          c,
-    committedCompleted: num(s.committedCompleted),
-    added:              num(s.added),
-    removed:            num(s.removed),
-    carriedIn:          num(s.carriedIn),
-    carriedOut:         num(s.carriedOut),
-    velocity:           num(s.totalCompleted),
+    committedCompleted: numOrNull(s.committedCompleted),
+    added, removed,
+    carriedIn:          numOrNull(s.carriedIn),
+    carriedOut:         numOrNull(s.carriedOut),
+    velocity:           numOrNull(s.totalCompleted),
     commitCompletePct:  pct(s.committedCompleted),
     breakInPct:         pct(s.added),
     removedPct:         pct(s.removed),
     carryoverPct:       pct(s.carriedOut),
-    churnPct:           pct(num(s.added) + num(s.removed))
+    churnPct:           (added === null && removed === null) ? null : pct(num(added) + num(removed))
   };
 }
 
 const num = (v) => (typeof v === 'number' && isFinite(v) ? v : parseFloat(v) || 0);
+const numOrNull = (v) => (v === null || v === undefined || v === '' ? null : num(v));
 
 /* RAG scales. 'completion' is higher-is-better, 'churn' is lower-is-better.
    The stated bands left a gap between 84% and 85%, so the boundaries are pinned
@@ -498,21 +612,41 @@ function avg(sprints, key) {
   return vals.reduce((a, b) => a + b, 0) / vals.length;
 }
 
+/* Totals treat an un-entered figure as nothing to add, rather than propagating
+   null and returning NaN. */
 function sum(sprints, key) {
-  return sprints.reduce((a, s) => a + metrics(s)[key], 0);
+  return sprints.reduce((a, s) => {
+    const v = metrics(s)[key];
+    return a + (v === null || !isFinite(v) ? 0 : v);
+  }, 0);
 }
 
-/* Which sprint comes after the last one recorded for a team. Runs off true
-   chronology (sprint 6 included), regardless of whether the rolling average
-   counts the IP sprint. */
-function nextSprintSlot(teamId) {
+/* Which sprint the capacity target is for.
+
+   A sprint that's already running is the useful one to aim at: the team is in it
+   now, so a target beside what they actually committed is feedback they can still
+   act on — descope this week rather than carry the work over. Only when nothing is
+   in flight does this look forward to the next empty slot.
+
+   `last` is the last *finished* sprint, never the running one, because it's the
+   source of the carryover figure and a sprint mid-flight hasn't produced its
+   carryover yet. */
+function targetSprintSlot(teamId) {
   const all = teamSprints(teamId);
   if (!all.length) return null;
+  const lastComplete = all.filter(isCounted).slice(-1)[0] || null;
+  const active = all.find(x => sprintStatus(x) === 'active');
+  if (active)
+    return { piId: active.piId, sprintNumber: active.sprintNumber, last: lastComplete, sprint: active };
+
   const last = all[all.length - 1];
+  const base = { last: lastComplete, sprint: null };
   if (last.sprintNumber < SPRINTS_PER_PI)
-    return { piId: last.piId, sprintNumber: last.sprintNumber + 1, last };
+    return Object.assign(base, { piId: last.piId, sprintNumber: last.sprintNumber + 1 });
   const nextPi = state.pis[piIndex(last.piId) + 1];
-  return nextPi ? { piId: nextPi.id, sprintNumber: 1, last } : { piId: null, sprintNumber: 1, last };
+  return Object.assign(base, nextPi
+    ? { piId: nextPi.id, sprintNumber: 1 }
+    : { piId: null, sprintNumber: 1 });
 }
 
 /* How much the team should commit to next sprint, from the rolling window.
@@ -531,11 +665,15 @@ function nextSprintTarget(teamId, includeSix) {
   const rs = rollingSprints(teamId, includeSix);
   if (!rs.length) return null;
 
-  const done = rs.map(s => metrics(s).committedCompleted);
+  const done = rs.map(s => metrics(s).committedCompleted).filter(v => v !== null);
+  if (!done.length) return null;
   const recommended = done.reduce((a, b) => a + b, 0) / done.length;
   const low = Math.min(...done), high = Math.max(...done);
-  const slot = nextSprintSlot(teamId);
-  const carriedIn = slot && slot.last ? metrics(slot.last).carriedOut : 0;
+  const slot = targetSprintSlot(teamId);
+  const carriedIn = slot && slot.last ? num(metrics(slot.last).carriedOut) : 0;
+  /* When the target is for a sprint already under way, its commitment is known —
+     that turns the recommendation from a forecast into a comparison. */
+  const committedAlready = slot && slot.sprint ? metrics(slot.sprint).committed : null;
 
   /* Spread relative to the mean. A team whose delivery swings widely gets a
      recommendation worth much less, and should be told so rather than handed a
@@ -553,6 +691,10 @@ function nextSprintTarget(teamId, includeSix) {
     steady: spread <= 30,
     thin: rs.length < 3,
     slot,
+    inFlight: !!(slot && slot.sprint),
+    committedAlready,
+    overBy: (committedAlready !== null && committedAlready > 0)
+      ? committedAlready - recommended : null,
     isIpSprint: !!slot && slot.sprintNumber === IP_SPRINT
   };
 }
@@ -775,7 +917,7 @@ function renderSprintView() {
           <label class="sr-only" for="numSel">Sprint</label>
           <select id="numSel">${Array.from({ length: SPRINTS_PER_PI }, (_, i) => i + 1).map(n =>
             `<option value="${n}"${n === numSel ? ' selected' : ''}>Sprint ${n}${
-              n === IP_SPRINT ? ' (IP)' : ''}${findSprint(team.id, piId, n) ? '' : ' — no data'}</option>`).join('')}</select>
+              n === IP_SPRINT ? ' (IP)' : ''}${sprintPickerNote(team.id, piId, n)}</option>`).join('')}</select>
         </div>
         <button class="btn primary" id="editSprintBtn">${s ? 'Edit this sprint' : 'Add data for this sprint'}</button>
       </div>
@@ -797,15 +939,44 @@ function renderSprintView() {
     ['General', s.notes && s.notes.general]
   ].filter(([, v]) => v && v.trim());
 
-  const dropped = Math.max(0, m.committed - m.committedCompleted - m.carriedOut);
-  const addedDone = Math.max(0, m.velocity - m.committedCompleted);
+  /* The chart adds these up, so an un-entered figure has to become 0 here even
+     though it stays null everywhere it's displayed. */
+  const dropped = Math.max(0, m.committed - num(m.committedCompleted) - num(m.carriedOut));
+  const addedDone = Math.max(0, num(m.velocity) - num(m.committedCompleted));
+
+  const st = sprintStatus(s);
+  const inFlight = st !== 'complete';
+  const pace = sprintPace(s);
 
   viewsEl.innerHTML = selector + `
+    ${inFlight ? `<div class="card banner">
+      <h2>${STATUS_BADGE[st]} ${STATUS_TEXT[st]}${
+        st === 'active' && pace ? ` — day ${pace.dayOf} of ${pace.totalDays}` : ''}</h2>
+      <p class="sub" style="margin:0">These figures aren't a result yet, so this sprint is left out of
+        your averages, the rolling ${ROLLING_WINDOW} and the capacity target until it's finished.${
+        s.status && s.status !== 'auto'
+          ? ' It stays out until you change its status by hand.'
+          : (s.endDate ? ' It starts counting on its own once the end date passes.' : '')}</p>
+    </div>` : ''}
+
     <div class="card">
       <h2>${esc(team.name)} — ${esc(sprintLabel(s))}</h2>
       <p class="sub">${s.startDate || s.endDate
         ? esc([s.startDate, s.endDate].filter(Boolean).join(' → ')) : 'No dates set'}</p>
       <div class="tiles">
+        ${inFlight ? `
+        ${tile('Done so far', fmtNum(m.committedCompleted), null,
+          `of ${fmtNum(m.committed)} committed points`)}
+        ${pace ? tile('Pace', pace.label, pace.rag, pace.donePct === null
+          ? `${fmtPct(pace.elapsedPct)} of the sprint gone, nothing recorded as done yet`
+          : `${fmtPct(pace.donePct)} of the commitment done, ${fmtPct(pace.elapsedPct)} of the sprint gone`)
+        : tile('Committed', fmtNum(m.committed), null, 'points signed up for')}
+        ${tile('Break-in so far', fmtPct(m.breakInPct, 'churn'), rag(m.breakInPct, 'churn'),
+          `${fmtNum(m.added)} points added after start`)}
+        ${tile('Removed so far', fmtPct(m.removedPct, 'churn'), rag(m.removedPct, 'churn'),
+          `${fmtNum(m.removed)} points pulled out`)}
+        ${tile('Carried in', fmtNum(m.carriedIn), null, 'points inherited from last sprint')}
+        ` : `
         ${tile('Commitment completion', fmtPct(m.commitCompletePct, 'completion'), rag(m.commitCompletePct, 'completion'),
           `${fmtNum(m.committedCompleted)} of ${fmtNum(m.committed)} committed points`)}
         ${tile('Break-in', fmtPct(m.breakInPct, 'churn'), rag(m.breakInPct, 'churn'),
@@ -815,6 +986,7 @@ function renderSprintView() {
         ${tile('Carryover', fmtPct(m.carryoverPct, 'churn'), rag(m.carryoverPct, 'churn'),
           `${fmtNum(m.carriedOut)} points to next sprint`)}
         ${tile('Velocity', fmtNum(m.velocity), null, 'total points completed')}
+        `}
       </div>
     </div>
 
@@ -903,12 +1075,17 @@ function renderPiView() {
   const nums = Array.from({ length: SPRINTS_PER_PI }, (_, i) => i + 1);
   const rows = nums.map(n => ({ n, s: findSprint(team.id, piId, n) }));
   const present = rows.filter(r => r.s).map(r => r.s);
+  /* Every tile below is a predictability figure, so it reads from finished
+     sprints only — folding a half-done sprint into an average is exactly the
+     thing this whole lifecycle exists to prevent. The table still lists them. */
+  const closed = present.filter(isCounted);
+  const openHere = present.filter(x => !isCounted(x));
 
-  const piCommitted = sum(present, 'committed');
-  const piCompleted = sum(present, 'committedCompleted');
-  const piVelocity = sum(present, 'velocity');
+  const piCommitted = sum(closed, 'committed');
+  const piCompleted = sum(closed, 'committedCompleted');
+  const piVelocity = sum(closed, 'velocity');
   const piCommitPct = piCommitted > 0 ? (piCompleted / piCommitted) * 100 : null;
-  const avgCommitPct = avg(present, 'commitCompletePct');
+  const avgCommitPct = avg(closed, 'commitCompletePct');
 
   viewsEl.innerHTML = `
     <div class="card">
@@ -918,23 +1095,26 @@ function renderPiView() {
           <select id="piSel2">${state.pis.map(p =>
             `<option value="${p.id}"${p.id === piId ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
         </div>
-        <span class="muted" style="font-size:13px">${present.length} of ${SPRINTS_PER_PI} sprints recorded</span>
+        <span class="muted" style="font-size:13px">${closed.length} of ${SPRINTS_PER_PI} sprints complete${
+          openHere.length ? ' · ' + openHere.map(x => 'S' + x.sprintNumber + ' ' + STATUS_SHORT[sprintStatus(x)]).join(', ') : ''}</span>
       </div>
     </div>
 
     <div class="card">
       <h2>${esc(team.name)} — ${esc(pi.name)}</h2>
-      <p class="sub">Totals across every sprint recorded in this PI.</p>
+      <p class="sub">Totals across the finished sprints in this PI.${
+        openHere.length ? ` <strong>${openHere.map(x => 'S' + x.sprintNumber).join(', ')}</strong>
+        ${openHere.length === 1 ? 'is' : 'are'} still open and not counted here.` : ''}</p>
       <div class="tiles">
         ${tile('PI commitment completion', fmtPct(piCommitPct, 'completion'), rag(piCommitPct, 'completion'),
           `${fmtNum(piCompleted)} of ${fmtNum(piCommitted)} committed points`)}
         ${tile('Average per sprint', fmtPct(avgCommitPct, 'completion'), rag(avgCommitPct, 'completion'),
           'mean of each sprint’s completion')}
         ${tile('Total delivered', fmtNum(piVelocity), null, 'points completed this PI')}
-        ${tile('Break-in', fmtPct(avg(present, 'breakInPct'), 'churn'), rag(avg(present, 'breakInPct'), 'churn'),
-          `${fmtNum(sum(present, 'added'))} points added in total`)}
-        ${tile('Carryover', fmtPct(avg(present, 'carryoverPct'), 'churn'), rag(avg(present, 'carryoverPct'), 'churn'),
-          `${fmtNum(sum(present, 'carriedOut'))} points carried out`)}
+        ${tile('Break-in', fmtPct(avg(closed, 'breakInPct'), 'churn'), rag(avg(closed, 'breakInPct'), 'churn'),
+          `${fmtNum(sum(closed, 'added'))} points added in total`)}
+        ${tile('Carryover', fmtPct(avg(closed, 'carryoverPct'), 'churn'), rag(avg(closed, 'carryoverPct'), 'churn'),
+          `${fmtNum(sum(closed, 'carriedOut'))} points carried out`)}
       </div>
     </div>
 
@@ -947,7 +1127,8 @@ function renderPiView() {
 
     <div class="card">
       <h2>The numbers</h2>
-      <p class="sub">Click any sprint to add or edit its data.</p>
+      <p class="sub">Click any sprint to add or edit its data. The PI total row covers finished
+        sprints only.</p>
       <div class="tablewrap">
       <table>
         <thead><tr>
@@ -960,11 +1141,14 @@ function renderPiView() {
             n === IP_SPRINT ? ' (IP)' : ''}</td><td colspan="9" class="muted">No data — click to add</td></tr>`;
           const m = metrics(s);
           const hasNotes = s.notes && Object.values(s.notes).some(v => v && v.trim());
-          return `<tr class="clickable" data-num="${n}">
-            <td>Sprint ${n}${n === IP_SPRINT ? ' (IP)' : ''}</td>
+          const st = sprintStatus(s);
+          const open = st !== 'complete';
+          return `<tr class="clickable${open ? ' open' : ''}" data-num="${n}">
+            <td>Sprint ${n}${n === IP_SPRINT ? ' (IP)' : ''}${
+              open ? ` <span class="badge">${STATUS_BADGE[st]} ${STATUS_TEXT[st]}</span>` : ''}</td>
             <td>${fmtNum(m.committed)}</td>
             <td>${fmtNum(m.committedCompleted)}</td>
-            <td>${pill(m.commitCompletePct, 'completion')}</td>
+            <td>${open ? '<span class="muted">so far</span>' : pill(m.commitCompletePct, 'completion')}</td>
             <td>${fmtNum(m.added)}</td>
             <td>${fmtNum(m.removed)}</td>
             <td>${fmtNum(m.carriedIn)}</td>
@@ -975,8 +1159,8 @@ function renderPiView() {
         <tfoot><tr>
           <td>PI total</td><td>${fmtNum(piCommitted)}</td><td>${fmtNum(piCompleted)}</td>
           <td>${pill(piCommitPct, 'completion')}</td>
-          <td>${fmtNum(sum(present, 'added'))}</td><td>${fmtNum(sum(present, 'removed'))}</td>
-          <td>${fmtNum(sum(present, 'carriedIn'))}</td><td>${fmtNum(sum(present, 'carriedOut'))}</td>
+          <td>${fmtNum(sum(closed, 'added'))}</td><td>${fmtNum(sum(closed, 'removed'))}</td>
+          <td>${fmtNum(sum(closed, 'carriedIn'))}</td><td>${fmtNum(sum(closed, 'carriedOut'))}</td>
           <td>${fmtNum(piVelocity)}</td><td></td>
         </tr></tfoot>
       </table></div>
@@ -1003,7 +1187,11 @@ function renderPiView() {
           data: rows.map(r => r.s ? metrics(r.s).velocity : null),
           backgroundColor: cssVar('--c-velocity'), maxBarThickness: 56 },
         { type: 'line', label: 'Commitment completion %', yAxisID: 'y1',
-          data: rows.map(r => r.s ? metrics(r.s).commitCompletePct : null),
+          /* Bars keep showing an unfinished sprint's progress, but the completion
+             line stops short of it — a half-done sprint plotted as a percentage
+             dives toward zero and reads as a collapse rather than a sprint that
+             simply hasn't finished. */
+          data: rows.map(r => (r.s && isCounted(r.s)) ? metrics(r.s).commitCompletePct : null),
           borderColor: cssVar('--text-primary'), backgroundColor: cssVar('--text-primary'),
           borderWidth: 2, tension: .25, pointRadius: 4, spanGaps: true }
       ]
@@ -1029,8 +1217,11 @@ function renderRollingView() {
 
   if (!rs.length) {
     viewsEl.innerHTML = rollingToolbar(includeSix) + `<div class="card empty">
-      <h2>No sprints recorded yet</h2>
-      <p>Add some sprint data for ${esc(team.name)} and the rolling trend will build itself.</p>
+      <h2>${teamSprints(team.id).length ? 'No finished sprints yet' : 'No sprints recorded yet'}</h2>
+      <p>${teamSprints(team.id).length
+        ? `${esc(team.name)} has ${esc(openSprintsNote(team.id))} recorded, but nothing finished — the
+           trend and the capacity target start once a sprint completes.`
+        : `Add some sprint data for ${esc(team.name)} and the rolling trend will build itself.`}</p>
     </div>`;
     wireRollingToolbar();
     return;
@@ -1047,7 +1238,8 @@ function renderRollingView() {
     <div class="card">
       <h2>${esc(team.name)} — last ${rs.length} sprint${rs.length === 1 ? '' : 's'}</h2>
       <p class="sub">${esc(labels[0])} → ${esc(labels[labels.length - 1])}${
-        includeSix ? '' : ' · sprint 6 (IP) excluded'}</p>
+        includeSix ? '' : ' · sprint 6 (IP) excluded'}${
+        openSprintsNote(team.id) ? ' · ' + esc(openSprintsNote(team.id)) + ', not counted' : ''}</p>
       <div class="tiles">
         ${tile('Avg commitment completion', fmtPct(aCommit, 'completion'), rag(aCommit, 'completion'), 'target ≥85%')}
         ${tile('Avg break-in', fmtPct(aBreak, 'churn'), rag(aBreak, 'churn'), 'target ≤15%')}
@@ -1193,17 +1385,28 @@ function targetCapacityCard(team, includeSix) {
     caveats.push(`Sprint ${IP_SPRINT} is the innovation &amp; planning sprint — this figure is a delivery
       estimate, so scale it down for whatever IP work is planned.`);
 
+  /* An over-commitment on a sprint already running is the one finding here that's
+     still actionable — there's time to descope rather than carry it over. */
+  const over = t.overBy !== null && Math.round(t.overBy) >= 1;
+  const under = t.overBy !== null && Math.round(t.overBy) <= -1;
+
   return `<div class="card">
-    <h2>Target capacity for ${slotName}</h2>
-    <p class="sub">What ${esc(team.name)} can realistically commit to, based on the last
-      ${t.sprints} sprint${t.sprints === 1 ? '' : 's'}.</p>
+    <h2>Target capacity for ${slotName}${t.inFlight ? ' <span class="badge">◐ In progress</span>' : ''}</h2>
+    <p class="sub">What ${esc(team.name)} can realistically commit to, based on their last
+      ${t.sprints} finished sprint${t.sprints === 1 ? '' : 's'}.${
+      t.inFlight ? ' This sprint is already under way, so compare it with what they signed up for.' : ''}</p>
     <div class="tiles">
       ${tile('Recommended commitment', fmtNum(Math.round(t.recommended)), null,
         'story points', true)}
+      ${t.committedAlready !== null ? tile('Actually committed', fmtNum(t.committedAlready),
+        over ? 'red' : under ? 'yellow' : 'green',
+        over ? `${fmtNum(Math.round(t.overBy))} more than the suggestion`
+             : under ? `${fmtNum(Math.abs(Math.round(t.overBy)))} under the suggestion`
+                     : 'in line with the suggestion') : ''}
       ${tile('Already carried over', fmtNum(t.carriedIn), null,
-        t.slot && t.slot.last ? `from ${esc(sprintLabel(t.slot.last))}` : 'from the last sprint')}
-      ${tile('New work to pull in', fmtNum(Math.round(t.newWork)), null,
-        'on top of the carryover')}
+        t.slot && t.slot.last ? `from ${esc(sprintLabel(t.slot.last))}` : 'from the last finished sprint')}
+      ${t.committedAlready === null ? tile('New work to pull in', fmtNum(Math.round(t.newWork)), null,
+        'on top of the carryover') : ''}
       ${tile('Recent range', `${fmtNum(t.low)}–${fmtNum(t.high)}`, null,
         'committed points finished per sprint')}
     </div>
@@ -1224,7 +1427,12 @@ function targetCapacityCard(team, includeSix) {
              carried over from the last sprint and count towards the total, leaving about
              <strong>${fmtNum(Math.round(t.newWork))}</strong> points of new work to pull off the backlog.`
           : 'Nothing was carried over from the last sprint, so the whole commitment is new work.'}</p>
-        ${overCommitting ? `<p style="margin:10px 0 0">For context, they have been committing to
+        ${over ? `<p style="margin:10px 0 0"><strong>This sprint they committed to
+          ${fmtNum(t.committedAlready)}</strong>, about ${fmtNum(Math.round(t.overBy))} more than the
+          last ${t.sprints} sprint${t.sprints === 1 ? '' : 's'} suggest they finish. There is still time
+          to pull something out deliberately, which is a better outcome than carrying it over
+          unplanned at the end.</p>` : ''}
+        ${overCommitting && !over ? `<p style="margin:10px 0 0">For context, they have been committing to
           <strong>${fmtNum(t.avgCommitted)}</strong> points a sprint on average — about
           <strong>${fmtNum(Math.round(t.avgCommitted - t.recommended))}</strong> more than they finish.
           Committing closer to the figure above is what moves commitment completion towards the 85% target.</p>` : ''}
@@ -1271,12 +1479,15 @@ function renderTeamsView() {
     };
   });
   const withData = rowsData.filter(r => r.count > 0);
+  const anyOpen = state.teams.reduce((a, t) => a + openSprints(t.id).length, 0);
 
   viewsEl.innerHTML = rollingToolbar(includeSix) + `
     <div class="card">
       <h2>All teams — rolling ${ROLLING_WINDOW}-sprint averages</h2>
       <p class="sub">Every team you support, side by side${includeSix ? '' : ', with sprint 6 excluded'}.
-        ${withData.length ? '' : 'No team has sprint data yet.'}</p>
+        Finished sprints only${anyOpen ? ` — ${anyOpen} sprint${anyOpen === 1 ? '' : 's'} still in flight
+        ${anyOpen === 1 ? 'is' : 'are'} not counted` : ''}.
+        ${withData.length ? '' : 'No team has a finished sprint yet.'}</p>
       ${withData.length ? `<div class="chartbox"><canvas id="teamsChart" role="img"
         aria-label="Average commitment completion percentage by team against the 85 percent target. Figures in the table below."></canvas></div>` : ''}
     </div>
@@ -1372,10 +1583,43 @@ function openSprint(teamId, piId, sprintNumber) {
   F('f_carriedOut').dataset.touched = existing && existing.carriedOut != null ? '1' : '';
   F('f_totalCompleted').dataset.touched = existing && existing.totalCompleted != null ? '1' : '';
 
+  F('f_status').value = s.status || 'auto';
+
   F('sprintDeleteBtn').hidden = !existing;
+  updateStatusHint();
   checkSprintForm();
   sprintDialog.showModal();
 }
+
+/* Spells out what Auto has decided, so the setting is never a mystery — and what
+   an override means, since an overridden sprint stops self-correcting. */
+function updateStatusHint() {
+  const draft = {
+    status: F('f_status').value,
+    startDate: F('f_start').value,
+    endDate: F('f_end').value
+  };
+  const st = sprintStatus(draft);
+  const el = F('statusHint');
+  const when = (d) => new Date(d + 'T00:00:00').toLocaleDateString(undefined,
+    { day: 'numeric', month: 'short' });
+
+  if (draft.status === 'auto') {
+    let why;
+    if (st === 'planned') why = `hasn't started yet — begins ${when(draft.startDate)}`;
+    else if (st === 'active') why = `still running — ends ${when(draft.endDate)}`;
+    else why = draft.endDate ? `finished ${when(draft.endDate)}` : 'no dates set, so treated as finished';
+    el.textContent = `Auto: ${STATUS_TEXT[st].toLowerCase()} — ${why}.`
+      + (st === 'complete' ? ' Counted in your averages.' : ' Not counted in your averages yet.');
+  } else {
+    el.textContent = `Set by hand to ${STATUS_TEXT[st].toLowerCase()}`
+      + (st === 'complete' ? ' — counted in your averages.'
+                           : ' — not counted in your averages until you change this.');
+  }
+}
+
+['f_status', 'f_start', 'f_end'].forEach(id =>
+  F(id).addEventListener('change', updateStatusHint));
 
 function autofillSprintForm() {
   const committed = parseFloat(F('f_committed').value);
@@ -1387,13 +1631,16 @@ function autofillSprintForm() {
 }
 
 function checkSprintForm() {
-  const v = (id) => parseFloat(F(id).value) || 0;
+  /* null for a blank box, so a half-filled sprint doesn't trip warnings about
+     figures the user simply hasn't got to yet. */
+  const v = (id) => { const r = F(id).value.trim(); return r === '' ? null : (parseFloat(r) || 0); };
+  const gt = (a, b) => v(a) !== null && v(b) !== null && v(a) > v(b);
   const msgs = [];
-  if (v('f_committedCompleted') > v('f_committed'))
+  if (gt('f_committedCompleted', 'f_committed'))
     msgs.push('Committed points completed is higher than points committed.');
-  if (F('f_totalCompleted').value !== '' && v('f_totalCompleted') < v('f_committedCompleted'))
+  if (gt('f_committedCompleted', 'f_totalCompleted'))
     msgs.push('Total completed is lower than the committed points completed.');
-  if (v('f_carriedOut') > v('f_committed'))
+  if (gt('f_carriedOut', 'f_committed'))
     msgs.push('Carried out is higher than points committed.');
   const el = F('sprintWarn');
   el.hidden = !msgs.length;
@@ -1414,8 +1661,11 @@ F('sprintSaveBtn').onclick = () => {
      decimal typed by hand is rounded rather than stored. Averages and targets computed
      from these are still fractional; it's only the recorded values that are integers. */
   const val = (id) => {
-    const raw = F(id).value;
-    return raw === '' ? 0 : Math.max(0, Math.round(parseFloat(raw) || 0));
+    const raw = F(id).value.trim();
+    /* Left blank means "not known yet", not zero — the two have to stay
+       distinguishable or a half-entered sprint reads as a run of real results. */
+    if (raw === '') return null;
+    return Math.max(0, Math.round(parseFloat(raw) || 0));
   };
   const piId = F('f_pi').value;
   const sprintNumber = Number(F('f_num').value);
@@ -1434,6 +1684,7 @@ F('sprintSaveBtn').onclick = () => {
     piId, sprintNumber,
     startDate: F('f_start').value || '',
     endDate: F('f_end').value || '',
+    status: F('f_status').value,
     committed: val('f_committed'),
     committedCompleted: val('f_committedCompleted'),
     totalCompleted: val('f_totalCompleted'),
