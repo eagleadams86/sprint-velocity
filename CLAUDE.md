@@ -59,10 +59,13 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   not-completed section, which can exceed `committed − completed`. Handles both tab-separated
   and one-cell-per-line pastes; browsers differ. **Estimates can be a range** — Jira writes a
   mid-sprint re-estimate as `8 → 2` on a row and `Story Points (21 → 15)` in a header, so
-  `parsePoints()` returns `{start, current}` and every figure is derived from `start`
-  (`jiraValue()`), except `*` rows which use `current` because they had no size at sprint
-  start (`- → 1`). Both sides are checksummed against Jira's own totals — don't collapse this
-  back to a single number, it silently zeroed re-estimated rows before. Jira's `Story Points (N)` per section is
+  `parsePoints()` returns `{start, current}`. **Only `committed` uses `jiraStart()`** — it
+  records what was signed up for; every other figure uses `jiraCurrent()`, what the work
+  turned out to be. Both sides are checksummed against Jira's own totals — don't collapse
+  this back to a single number, it silently zeroed re-estimated rows before.
+- A consequence of that split: **commitment completion can exceed 100%** when a team re-sizes
+  upward. It's shown as-is, so completion axes use `suggestedMax: 110`, never `max` — a hard
+  cap clips a real reading off the top of the chart. Jira's `Story Points (N)` per section is
   used as a checksum and any mismatch is shown to the user — **keep that visible**, it's what
   makes shipping without every real-world Jira variant safe. A section absent from the paste
   leaves its field blank, never 0.

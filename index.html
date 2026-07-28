@@ -879,13 +879,19 @@ function parseJiraSprintReport(text) {
   return { rows, claimed, flattened, found, lines: lines.length };
 }
 
-/* Every figure is built from the estimates **as they were at sprint start**, so
-   re-sizing a story mid-sprint can't retroactively shrink the commitment or move
-   the completion rate. The one exception is work marked `*`: it wasn't in the
-   sprint at start, so its start estimate is meaningless (Jira writes "- → 1"), and
-   the current size is the only honest reading of how much broke in. */
-const jiraValue = (r) => (r.added ? r.points.current : r.points.start);
-const jiraPoints = (rows) => rows.reduce((a, r) => a + jiraValue(r), 0);
+/* When a story is re-sized mid-sprint, Jira reports both sizes and only one figure
+   here uses the earlier one:
+
+     · **Points committed** takes the sizes as they were at sprint start. It records
+       what the team signed up for, and re-sizing later can't rewrite that.
+     · **Everything else** takes the current sizes, because those describe what the
+       work actually turned out to be.
+
+   A consequence worth expecting: with the commitment fixed and delivery counted at
+   current sizes, a team that re-sizes upward mid-sprint can finish above 100%
+   commitment completion. That's real and is shown as-is rather than capped. */
+const jiraStart   = (rows) => rows.reduce((a, r) => a + r.points.start, 0);
+const jiraCurrent = (rows) => rows.reduce((a, r) => a + r.points.current, 0);
 /* Raw side-sums, used only to cross-check the parse against Jira's own totals. */
 const jiraSide = (rows, side) => rows.reduce((a, r) => a + r.points[side], 0);
 
@@ -932,12 +938,14 @@ function deriveFromJira(parsed) {
   const resizedTo   = resizedRows.reduce((a, r) => a + r.points.current, 0);
 
   return {
-    committed:          jiraPoints(notAdded(all)),
-    committedCompleted: jiraPoints(notAdded(rows.completed)),
-    totalCompleted:     jiraPoints(rows.completed),
-    added:              seen('completed') || seen('notCompleted') ? jiraPoints(addedRows) : null,
-    removed:            seen('removed') ? jiraPoints(rows.removed) : null,
-    carriedOut:         seen('notCompleted') ? jiraPoints(rows.notCompleted) : null,
+    /* The only figure on sprint-start sizes. Starred rows are excluded anyway —
+       they weren't in the sprint at the start, so they were never committed. */
+    committed:          jiraStart(notAdded(all)),
+    committedCompleted: jiraCurrent(notAdded(rows.completed)),
+    totalCompleted:     jiraCurrent(rows.completed),
+    added:              seen('completed') || seen('notCompleted') ? jiraCurrent(addedRows) : null,
+    removed:            seen('removed') ? jiraCurrent(rows.removed) : null,
+    carriedOut:         seen('notCompleted') ? jiraCurrent(rows.notCompleted) : null,
     counts: {
       completed: rows.completed.length,
       notCompleted: rows.notCompleted.length,
@@ -945,7 +953,7 @@ function deriveFromJira(parsed) {
       outside: rows.outside.length,
       added: addedRows.length
     },
-    addedUnfinished: jiraPoints(rows.notCompleted.filter(r => r.added)),
+    addedUnfinished: jiraCurrent(rows.notCompleted.filter(r => r.added)),
     resized: resizedRows.length,
     resizedFrom, resizedTo,
     checks
@@ -1458,7 +1466,7 @@ function renderPiView() {
         x: gridOpts(),
         y: Object.assign(gridOpts(), { beginAtZero: true,
           title: { display: true, text: 'Story points', color: cssVar('--text-secondary') } }),
-        y1: Object.assign(pctAxis('Completion'), { position: 'right', max: 110,
+        y1: Object.assign(pctAxis('Completion'), { position: 'right', suggestedMax: 110,
           grid: { drawOnChartArea: false } })
       }
     })
@@ -1580,7 +1588,7 @@ function renderRollingView() {
         x: gridOpts(),
         y: Object.assign(gridOpts(), { beginAtZero: true,
           title: { display: true, text: 'Story points', color: cssVar('--text-secondary') } }),
-        y1: Object.assign(pctAxis('Completion'), { position: 'right', max: 110,
+        y1: Object.assign(pctAxis('Completion'), { position: 'right', suggestedMax: 110,
           grid: { drawOnChartArea: false } })
       }
     })
@@ -1798,7 +1806,9 @@ function renderTeamsView() {
       },
       options: baseOptions({
         plugins: { legend: { display: false } },
-        scales: { x: gridOpts(), y: Object.assign(pctAxis('Commitment completion'), { max: 110 }) }
+        /* suggestedMax, not max: a team that re-sizes upward mid-sprint can finish above
+           100% of its commitment, and that must not be clipped off the top. */
+        scales: { x: gridOpts(), y: Object.assign(pctAxis('Commitment completion'), { suggestedMax: 110 }) }
       })
     });
   }
@@ -1996,10 +2006,10 @@ F('jiraParseBtn').onclick = () => {
       — ${c.added} of them marked <strong>*</strong> as added after the sprint started.</p>
     ${d.resized ? `<p class="sub" style="margin:0 0 6px">↕ ${d.resized}
       issue${d.resized === 1 ? ' was' : 's were'} re-sized during the sprint
-      (${fmtNum(d.resizedFrom)} → ${fmtNum(d.resizedTo)} points). The figures below use the
-      sizes <strong>as they were at sprint start</strong>, so re-sizing can't change what you
-      committed to. Work added mid-sprint is the exception — it had no size at the start, so
-      its current size is used.</p>` : ''}
+      (${fmtNum(d.resizedFrom)} → ${fmtNum(d.resizedTo)} points). <strong>Points committed</strong>
+      uses the sizes as they were at sprint start, so re-sizing can't change what you signed up
+      for. Every other figure uses the current sizes, since those are what the work turned out
+      to be.</p>` : ''}
     <p class="${bad.length ? 'note-warn' : 'note-ok'}" style="margin:0 0 10px">${
       bad.length
         ? '⚠ ' + bad.map(x => `Jira says the ${SECTION_NAME[x.section]} section totals

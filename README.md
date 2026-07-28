@@ -82,18 +82,24 @@ skipped.
 ### Stories re-sized mid-sprint
 
 When an estimate changes during a sprint, Jira shows both — `8 → 2` on the row, and
-`Story Points (21 → 15)` in the section header. The app reads both sides and uses **the sizes
-as they were at sprint start**, so re-sizing a story can't retroactively shrink what you
-committed to or move your completion rate. The preview tells you how many issues were
-re-sized and by how much; heavy re-sizing usually means the work wasn't well understood at
-planning, which is worth raising at the retro.
+`Story Points (21 → 15)` in the section header. The app reads both sides, and exactly one
+figure uses the earlier one:
 
-The one exception is work **added** mid-sprint. It had no size at sprint start — Jira writes
-that as `- → 1` — so its current size is used instead; otherwise a point of break-in work
-would be recorded as zero.
+- **Points committed** takes the sizes **as they were at sprint start**. It records what the
+  team signed up for, and re-sizing later can't rewrite that.
+- **Everything else** — both completed figures, added, removed and carried out — takes the
+  **current** sizes, because those are what the work turned out to be.
+
+The preview tells you how many issues were re-sized and by how much; heavy re-sizing usually
+means the work wasn't well understood at planning, which is worth raising at the retro.
 
 Because both sides are parsed, the cross-check against Jira's totals runs on both too, so a
 mis-read has two independent ways to show itself.
+
+**Commitment completion can exceed 100%.** With the commitment fixed at sprint-start sizes
+and delivery counted at current ones, a team that re-sizes work upward mid-sprint really did
+deliver more than it committed to. That's shown as-is rather than capped, and the charts
+scale to fit it.
 
 **Carried out is all unfinished work**, not `committed − completed`. If work broke in
 mid-sprint and didn't finish, it still rolls into the next sprint, so it's counted — which
