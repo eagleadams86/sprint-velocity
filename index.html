@@ -1286,7 +1286,7 @@ function renderSprintView() {
           <strong>${fmtNum(m.added)}</strong> added ·
           <strong>${fmtNum(m.removed)}</strong> removed</span>
       </div>
-      ${m.addedThenRemoved ? `<p class="sub" style="margin:8px 0 0">↩
+      ${m.addedThenRemoved ? `<p class="muted" style="font-size:13px;margin:8px 0 0">↩
         <strong>${fmtNum(m.addedThenRemoved)}</strong> point${m.addedThenRemoved === 1 ? '' : 's'}
         came into the sprint after it started and then went back out again. That work is
         deliberately left out of both break-in and removed — it never joined the commitment,
