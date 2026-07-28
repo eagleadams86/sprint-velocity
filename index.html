@@ -370,6 +370,7 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
           <input type="number" id="f_carriedOut" min="0" step="1" inputmode="numeric">
         </div>
       </div>
+      <p class="sub" id="carryHint" style="margin:10px 0 0" hidden></p>
     </fieldset>
 
     <fieldset>
@@ -1764,6 +1765,8 @@ function openSprint(teamId, piId, sprintNumber) {
 
   F('f_status').value = s.status || 'auto';
 
+  maybePrefillCarriedIn();
+
   /* A paste belongs to one sprint, so it never carries over into the next one
      opened. */
   F('jiraText').value = '';
@@ -1806,6 +1809,13 @@ function updateStatusHint() {
 
 ['f_status', 'f_start', 'f_end'].forEach(id =>
   F(id).addEventListener('change', updateStatusHint));
+
+/* Moving the form to a different PI or sprint changes which sprint precedes it. */
+['f_pi', 'f_num'].forEach(id =>
+  F(id).addEventListener('change', maybePrefillCarriedIn));
+
+/* Once the user types their own carried-in, the note explaining the guess is stale. */
+F('f_carriedIn').addEventListener('input', () => { F('carryHint').hidden = true; });
 
 function autofillSprintForm() {
   const committed = parseFloat(F('f_committed').value);
@@ -1910,18 +1920,40 @@ F('jiraParseBtn').onclick = () => {
   F('jiraApplyBtn').onclick = applyJiraNumbers;
 };
 
-/* Carried-in isn't in the Sprint Report, but the app already knows it: it's what
-   the previous sprint carried out. */
-function previousCarriedOut() {
+/* Carried-in is the previous sprint's carried-out, so it's filled in the moment a
+   sprint form is opened rather than only when a Jira report is pasted — that was
+   the one path that offered it, which made it look broken everywhere else.
+
+   Only ever fills an empty box: an existing figure, or one already typed, wins. */
+function maybePrefillCarriedIn() {
+  const el = F('f_carriedIn');
+  const hint = F('carryHint');
+  hint.hidden = true;
+  if (el.value.trim() !== '') return;
+  const prev = previousCarriedOut();
+  if (prev === null) return;
+  el.value = prev;
+  const from = previousSprint();
+  hint.textContent = `Carried in was filled in as ${fmtNum(prev)} — what `
+    + `${from ? sprintLabel(from) : 'the previous sprint'} carried out. Change it if that's not right.`;
+  hint.hidden = false;
+}
+
+/* The sprint immediately before the one being edited, crossing a PI boundary when
+   the form is on sprint 1. */
+function previousSprint() {
   if (!editing) return null;
   const piId = F('f_pi').value;
   const n = Number(F('f_num').value);
-  let prev = null;
-  if (n > 1) prev = findSprint(editing.teamId, piId, n - 1);
-  else {
-    const earlier = state.pis[piIndex(piId) - 1];
-    if (earlier) prev = findSprint(editing.teamId, earlier.id, SPRINTS_PER_PI);
-  }
+  if (n > 1) return findSprint(editing.teamId, piId, n - 1);
+  const earlier = state.pis[piIndex(piId) - 1];
+  return earlier ? findSprint(editing.teamId, earlier.id, SPRINTS_PER_PI) : null;
+}
+
+/* Carried-in isn't in the Sprint Report, but the app already knows it: it's what
+   the previous sprint carried out. */
+function previousCarriedOut() {
+  const prev = previousSprint();
   if (!prev) return null;
   const v = metrics(prev).carriedOut;
   return v === null ? null : v;

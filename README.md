@@ -72,7 +72,7 @@ It works out every figure and shows you exactly how before filling anything in:
 | Added after start | every issue marked `*` (Jira's "added to sprint after start time") |
 | Removed after start | the Issues Removed From Sprint section |
 | Carried out | the Issues Not Completed section — *all* unfinished work |
-| Carried in | not in the report; taken from the previous sprint if the app knows it |
+| Carried in | not in the report; taken from the previous sprint (see below) |
 
 Two things make this trustworthy rather than a guess. Jira prints its own **Story Points (N)**
 total in each section header, so the app cross-checks its reading against Jira's and tells
@@ -119,6 +119,13 @@ capacity target points at the running sprint and sits next to what the team actu
 committed, so an over-commitment can be descoped now rather than carried over later.
 
 Nothing is excluded silently — every view names what it's leaving out.
+
+### Carried in fills itself
+
+Whenever you open a sprint that has no carried-in figure yet, it's filled with what the
+previous sprint carried out — crossing a PI boundary if you're on sprint 1. A note under the
+fields says which sprint it came from, and it never overwrites a number you've already
+entered or typed.
 
 ### Blank isn't zero
 
