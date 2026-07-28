@@ -24,6 +24,7 @@ Per team, per sprint:
 | **Removed after start** | Work pulled back out |
 | **Carried in** | Unfinished points inherited from the previous sprint |
 | **Carried out** | Committed points not finished, rolling into the next sprint |
+| **Brought in, then removed** | Work that arrived mid-sprint and left again — counted in neither break-in nor removed |
 
 Plus free-text notes on **why** work was added, removed, or carried over — the context you
 want in front of you at the retro, not three sprints later when nobody remembers.
