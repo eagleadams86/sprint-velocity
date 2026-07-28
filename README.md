@@ -79,6 +79,22 @@ total in each section header, so the app cross-checks its reading against Jira's
 you if they disagree. And issues with no estimate (`-`) count as zero rather than being
 skipped.
 
+### Stories re-sized mid-sprint
+
+When an estimate changes during a sprint, Jira shows both — `8 → 2` on the row, and
+`Story Points (21 → 15)` in the section header. The app reads both sides and uses **the sizes
+as they were at sprint start**, so re-sizing a story can't retroactively shrink what you
+committed to or move your completion rate. The preview tells you how many issues were
+re-sized and by how much; heavy re-sizing usually means the work wasn't well understood at
+planning, which is worth raising at the retro.
+
+The one exception is work **added** mid-sprint. It had no size at sprint start — Jira writes
+that as `- → 1` — so its current size is used instead; otherwise a point of break-in work
+would be recorded as zero.
+
+Because both sides are parsed, the cross-check against Jira's totals runs on both too, so a
+mis-read has two independent ways to show itself.
+
 **Carried out is all unfinished work**, not `committed − completed`. If work broke in
 mid-sprint and didn't finish, it still rolls into the next sprint, so it's counted — which
 means carryover can be larger than the shortfall against the commitment.

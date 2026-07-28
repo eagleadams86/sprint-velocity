@@ -792,10 +792,43 @@ const JIRA_SECTIONS = [
 /* Trailing `*` is Jira's "added after sprint start" marker. */
 const JIRA_KEY      = /^([A-Z][A-Z0-9_]*-\d+)\s*(\*?)/;
 const JIRA_KEY_ONLY = /^([A-Z][A-Z0-9_]*-\d+)\s*(\*?)$/;
-const JIRA_TOTAL    = /story\s*points\s*\((\d+(?:\.\d+)?)\)/i;
+/* A story re-estimated mid-sprint shows as "8 → 2" — the size at sprint start,
+   then the size now — and the section header carries both totals the same way:
+   "Story Points (21 → 15)". The arrow is U+2192 in Jira, but a copy can downgrade
+   it to ASCII, so all three forms are accepted. */
+const JIRA_ARROW    = /\s*(?:\u2192|->|=>)\s*/;
+const JIRA_TOTAL    = new RegExp('story\\s*points\\s*\\(\\s*([\\d.\\-]+)'
+  + '(?:' + JIRA_ARROW.source + '([\\d.\\-]+))?\\s*\\)', 'i');
 /* Only a bare number counts as an estimate, so a summary like
    "[NAO 2012 Server Upgrade]" can't be mistaken for one. `-` means no estimate. */
 const JIRA_POINTS   = /^\d+(?:\.\d+)?$/;
+
+/* An estimate cell → { start, current }, or null when the cell isn't an estimate
+   at all. `-` is no estimate, which counts as 0 on whichever side it appears —
+   confirmed against two real reports, where summing each side reproduces Jira's
+   own header totals exactly. */
+function parsePoints(cell) {
+  const raw = String(cell == null ? '' : cell).trim();
+  if (!raw) return null;
+  const side = (x) => (x === '-' ? 0 : (JIRA_POINTS.test(x) ? parseFloat(x) : null));
+
+  const parts = raw.split(JIRA_ARROW).map(x => x.trim());
+  if (parts.length === 2) {
+    const a = side(parts[0]), b = side(parts[1]);
+    if (a === null && b === null) return null;
+    return { start: a === null ? 0 : a, current: b === null ? 0 : b };
+  }
+  const v = side(raw);
+  return v === null ? null : { start: v, current: v };
+}
+
+/* Reads "(9)" as both sides equal, and "(21 → 15)" as start 21, current 15. */
+function parseTotal(match) {
+  const a = parsePoints(match[1]);
+  const b = match[2] === undefined ? null : parsePoints(match[2]);
+  if (!a) return null;
+  return { start: a.start, current: b ? b.current : a.current };
+}
 
 function parseJiraSprintReport(text) {
   const lines = String(text || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
@@ -816,30 +849,29 @@ function parseJiraSprintReport(text) {
     if (sec) {
       cur = sec;
       const t = line.match(JIRA_TOTAL);
-      if (t) claimed[cur] = parseFloat(t[1]);
+      if (t) claimed[cur] = parseTotal(t);
       continue;
     }
     const t = line.match(JIRA_TOTAL);
-    if (t) { if (cur) claimed[cur] = parseFloat(t[1]); continue; }
+    if (t) { if (cur) claimed[cur] = parseTotal(t); continue; }
     if (!cur) continue;
 
     if (flattened) {
       const m = line.match(JIRA_KEY_ONLY);
       if (!m) continue;
-      let points = 0;
+      let pts = null;
       for (let j = i + 1; j < lines.length; j++) {
         if (JIRA_KEY_ONLY.test(lines[j]) || sectionOf(lines[j])) break;
-        if (JIRA_POINTS.test(lines[j])) points = parseFloat(lines[j]);
-        else if (lines[j] === '-') points = 0;
+        const p = parsePoints(lines[j]);
+        if (p) pts = p;
       }
-      rows[cur].push({ key: m[1], added: m[2] === '*', points });
+      rows[cur].push({ key: m[1], added: m[2] === '*', points: pts || { start: 0, current: 0 } });
     } else {
       const m = line.match(JIRA_KEY);
       if (!m) continue;
       const cells = line.split('\t').map(c => c.trim()).filter(Boolean);
-      const last = cells[cells.length - 1];
-      rows[cur].push({ key: m[1], added: m[2] === '*',
-        points: JIRA_POINTS.test(last) ? parseFloat(last) : 0 });
+      const pts = parsePoints(cells[cells.length - 1]);
+      rows[cur].push({ key: m[1], added: m[2] === '*', points: pts || { start: 0, current: 0 } });
     }
   }
 
@@ -847,7 +879,15 @@ function parseJiraSprintReport(text) {
   return { rows, claimed, flattened, found, lines: lines.length };
 }
 
-const jiraPoints = (rows) => rows.reduce((a, r) => a + r.points, 0);
+/* Every figure is built from the estimates **as they were at sprint start**, so
+   re-sizing a story mid-sprint can't retroactively shrink the commitment or move
+   the completion rate. The one exception is work marked `*`: it wasn't in the
+   sprint at start, so its start estimate is meaningless (Jira writes "- → 1"), and
+   the current size is the only honest reading of how much broke in. */
+const jiraValue = (r) => (r.added ? r.points.current : r.points.start);
+const jiraPoints = (rows) => rows.reduce((a, r) => a + jiraValue(r), 0);
+/* Raw side-sums, used only to cross-check the parse against Jira's own totals. */
+const jiraSide = (rows, side) => rows.reduce((a, r) => a + r.points[side], 0);
 
 /* Turns parsed rows into the seven figures the form holds.
 
@@ -863,16 +903,33 @@ function deriveFromJira(parsed) {
   const notAdded = (list) => list.filter(r => !r.added);
   const addedRows = all.filter(r => r.added);
 
-  const checks = Object.keys(claimed).map(sec => ({
-    section: sec,
-    claimed: claimed[sec],
-    actual: jiraPoints(rows[sec] || []),
-    ok: Math.abs(jiraPoints(rows[sec] || []) - claimed[sec]) < 0.001
-  }));
+  /* Cross-check both sides of every section against Jira's own header totals. Two
+     independent ways for a mis-parse to announce itself, and — unlike before —
+     the check still works when a header carries a re-estimate range. */
+  const near = (a, b) => Math.abs(a - b) < 0.001;
+  const checks = Object.keys(claimed).map(sec => {
+    const list = rows[sec] || [];
+    const startSum = jiraSide(list, 'start'), currentSum = jiraSide(list, 'current');
+    const c = claimed[sec];
+    return {
+      section: sec,
+      claimed: c.start, claimedCurrent: c.current,
+      actual: startSum, actualCurrent: currentSum,
+      resized: !near(c.start, c.current),
+      ok: near(startSum, c.start) && near(currentSum, c.current)
+    };
+  });
+
+  /* Rows whose estimate moved during the sprint — a signal for the retro, not a
+     stored figure. */
+  const resizedRows = all.filter(r => !near(r.points.start, r.points.current));
 
   /* A section missing from the paste leaves its field blank rather than writing a
      confident 0 — blank means "not known" everywhere else in the app. */
   const seen = (sec) => rows[sec].length > 0 || claimed[sec] !== undefined;
+
+  const resizedFrom = resizedRows.reduce((a, r) => a + r.points.start, 0);
+  const resizedTo   = resizedRows.reduce((a, r) => a + r.points.current, 0);
 
   return {
     committed:          jiraPoints(notAdded(all)),
@@ -889,6 +946,8 @@ function deriveFromJira(parsed) {
       added: addedRows.length
     },
     addedUnfinished: jiraPoints(rows.notCompleted.filter(r => r.added)),
+    resized: resizedRows.length,
+    resizedFrom, resizedTo,
     checks
   };
 }
@@ -1935,10 +1994,19 @@ F('jiraParseBtn').onclick = () => {
     <p class="sub" style="margin:0 0 4px">Read ${c.completed} completed, ${c.notCompleted} not
       completed, ${c.removed} removed${c.outside ? `, ${c.outside} completed outside` : ''}
       — ${c.added} of them marked <strong>*</strong> as added after the sprint started.</p>
+    ${d.resized ? `<p class="sub" style="margin:0 0 6px">↕ ${d.resized}
+      issue${d.resized === 1 ? ' was' : 's were'} re-sized during the sprint
+      (${fmtNum(d.resizedFrom)} → ${fmtNum(d.resizedTo)} points). The figures below use the
+      sizes <strong>as they were at sprint start</strong>, so re-sizing can't change what you
+      committed to. Work added mid-sprint is the exception — it had no size at the start, so
+      its current size is used.</p>` : ''}
     <p class="${bad.length ? 'note-warn' : 'note-ok'}" style="margin:0 0 10px">${
       bad.length
         ? '⚠ ' + bad.map(x => `Jira says the ${SECTION_NAME[x.section]} section totals
-            ${fmtNum(x.claimed)} points but the rows read add to ${fmtNum(x.actual)}`).join('; ')
+            ${x.resized ? `${fmtNum(x.claimed)} → ${fmtNum(x.claimedCurrent)}`
+                        : fmtNum(x.claimed)} points but the rows read add to
+            ${x.resized ? `${fmtNum(x.actual)} → ${fmtNum(x.actualCurrent)}`
+                        : fmtNum(x.actual)}`).join('; ')
           + '. Check the figures below before saving.'
         : d.checks.length
           ? `✓ Jira's own totals matched on ${d.checks.length === 1 ? 'the section'
