@@ -1094,9 +1094,14 @@ function baseOptions(extra) {
   const axis = extra.indexAxis === 'y' ? 'y' : 'x';
 
   const basePlugins = {
+    /* `order` controls painting, but Chart.js also lets it reorder the legend and
+       tooltip. Those should follow the order the datasets are declared in, so
+       putting a line in front of the bars doesn't reshuffle the labels too. */
     legend: { labels: { color: cssVar('--text-secondary'), boxWidth: 12, boxHeight: 12,
-      usePointStyle: true, pointStyle: 'rectRounded' } },
+      usePointStyle: true, pointStyle: 'rectRounded',
+      sort: (a, b) => a.datasetIndex - b.datasetIndex } },
     tooltip: {
+      itemSort: (a, b) => a.datasetIndex - b.datasetIndex,
       backgroundColor: cssVar('--bg-card-alt'),
       titleColor: cssVar('--text-primary'),
       bodyColor: cssVar('--text-secondary'),
@@ -1438,8 +1443,11 @@ function renderPiView() {
 
     <div class="card">
       <h2>The numbers</h2>
-      <p class="sub">Click any sprint to add or edit its data. The PI total row covers finished
-        sprints only.</p>
+      <p class="sub">Click any sprint to add or edit its data. The PI total row covers
+        ${countedRunning.length
+          ? `the sprints being counted, including <strong>${countedRunning.map(x => 'S' + x.sprintNumber).join(', ')}</strong>
+             which ${countedRunning.length === 1 ? 'is' : 'are'} still running`
+          : 'finished sprints only'}.</p>
       <div class="tablewrap">
       <table>
         <thead><tr>
@@ -1459,7 +1467,9 @@ function renderPiView() {
               open ? ` <span class="badge">${STATUS_BADGE[st]} ${STATUS_TEXT[st]}</span>` : ''}</td>
             <td>${fmtNum(m.committed)}</td>
             <td>${fmtNum(m.committedCompleted)}</td>
-            <td>${open ? '<span class="muted">so far</span>' : pill(m.commitCompletePct, 'completion')}</td>
+            <td>${open && !isCounted(s)
+              ? '<span class="muted">so far</span>'
+              : pill(m.commitCompletePct, 'completion')}</td>
             <td>${fmtNum(m.added)}</td>
             <td>${fmtNum(m.removed)}</td>
             <td>${fmtNum(m.carriedIn)}</td>
@@ -1488,16 +1498,20 @@ function renderPiView() {
     data: {
       labels: nums.map(n => 'S' + n + (n === IP_SPRINT ? ' (IP)' : '')),
       datasets: [
-        { type: 'bar', label: 'Committed', yAxisID: 'y',
+/* Chart.js sorts datasets by `order` and then draws that list **in reverse**, so a
+   lower `order` is painted last and ends up on top. Lines therefore need a lower
+   order than the bars they cross, or the completion trend disappears behind them
+   wherever it dips below a bar's top. */
+        { type: 'bar', label: 'Committed', yAxisID: 'y', order: 2,
           data: rows.map(r => r.s ? metrics(r.s).committed : null),
           backgroundColor: cssVar('--c-committed'), maxBarThickness: 56 },
-        { type: 'bar', label: 'Committed completed', yAxisID: 'y',
+        { type: 'bar', label: 'Committed completed', yAxisID: 'y', order: 2,
           data: rows.map(r => r.s ? metrics(r.s).committedCompleted : null),
           backgroundColor: cssVar('--c-completed'), maxBarThickness: 56 },
-        { type: 'bar', label: 'Total completed', yAxisID: 'y',
+        { type: 'bar', label: 'Total completed', yAxisID: 'y', order: 2,
           data: rows.map(r => r.s ? metrics(r.s).velocity : null),
           backgroundColor: cssVar('--c-velocity'), maxBarThickness: 56 },
-        { type: 'line', label: 'Commitment completion %', yAxisID: 'y1',
+        { type: 'line', label: 'Commitment completion %', yAxisID: 'y1', order: 1,
           /* Bars keep showing an unfinished sprint's progress, but the completion
              line stops short of it — a half-done sprint plotted as a percentage
              dives toward zero and reads as a collapse rather than a sprint that
@@ -1619,15 +1633,15 @@ function renderRollingView() {
     data: {
       labels,
       datasets: [
-        { type: 'bar', label: 'Total completed (velocity)', yAxisID: 'y',
+        { type: 'bar', label: 'Total completed (velocity)', yAxisID: 'y', order: 2,
           data: rs.map(s => metrics(s).velocity), backgroundColor: cssVar('--c-velocity'), maxBarThickness: 56 },
-        { type: 'bar', label: 'Committed completed', yAxisID: 'y',
+        { type: 'bar', label: 'Committed completed', yAxisID: 'y', order: 2,
           data: rs.map(s => metrics(s).committedCompleted), backgroundColor: cssVar('--c-completed'), maxBarThickness: 56 },
-        { type: 'line', label: 'Commitment completion %', yAxisID: 'y1',
+        { type: 'line', label: 'Commitment completion %', yAxisID: 'y1', order: 1,
           data: rs.map(s => metrics(s).commitCompletePct),
           borderColor: cssVar('--text-primary'), backgroundColor: cssVar('--text-primary'),
           borderWidth: 2, tension: .25, pointRadius: 4, spanGaps: true },
-        { type: 'line', label: 'Target 85%', yAxisID: 'y1', data: rs.map(() => 85),
+        { type: 'line', label: 'Target 85%', yAxisID: 'y1', order: 1, data: rs.map(() => 85),
           borderColor: cssVar('--green'), borderWidth: 1.5, borderDash: [6, 4],
           pointRadius: 0, fill: false }
       ]
@@ -1854,14 +1868,14 @@ function renderTeamsView() {
       data: {
         labels: withData.map(r => r.team.name),
         datasets: [
-          { type: 'bar', label: 'Avg commitment completion %',
+          { type: 'bar', label: 'Avg commitment completion %', order: 2,
             data: withData.map(r => r.commit),
             maxBarThickness: 72,
             backgroundColor: withData.map(r => {
               const key = rag(r.commit, 'completion');
               return key === 'green' ? cssVar('--green') : key === 'yellow' ? cssVar('--amber') : cssVar('--red');
             }) },
-          { type: 'line', label: 'Target 85%', data: withData.map(() => 85),
+          { type: 'line', label: 'Target 85%', order: 1, data: withData.map(() => 85),
             borderColor: cssVar('--text-secondary'), borderWidth: 1.5, borderDash: [6, 4],
             pointRadius: 0 }
         ]
