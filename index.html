@@ -241,8 +241,12 @@ dialog {
 }
 dialog::backdrop { background: rgba(0,0,0,.55); }
 dialog h3 { margin: 0 0 12px; font-size: 17px; }
-fieldset { border: 1px solid var(--border); border-radius: var(--radius-sm);
-  padding: 12px; margin: 14px 0 0; }
+/* Every block in the sprint form is a raised panel a shade lighter than the dialog,
+   with the input boxes inside it a shade darker again. That two-tone is what makes
+   the fields read as sitting *in* a section rather than floating on a flat sheet. */
+fieldset, .formpanel { border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 12px; margin: 14px 0 0; background: var(--bg-card-alt); }
+.formpanel:first-of-type { margin-top: 0; }
 legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
   color: var(--text-secondary); font-weight: 700; padding: 0 6px; }
 .warn { color: var(--err); font-size: 13px; margin-top: 10px; }
@@ -315,6 +319,7 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
       <div id="jiraPreview" hidden></div>
     </details>
 
+    <div class="formpanel">
     <div class="grid-fields">
       <div>
         <label class="field" for="f_pi">PI</label>
@@ -343,6 +348,7 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
       </div>
     </div>
     <p class="sub" id="statusHint" style="margin:8px 0 0"></p>
+    </div>
 
     <fieldset>
       <legend>Commitment</legend>
