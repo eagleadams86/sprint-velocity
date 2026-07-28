@@ -40,6 +40,7 @@
   --band-yellow:  rgba(217,150,10,.22);
   --band-red:     rgba(185,28,28,.14);
   --shadow: 0 1px 2px rgba(0,0,0,.06), 0 4px 12px rgba(0,0,0,.04);
+  --chrome-h: 30px;
 }
 [data-theme="midnight"] {
   color-scheme: dark;
@@ -86,7 +87,10 @@ button, select, input, textarea { font: inherit; color: inherit; }
 }
 .btn:hover { border-color: var(--text-muted); }
 .btn.primary { background: var(--btn-bg); color: var(--btn-text); border-color: var(--btn-bg); }
-.btn.small { padding: 4px 9px; font-size: 13px; }
+/* Shared height for the header chrome. A native <select> ignores line-height, so
+   it sizes ~3px shorter than a button with identical padding and font — pinning
+   the height on both is the only way to keep the row even. */
+.btn.small { padding: 4px 9px; font-size: 13px; min-height: var(--chrome-h); }
 select, input[type=text], input[type=number], input[type=date], textarea {
   background: var(--bg-card); border: 1px solid var(--input-border);
   border-radius: var(--radius-sm); padding: 7px 9px;
@@ -95,6 +99,16 @@ textarea { width: 100%; resize: vertical; min-height: 64px; }
 :focus-visible { outline: 2px solid var(--focus-border); outline-offset: 2px; }
 
 /* ── Tabs ───────────────────────────────────────────────────────────────── */
+/* The team picker is header chrome sitting in a row of buttons, so it's styled as
+   one rather than as a form field. */
+#teamSel {
+  background: var(--bg-card-alt); color: var(--text-primary);
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  padding: 4px 9px; font-size: 13px; font-weight: inherit; cursor: pointer;
+  min-height: var(--chrome-h);
+}
+#teamSel:hover { border-color: var(--text-muted); }
+
 .tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 20px; }
 .tab {
   background: none; border: 1px solid transparent; border-radius: var(--radius-sm);
@@ -113,8 +127,15 @@ textarea { width: 100%; resize: vertical; min-height: 64px; }
 }
 .card > h2 { margin: 0 0 4px; font-size: 16px; letter-spacing: -.01em; }
 .card > .sub { margin: 0 0 16px; color: var(--text-secondary); font-size: 13px; }
-.tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+/* Tiles share the parent's rows via subgrid, so the label, the number and the
+   caption each line up straight across a row of tiles. Without it a label that
+   wraps to two lines ("Avg commitment completion") shunts its own number and
+   caption down out of line with its neighbours'. Browsers without subgrid fall
+   back to each tile laying itself out, which is what it did before. */
+.tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-rows: repeat(3, auto); }
 .tile {
+  display: grid; grid-row: span 3; grid-template-rows: subgrid; align-content: start;
   border: 1px solid var(--border); border-left-width: 4px;
   border-radius: var(--radius-sm); padding: 12px 14px; background: var(--bg-card-alt);
 }
