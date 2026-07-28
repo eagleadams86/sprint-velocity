@@ -27,6 +27,10 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   window, PI tiles and the capacity target. **No dates → complete** is deliberate: all
   pre-lifecycle data is dateless and was entered as finished work; changing that would
   silently pull real history out of the averages.
+- `isCounted()` also honours `settings.includeInProgress` (default off), which opts running
+  sprints into every figure for last-day planning. It's deliberately one predicate so no two
+  views can disagree; `targetSprintSlot()` then stops aiming at the running sprint, since a
+  sprint being counted as data isn't the one you're planning. Planned sprints never count.
 - `rollingSprints()` is the chokepoint — filtering there covers Rolling 5, All teams and the
   capacity target at once. The PI view filters separately via its own `closed` list.
 - Exclusions must never be silent: every view that drops a sprint says which one and why

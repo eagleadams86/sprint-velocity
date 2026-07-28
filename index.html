@@ -483,7 +483,8 @@ function blankState() {
     teams: [],
     pis: [],
     sprints: [],
-    settings: { activeTeamId: null, activePiId: null, includeSprint6InRolling: false, view: 'sprint' }
+    settings: { activeTeamId: null, activePiId: null, includeSprint6InRolling: false,
+                includeInProgress: false, view: 'sprint' }
   };
 }
 
@@ -556,7 +557,16 @@ function sprintStatus(s) {
   return 'complete';
 }
 
-const isCounted = (s) => sprintStatus(s) === 'complete';
+/* The single answer to "does this sprint feed the numbers?", so the rolling window,
+   the PI tiles, the team comparison and the capacity target can never disagree.
+
+   A running sprint can be opted in: on the last day of a sprint its figures are
+   near enough final, and stale planning data is worse than provisional data. It
+   stays off by default because the numbers genuinely aren't final, and every view
+   says out loud when it's on. A *planned* sprint is never counted — it has no
+   results at all. */
+const isCounted = (s) => sprintStatus(s) === 'complete'
+  || (state.settings.includeInProgress && sprintStatus(s) === 'active');
 
 const STATUS_TEXT  = { planned: 'Planned', active: 'In progress', complete: 'Complete' };
 const STATUS_SHORT = { planned: 'planned', active: 'in progress', complete: '' };
@@ -709,7 +719,9 @@ function targetSprintSlot(teamId) {
   const all = teamSprints(teamId);
   if (!all.length) return null;
   const lastComplete = all.filter(isCounted).slice(-1)[0] || null;
-  const active = all.find(x => sprintStatus(x) === 'active');
+  /* Only aim at the running sprint while it's still *outside* the numbers. Once it's
+     being counted, it's data like any other sprint and the one to plan is the next. */
+  const active = all.find(x => sprintStatus(x) === 'active' && !isCounted(x));
   if (active)
     return { piId: active.piId, sprintNumber: active.sprintNumber, last: lastComplete, sprint: active };
 
@@ -1232,11 +1244,16 @@ function renderSprintView() {
     ${inFlight ? `<div class="card banner">
       <h2>${STATUS_BADGE[st]} ${STATUS_TEXT[st]}${
         st === 'active' && pace ? ` — day ${pace.dayOf} of ${pace.totalDays}` : ''}</h2>
-      <p class="sub" style="margin:0">These figures aren't a result yet, so this sprint is left out of
-        your averages, the rolling ${ROLLING_WINDOW} and the capacity target until it's finished.${
-        s.status && s.status !== 'auto'
-          ? ' It stays out until you change its status by hand.'
-          : (s.endDate ? ' It starts counting on its own once the end date passes.' : '')}</p>
+      <p class="sub" style="margin:0">${isCounted(s)
+        ? `These figures aren't final, but <strong>"count sprints that are still running" is
+           switched on</strong>, so this sprint is feeding your averages, the rolling
+           ${ROLLING_WINDOW} and the capacity target. Turn it off on the Rolling
+           ${ROLLING_WINDOW} view to leave it out again.`
+        : `These figures aren't a result yet, so this sprint is left out of your averages, the
+           rolling ${ROLLING_WINDOW} and the capacity target until it's finished.${
+           s.status && s.status !== 'auto'
+             ? ' It stays out until you change its status by hand.'
+             : (s.endDate ? ' It starts counting on its own once the end date passes.' : '')}`}</p>
     </div>` : ''}
 
     <div class="card">
@@ -1365,6 +1382,9 @@ function renderPiView() {
      thing this whole lifecycle exists to prevent. The table still lists them. */
   const closed = present.filter(isCounted);
   const openHere = present.filter(x => !isCounted(x));
+  /* Sprints in the tiles that haven't actually finished — only possible with the
+     "count sprints that are still running" toggle on, and worth naming when so. */
+  const countedRunning = closed.filter(x => sprintStatus(x) !== 'complete');
 
   const piCommitted = sum(closed, 'committed');
   const piCompleted = sum(closed, 'committedCompleted');
@@ -1380,14 +1400,20 @@ function renderPiView() {
           <select id="piSel2" class="ctl">${state.pis.map(p =>
             `<option value="${p.id}"${p.id === piId ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
         </div>
-        <span class="muted" style="font-size:13px">${closed.length} of ${SPRINTS_PER_PI} sprints complete${
+        <span class="muted" style="font-size:13px">${closed.length} of ${SPRINTS_PER_PI} sprints
+          ${countedRunning.length ? 'counted' : 'complete'}${
+          countedRunning.length ? ' (including ' + countedRunning.map(x => 'S' + x.sprintNumber).join(', ')
+            + ', still running)' : ''}${
           openHere.length ? ' · ' + openHere.map(x => 'S' + x.sprintNumber + ' ' + STATUS_SHORT[sprintStatus(x)]).join(', ') : ''}</span>
       </div>
     </div>
 
     <div class="card">
       <h2>${esc(team.name)} — ${esc(pi.name)}</h2>
-      <p class="sub">Totals across the finished sprints in this PI.${
+      <p class="sub">Totals across the ${countedRunning.length ? 'counted' : 'finished'} sprints
+        in this PI.${countedRunning.length ? ` <strong>${countedRunning.map(x => 'S' + x.sprintNumber).join(', ')}</strong>
+        ${countedRunning.length === 1 ? 'is' : 'are'} still running — included because you asked for
+        running sprints to count.` : ''}${
         openHere.length ? ` <strong>${openHere.map(x => 'S' + x.sprintNumber).join(', ')}</strong>
         ${openHere.length === 1 ? 'is' : 'are'} still open and not counted here.` : ''}</p>
       <div class="tiles">
@@ -1524,6 +1550,9 @@ function renderRollingView() {
       <h2>${esc(team.name)} — last ${rs.length} sprint${rs.length === 1 ? '' : 's'}</h2>
       <p class="sub">${esc(labels[0])} → ${esc(labels[labels.length - 1])}${
         includeSix ? '' : ' · sprint 6 (IP) excluded'}${
+        rs.some(x => sprintStatus(x) !== 'complete')
+          ? ' · includes ' + esc(rs.filter(x => sprintStatus(x) !== 'complete')
+              .map(x => 'S' + x.sprintNumber).join(', ')) + ', still running' : ''}${
         openSprintsNote(team.id) ? ' · ' + esc(openSprintsNote(team.id)) + ', not counted' : ''}</p>
       <div class="tiles">
         ${tile('Avg commitment completion', fmtPct(aCommit, 'completion'), rag(aCommit, 'completion'), 'target ≥85%')}
@@ -1728,6 +1757,7 @@ function targetCapacityCard(team, includeSix) {
 }
 
 function rollingToolbar(includeSix) {
+  const inProg = !!state.settings.includeInProgress;
   return `<div class="card">
     <div class="row spread">
       <label class="row" style="gap:8px;cursor:pointer;font-size:14px">
@@ -1737,6 +1767,14 @@ function rollingToolbar(includeSix) {
       <span class="muted" style="font-size:13px">Off by default — the IP sprint is for innovation
         and planning, not delivery.</span>
     </div>
+    <div class="row spread" style="margin-top:10px">
+      <label class="row" style="gap:8px;cursor:pointer;font-size:14px">
+        <input type="checkbox" id="incProgress"${inProg ? ' checked' : ''}>
+        Count sprints that are still running
+      </label>
+      <span class="muted" style="font-size:13px">Off by default — their figures aren't final.
+        Useful on the last day of a sprint, when you'd rather plan on today's numbers.</span>
+    </div>
   </div>`;
 }
 
@@ -1744,6 +1782,10 @@ function wireRollingToolbar() {
   const el = document.getElementById('incSix');
   if (el) el.onchange = () => {
     state.settings.includeSprint6InRolling = el.checked; save(); render();
+  };
+  const ip = document.getElementById('incProgress');
+  if (ip) ip.onchange = () => {
+    state.settings.includeInProgress = ip.checked; save(); render();
   };
 }
 
