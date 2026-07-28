@@ -40,7 +40,8 @@
   --band-yellow:  rgba(217,150,10,.22);
   --band-red:     rgba(185,28,28,.14);
   --shadow: 0 1px 2px rgba(0,0,0,.06), 0 4px 12px rgba(0,0,0,.04);
-  --chrome-h: 30px;
+  --chrome-h: 30px;    /* small header buttons + the team picker */
+  --control-h: 38.5px; /* full-size buttons + the toolbar pickers beside them */
 }
 [data-theme="midnight"] {
   color-scheme: dark;
@@ -99,8 +100,19 @@ textarea { width: 100%; resize: vertical; min-height: 64px; }
 :focus-visible { outline: 2px solid var(--focus-border); outline-offset: 2px; }
 
 /* ── Tabs ───────────────────────────────────────────────────────────────── */
-/* The team picker is header chrome sitting in a row of buttons, so it's styled as
-   one rather than as a form field. */
+/* Pickers that sit in a toolbar next to a button are chrome, not form fields, so
+   they're styled as buttons. Height has to be pinned on both: a native <select>
+   ignores line-height, so identical padding and font still leaves it shorter than
+   the button beside it. */
+.btn, select.ctl { min-height: var(--control-h); }
+select.ctl {
+  background: var(--bg-card-alt); color: var(--text-primary);
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  padding: 7px 9px; cursor: pointer;
+}
+select.ctl:hover { border-color: var(--text-muted); }
+
+/* The team picker is the same idea at the smaller header size. */
 #teamSel {
   background: var(--bg-card-alt); color: var(--text-primary);
   border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
@@ -1088,10 +1100,10 @@ function renderSprintView() {
       <div class="row spread">
         <div class="row">
           <label class="sr-only" for="piSel">PI</label>
-          <select id="piSel">${pis.map(p =>
+          <select id="piSel" class="ctl">${pis.map(p =>
             `<option value="${p.id}"${p.id === piId ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
           <label class="sr-only" for="numSel">Sprint</label>
-          <select id="numSel">${Array.from({ length: SPRINTS_PER_PI }, (_, i) => i + 1).map(n =>
+          <select id="numSel" class="ctl">${Array.from({ length: SPRINTS_PER_PI }, (_, i) => i + 1).map(n =>
             `<option value="${n}"${n === numSel ? ' selected' : ''}>Sprint ${n}${
               n === IP_SPRINT ? ' (IP)' : ''}${sprintPickerNote(team.id, piId, n)}</option>`).join('')}</select>
         </div>
@@ -1272,7 +1284,7 @@ function renderPiView() {
       <div class="row spread">
         <div class="row">
           <label class="sr-only" for="piSel2">PI</label>
-          <select id="piSel2">${state.pis.map(p =>
+          <select id="piSel2" class="ctl">${state.pis.map(p =>
             `<option value="${p.id}"${p.id === piId ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
         </div>
         <span class="muted" style="font-size:13px">${closed.length} of ${SPRINTS_PER_PI} sprints complete${
