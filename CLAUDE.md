@@ -63,6 +63,10 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   records what was signed up for; every other figure uses `jiraCurrent()`, what the work
   turned out to be. Both sides are checksummed against Jira's own totals — don't collapse
   this back to a single number, it silently zeroed re-estimated rows before.
+- An issue that is **both** starred and in the removed section is netted out of `added` *and*
+  `removed`, and tracked as `addedThenRemoved` — it never joined the commitment, so counting
+  it twice would penalise churn that left no trace. It is a **stored sprint field with its own
+  form input**: without that, editing a sprint would silently drop it.
 - A consequence of that split: **commitment completion can exceed 100%** when a team re-sizes
   upward. It's shown as-is, so completion axes use `suggestedMax: 110`, never `max` — a hard
   cap clips a real reading off the top of the chart. Jira's `Story Points (N)` per section is

@@ -70,7 +70,8 @@ It works out every figure and shows you exactly how before filling anything in:
 | Committed points completed | completed issues not marked `*` |
 | Total points completed | the whole Completed Issues section |
 | Added after start | every issue marked `*` (Jira's "added to sprint after start time") |
-| Removed after start | the Issues Removed From Sprint section |
+| Removed after start | the Issues Removed From Sprint section, minus anything that arrived mid-sprint and left again |
+| Brought in, then removed | issues marked `*` that ended up removed — counted in neither break-in nor removed |
 | Carried out | the Issues Not Completed section — *all* unfinished work |
 | Carried in | not in the report; taken from the previous sprint (see below) |
 
@@ -100,6 +101,12 @@ mis-read has two independent ways to show itself.
 and delivery counted at current ones, a team that re-sizes work upward mid-sprint really did
 deliver more than it committed to. That's shown as-is rather than capped, and the charts
 scale to fit it.
+
+**Work pulled in mid-sprint and then pulled back out nets to nothing.** It never joined the
+commitment, and removing it didn't reduce the commitment either, so counting it as both
+break-in *and* removed would penalise the team twice for churn that left no trace. It's
+recorded on its own instead, and the Sprint view's *Where the points went* card says so when
+it happened.
 
 **Carried out is all unfinished work**, not `committed − completed`. If work broke in
 mid-sprint and didn't finish, it still rolls into the next sprint, so it's counted — which

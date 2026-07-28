@@ -387,6 +387,10 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
           <label class="field" for="f_carriedOut">Carried out (to next sprint)</label>
           <input type="number" id="f_carriedOut" min="0" step="1" inputmode="numeric">
         </div>
+        <div>
+          <label class="field" for="f_addedThenRemoved">Brought in, then removed</label>
+          <input type="number" id="f_addedThenRemoved" min="0" step="1" inputmode="numeric">
+        </div>
       </div>
       <p class="sub" id="carryHint" style="margin:10px 0 0" hidden></p>
     </fieldset>
@@ -649,6 +653,7 @@ function metrics(s) {
     added, removed,
     carriedIn:          numOrNull(s.carriedIn),
     carriedOut:         numOrNull(s.carriedOut),
+    addedThenRemoved:   numOrNull(s.addedThenRemoved),
     velocity:           numOrNull(s.totalCompleted),
     commitCompletePct:  pct(s.committedCompleted),
     breakInPct:         pct(s.added),
@@ -907,7 +912,15 @@ function deriveFromJira(parsed) {
   const { rows, claimed } = parsed;
   const all = [...rows.completed, ...rows.notCompleted, ...rows.removed];
   const notAdded = (list) => list.filter(r => !r.added);
-  const addedRows = all.filter(r => r.added);
+
+  /* Work pulled into a running sprint and then pulled back out again nets to
+     nothing: it never joined the commitment, and removing it took nothing away
+     from it either. Counting it as both break-in and removed would penalise the
+     team twice for churn that left no trace on the sprint. It's tracked on its own
+     so it can still be reported rather than vanishing. */
+  const inThenOutRows = rows.removed.filter(r => r.added);
+  const addedRows   = [...rows.completed, ...rows.notCompleted].filter(r => r.added);
+  const removedRows = rows.removed.filter(r => !r.added);
 
   /* Cross-check both sides of every section against Jira's own header totals. Two
      independent ways for a mis-parse to announce itself, and — unlike before —
@@ -944,14 +957,16 @@ function deriveFromJira(parsed) {
     committedCompleted: jiraCurrent(notAdded(rows.completed)),
     totalCompleted:     jiraCurrent(rows.completed),
     added:              seen('completed') || seen('notCompleted') ? jiraCurrent(addedRows) : null,
-    removed:            seen('removed') ? jiraCurrent(rows.removed) : null,
+    removed:            seen('removed') ? jiraCurrent(removedRows) : null,
+    addedThenRemoved:   seen('removed') ? jiraCurrent(inThenOutRows) : null,
     carriedOut:         seen('notCompleted') ? jiraCurrent(rows.notCompleted) : null,
     counts: {
       completed: rows.completed.length,
       notCompleted: rows.notCompleted.length,
       removed: rows.removed.length,
       outside: rows.outside.length,
-      added: addedRows.length
+      added: addedRows.length,
+      addedThenRemoved: inThenOutRows.length
     },
     addedUnfinished: jiraCurrent(rows.notCompleted.filter(r => r.added)),
     resized: resizedRows.length,
@@ -1271,6 +1286,11 @@ function renderSprintView() {
           <strong>${fmtNum(m.added)}</strong> added ·
           <strong>${fmtNum(m.removed)}</strong> removed</span>
       </div>
+      ${m.addedThenRemoved ? `<p class="sub" style="margin:8px 0 0">↩
+        <strong>${fmtNum(m.addedThenRemoved)}</strong> point${m.addedThenRemoved === 1 ? '' : 's'}
+        came into the sprint after it started and then went back out again. That work is
+        deliberately left out of both break-in and removed — it never joined the commitment,
+        and taking it away didn't reduce the commitment either.</p>` : ''}
     </div>
 
     ${notes.length ? `<div class="card">
@@ -1864,7 +1884,8 @@ function openSprint(teamId, piId, sprintNumber) {
   const n = s.notes || {};
   F('f_start').value = s.startDate || '';
   F('f_end').value = s.endDate || '';
-  ['committed', 'committedCompleted', 'totalCompleted', 'added', 'removed', 'carriedIn', 'carriedOut']
+  ['committed', 'committedCompleted', 'totalCompleted', 'added', 'removed', 'carriedIn',
+   'carriedOut', 'addedThenRemoved']
     .forEach(k => { F('f_' + k).value = (s[k] === 0 || s[k]) ? s[k] : ''; });
   F('f_n_added').value = n.added || '';
   F('f_n_removed').value = n.removed || '';
@@ -2028,7 +2049,11 @@ F('jiraParseBtn').onclick = () => {
       ${row('Committed points completed', d.committedCompleted, 'completed and not marked *')}
       ${row('Total points completed', d.totalCompleted, 'the whole completed section')}
       ${row('Added after start', d.added, `the ${c.added} issue${c.added === 1 ? '' : 's'} marked *`)}
-      ${row('Removed after start', d.removed, 'the removed-from-sprint section')}
+      ${row('Removed after start', d.removed, 'the removed-from-sprint section'
+        + (d.counts.addedThenRemoved ? ', excluding work that arrived mid-sprint and left again' : ''))}
+      ${d.addedThenRemoved ? row('Brought in, then removed', d.addedThenRemoved,
+        `${d.counts.addedThenRemoved} issue${d.counts.addedThenRemoved === 1 ? '' : 's'} marked *
+         that ended up removed — counted in neither break-in nor removed`) : ''}
       ${row('Carried out', d.carriedOut, 'all unfinished work' + (d.addedUnfinished
         ? `, including ${fmtNum(d.addedUnfinished)} that broke in mid-sprint and didn't finish` : ''))}
       ${prev !== null ? row('Carried in', prev,
@@ -2096,6 +2121,7 @@ function applyJiraNumbers() {
   set('f_added', d.added);
   set('f_removed', d.removed);
   set('f_carriedOut', d.carriedOut);
+  set('f_addedThenRemoved', d.addedThenRemoved);
   const prev = previousCarriedOut();
   if (prev !== null && F('f_carriedIn').value.trim() === '') set('f_carriedIn', prev);
   checkSprintForm();
@@ -2147,6 +2173,7 @@ F('sprintSaveBtn').onclick = () => {
     removed: val('f_removed'),
     carriedIn: val('f_carriedIn'),
     carriedOut: val('f_carriedOut'),
+    addedThenRemoved: val('f_addedThenRemoved'),
     notes: {
       added: F('f_n_added').value.trim(),
       removed: F('f_n_removed').value.trim(),
