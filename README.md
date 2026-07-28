@@ -163,6 +163,28 @@ sprint is being counted as data, it isn't the sprint you're planning any more.
 
 Sprints that haven't started are never counted either way; they have no results at all.
 
+### Overwriting a finished sprint
+
+Saving a sprint that has already finished asks first, listing exactly what would change:
+
+```
+PI 2026.3 · S3 finished on 14 Jul 2026 and already has data.
+
+Saving will change:
+  • Points committed: 38 → 99
+  • Total points completed: 36 → 41
+
+Save these changes?
+```
+
+It's there to catch the real accident — picking the wrong sprint from the dropdown, pasting
+a Jira report over it and saving. Legitimate corrections go through with one click.
+
+It stays quiet unless it needs to speak: no prompt for a sprint that's still running or
+hasn't started, none for a new sprint in an empty slot, none if you open an old sprint and
+change nothing, and none for adding a retro note. Only a recorded figure actually changing —
+or the sprint being moved to another slot — triggers it.
+
 ### Carried in fills itself
 
 Whenever you open a sprint that has no carried-in figure yet, it's filled with what the

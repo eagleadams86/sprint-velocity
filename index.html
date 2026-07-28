@@ -2192,10 +2192,51 @@ F('jiraClearBtn').onclick = () => {
 
 F('sprintCancelBtn').onclick = () => sprintDialog.close();
 
+/* Guards a finished sprint against being overwritten by accident — picking the wrong
+   sprint from the dropdown, pasting a Jira report and saving would otherwise quietly
+   replace real history.
+
+   It stays quiet unless it needs to speak: only when the sprint already has data, has
+   finished, and a recorded figure would actually change. Opening an old sprint to read
+   it, or to add a note at the retro, saves without a word. The specific changes are
+   listed so it can be checked rather than waved through — a warning nobody reads is
+   worse than none. */
+const OVERWRITE_FIELDS = [
+  ['committed',          'Points committed'],
+  ['committedCompleted', 'Committed points completed'],
+  ['totalCompleted',     'Total points completed'],
+  ['added',              'Added after start'],
+  ['removed',            'Removed after start'],
+  ['carriedIn',          'Carried in'],
+  ['carriedOut',         'Carried out'],
+  ['addedThenRemoved',   'Brought in, then removed']
+];
+
+function confirmOverwrite(existing, record) {
+  if (!existing || sprintStatus(existing) !== 'complete') return true;
+
+  const changes = OVERWRITE_FIELDS
+    .filter(([k]) => num(existing[k]) !== num(record[k]))
+    .map(([k, label]) => `  • ${label}: ${fmtNum(num(existing[k]))} → ${fmtNum(num(record[k]))}`);
+
+  if (existing.piId !== record.piId || existing.sprintNumber !== record.sprintNumber) {
+    const to = piById(record.piId);
+    changes.unshift(`  • Moving it to ${to ? to.name : 'another PI'} · S${record.sprintNumber}`);
+  }
+  if (!changes.length) return true;      // nothing of substance changed
+
+  const when = existing.endDate
+    ? 'finished on ' + new Date(existing.endDate + 'T00:00:00')
+        .toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+    : 'is recorded as finished';
+
+  return confirm(
+    `${sprintLabel(existing)} ${when} and already has data.\n\n`
+    + `Saving will change:\n${changes.join('\n')}\n\n`
+    + `Save these changes?`);
+}
+
 F('sprintSaveBtn').onclick = () => {
-  /* Story points are whole numbers — there is no such thing as half a point — so a
-     decimal typed by hand is rounded rather than stored. Averages and targets computed
-     from these are still fractional; it's only the recorded values that are integers. */
   /* An empty box saves as 0. Story points are whole numbers, so a decimal typed by
      hand is rounded; averages and targets computed from these are still fractional. */
   const val = (id) => Math.max(0, Math.round(parseFloat(F(id).value) || 0));
@@ -2234,6 +2275,7 @@ F('sprintSaveBtn').onclick = () => {
   };
 
   const i = state.sprints.findIndex(s => s.id === record.id);
+  if (!confirmOverwrite(i >= 0 ? state.sprints[i] : null, record)) return;
   if (i >= 0) state.sprints[i] = record; else state.sprints.push(record);
 
   state.settings.activePiId = piId;

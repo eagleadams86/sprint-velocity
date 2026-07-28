@@ -78,6 +78,10 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   used as a checksum and any mismatch is shown to the user — **keep that visible**, it's what
   makes shipping without every real-world Jira variant safe. A section absent from the paste
   fills its field with 0 — Jira omits a section when nothing fell into it.
+- `confirmOverwrite()` guards a finished sprint from an accidental save, listing the
+  field-level changes rather than asking a vague "are you sure?" — a warning nobody reads is
+  worse than none. It deliberately stays silent for running/planned/new sprints, for a no-op
+  save, and for notes-only edits; keep that narrow, or it becomes noise people click through.
 - **README.md is the index** — keep it current whenever the app meaningfully changes.
 - After changes: **browser-test locally first** (`python3 -m http.server 8012`, or the
   desktop app's preview pane via `.claude/launch.json`), then commit, push, verify the
