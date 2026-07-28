@@ -51,8 +51,8 @@ Velocity              = total points completed
 Colour is never the only signal — every figure also carries a ✓ / ! / ✕ glyph and a
 screen-reader status, so the app is readable without colour vision.
 
-A sprint with nothing committed shows `—` rather than 0%, and is left out of averages
-instead of dragging them down.
+A sprint with nothing committed shows `—` rather than 0% — there's no denominator — and is
+left out of averages instead of dragging them down. Every other empty figure counts as 0.
 
 Percentages display as whole numbers, except when rounding would land on the wrong side of
 a target — 33 of 39 points is 84.6%, so it shows as `84.6%` in yellow rather than as `85%`
@@ -170,11 +170,15 @@ previous sprint carried out — crossing a PI boundary if you're on sprint 1. A 
 fields says which sprint it came from, and it never overwrites a number you've already
 entered or typed.
 
-### Blank isn't zero
+### Blank means zero
 
-A box left empty stays empty. It shows as `—` and drops out of averages, rather than
-counting as a real zero. That matters mid-sprint, and it also fixes a quieter case: a team
-that simply never records removals used to report a confident 0% removed.
+An empty box saves as 0 — most sprint data arrives from the Jira paste, where a figure that
+isn't there genuinely is nothing, and a `—` where the honest answer is "0 removed" just looks
+like missing data.
+
+The one figure that still shows `—` is a percentage with nothing committed: there's no
+denominator to divide by, so it can't be a number, and those sprints stay out of averages
+rather than dragging them down.
 
 ## The four views
 

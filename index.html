@@ -597,7 +597,8 @@ function sprintPace(s) {
   const elapsedPct = (dayOf / totalDays) * 100;
 
   const m = metrics(s);
-  if (!(m.committed > 0) || m.committedCompleted === null) return { dayOf, totalDays, elapsedPct,
+  /* No commitment means no ratio to judge pace against. */
+  if (!(m.committed > 0)) return { dayOf, totalDays, elapsedPct,
     donePct: null, label: `Day ${dayOf} of ${totalDays}`, rag: null };
 
   const donePct = (m.committedCompleted / m.committed) * 100;
@@ -648,33 +649,33 @@ function rollingSprints(teamId, includeSix) {
    out of averages, instead of dragging them down as a fake 0%. */
 function metrics(s) {
   const c = num(s.committed);
-  /* A figure that hasn't been entered yet stays null all the way through, so it
-     renders as "—" and avg() skips it, rather than counting as a real zero. That
-     matters most mid-sprint, but it also fixes a quieter case: a team that never
-     records removals used to report a confident 0% removed. */
-  const pct = (v) => {
-    const n = numOrNull(v);
-    return (c > 0 && n !== null) ? (n / c) * 100 : null;
-  };
-  const added = numOrNull(s.added), removed = numOrNull(s.removed);
+  /* An empty box means zero. Blanks used to stay null so a half-typed sprint
+     couldn't read as a run of real results — but sprint data now arrives from the
+     Jira paste, where a missing figure genuinely is nothing, and the sprint
+     lifecycle already keeps unfinished sprints out of the averages. A "—" where
+     the honest answer is 0 just looks like missing data.
+
+     The one figure that still yields null is a percentage with nothing committed:
+     there's no denominator, so it renders as "—" and avg() skips it. */
+  const pct = (v) => (c > 0 ? (num(v) / c) * 100 : null);
   return {
     committed:          c,
-    committedCompleted: numOrNull(s.committedCompleted),
-    added, removed,
-    carriedIn:          numOrNull(s.carriedIn),
-    carriedOut:         numOrNull(s.carriedOut),
-    addedThenRemoved:   numOrNull(s.addedThenRemoved),
-    velocity:           numOrNull(s.totalCompleted),
+    committedCompleted: num(s.committedCompleted),
+    added:              num(s.added),
+    removed:            num(s.removed),
+    carriedIn:          num(s.carriedIn),
+    carriedOut:         num(s.carriedOut),
+    addedThenRemoved:   num(s.addedThenRemoved),
+    velocity:           num(s.totalCompleted),
     commitCompletePct:  pct(s.committedCompleted),
     breakInPct:         pct(s.added),
     removedPct:         pct(s.removed),
     carryoverPct:       pct(s.carriedOut),
-    churnPct:           (added === null && removed === null) ? null : pct(num(added) + num(removed))
+    churnPct:           pct(num(s.added) + num(s.removed))
   };
 }
 
 const num = (v) => (typeof v === 'number' && isFinite(v) ? v : parseFloat(v) || 0);
-const numOrNull = (v) => (v === null || v === undefined || v === '' ? null : num(v));
 
 /* RAG scales. 'completion' is higher-is-better, 'churn' is lower-is-better.
    The stated bands left a gap between 84% and 85%, so the boundaries are pinned
@@ -955,9 +956,8 @@ function deriveFromJira(parsed) {
      stored figure. */
   const resizedRows = all.filter(r => !near(r.points.start, r.points.current));
 
-  /* A section missing from the paste leaves its field blank rather than writing a
-     confident 0 — blank means "not known" everywhere else in the app. */
-  const seen = (sec) => rows[sec].length > 0 || claimed[sec] !== undefined;
+  /* Jira leaves a section out when nothing fell into it, so an absent section means
+     zero rather than unknown — it fills in as 0 like every other figure. */
 
   const resizedFrom = resizedRows.reduce((a, r) => a + r.points.start, 0);
   const resizedTo   = resizedRows.reduce((a, r) => a + r.points.current, 0);
@@ -968,10 +968,10 @@ function deriveFromJira(parsed) {
     committed:          jiraStart(notAdded(all)),
     committedCompleted: jiraCurrent(notAdded(rows.completed)),
     totalCompleted:     jiraCurrent(rows.completed),
-    added:              seen('completed') || seen('notCompleted') ? jiraCurrent(addedRows) : null,
-    removed:            seen('removed') ? jiraCurrent(removedRows) : null,
-    addedThenRemoved:   seen('removed') ? jiraCurrent(inThenOutRows) : null,
-    carriedOut:         seen('notCompleted') ? jiraCurrent(rows.notCompleted) : null,
+    added:              jiraCurrent(addedRows),
+    removed:            jiraCurrent(removedRows),
+    addedThenRemoved:   jiraCurrent(inThenOutRows),
+    carriedOut:         jiraCurrent(rows.notCompleted),
     counts: {
       completed: rows.completed.length,
       notCompleted: rows.notCompleted.length,
@@ -2159,8 +2159,7 @@ function previousSprint() {
 function previousCarriedOut() {
   const prev = previousSprint();
   if (!prev) return null;
-  const v = metrics(prev).carriedOut;
-  return v === null ? null : v;
+  return metrics(prev).carriedOut;
 }
 
 function applyJiraNumbers() {
@@ -2197,13 +2196,9 @@ F('sprintSaveBtn').onclick = () => {
   /* Story points are whole numbers — there is no such thing as half a point — so a
      decimal typed by hand is rounded rather than stored. Averages and targets computed
      from these are still fractional; it's only the recorded values that are integers. */
-  const val = (id) => {
-    const raw = F(id).value.trim();
-    /* Left blank means "not known yet", not zero — the two have to stay
-       distinguishable or a half-entered sprint reads as a run of real results. */
-    if (raw === '') return null;
-    return Math.max(0, Math.round(parseFloat(raw) || 0));
-  };
+  /* An empty box saves as 0. Story points are whole numbers, so a decimal typed by
+     hand is rounded; averages and targets computed from these are still fractional. */
+  const val = (id) => Math.max(0, Math.round(parseFloat(F(id).value) || 0));
   const piId = F('f_pi').value;
   const sprintNumber = Number(F('f_num').value);
 

@@ -17,11 +17,12 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
 - `chart.min.js` is a **vendored third-party build — do not hand-edit.**
 - **`metrics()` and `rag()` in `index.html` are the only places the numbers are
   calculated.** Every tile, table and chart reads from them. Thresholds change in one spot.
-- Sprints with `committed === 0` must keep returning `null` percentages, not zeros — they
-  render as `—` and drop out of averages. Same for any figure not yet entered: `val()` saves
-  `null` for a blank box and `metrics()` keeps it null. **Never coerce these to 0** — that
-  is what made a mid-flight sprint read as a 0% result. `sum()` coerces (it would go NaN);
-  `avg()` filters (that null-skipping is what the whole lifecycle leans on).
+- **Blank means 0.** `val()` saves 0 for an empty box and `metrics()` uses `num()` throughout.
+  Blanks were once kept as `null` so a half-typed sprint couldn't read as real results; the
+  sprint lifecycle now does that job, data mostly arrives via the Jira paste where absent
+  really is zero, and a `—` where the answer is 0 looked like missing data.
+- The one surviving `null` is a **percentage with `committed === 0`** — no denominator, so it
+  renders as `—` and `avg()` skips it. Keep that; don't turn it into 0%.
 - **Sprint lifecycle:** `sprintStatus()` resolves planned/active/complete from the dates,
   overridable per sprint via `status`. Only `isCounted()` sprints feed averages, the rolling
   window, PI tiles and the capacity target. **No dates → complete** is deliberate: all
@@ -76,7 +77,7 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   cap clips a real reading off the top of the chart. Jira's `Story Points (N)` per section is
   used as a checksum and any mismatch is shown to the user — **keep that visible**, it's what
   makes shipping without every real-world Jira variant safe. A section absent from the paste
-  leaves its field blank, never 0.
+  fills its field with 0 — Jira omits a section when nothing fell into it.
 - **README.md is the index** — keep it current whenever the app meaningfully changes.
 - After changes: **browser-test locally first** (`python3 -m http.server 8012`, or the
   desktop app's preview pane via `.claude/launch.json`), then commit, push, verify the
