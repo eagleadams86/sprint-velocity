@@ -1734,6 +1734,33 @@ let editing = null;   // { teamId, piId, sprintNumber, id? }
 const F = (id) => document.getElementById(id);
 const sprintDialog = F('sprintDialog');
 
+/* A modal <dialog> ignores backdrop clicks by default, which reads as the app
+   being stuck. Clicking outside now cancels, same as the Cancel button and Escape.
+
+   Two details worth keeping:
+   · the hit test is against the dialog's box, not `e.target === dialog` — the
+     dialog has padding, and a click on that padding is still inside the window;
+   · the press has to have *started* outside too, so selecting text in a field and
+     releasing past the edge — easy to do in the Jira paste box — doesn't throw
+     away what you were typing. */
+function closeOnBackdropClick(dlg) {
+  const outside = (e) => {
+    const r = dlg.getBoundingClientRect();
+    return e.clientX < r.left || e.clientX > r.right
+        || e.clientY < r.top  || e.clientY > r.bottom;
+  };
+  let startedOutside = false;
+  dlg.addEventListener('mousedown', (e) => { startedOutside = outside(e); });
+  dlg.addEventListener('click', (e) => {
+    if (startedOutside && outside(e)) dlg.close();
+    startedOutside = false;
+  });
+}
+
+/* Every dialog except the sync reconciliation one, which deliberately refuses to
+   be dismissed — picking which copy of your data to keep has to be a choice. */
+['sprintDialog', 'manageDialog', 'dataDialog'].forEach(id => closeOnBackdropClick(F(id)));
+
 function openSprint(teamId, piId, sprintNumber) {
   const existing = findSprint(teamId, piId, sprintNumber);
   editing = { teamId, piId, sprintNumber, id: existing ? existing.id : null };
