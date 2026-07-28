@@ -52,6 +52,15 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   with timestamp guessing.
 - Firebase authorized domain is `eagleadams86.github.io`, so sync works at this
   `/sprint-velocity/` path unchanged.
+- **Paste from Jira:** `parseJiraSprintReport()` / `deriveFromJira()` are pure functions on
+  text — no DOM, no network, nothing saved. They only ever pre-fill form inputs, so the
+  lifecycle and blank-vs-zero rules apply unchanged. Committed = every issue **not** marked
+  `*` (removed ones included — they were in the sprint at start); carried out = the whole
+  not-completed section, which can exceed `committed − completed`. Handles both tab-separated
+  and one-cell-per-line pastes; browsers differ. Jira's `Story Points (N)` per section is
+  used as a checksum and any mismatch is shown to the user — **keep that visible**, it's what
+  makes shipping without every real-world Jira variant safe. A section absent from the paste
+  leaves its field blank, never 0.
 - **README.md is the index** — keep it current whenever the app meaningfully changes.
 - After changes: **browser-test locally first** (`python3 -m http.server 8012`, or the
   desktop app's preview pane via `.claude/launch.json`), then commit, push, verify the

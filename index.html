@@ -139,6 +139,19 @@ textarea { width: 100%; resize: vertical; min-height: 64px; }
 /* An in-flight sprint is easy to misread as a bad one, so say so up front. */
 .card.banner { border-left: 4px solid var(--amber); background: var(--bg-card-alt); }
 .card.banner > h2 { color: var(--amber); }
+/* Paste-from-Jira block inside the sprint form. */
+#jiraBlock { border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 10px 12px; margin-bottom: 14px; background: var(--bg-card-alt); }
+#jiraBlock > summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+#jiraBlock textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px; min-height: 90px; }
+#jiraPreview { margin-top: 12px; }
+#jiraPreview table { font-size: 13px; }
+#jiraPreview td.n { font-weight: 700; width: 1%; white-space: nowrap; }
+#jiraPreview td.why { color: var(--text-secondary); text-align: left; font-size: 12px; }
+.note-ok   { color: var(--green); font-size: 13px; font-weight: 600; }
+.note-warn { color: var(--amber); font-size: 13px; font-weight: 600; }
+.note-err  { color: var(--err);   font-size: 13px; font-weight: 600; }
 .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px;
   font-weight: 700; border: 1px solid var(--amber); color: var(--amber);
   background: var(--amber-bg); white-space: nowrap; }
@@ -253,6 +266,22 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
 <dialog id="sprintDialog">
   <form method="dialog" id="sprintForm">
     <h3 id="sprintDialogTitle">Sprint</h3>
+
+    <details id="jiraBlock">
+      <summary>📋 Paste from Jira</summary>
+      <p class="sub" style="margin:10px 0 8px">Open the sprint's <strong>Sprint Report</strong> in
+        Jira, select the whole report and copy it, then paste it below. Nothing is saved until you
+        press Save sprint.</p>
+      <label class="sr-only" for="jiraText">Pasted Jira Sprint Report</label>
+      <textarea id="jiraText" rows="5" placeholder="Paste the whole Sprint Report here, including the
+ &quot;Completed Issues&quot; / &quot;Issues Not Completed&quot; / &quot;Issues Removed From Sprint&quot; headings"></textarea>
+      <div class="row" style="margin-top:8px">
+        <button type="button" class="btn" id="jiraParseBtn">Read it</button>
+        <button type="button" class="btn" id="jiraClearBtn">Clear</button>
+      </div>
+      <div id="jiraPreview" hidden></div>
+    </details>
+
     <div class="grid-fields">
       <div>
         <label class="field" for="f_pi">PI</label>
@@ -696,6 +725,131 @@ function nextSprintTarget(teamId, includeSix) {
     overBy: (committedAlready !== null && committedAlready > 0)
       ? committedAlready - recommended : null,
     isIpSprint: !!slot && slot.sprintNumber === IP_SPRINT
+  };
+}
+
+/* ═══════════════════ Reading a pasted Jira Sprint Report ══════════════════
+   Jira's Sprint Report already holds every figure this app tracks, so pasting it
+   beats retyping seven numbers — especially "committed at start" versus "broke in
+   mid-sprint", which are the two easiest to get wrong by hand and the two every
+   metric here is measured against.
+
+   Two properties of the report make it reliably machine-readable:
+     · each section header carries `Story Points (N)` — Jira's own total, which is
+       used below as a checksum against the rows actually parsed;
+     · issues added mid-sprint are marked `*` ("Issue added to sprint after start
+       time"), which is exactly the break-in tracked here.
+
+   Everything is a pure function on text — no DOM, no network, and nothing is
+   saved. The result only ever pre-fills the form for review. */
+
+const JIRA_SECTIONS = [
+  [/^completed issues/i,                'completed'],
+  [/^issues (not completed|not done)/i, 'notCompleted'],
+  [/^issues removed from sprint/i,      'removed'],
+  [/^issues completed outside/i,        'outside']
+];
+/* Trailing `*` is Jira's "added after sprint start" marker. */
+const JIRA_KEY      = /^([A-Z][A-Z0-9_]*-\d+)\s*(\*?)/;
+const JIRA_KEY_ONLY = /^([A-Z][A-Z0-9_]*-\d+)\s*(\*?)$/;
+const JIRA_TOTAL    = /story\s*points\s*\((\d+(?:\.\d+)?)\)/i;
+/* Only a bare number counts as an estimate, so a summary like
+   "[NAO 2012 Server Upgrade]" can't be mistaken for one. `-` means no estimate. */
+const JIRA_POINTS   = /^\d+(?:\.\d+)?$/;
+
+function parseJiraSprintReport(text) {
+  const lines = String(text || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const rows = { completed: [], notCompleted: [], removed: [], outside: [] };
+  const claimed = {};
+  const sectionOf = (line) => (JIRA_SECTIONS.find(([re]) => re.test(line)) || [])[1];
+
+  /* Browsers disagree on how a table copies: most give one row per line with tabs
+     between cells, some flatten it to one cell per line. Both shapes appear in the
+     wild, so both are handled — the flattened branch is picked when a line holds
+     nothing but an issue key. */
+  const flattened = lines.some(l => JIRA_KEY_ONLY.test(l));
+  let cur = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const sec = sectionOf(line);
+    if (sec) {
+      cur = sec;
+      const t = line.match(JIRA_TOTAL);
+      if (t) claimed[cur] = parseFloat(t[1]);
+      continue;
+    }
+    const t = line.match(JIRA_TOTAL);
+    if (t) { if (cur) claimed[cur] = parseFloat(t[1]); continue; }
+    if (!cur) continue;
+
+    if (flattened) {
+      const m = line.match(JIRA_KEY_ONLY);
+      if (!m) continue;
+      let points = 0;
+      for (let j = i + 1; j < lines.length; j++) {
+        if (JIRA_KEY_ONLY.test(lines[j]) || sectionOf(lines[j])) break;
+        if (JIRA_POINTS.test(lines[j])) points = parseFloat(lines[j]);
+        else if (lines[j] === '-') points = 0;
+      }
+      rows[cur].push({ key: m[1], added: m[2] === '*', points });
+    } else {
+      const m = line.match(JIRA_KEY);
+      if (!m) continue;
+      const cells = line.split('\t').map(c => c.trim()).filter(Boolean);
+      const last = cells[cells.length - 1];
+      rows[cur].push({ key: m[1], added: m[2] === '*',
+        points: JIRA_POINTS.test(last) ? parseFloat(last) : 0 });
+    }
+  }
+
+  const found = Object.values(rows).reduce((a, r) => a + r.length, 0);
+  return { rows, claimed, flattened, found, lines: lines.length };
+}
+
+const jiraPoints = (rows) => rows.reduce((a, r) => a + r.points, 0);
+
+/* Turns parsed rows into the seven figures the form holds.
+
+   "Committed" is every issue *not* marked `*`, including ones later removed —
+   those were in the sprint when it started, so they were part of the commitment.
+   "Carried out" is the whole not-completed section rather than
+   committed − completed, because that's what actually rolls into the next sprint;
+   it can include work that broke in and didn't finish, so it may exceed the
+   commitment shortfall. */
+function deriveFromJira(parsed) {
+  const { rows, claimed } = parsed;
+  const all = [...rows.completed, ...rows.notCompleted, ...rows.removed];
+  const notAdded = (list) => list.filter(r => !r.added);
+  const addedRows = all.filter(r => r.added);
+
+  const checks = Object.keys(claimed).map(sec => ({
+    section: sec,
+    claimed: claimed[sec],
+    actual: jiraPoints(rows[sec] || []),
+    ok: Math.abs(jiraPoints(rows[sec] || []) - claimed[sec]) < 0.001
+  }));
+
+  /* A section missing from the paste leaves its field blank rather than writing a
+     confident 0 — blank means "not known" everywhere else in the app. */
+  const seen = (sec) => rows[sec].length > 0 || claimed[sec] !== undefined;
+
+  return {
+    committed:          jiraPoints(notAdded(all)),
+    committedCompleted: jiraPoints(notAdded(rows.completed)),
+    totalCompleted:     jiraPoints(rows.completed),
+    added:              seen('completed') || seen('notCompleted') ? jiraPoints(addedRows) : null,
+    removed:            seen('removed') ? jiraPoints(rows.removed) : null,
+    carriedOut:         seen('notCompleted') ? jiraPoints(rows.notCompleted) : null,
+    counts: {
+      completed: rows.completed.length,
+      notCompleted: rows.notCompleted.length,
+      removed: rows.removed.length,
+      outside: rows.outside.length,
+      added: addedRows.length
+    },
+    addedUnfinished: jiraPoints(rows.notCompleted.filter(r => r.added)),
+    checks
   };
 }
 
@@ -1589,6 +1743,13 @@ function openSprint(teamId, piId, sprintNumber) {
 
   F('f_status').value = s.status || 'auto';
 
+  /* A paste belongs to one sprint, so it never carries over into the next one
+     opened. */
+  F('jiraText').value = '';
+  F('jiraPreview').hidden = true;
+  F('jiraBlock').open = false;
+  jiraDerived = null;
+
   F('sprintDeleteBtn').hidden = !existing;
   updateStatusHint();
   checkSprintForm();
@@ -1657,6 +1818,120 @@ function checkSprintForm() {
   F(id).addEventListener('input', (e) => { e.target.dataset.touched = '1'; checkSprintForm(); }));
 ['f_added', 'f_removed', 'f_carriedIn'].forEach(id =>
   F(id).addEventListener('input', checkSprintForm));
+
+/* ── Paste from Jira ────────────────────────────────────────────────────────
+   The preview deliberately shows its working — the row counts, Jira's own section
+   totals against what was actually read, and a plain-English reason for each
+   figure. A misparse then announces itself instead of quietly filling wrong
+   numbers, and can be diagnosed from a screenshot. */
+let jiraDerived = null;
+
+F('jiraParseBtn').onclick = () => {
+  const parsed = parseJiraSprintReport(F('jiraText').value);
+  const box = F('jiraPreview');
+  box.hidden = false;
+
+  if (!parsed.found) {
+    jiraDerived = null;
+    box.innerHTML = `<p class="note-err">Couldn't find any issue rows in that
+      ${parsed.lines} line${parsed.lines === 1 ? '' : 's'}.</p>
+      <p class="sub" style="margin:6px 0 0">Paste the whole Sprint Report, including the
+      <em>Completed Issues</em>, <em>Issues Not Completed</em> and
+      <em>Issues Removed From Sprint</em> headings. Issue keys need to look like
+      <code>CMD-1234</code>, and the report needs a Story Points column.</p>`;
+    return;
+  }
+
+  const d = deriveFromJira(parsed);
+  jiraDerived = d;
+  const c = d.counts;
+  const bad = d.checks.filter(x => !x.ok);
+  const SECTION_NAME = { completed: 'completed', notCompleted: 'not completed',
+    removed: 'removed', outside: 'completed outside' };
+
+  const row = (label, value, why) => `<tr><td>${esc(label)}</td>
+    <td class="n">${value === null ? '<span class="muted">—</span>' : fmtNum(value)}</td>
+    <td class="why">${why}</td></tr>`;
+
+  const prev = previousCarriedOut();
+
+  box.innerHTML = `
+    <p class="sub" style="margin:0 0 4px">Read ${c.completed} completed, ${c.notCompleted} not
+      completed, ${c.removed} removed${c.outside ? `, ${c.outside} completed outside` : ''}
+      — ${c.added} of them marked <strong>*</strong> as added after the sprint started.</p>
+    <p class="${bad.length ? 'note-warn' : 'note-ok'}" style="margin:0 0 10px">${
+      bad.length
+        ? '⚠ ' + bad.map(x => `Jira says the ${SECTION_NAME[x.section]} section totals
+            ${fmtNum(x.claimed)} points but the rows read add to ${fmtNum(x.actual)}`).join('; ')
+          + '. Check the figures below before saving.'
+        : d.checks.length
+          ? `✓ Jira's own totals matched on ${d.checks.length === 1 ? 'the section'
+             : 'all ' + d.checks.length + ' sections'} read.`
+          : 'No section totals in the paste to cross-check against — worth a look over the figures.'}</p>
+    <div class="tablewrap"><table><tbody>
+      ${row('Points committed', d.committed,
+        'everything not marked * — removed issues included, they were in the sprint at the start')}
+      ${row('Committed points completed', d.committedCompleted, 'completed and not marked *')}
+      ${row('Total points completed', d.totalCompleted, 'the whole completed section')}
+      ${row('Added after start', d.added, `the ${c.added} issue${c.added === 1 ? '' : 's'} marked *`)}
+      ${row('Removed after start', d.removed, 'the removed-from-sprint section')}
+      ${row('Carried out', d.carriedOut, 'all unfinished work' + (d.addedUnfinished
+        ? `, including ${fmtNum(d.addedUnfinished)} that broke in mid-sprint and didn't finish` : ''))}
+      ${prev !== null ? row('Carried in', prev,
+        'not in the Jira report — taken from the previous sprint') : ''}
+    </tbody></table></div>
+    <div class="row" style="margin-top:12px">
+      <button type="button" class="btn primary" id="jiraApplyBtn">Use these numbers</button>
+      <span class="muted" style="font-size:12px">Fills the boxes below — nothing is saved
+        until you press Save sprint.</span>
+    </div>`;
+
+  F('jiraApplyBtn').onclick = applyJiraNumbers;
+};
+
+/* Carried-in isn't in the Sprint Report, but the app already knows it: it's what
+   the previous sprint carried out. */
+function previousCarriedOut() {
+  if (!editing) return null;
+  const piId = F('f_pi').value;
+  const n = Number(F('f_num').value);
+  let prev = null;
+  if (n > 1) prev = findSprint(editing.teamId, piId, n - 1);
+  else {
+    const earlier = state.pis[piIndex(piId) - 1];
+    if (earlier) prev = findSprint(editing.teamId, earlier.id, SPRINTS_PER_PI);
+  }
+  if (!prev) return null;
+  const v = metrics(prev).carriedOut;
+  return v === null ? null : v;
+}
+
+function applyJiraNumbers() {
+  if (!jiraDerived) return;
+  const d = jiraDerived;
+  const set = (id, v) => {
+    if (v === null || v === undefined) return;   // leave blank rather than write a 0
+    F(id).value = v;
+    F(id).dataset.touched = '1';                 // stop autofill overwriting a real figure
+  };
+  set('f_committed', d.committed);
+  set('f_committedCompleted', d.committedCompleted);
+  set('f_totalCompleted', d.totalCompleted);
+  set('f_added', d.added);
+  set('f_removed', d.removed);
+  set('f_carriedOut', d.carriedOut);
+  const prev = previousCarriedOut();
+  if (prev !== null && F('f_carriedIn').value.trim() === '') set('f_carriedIn', prev);
+  checkSprintForm();
+  F('jiraBlock').open = false;
+  toast('Numbers filled in — review, then Save sprint');
+}
+
+F('jiraClearBtn').onclick = () => {
+  F('jiraText').value = '';
+  F('jiraPreview').hidden = true;
+  jiraDerived = null;
+};
 
 F('sprintCancelBtn').onclick = () => sprintDialog.close();
 

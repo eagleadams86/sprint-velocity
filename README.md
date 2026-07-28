@@ -57,6 +57,39 @@ Percentages display as whole numbers, except when rounding would land on the wro
 a target — 33 of 39 points is 84.6%, so it shows as `84.6%` in yellow rather than as `85%`
 in yellow, which would look like a bug. That's the only time you'll see a decimal.
 
+## Filling a sprint from Jira
+
+Rather than retyping seven numbers, open the sprint's **Sprint Report** in Jira, copy the
+whole thing, and paste it into **📋 Paste from Jira** at the top of the sprint form.
+
+It works out every figure and shows you exactly how before filling anything in:
+
+| Field | Where it comes from |
+|---|---|
+| Points committed | every issue **not** marked `*` — including ones later removed, since they were in the sprint when it started |
+| Committed points completed | completed issues not marked `*` |
+| Total points completed | the whole Completed Issues section |
+| Added after start | every issue marked `*` (Jira's "added to sprint after start time") |
+| Removed after start | the Issues Removed From Sprint section |
+| Carried out | the Issues Not Completed section — *all* unfinished work |
+| Carried in | not in the report; taken from the previous sprint if the app knows it |
+
+Two things make this trustworthy rather than a guess. Jira prints its own **Story Points (N)**
+total in each section header, so the app cross-checks its reading against Jira's and tells
+you if they disagree. And issues with no estimate (`-`) count as zero rather than being
+skipped.
+
+**Carried out is all unfinished work**, not `committed − completed`. If work broke in
+mid-sprint and didn't finish, it still rolls into the next sprint, so it's counted — which
+means carryover can be larger than the shortfall against the commitment.
+
+Nothing is saved by pasting. **Use these numbers** fills the boxes, you check them, and the
+sprint saves only when you press Save sprint. Your "why" notes are never touched. If the
+paste can't be read, it says so and shows what it did find rather than filling in zeros.
+
+Both common paste shapes work — tab-separated rows and one-cell-per-line — since browsers
+differ in how they copy tables.
+
 ## Recording a sprint before it's over
 
 You can create a sprint at planning time and top it up as it runs. An unfinished sprint is
