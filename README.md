@@ -197,6 +197,34 @@ hasn't started, none for a new sprint in an empty slot, none if you open an old 
 change nothing, and none for adding a retro note. Only a recorded figure actually changing —
 or the sprint being moved to another slot — triggers it.
 
+### Dates fill themselves
+
+Key the dates once and the rest of the programme follows. Sprints run on a fixed rhythm, so
+a new sprint form works out its own start and end from a sprint that already has dates,
+counting slots forward at the team's cadence — across PI boundaries included, so sprint 1 of
+the next PI lands where it should.
+
+| Sprint 1 | The next sprint gets |
+|---|---|
+| Mon 6 Jul → Fri 17 Jul | Mon 20 Jul → Fri 31 Jul |
+| Mon 6 Jul → Sun 19 Jul | Mon 20 Jul → Sun 2 Aug |
+
+The cadence is worked out from your dates, not assumed. With one dated sprint to go on, its
+length is rounded to whole weeks — a Monday-to-Friday sprint is twelve days long but comes
+round every fourteen, and a fortnightly team stays fortnightly. Once two sprints have dates,
+the real gap between them is measured instead, so a team with a break between sprints, or a
+three-week cadence, self-corrects.
+
+The empty rows on the **Current PI** table show where each remaining sprint falls
+(`No data — click to add · scheduled 17 Aug – 28 Aug`), so the whole PI is laid out before
+any of it is filled in.
+
+Like carried-in, it only ever fills empty boxes, and only for a sprint you haven't saved
+yet. A note under the fields says which sprint the dates came from. Type your own and they
+stick — including through a change of sprint number. **Sprints already recorded without
+dates are left alone**, deliberately: dating them would flip them out of "complete" and pull
+real history out of your averages.
+
 ### Carried in fills itself
 
 Whenever you open a sprint that has no carried-in figure yet, it's filled with what the

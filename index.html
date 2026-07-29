@@ -415,6 +415,7 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
         </select>
       </div>
     </div>
+    <p class="sub" id="dateHint" style="margin:8px 0 0" hidden></p>
     <p class="sub" id="statusHint" style="margin:8px 0 0"></p>
     </div>
 
@@ -1254,6 +1255,13 @@ function sprintLabel(s) {
   return (pi ? pi.name : 'PI?') + ' · S' + s.sprintNumber;
 }
 
+/* "4 Aug – 17 Aug", in whatever order the reader's locale writes dates. */
+function fmtDateRange(a, b) {
+  const one = (d) => new Date(d + 'T00:00:00').toLocaleDateString(undefined,
+    { day: 'numeric', month: 'short' });
+  return one(a) + ' – ' + one(b);
+}
+
 /* `helpKey` is optional and names an entry in METRIC_HELP; the button it renders is
    picked up by one delegated listener rather than wired per render. */
 function tile(label, valueHtml, ragClass, foot, hero, helpKey) {
@@ -1789,8 +1797,15 @@ function renderPiView() {
           <th>Total done</th><th>Notes</th>
         </tr></thead>
         <tbody>${rows.map(({ n, s }) => {
-          if (!s) return `<tr class="clickable" data-num="${n}"><td>Sprint ${n}${
-            n === IP_SPRINT ? ' (IP)' : ''}</td><td colspan="9" class="muted">No data — click to add</td></tr>`;
+          if (!s) {
+            /* An empty slot still has a place in the calendar, so show where the
+               team's cadence puts it — the dates are only a projection until the
+               sprint is saved with them. */
+            const d = cadenceDates(team.id, piId, n);
+            return `<tr class="clickable" data-num="${n}"><td>Sprint ${n}${
+              n === IP_SPRINT ? ' (IP)' : ''}</td><td colspan="9" class="muted">No data — click to add${
+              d ? ' · scheduled ' + esc(fmtDateRange(d.startDate, d.endDate)) : ''}</td></tr>`;
+          }
           const m = metrics(s);
           const hasNotes = s.notes && Object.values(s.notes).some(v => v && v.trim());
           const st = sprintStatus(s);
@@ -2278,6 +2293,7 @@ function openSprint(teamId, piId, sprintNumber) {
   const n = s.notes || {};
   F('f_start').value = s.startDate || '';
   F('f_end').value = s.endDate || '';
+  F('f_start').dataset.auto = '';    // nothing projected yet — these are the sprint's own
   ['committed', 'committedCompleted', 'totalCompleted', 'added', 'removed', 'carriedIn',
    'carriedOut', 'addedThenRemoved']
     .forEach(k => { F('f_' + k).value = (s[k] === 0 || s[k]) ? s[k] : ''; });
@@ -2295,6 +2311,7 @@ function openSprint(teamId, piId, sprintNumber) {
   F('f_status').value = s.status || 'auto';
 
   maybePrefillCarriedIn();
+  maybePrefillDates();
 
   /* A paste belongs to one sprint, so it never carries over into the next one
      opened. */
@@ -2339,12 +2356,23 @@ function updateStatusHint() {
 ['f_status', 'f_start', 'f_end'].forEach(id =>
   F(id).addEventListener('change', updateStatusHint));
 
-/* Moving the form to a different PI or sprint changes which sprint precedes it. */
-['f_pi', 'f_num'].forEach(id =>
-  F(id).addEventListener('change', maybePrefillCarriedIn));
+/* Moving the form to a different PI or sprint changes which sprint precedes it —
+   and which dates the cadence lands on. */
+['f_pi', 'f_num'].forEach(id => F(id).addEventListener('change', () => {
+  maybePrefillCarriedIn();
+  maybePrefillDates();
+}));
 
 /* Once the user types their own carried-in, the note explaining the guess is stale. */
 F('f_carriedIn').addEventListener('input', () => { F('carryHint').hidden = true; });
+
+/* Same for the dates: once they've been touched by hand they're the user's, not a
+   projection to be re-worked when the sprint number changes. */
+['f_start', 'f_end'].forEach(id =>
+  F(id).addEventListener('input', () => {
+    F('dateHint').hidden = true;
+    F('f_start').dataset.auto = '';
+  }));
 
 function autofillSprintForm() {
   const committed = parseFloat(F('f_committed').value);
@@ -2498,6 +2526,87 @@ function previousCarriedOut() {
   const prev = previousSprint();
   if (!prev) return null;
   return metrics(prev).carriedOut;
+}
+
+/* ── Sprint dates from the team's cadence ─────────────────────────────────────
+   Sprints repeat on a fixed rhythm, so keying the dates once should be the end of
+   it: a new sprint form works its own dates out from a sprint that already has
+   them, counting slots forward (or back) at the team's cadence.
+
+   Like carried-in this only ever fills empty boxes, and only for a slot with no
+   record yet. An existing sprint's dates are a fact, and quietly dating a
+   dateless one would flip it out of "complete" and pull real history out of the
+   averages — the one thing the lifecycle rules are there to prevent. */
+
+/* Whole-day arithmetic, in UTC so a date survives the round trip unshifted. */
+const DAY_MS = 86400000;
+const dayNum = (iso) => Math.round(Date.parse(iso + 'T00:00:00Z') / DAY_MS);
+const isoDay = (n) => new Date(n * DAY_MS).toISOString().slice(0, 10);
+
+/* Position in the team's programme, so two sprints can be measured apart across a
+   PI boundary. */
+const slotIndex = (piId, num) => piIndex(piId) * SPRINTS_PER_PI + (num - 1);
+
+/* The team's rhythm: how long a sprint runs, and how far apart two starts sit.
+
+   With two dated sprints to go on the gap is measured — that's the team's real
+   rhythm, weekend break and all. With only one, its length is snapped to whole
+   weeks: a Monday-to-Friday sprint is 12 days long but comes round every 14, and
+   sprint cadences are always whole weeks. */
+function teamCadence(teamId) {
+  const dated = teamSprints(teamId).filter(s => s.startDate && s.endDate);
+  if (!dated.length) return null;
+  const anchor = dated[dated.length - 1];
+  const length = dayNum(anchor.endDate) - dayNum(anchor.startDate);
+  if (!isFinite(length) || length < 0) return null;
+
+  let stride = Math.max(7, Math.round((length + 1) / 7) * 7);
+  if (dated.length > 1) {
+    const prev = dated[dated.length - 2];
+    const slots = slotIndex(anchor.piId, anchor.sprintNumber) - slotIndex(prev.piId, prev.sprintNumber);
+    const gap = dayNum(anchor.startDate) - dayNum(prev.startDate);
+    if (slots > 0 && gap > 0) stride = Math.round(gap / slots);
+  }
+  return { anchor, length, stride };
+}
+
+/* The dates a given slot lands on, or null when there's nothing to project from. */
+function cadenceDates(teamId, piId, num) {
+  const c = teamCadence(teamId);
+  if (!c) return null;
+  const offset = slotIndex(piId, num) - slotIndex(c.anchor.piId, c.anchor.sprintNumber);
+  if (!offset) return null;                      // that's the anchor itself
+  const start = dayNum(c.anchor.startDate) + offset * c.stride;
+  if (!isFinite(start)) return null;
+  return { startDate: isoDay(start), endDate: isoDay(start + c.length), from: c.anchor, stride: c.stride };
+}
+
+function maybePrefillDates() {
+  const startEl = F('f_start'), endEl = F('f_end');
+  const hint = F('dateHint');
+  const ours = startEl.dataset.auto === '1';     // still showing our projection, untouched
+  hint.hidden = true;
+  if (!editing || editing.id) return;            // editing a saved sprint — leave its dates alone
+  if (!ours && (startEl.value || endEl.value)) return;
+
+  const piId = F('f_pi').value;
+  const num = Number(F('f_num').value);
+
+  /* Moving the form onto a slot that already has a record, or off the cadence
+     altogether, clears our own guess rather than leaving stale dates behind. */
+  const d = findSprint(editing.teamId, piId, num) ? null : cadenceDates(editing.teamId, piId, num);
+  if (!d) {
+    if (ours) { startEl.value = ''; endEl.value = ''; startEl.dataset.auto = ''; updateStatusHint(); }
+    return;
+  }
+  startEl.value = d.startDate;
+  endEl.value = d.endDate;
+  startEl.dataset.auto = '1';
+  hint.textContent = `Dates filled in from ${sprintLabel(d.from)} — sprints repeat every `
+    + `${d.stride % 7 === 0 ? (d.stride / 7) + ' week' + (d.stride === 7 ? '' : 's') : d.stride + ' days'}.`
+    + ` Change them if that's not right.`;
+  hint.hidden = false;
+  updateStatusHint();
 }
 
 function applyJiraNumbers() {

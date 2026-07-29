@@ -28,6 +28,15 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   window, PI tiles and the capacity target. **No dates → complete** is deliberate: all
   pre-lifecycle data is dateless and was entered as finished work; changing that would
   silently pull real history out of the averages.
+- **Sprint dates project from the team's cadence** (`teamCadence()` / `cadenceDates()`): a new
+  sprint form fills its own dates by counting slots from the latest dated sprint, and empty
+  rows on the PI table show where they'd fall. The stride is *measured* once two sprints have
+  dates, otherwise the anchor's length snapped to whole weeks — a Mon–Fri sprint is 12 days
+  long and recurs every 14, so a raw length would drift onto the weekend. It fills only empty
+  boxes on an **unsaved** sprint: dating an existing dateless sprint would flip it out of
+  complete and silently pull history from the averages, which is the one thing the lifecycle
+  rules exist to prevent. `f_start.dataset.auto` marks a projection as still ours, so changing
+  the sprint number re-projects but a hand-typed date survives.
 - `isCounted()` also honours `settings.includeInProgress` (default off), which opts running
   sprints into every figure for last-day planning. It's deliberately one predicate so no two
   views can disagree; `targetSprintSlot()` then stops aiming at the running sprint, since a
