@@ -51,6 +51,11 @@ Velocity              = total points completed
 Colour is never the only signal — every figure also carries a ✓ / ! / ✕ glyph and a
 screen-reader status, so the app is readable without colour vision.
 
+Every tile on the Sprint, Current PI and Rolling 5 views has a small **ⓘ** button in its
+top-right corner. Click it for a plain-English definition of that figure — what it means,
+how it's worked out, and the target it's being judged against. It works in a shared
+read-only link too, so someone you send figures to can look up a metric without asking.
+
 A sprint with nothing committed shows `—` rather than 0% — there's no denominator — and is
 left out of averages instead of dragging them down. Every other empty figure counts as 0.
 

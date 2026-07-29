@@ -154,8 +154,21 @@ select.ctl:hover { border-color: var(--text-muted); }
   border: 1px solid var(--border); border-left-width: 4px;
   border-radius: var(--radius-sm); padding: 12px 14px; background: var(--bg-card-alt);
 }
+/* The label row carries the ⓘ button on its right. It's a flex row rather than the
+   button being floated or absolutely positioned, so a label that wraps pushes the
+   button along with it and the row keeps the height subgrid is lining up on. */
 .tile .label { font-size: 12px; color: var(--text-secondary); text-transform: uppercase;
-  letter-spacing: .04em; font-weight: 600; }
+  letter-spacing: .04em; font-weight: 600;
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+/* Sized to the label's own line so adding it never makes the row taller. */
+.tile-help {
+  flex: none; width: 16px; height: 16px; padding: 0; border-radius: 50%;
+  border: 1px solid var(--border-strong); background: transparent;
+  color: var(--text-secondary); font-size: 11px; font-weight: 700; line-height: 1;
+  font-family: inherit; text-transform: none; cursor: pointer;
+}
+.tile-help:hover { color: var(--text-primary); background: var(--bg-card);
+  border-color: var(--text-secondary); }
 .tile .value { font-size: 26px; font-weight: 700; letter-spacing: -.02em; margin-top: 2px; }
 .tile .foot { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
 /* RAG state. Colour is never the only signal: every tile also carries a glyph and
@@ -243,6 +256,9 @@ dialog {
   padding: 20px; max-width: 880px; width: calc(100% - 32px); box-shadow: var(--shadow);
 }
 dialog::backdrop { background: rgba(0,0,0,.55); }
+/* A two-sentence definition stretched across 880px is unreadable, so the help
+   sheet is narrowed to a comfortable measure. */
+#helpDialog { max-width: 46ch; }
 dialog h3 { margin: 0 0 12px; font-size: 17px; }
 /* Every block in the sprint form is a raised panel a shade lighter than the dialog,
    with the input boxes inside it a shade darker again. That two-tone is what makes
@@ -476,6 +492,16 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
     browser. You'll be asked to confirm first.</p>
   <div class="row" style="justify-content:flex-end;margin-top:18px">
     <button class="btn primary" id="dataCloseBtn">Close</button>
+  </div>
+</dialog>
+
+<!-- ── What a tile means ─────────────────────────────────────────────────── -->
+<dialog id="helpDialog" aria-labelledby="helpTitle">
+  <h3 id="helpTitle"></h3>
+  <p id="helpBody" style="margin:0;font-size:14px"></p>
+  <p id="helpTarget" class="sub muted" style="margin:12px 0 0"></p>
+  <div class="row" style="justify-content:flex-end;margin-top:18px">
+    <button class="btn primary" id="helpCloseBtn">Got it</button>
   </div>
 </dialog>
 
@@ -798,6 +824,93 @@ function rag(value, scale) {
 const RAG_TEXT  = { green: 'On target', yellow: 'Watch', red: 'Off target', none: 'No data' };
 const RAG_GLYPH = { green: '✓', yellow: '!', red: '✕', none: '' };
 
+/* ── What each tile means ───────────────────────────────────────────────────
+   The ⓘ on a tile opens one of these. The app gets shared as a read-only link
+   with Scrum Masters who were never told the definitions, so every figure has to
+   be able to explain itself with nobody standing next to it.
+
+   `target` is written from the bands in rag() above — keep the two in step, or a
+   tile can show a colour its own explanation contradicts. Two sentences is the
+   budget: a wall of text in a tooltip goes unread, which is where it started. */
+const TARGET_COMPLETION = 'Target: 85% or above. Below 75% shows red, in between amber.';
+const TARGET_CHURN      = 'Target: 15% or below. Above 20% shows red, in between amber.';
+/* Appended to the Rolling 5 entries — which sprints the average is over is the
+   thing people get wrong about that view. */
+const ROLLING_WINDOW_NOTE = `Only finished sprints count, unless you've switched on
+  "count sprints that are still running". Sprint ${IP_SPRINT}, the IP sprint, is left
+  out unless you include it.`;
+
+const METRIC_HELP = {
+  /* Sprint view — finished */
+  commitCompletion: { title: 'Commitment completion', target: TARGET_COMPLETION,
+    body: `How much of what the team signed up for at the start of the sprint they actually
+      finished. This is the clearest single read on predictability — whether a plan made with
+      this team can be relied on.` },
+  breakIn: { title: 'Break-in', target: TARGET_CHURN,
+    body: `Work that arrived <em>after</em> the sprint started, as a share of the original
+      commitment. A little is normal; a lot means the sprint plan isn't holding, and it eats
+      the capacity that was meant for the commitment.` },
+  removed: { title: 'Removed', target: TARGET_CHURN,
+    body: `Committed work pulled back out of the sprint before it ended, as a share of the
+      commitment. Descoping deliberately beats carrying work over unplanned, but a high
+      figure means the sprint was over-filled to begin with.` },
+  carryover: { title: 'Carryover', target: TARGET_CHURN,
+    body: `Committed work that wasn't finished and moves into the next sprint, as a share of
+      the commitment. It arrives in the next sprint as capacity already spoken for.` },
+  velocity: { title: 'Velocity', target: null,
+    body: `Total points completed, including work that broke in mid-sprint. It measures
+      throughput, not predictability — don't commit to this number, because the break-in
+      capacity it counts won't be free next time.` },
+
+  /* Sprint view — still running */
+  doneSoFar: { title: 'Done so far', target: null,
+    body: `Committed points finished so far, out of what the team signed up for. The sprint
+      is still running, so this isn't a result yet.` },
+  pace: { title: 'Pace', target: null,
+    body: `How much of the commitment is done, against how far through the sprint you are.
+      Work tends to land in a lump near the end rather than evenly, so treat this as a rough
+      steer for a conversation, not a verdict.` },
+  carriedIn: { title: 'Carried in', target: null,
+    body: `Unfinished points inherited from last sprint. They're part of this sprint's
+      commitment, so they take up capacity before any new work does.` },
+
+  /* Current PI */
+  piCommitCompletion: { title: 'PI commitment completion', target: TARGET_COMPLETION,
+    body: `Every committed point across the PI's counted sprints, against how much of it got
+      finished. Because it's one big total, a large sprint moves it more than a small one.` },
+  piAvgCompletion: { title: 'Average per sprint', target: TARGET_COMPLETION,
+    body: `The mean of each sprint's own completion, so every sprint counts equally whatever
+      its size. A big gap between this and the PI figure means one sprint is skewing the
+      total.` },
+  piDelivered: { title: 'Total delivered', target: null,
+    body: `Every point completed across the PI, including work that broke in mid-sprint.` },
+  piBreakIn: { title: 'Break-in', target: TARGET_CHURN,
+    body: `The average of each counted sprint's break-in across this PI — how much unplanned
+      work a typical sprint absorbed. The caption gives the total points added.` },
+  piCarryover: { title: 'Carryover', target: TARGET_CHURN,
+    body: `The average of each counted sprint's carryover across this PI — how much a typical
+      sprint spilled into the next one. The caption gives the total points carried out.` },
+
+  /* Rolling 5 */
+  rollCompletion: { title: 'Avg commitment completion', target: TARGET_COMPLETION,
+    body: `Mean commitment completion over the last ${ROLLING_WINDOW} counted sprints. The
+      trend across the window says far more about the team than any single sprint does.
+      ${ROLLING_WINDOW_NOTE}` },
+  rollBreakIn: { title: 'Avg break-in', target: TARGET_CHURN,
+    body: `Mean break-in across the window — how much unplanned work turns up in a typical
+      sprint for this team. ${ROLLING_WINDOW_NOTE}` },
+  rollRemoved: { title: 'Avg removed', target: TARGET_CHURN,
+    body: `Mean removed work across the window — how much of the commitment typically gets
+      pulled back out before the end. ${ROLLING_WINDOW_NOTE}` },
+  rollCarryover: { title: 'Avg carryover', target: TARGET_CHURN,
+    body: `Mean carryover across the window — the habitual spill from one sprint into the
+      next. ${ROLLING_WINDOW_NOTE}` },
+  rollVelocity: { title: 'Avg velocity', target: null,
+    body: `Mean points completed per sprint across the window, break-in included. The target
+      capacity below deliberately uses <em>committed points finished</em> instead, which is
+      lower — committing to velocity over-commits the team. ${ROLLING_WINDOW_NOTE}` }
+};
+
 /* Mean of a metric across sprints, skipping the nulls described above. */
 function avg(sprints, key) {
   const vals = sprints.map(s => metrics(s)[key]).filter(v => v !== null && isFinite(v));
@@ -1117,11 +1230,16 @@ function sprintLabel(s) {
   return (pi ? pi.name : 'PI?') + ' · S' + s.sprintNumber;
 }
 
-function tile(label, valueHtml, ragClass, foot, hero) {
+/* `helpKey` is optional and names an entry in METRIC_HELP; the button it renders is
+   picked up by one delegated listener rather than wired per render. */
+function tile(label, valueHtml, ragClass, foot, hero, helpKey) {
   const status = RAG_TEXT[ragClass || 'none'];
   const glyph = RAG_GLYPH[ragClass || 'none'];
+  const help = helpKey && METRIC_HELP[helpKey]
+    ? `<button type="button" class="tile-help" data-help="${esc(helpKey)}"
+        aria-label="What does ${esc(label)} mean?">i</button>` : '';
   return `<div class="tile ${ragClass || ''}${hero ? ' hero' : ''}">
-    <div class="label">${esc(label)}</div>
+    <div class="label">${esc(label)}${help}</div>
     <div class="value">${valueHtml}${glyph ? `<span class="glyph" aria-hidden="true">${glyph}</span>` : ''}
       ${ragClass && ragClass !== 'none' ? `<span class="sr-only">— ${status}</span>` : ''}</div>
     ${foot ? `<div class="foot">${foot}</div>` : ''}
@@ -1261,6 +1379,26 @@ function wireEditRows(handler) {
     if (viewOnly) { tr.classList.remove('clickable'); return; }
     tr.onclick = () => handler(tr);
   });
+}
+
+/* The tile ⓘ buttons. Delegated from the container and wired once, because every
+   view rebuilds viewsEl.innerHTML wholesale — per-render wiring would have to be
+   repeated in each view and would silently miss any tile added later. Reading a
+   definition changes nothing, so this stays live in a shared read-only view. */
+viewsEl.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-help]');
+  if (btn) openHelp(btn.dataset.help);
+});
+
+function openHelp(key) {
+  const h = METRIC_HELP[key];
+  if (!h) return;
+  document.getElementById('helpTitle').textContent = h.title;
+  document.getElementById('helpBody').innerHTML = h.body;
+  const target = document.getElementById('helpTarget');
+  target.textContent = h.target || '';
+  target.hidden = !h.target;
+  document.getElementById('helpDialog').showModal();
 }
 
 function render() {
@@ -1417,26 +1555,28 @@ function renderSprintView() {
       <div class="tiles">
         ${inFlight ? `
         ${tile('Done so far', fmtNum(m.committedCompleted), null,
-          `of ${fmtNum(m.committed)} committed points`)}
+          `of ${fmtNum(m.committed)} committed points`, false, 'doneSoFar')}
         ${pace ? tile('Pace', pace.label, pace.rag, pace.donePct === null
           ? `${fmtPct(pace.elapsedPct)} of the sprint gone, nothing recorded as done yet`
-          : `${fmtPct(pace.donePct)} of the commitment done, ${fmtPct(pace.elapsedPct)} of the sprint gone`)
+          : `${fmtPct(pace.donePct)} of the commitment done, ${fmtPct(pace.elapsedPct)} of the sprint gone`,
+          false, 'pace')
         : tile('Committed', fmtNum(m.committed), null, 'points signed up for')}
         ${tile('Break-in so far', fmtPct(m.breakInPct, 'churn'), rag(m.breakInPct, 'churn'),
-          `${fmtNum(m.added)} points added after start`)}
+          `${fmtNum(m.added)} points added after start`, false, 'breakIn')}
         ${tile('Removed so far', fmtPct(m.removedPct, 'churn'), rag(m.removedPct, 'churn'),
-          `${fmtNum(m.removed)} points pulled out`)}
-        ${tile('Carried in', fmtNum(m.carriedIn), null, 'points inherited from last sprint')}
+          `${fmtNum(m.removed)} points pulled out`, false, 'removed')}
+        ${tile('Carried in', fmtNum(m.carriedIn), null, 'points inherited from last sprint',
+          false, 'carriedIn')}
         ` : `
         ${tile('Commitment completion', fmtPct(m.commitCompletePct, 'completion'), rag(m.commitCompletePct, 'completion'),
-          `${fmtNum(m.committedCompleted)} of ${fmtNum(m.committed)} committed points`)}
+          `${fmtNum(m.committedCompleted)} of ${fmtNum(m.committed)} committed points`, false, 'commitCompletion')}
         ${tile('Break-in', fmtPct(m.breakInPct, 'churn'), rag(m.breakInPct, 'churn'),
-          `${fmtNum(m.added)} points added after start`)}
+          `${fmtNum(m.added)} points added after start`, false, 'breakIn')}
         ${tile('Removed', fmtPct(m.removedPct, 'churn'), rag(m.removedPct, 'churn'),
-          `${fmtNum(m.removed)} points pulled out`)}
+          `${fmtNum(m.removed)} points pulled out`, false, 'removed')}
         ${tile('Carryover', fmtPct(m.carryoverPct, 'churn'), rag(m.carryoverPct, 'churn'),
-          `${fmtNum(m.carriedOut)} points to next sprint`)}
-        ${tile('Velocity', fmtNum(m.velocity), null, 'total points completed')}
+          `${fmtNum(m.carriedOut)} points to next sprint`, false, 'carryover')}
+        ${tile('Velocity', fmtNum(m.velocity), null, 'total points completed', false, 'velocity')}
         `}
       </div>
     </div>
@@ -1589,14 +1729,14 @@ function renderPiView() {
         ${openHere.length === 1 ? 'is' : 'are'} still open and not counted here.` : ''}</p>
       <div class="tiles">
         ${tile('PI commitment completion', fmtPct(piCommitPct, 'completion'), rag(piCommitPct, 'completion'),
-          `${fmtNum(piCompleted)} of ${fmtNum(piCommitted)} committed points`)}
+          `${fmtNum(piCompleted)} of ${fmtNum(piCommitted)} committed points`, false, 'piCommitCompletion')}
         ${tile('Average per sprint', fmtPct(avgCommitPct, 'completion'), rag(avgCommitPct, 'completion'),
-          'mean of each sprint’s completion')}
-        ${tile('Total delivered', fmtNum(piVelocity), null, 'points completed this PI')}
+          'mean of each sprint’s completion', false, 'piAvgCompletion')}
+        ${tile('Total delivered', fmtNum(piVelocity), null, 'points completed this PI', false, 'piDelivered')}
         ${tile('Break-in', fmtPct(avg(closed, 'breakInPct'), 'churn'), rag(avg(closed, 'breakInPct'), 'churn'),
-          `${fmtNum(sum(closed, 'added'))} points added in total`)}
+          `${fmtNum(sum(closed, 'added'))} points added in total`, false, 'piBreakIn')}
         ${tile('Carryover', fmtPct(avg(closed, 'carryoverPct'), 'churn'), rag(avg(closed, 'carryoverPct'), 'churn'),
-          `${fmtNum(sum(closed, 'carriedOut'))} points carried out`)}
+          `${fmtNum(sum(closed, 'carriedOut'))} points carried out`, false, 'piCarryover')}
       </div>
     </div>
 
@@ -1733,11 +1873,12 @@ function renderRollingView() {
               .map(x => 'S' + x.sprintNumber).join(', ')) + ', still running' : ''}${
         openSprintsNote(team.id) ? ' · ' + esc(openSprintsNote(team.id)) + ', not counted' : ''}</p>
       <div class="tiles">
-        ${tile('Avg commitment completion', fmtPct(aCommit, 'completion'), rag(aCommit, 'completion'), 'target ≥85%')}
-        ${tile('Avg break-in', fmtPct(aBreak, 'churn'), rag(aBreak, 'churn'), 'target ≤15%')}
-        ${tile('Avg removed', fmtPct(aRemove, 'churn'), rag(aRemove, 'churn'), 'target ≤15%')}
-        ${tile('Avg carryover', fmtPct(aCarry, 'churn'), rag(aCarry, 'churn'), 'target ≤15%')}
-        ${tile('Avg velocity', fmtNum(aVel), null, 'points completed per sprint')}
+        ${tile('Avg commitment completion', fmtPct(aCommit, 'completion'), rag(aCommit, 'completion'),
+          'target ≥85%', false, 'rollCompletion')}
+        ${tile('Avg break-in', fmtPct(aBreak, 'churn'), rag(aBreak, 'churn'), 'target ≤15%', false, 'rollBreakIn')}
+        ${tile('Avg removed', fmtPct(aRemove, 'churn'), rag(aRemove, 'churn'), 'target ≤15%', false, 'rollRemoved')}
+        ${tile('Avg carryover', fmtPct(aCarry, 'churn'), rag(aCarry, 'churn'), 'target ≤15%', false, 'rollCarryover')}
+        ${tile('Avg velocity', fmtNum(aVel), null, 'points completed per sprint', false, 'rollVelocity')}
       </div>
     </div>
 
@@ -2087,7 +2228,7 @@ function closeOnBackdropClick(dlg) {
 
 /* Every dialog except the sync reconciliation one, which deliberately refuses to
    be dismissed — picking which copy of your data to keep has to be a choice. */
-['sprintDialog', 'manageDialog', 'dataDialog'].forEach(id => closeOnBackdropClick(F(id)));
+['sprintDialog', 'manageDialog', 'dataDialog', 'helpDialog'].forEach(id => closeOnBackdropClick(F(id)));
 
 function openSprint(teamId, piId, sprintNumber) {
   const existing = findSprint(teamId, piId, sprintNumber);
@@ -2557,6 +2698,7 @@ F('manageBtn').onclick = openManage;
 const dataDialog = F('dataDialog');
 F('dataBtn').onclick = () => dataDialog.showModal();
 F('dataCloseBtn').onclick = () => dataDialog.close();
+F('helpCloseBtn').onclick = () => F('helpDialog').close();
 
 F('exportBtn').onclick = () => {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
