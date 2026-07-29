@@ -122,6 +122,9 @@ select.ctl:hover { border-color: var(--text-muted); }
 #teamSel:hover { border-color: var(--text-muted); }
 
 .tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 20px; }
+/* An explicit display beats the hidden attribute's UA rule, so hiding the row
+   needs saying again here. */
+.tabs[hidden] { display: none; }
 .tab {
   background: none; border: 1px solid transparent; border-radius: var(--radius-sm);
   padding: 8px 14px; cursor: pointer; color: var(--text-secondary); font-weight: 500;
@@ -261,6 +264,27 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
 #toast.show { opacity: 1; }
 .privacy { font-size: 12px; color: var(--text-muted); text-align: center;
   margin: 28px auto 0; max-width: 680px; }
+
+/* ── Read-only share view ───────────────────────────────────────────────── */
+/* A standing bar above the tabs, so a borrowed link never reads as your own data.
+   Deliberately the focus colour rather than .card.banner's amber — amber means
+   "something here needs attention", and a shared view is just a different mode. */
+.viewbar {
+  display: flex; gap: 10px 14px; align-items: baseline; flex-wrap: wrap;
+  border: 1px solid var(--border-strong); border-left: 4px solid var(--focus-border);
+  border-radius: var(--radius); background: var(--bg-card-alt);
+  padding: 11px 14px; margin-bottom: 16px; font-size: 13px;
+}
+.viewbar strong { font-weight: 700; }
+.viewbar .muted { color: var(--text-secondary); }
+.viewbar .mine { margin-left: auto; }
+.checklist { display: grid; gap: 7px; max-height: 200px; overflow-y: auto; }
+.checkline { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+.checkline input { flex: none; }
+#shareLink {
+  width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px; color: var(--text-secondary);
+}
 .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px;
   color: var(--text-secondary); margin-top: 8px; }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px;
@@ -279,11 +303,15 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
     <button class="btn small" id="manageBtn" title="Add or rename teams and PIs">Teams &amp; PIs</button>
     <button class="btn small" id="themeBtn" title="Switch between the light and midnight themes">Theme</button>
     <button class="btn small" id="dataBtn" title="Back up or restore your data">Data</button>
+    <button class="btn small" id="shareBtn" title="Create a read-only link to show someone your figures">Share</button>
     <button class="btn small" id="syncBtn" hidden></button>
   </div>
 </header>
 
 <div class="wrap">
+  <!-- Filled once when a share link is opened; empty and invisible otherwise. -->
+  <div id="shareBar"></div>
+
   <div class="tabs" role="tablist" aria-label="Views">
     <button class="tab" role="tab" data-view="sprint"  aria-selected="true">Sprint</button>
     <button class="tab" role="tab" data-view="pi"      aria-selected="false">Current PI</button>
@@ -451,6 +479,46 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
   </div>
 </dialog>
 
+<!-- ── Share a read-only link ────────────────────────────────────────────── -->
+<dialog id="shareDialog">
+  <h3>Share a read-only link</h3>
+  <p class="sub">Anyone opening this link sees the figures you pick, with no way to change
+    them and no sign-in. The data travels <em>inside</em> the link itself — it isn't uploaded
+    anywhere, and it doesn't touch whatever they have saved in their own browser.</p>
+
+  <div class="formpanel">
+    <legend>Which teams</legend>
+    <div class="checklist" id="shareTeams"></div>
+  </div>
+
+  <div class="formpanel">
+    <legend>What to include</legend>
+    <label class="checkline"><input type="checkbox" id="shareAllTeams">
+      <span>The <strong>All teams</strong> comparison view</span></label>
+    <label class="checkline"><input type="checkbox" id="shareNotes">
+      <span>Sprint notes — your written comments on what was added, removed and carried over</span></label>
+  </div>
+
+  <div class="formpanel">
+    <legend>Your link</legend>
+    <input type="text" id="shareLink" readonly aria-label="Read-only share link">
+    <p class="sub muted" id="shareMeta" style="margin:8px 0 0"></p>
+    <p class="warn" id="shareWarn" hidden></p>
+    <div class="row" style="margin-top:10px">
+      <button type="button" class="btn primary" id="shareCopyBtn">Copy link</button>
+      <button type="button" class="btn" id="shareOpenBtn">Preview it</button>
+    </div>
+  </div>
+
+  <p class="sub muted" style="margin-top:14px">This is a <strong>snapshot</strong>, frozen as it
+    looks right now — later edits won't appear, so send a fresh link when the numbers move.
+    There's no way to withdraw one once sent, so treat it like emailing a spreadsheet.</p>
+
+  <div class="row" style="justify-content:flex-end;margin-top:18px">
+    <button class="btn primary" id="shareCloseBtn">Done</button>
+  </div>
+</dialog>
+
 <!-- ── First-sync reconciliation ─────────────────────────────────────────── -->
 <dialog id="syncChoiceDialog">
   <h3>Two copies of your data</h3>
@@ -488,6 +556,27 @@ function blankState() {
   };
 }
 
+/* ── Read-only share view ───────────────────────────────────────────────────
+   A share link carries its payload in the URL fragment, so this is known before
+   anything renders. `viewOnly` then does two jobs: it strips every edit
+   affordance, and — the load-bearing one — it turns save() into a no-op.
+
+   save() is the single chokepoint for localStorage *and* the cloud push, so
+   gating it there is what guarantees a borrowed view can never overwrite the
+   data of whoever opened the link. That matters because the recipient is often
+   another SM with their own teams in the same browser. UI state (which tab,
+   which team) still moves in memory and re-renders; it just isn't written down,
+   which is the right behaviour for someone else's data. */
+const SHARE_PREFIX = '#share=';
+const shareToken = location.hash.startsWith(SHARE_PREFIX)
+  ? location.hash.slice(SHARE_PREFIX.length) : null;
+let viewOnly = !!shareToken;
+let shareMeta = null;   // { sharedAt, label, allTeams } once a link has been decoded
+
+/* The sync module is a separate <script type="module"> and can't see the above,
+   so the flag is mirrored here for it to check before it initialises. */
+window.svViewOnly = viewOnly;
+
 let state = load();
 
 function load() {
@@ -504,6 +593,7 @@ function load() {
 }
 
 function save() {
+  if (viewOnly) return;   // someone else's data — never write it over your own
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   localStorage.setItem('sv-updated', String(Date.now()));
   if (window.cloudPush) window.cloudPush();
@@ -1144,6 +1234,17 @@ const pctAxis = (title) => Object.assign(gridOpts(), {
 
 const viewsEl = document.getElementById('views');
 
+/* Table rows that open the sprint editor. A shared view has nothing to open, so
+   the handler isn't wired and the class goes with it — a pointer cursor over a
+   row that does nothing when clicked reads as a broken page. Rows that merely
+   switch team (All teams) are navigation, not editing, and stay live. */
+function wireEditRows(handler) {
+  viewsEl.querySelectorAll('tr.clickable').forEach(tr => {
+    if (viewOnly) { tr.classList.remove('clickable'); return; }
+    tr.onclick = () => handler(tr);
+  });
+}
+
 function render() {
   renderTeamPicker();
   destroyCharts();
@@ -1169,6 +1270,18 @@ function renderTeamPicker() {
 }
 
 function renderWelcome() {
+  /* A share link always carries at least one team, so this is unreachable in a
+     shared view — but an empty payload that slipped through must not offer a
+     visitor buttons that write to their own browser. */
+  if (viewOnly) {
+    viewsEl.innerHTML = `<div class="card empty">
+      <h2>Nothing shared here</h2>
+      <p>This link doesn’t contain any team data. Ask whoever sent it for a fresh one.</p>
+      <div class="row" style="justify-content:center;margin-top:18px">
+        <a class="btn primary" href="${location.pathname}">Open my own data</a>
+      </div></div>`;
+    return;
+  }
   viewsEl.innerHTML = `
     <div class="card empty">
       <h2>Track how predictable your teams are</h2>
@@ -1216,7 +1329,8 @@ function renderSprintView() {
              chrome, so the inverted treatment made it the one loud thing on the
              page. .primary stays for dialogs and empty states, where a single
              strong call to action is the point. -->
-        <button class="btn" id="editSprintBtn">${s ? 'Edit this sprint' : 'Add data for this sprint'}</button>
+        ${viewOnly ? '' :
+          `<button class="btn" id="editSprintBtn">${s ? 'Edit this sprint' : 'Add data for this sprint'}</button>`}
       </div>
     </div>`;
 
@@ -1490,9 +1604,7 @@ function renderPiView() {
   document.getElementById('piSel2').onchange = (e) => {
     state.settings.activePiId = e.target.value; save(); render();
   };
-  viewsEl.querySelectorAll('tr.clickable').forEach(tr => {
-    tr.onclick = () => openSprint(team.id, piId, Number(tr.dataset.num));
-  });
+  wireEditRows(tr => openSprint(team.id, piId, Number(tr.dataset.num)));
 
   makeChart('piChart', {
     data: {
@@ -1624,9 +1736,9 @@ function renderRollingView() {
     </div>`;
 
   wireRollingToolbar();
-  viewsEl.querySelectorAll('tr.clickable').forEach(tr => {
+  wireEditRows(tr => {
     const s = state.sprints.find(x => x.id === tr.dataset.id);
-    tr.onclick = () => openSprint(s.teamId, s.piId, s.sprintNumber);
+    openSprint(s.teamId, s.piId, s.sprintNumber);
   });
 
   makeChart('rollChart', {
@@ -2433,6 +2545,240 @@ F('importFile').onchange = (e) => {
   reader.readAsText(file);
 };
 
+/* ═══════════════════════ Read-only share links ════════════════════════════
+   The whole payload rides in the URL fragment. Everything after '#' is never
+   sent to a server, so the figures reach the recipient without GitHub Pages,
+   Firebase or anyone else seeing them — which is also why this needs no
+   Firestore rules, no account and no network on either side.
+
+   Format: '#share=<marker>.<base64url>' where marker 1 is deflate-raw and 0 is
+   plain JSON. Two formats rather than one because CompressionStream is missing
+   on older Safari, and because an uncompressed link can be read by hand when
+   something looks wrong.
+
+   The payload is a *trimmed copy*, never `state` itself: only the chosen teams,
+   only the PIs their sprints actually reference, and notes only when asked for.
+   Nothing identifying goes in — no email, no display name, no sync uid. */
+
+const SHARE_FORMAT = 1;
+
+const b64urlEncode = (bytes) => {
+  let s = '';
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+};
+
+const b64urlDecode = (str) => {
+  const b = atob(str.replace(/-/g, '+').replace(/_/g, '/'));
+  return Uint8Array.from(b, (c) => c.charCodeAt(0));
+};
+
+const canCompress = () => typeof CompressionStream === 'function';
+
+async function squeeze(bytes, Stream, format) {
+  const s = new Stream(format);
+  const w = s.writable.getWriter();
+  w.write(bytes); w.close();
+  return new Uint8Array(await new Response(s.readable).arrayBuffer());
+}
+
+/* Only the PIs the included sprints actually sit in, so sharing one team doesn't
+   leak the names of PIs it never ran in. Order is preserved because piIndex()
+   drives sprint ordering everywhere else. */
+function buildSharePayload({ teamIds, includeNotes, includeAllTeams }) {
+  const teams = state.teams.filter(t => teamIds.includes(t.id));
+  const sprints = state.sprints
+    .filter(s => teamIds.includes(s.teamId))
+    .map(s => includeNotes ? s : Object.assign({}, s, { notes: {} }));
+  const usedPis = new Set(sprints.map(s => s.piId));
+  return {
+    v: 1,
+    sharedAt: Date.now(),
+    label: teams.map(t => t.name).join(', '),
+    allTeams: !!includeAllTeams && teams.length > 1,
+    teams,
+    pis: state.pis.filter(p => usedPis.has(p.id)),
+    sprints,
+    settings: {
+      activeTeamId: teams.length ? teams[0].id : null,
+      includeSprint6InRolling: !!state.settings.includeSprint6InRolling,
+      includeInProgress: !!state.settings.includeInProgress,
+      view: 'sprint'
+    }
+  };
+}
+
+async function encodeShare(payload) {
+  const json = new TextEncoder().encode(JSON.stringify(payload));
+  if (!canCompress()) return '0.' + b64urlEncode(json);
+  const packed = await squeeze(json, CompressionStream, 'deflate-raw');
+  return SHARE_FORMAT + '.' + b64urlEncode(packed);
+}
+
+async function decodeShare(token) {
+  const dot = token.indexOf('.');
+  if (dot < 1) throw new Error('no format marker');
+  const marker = token.slice(0, dot);
+  const bytes = b64urlDecode(token.slice(dot + 1));
+  let json;
+  if (marker === '0') {
+    json = new TextDecoder().decode(bytes);
+  } else if (marker === String(SHARE_FORMAT)) {
+    if (typeof DecompressionStream !== 'function') throw new Error('no DecompressionStream');
+    json = new TextDecoder().decode(await squeeze(bytes, DecompressionStream, 'deflate-raw'));
+  } else {
+    throw new Error('unknown format ' + marker);
+  }
+  const p = JSON.parse(json);
+  if (!p || !Array.isArray(p.teams) || !Array.isArray(p.sprints) || !p.teams.length)
+    throw new Error('not a share payload');
+  return p;
+}
+
+/* ── Opening a shared link ──────────────────────────────────────────────── */
+
+/* Deliberately never falls back to the viewer's own data on failure: showing
+   their numbers under a "shared view" banner would be worse than an error. */
+async function openSharedView() {
+  try {
+    const p = await decodeShare(shareToken);
+    shareMeta = { sharedAt: p.sharedAt, label: p.label, allTeams: !!p.allTeams };
+    state = Object.assign(blankState(), {
+      teams: p.teams, pis: p.pis || [], sprints: p.sprints,
+      settings: Object.assign(blankState().settings, p.settings || {})
+    });
+    /* The bar and the tab list are fixed for the life of the page, so they're set
+       here rather than inside render(), which runs on every interaction. */
+    F('shareBar').innerHTML = shareBanner();
+    const teamsTab = document.querySelector('.tab[data-view="teams"]');
+    if (teamsTab) teamsTab.hidden = !shareMeta.allTeams;
+    render();
+  } catch (e) {
+    console.warn('share link could not be read', e);
+    renderShareError();
+  }
+}
+
+function renderShareError() {
+  document.querySelector('.tabs').hidden = true;
+  document.getElementById('teamSel').hidden = true;
+  viewsEl.innerHTML = `
+    <div class="card empty">
+      <h2>This shared link couldn’t be opened</h2>
+      <p>It looks incomplete — links are long, and mail apps sometimes cut them in half or
+         wrap them across two lines. Ask whoever sent it for a fresh copy, and paste the
+         whole thing in one go.</p>
+      <div class="row" style="justify-content:center;margin-top:18px">
+        <a class="btn primary" href="${location.pathname}">Open my own data</a>
+      </div>
+    </div>`;
+}
+
+function shareBanner() {
+  const when = shareMeta && shareMeta.sharedAt
+    ? new Date(shareMeta.sharedAt).toLocaleDateString(undefined,
+        { day: 'numeric', month: 'short', year: 'numeric' })
+    : null;
+  return `<div class="viewbar">
+    <strong>👁 Read-only view${shareMeta && shareMeta.label ? ' — ' + esc(shareMeta.label) : ''}</strong>
+    <span class="muted">Shared${when ? ' on ' + when : ''}. Nothing you do here is saved,
+      and your own data is untouched.</span>
+    <a class="mine" href="${location.pathname}">Open my own data</a>
+  </div>`;
+}
+
+/* ── Creating a link ────────────────────────────────────────────────────── */
+
+const shareDialog = F('shareDialog');
+closeOnBackdropClick(shareDialog);
+
+/* Long URLs survive browsers fine but not always the trip through a mail client,
+   so warn well below any hard limit rather than at it. */
+const SHARE_WARN_AT = 8000;
+
+function openShare() {
+  const active = activeTeam();
+  F('shareTeams').innerHTML = state.teams.map(t =>
+    `<label class="checkline"><input type="checkbox" data-share-team="${t.id}"${
+      active && t.id === active.id ? ' checked' : ''}><span>${esc(t.name)}</span></label>`).join('');
+  F('shareTeams').querySelectorAll('input').forEach(i => { i.onchange = refreshShareLink; });
+  F('shareAllTeams').checked = false;
+  F('shareNotes').checked = false;
+  refreshShareLink();
+  shareDialog.showModal();
+}
+
+function sharePicked() {
+  return Array.from(F('shareTeams').querySelectorAll('input:checked'))
+    .map(i => i.dataset.shareTeam);
+}
+
+let shareSeq = 0;   // a slow encode must not overwrite the box after a later tick
+
+async function refreshShareLink() {
+  const teamIds = sharePicked();
+  const multi = teamIds.length > 1;
+  F('shareAllTeams').disabled = !multi;
+  if (!multi) F('shareAllTeams').checked = false;
+
+  const link = F('shareLink'), meta = F('shareMeta'), warn = F('shareWarn');
+  const busy = ++shareSeq;
+  const setBusy = (state) => {
+    F('shareCopyBtn').disabled = state;
+    F('shareOpenBtn').disabled = state;
+  };
+
+  if (!teamIds.length) {
+    link.value = '';
+    meta.textContent = 'Pick at least one team.';
+    warn.hidden = true;
+    setBusy(true);
+    return;
+  }
+
+  const payload = buildSharePayload({
+    teamIds, includeNotes: F('shareNotes').checked,
+    includeAllTeams: F('shareAllTeams').checked
+  });
+  const token = await encodeShare(payload);
+  if (busy !== shareSeq) return;
+
+  const url = location.origin + location.pathname + SHARE_PREFIX + token;
+  link.value = url;
+  setBusy(false);
+  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  meta.textContent = `${plural(payload.teams.length, 'team')}, `
+    + `${plural(payload.sprints.length, 'sprint')}`
+    + `${F('shareNotes').checked ? ', notes included' : ', no notes'} · `
+    + `${url.length.toLocaleString()} characters`;
+  warn.hidden = url.length <= SHARE_WARN_AT;
+  warn.textContent = 'That’s a long link — some mail apps break links this size across '
+    + 'two lines. Sharing fewer teams, or leaving notes out, will shorten it.';
+}
+
+F('shareBtn').onclick = openShare;
+F('shareCloseBtn').onclick = () => shareDialog.close();
+F('shareNotes').onchange = refreshShareLink;
+F('shareAllTeams').onchange = refreshShareLink;
+
+F('shareCopyBtn').onclick = async () => {
+  const url = F('shareLink').value;
+  if (!url) return;
+  try {
+    await navigator.clipboard.writeText(url);
+    toast('Link copied — paste it into an email or chat');
+  } catch {
+    /* Clipboard access is refused on insecure origins and in some mobile
+       browsers; selecting the text is the honest fallback. */
+    F('shareLink').select();
+    toast('Press ⌘C / Ctrl+C to copy the selected link');
+  }
+};
+
+F('shareOpenBtn').onclick = () => {
+  if (F('shareLink').value) window.open(F('shareLink').value, '_blank', 'noopener');
+};
+
 /* ═══════════════════════════════ Sample data ══════════════════════════════ */
 
 function loadSample() {
@@ -2511,8 +2857,36 @@ window.svCounts = (d) => ({
   sprints: (d && d.sprints ? d.sprints.length : 0)
 });
 
+/* ── Boot ───────────────────────────────────────────────────────────────── */
+
+/* Pasting a link into a tab that already has the app open changes only the
+   fragment, which browsers handle without reloading — so the page would sit
+   there looking broken. Reload instead, and let the normal boot path run. */
+addEventListener('hashchange', () => {
+  const nowShared = location.hash.startsWith(SHARE_PREFIX);
+  if (nowShared !== viewOnly || (nowShared && location.hash.slice(SHARE_PREFIX.length) !== shareToken))
+    location.reload();
+});
+
 applyTheme();
-render();
+
+if (viewOnly) {
+  /* Everything that writes, imports or creates belongs to whoever owns the data,
+     not to a visitor. Theme and the team picker stay: those are the viewer's own
+     preferences, kept in a separate key, and they don't alter anything shared. */
+  ['manageBtn', 'dataBtn', 'shareBtn'].forEach(id => { F(id).hidden = true; });
+  /* The sync module normally rewrites this line; it never starts here, so the
+     default "your data is stored in this browser" text would be misleading. */
+  F('privacyNote').textContent = 'This is a read-only copy someone shared with you. It was '
+    + 'read from the link itself — nothing was uploaded or downloaded, and nothing you '
+    + 'already had saved in this browser has been changed.';
+  /* Decoding is async, so paint a holding card rather than the viewer's own data
+     — a flash of their teams under a "shared view" banner would be alarming. */
+  viewsEl.innerHTML = '<div class="card empty"><h2>Opening shared view…</h2></div>';
+  openSharedView();
+} else {
+  render();
+}
 </script>
 
 <script type="module">
@@ -2542,7 +2916,10 @@ const btn = document.getElementById('syncBtn');
 const privacyNote = document.getElementById('privacyNote');
 const localTs = () => Number(localStorage.getItem('sv-updated') || 0);
 
-if (FIREBASE_CONFIG) {
+/* A shared view must not start sync at all. If the visitor happens to be signed
+   in, onAuthStateChanged would fire startSync() and svAdopt() would replace the
+   shared payload with their own cloud copy — and push it straight back out. */
+if (FIREBASE_CONFIG && !window.svViewOnly) {
   init().catch((e) => { console.warn('Sync unavailable:', e); btn.hidden = true; });
 }
 

@@ -260,6 +260,36 @@ data leaves your machine** unless you choose to sign in.
 back. Useful as a backup, for moving between browsers, or for handing a colleague a
 starting point.
 
+## Sharing a read-only link
+
+The *Share* button builds a link that shows someone your figures without them signing in —
+useful for a stakeholder, a manager, or an SM covering for you. They get the Sprint, Current
+PI and Rolling 5 views for the teams you picked, with every edit control gone.
+
+You choose per link:
+
+- **Which teams** — the team you're looking at is ticked by default. Sharing one team doesn't
+  reveal the others, or even the names of PIs that team never ran in.
+- **The All teams comparison view** — only offered when you've picked more than one team.
+- **Sprint notes** — your written comments on what was added, removed and carried over.
+  **Off by default**, so candid retro commentary doesn't travel by accident.
+
+**The data rides inside the link itself**, compressed into the part after the `#`. Browsers
+never send that part to a server, so the figures go straight from your browser to theirs —
+GitHub Pages, Firebase and Google never see them. Nothing is uploaded, no account is involved,
+and opening a link cannot touch data the recipient already has saved in their own browser.
+
+Two things to know:
+
+- **It's a snapshot.** The numbers are frozen as they looked when you generated it. Later edits
+  won't appear — send a fresh link when the figures move.
+- **It can't be withdrawn.** Anyone holding the link can open it. Treat it like emailing a
+  spreadsheet, not like a permission you can revoke.
+
+Links run to a few hundred characters for a typical team. If one gets long enough that a mail
+client might break it across two lines, the dialog says so and suggests sharing fewer teams or
+leaving notes out.
+
 ## Cross-device sync (Firebase, free tier — optional)
 
 Sync is **enabled** in this deployment, backed by the `sprintvelocity-141b7` Firebase
@@ -310,8 +340,10 @@ GitHub Pages (static hosting, this repo, main branch)
     ├── theme.css     shared design tokens (copied from the lottery repo)
     └── chart.min.js  vendored Chart.js UMD build — no CDN, no network needed
             ├── all state ──► browser localStorage (source of truth, works offline)
-            └── signed in ──► Firestore doc sprintvelocity/{uid} (optional;
-                              last-write-wins by updatedAt, live onSnapshot updates)
+            ├── signed in ──► Firestore doc sprintvelocity/{uid} (optional;
+            │                 last-write-wins by updatedAt, live onSnapshot updates)
+            └── shared    ──► the URL fragment itself (#share=…), read-only, never
+                              uploaded and never written back to localStorage
 ```
 
 No server of our own. No build, no dependencies to install, no npm.

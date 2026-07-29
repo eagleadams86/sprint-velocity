@@ -82,6 +82,24 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   field-level changes rather than asking a vague "are you sure?" — a warning nobody reads is
   worse than none. It deliberately stays silent for running/planned/new sprints, for a no-op
   save, and for notes-only edits; keep that narrow, or it becomes noise people click through.
+- **Read-only share links** put the data in the URL fragment (`#share=<marker>.<base64url>`,
+  marker 1 = `deflate-raw`, 0 = plain JSON for browsers without `CompressionStream`). Nothing
+  after `#` is sent to a server, which is the whole reason this needs no Firestore rules, no
+  account and no network. `buildSharePayload()` emits a **trimmed copy** — chosen teams only,
+  only the PIs their sprints reference, notes stripped unless asked for, and never anything
+  identifying. Don't shortcut it to serialising `state`.
+- **`save()` is the view-mode chokepoint.** `viewOnly` makes it a no-op, and because it's the
+  one place that writes localStorage *and* calls `cloudPush()`, that single guard is what
+  guarantees a shared link can't overwrite the viewer's own data — often another SM in the same
+  browser. The sync module is gated separately via `window.svViewOnly`: if it initialised,
+  `onAuthStateChanged` → `startSync()` → `svAdopt()` would replace the shared payload with the
+  viewer's cloud copy and push it straight back. Keep both guards.
+- UI state still moves in memory in view mode (tabs, team picker, toggles) — it just isn't
+  persisted. Rows that open the sprint editor lose both handler and `.clickable` class via
+  `wireEditRows()`; All-teams rows stay live because switching team is navigation, not editing.
+- A share link decodes **asynchronously**, so boot paints a holding card instead of calling
+  `render()` — otherwise the viewer's own teams flash on screen under a "shared view" banner.
+  A failed decode shows an error card and **never** falls through to their own data.
 - **README.md is the index** — keep it current whenever the app meaningfully changes.
 - After changes: **browser-test locally first** (`python3 -m http.server 8012`, or the
   desktop app's preview pane via `.claude/launch.json`), then commit, push, verify the
