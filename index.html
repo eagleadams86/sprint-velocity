@@ -219,6 +219,11 @@ select.ctl:hover { border-color: var(--text-muted); }
 .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px;
   font-weight: 700; border: 1px solid var(--amber); color: var(--amber);
   background: var(--amber-bg); white-space: nowrap; }
+/* A pill hard up against a heading reads as part of the sentence, so it gets a
+   little more than the word space it follows. Headings only: in the PI table the
+   badge wraps onto its own line under the sprint name, where a left margin would
+   knock it out of line with the column. */
+h2 .badge { margin-left: 6px; }
 
 /* Fixed width so a column of pills reads as one stack, not a ragged edge. 6ch fits
    the longest value fmtPct() can produce ("100.0%") and 14px is the glyph slot below;
