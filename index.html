@@ -218,12 +218,26 @@ select.ctl:hover { border-color: var(--text-muted); }
 
 /* ── Tables ─────────────────────────────────────────────────────────────── */
 .tablewrap { overflow-x: auto; }
-table { border-collapse: collapse; width: 100%; font-size: 14px; }
-th, td { text-align: right; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+table { border-collapse: collapse; width: 100%; font-size: 14px;
+  font-variant-numeric: tabular-nums; }
+th, td { text-align: right; padding: 10px 12px; border-bottom: 1px solid var(--border); }
 th:first-child, td:first-child { text-align: left; }
 th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
-  color: var(--text-secondary); font-weight: 600; white-space: nowrap; }
+  color: var(--text-secondary); font-weight: 600; white-space: nowrap;
+  vertical-align: bottom; border-bottom-color: var(--border-strong); }
+/* A metric column holds nothing but a fixed-width pill, so header and pill centre on
+   one axis and every metric column gets the same width — that's what makes a row of
+   them read as one grid rather than four unevenly spaced ones. 108px fits the longest
+   single word these headers use ("Commitment"), which is what lets a two-word header
+   wrap onto two lines instead of stretching its column half as wide again as its
+   neighbours'. width and min-width are both needed: width stops a long header widening
+   the column when the table has room to spare, min-width stops auto-layout squeezing
+   it when the table hasn't — the wrapper scrolls instead, as it already did. */
+th.metric, td.metric { text-align: center; width: 108px; min-width: 108px;
+  padding-left: 6px; padding-right: 6px; }
+th.metric { white-space: normal; }
 tbody tr:hover { background: var(--bg-card-alt); }
+tbody tr:last-child td { border-bottom: none; }
 tr.clickable { cursor: pointer; }
 tfoot td { font-weight: 700; border-top: 2px solid var(--border-strong); border-bottom: none; }
 td.muted, .muted { color: var(--text-muted); }
@@ -1761,7 +1775,7 @@ function renderPiView() {
       <div class="tablewrap">
       <table>
         <thead><tr>
-          <th>Sprint</th><th>Committed</th><th>Cmt. done</th><th>Complete %</th>
+          <th>Sprint</th><th>Committed</th><th>Cmt. done</th><th class="metric">Complete %</th>
           <th>Added</th><th>Removed</th><th>Carried in</th><th>Carried out</th>
           <th>Total done</th><th>Notes</th>
         </tr></thead>
@@ -1777,7 +1791,7 @@ function renderPiView() {
               open ? ` <span class="badge">${STATUS_BADGE[st]} ${STATUS_TEXT[st]}</span>` : ''}</td>
             <td>${fmtNum(m.committed)}</td>
             <td>${fmtNum(m.committedCompleted)}</td>
-            <td>${open && !isCounted(s)
+            <td class="metric">${open && !isCounted(s)
               ? '<span class="muted">so far</span>'
               : pill(m.commitCompletePct, 'completion')}</td>
             <td>${fmtNum(m.added)}</td>
@@ -1789,7 +1803,7 @@ function renderPiView() {
         }).join('')}</tbody>
         <tfoot><tr>
           <td>PI total</td><td>${fmtNum(piCommitted)}</td><td>${fmtNum(piCompleted)}</td>
-          <td>${pill(piCommitPct, 'completion')}</td>
+          <td class="metric">${pill(piCommitPct, 'completion')}</td>
           <td>${fmtNum(sum(closed, 'added'))}</td><td>${fmtNum(sum(closed, 'removed'))}</td>
           <td>${fmtNum(sum(closed, 'carriedIn'))}</td><td>${fmtNum(sum(closed, 'carriedOut'))}</td>
           <td>${fmtNum(piVelocity)}</td><td></td>
@@ -1910,24 +1924,28 @@ function renderRollingView() {
       <p class="sub">Click any sprint to edit it.</p>
       <div class="tablewrap">
       <table>
-        <thead><tr><th>Sprint</th><th>Committed</th><th>Cmt. done</th><th>Complete %</th>
-          <th>Break-in %</th><th>Removed %</th><th>Carryover %</th><th>Velocity</th></tr></thead>
+        <thead><tr><th>Sprint</th><th>Committed</th><th>Cmt. done</th>
+          <th class="metric">Complete %</th><th class="metric">Break-in %</th>
+          <th class="metric">Removed %</th><th class="metric">Carryover %</th>
+          <th>Velocity</th></tr></thead>
         <tbody>${rs.map(s => {
           const m = metrics(s);
           return `<tr class="clickable" data-id="${s.id}">
             <td>${esc(sprintLabel(s))}</td>
             <td>${fmtNum(m.committed)}</td>
             <td>${fmtNum(m.committedCompleted)}</td>
-            <td>${pill(m.commitCompletePct, 'completion')}</td>
-            <td>${pill(m.breakInPct, 'churn')}</td>
-            <td>${pill(m.removedPct, 'churn')}</td>
-            <td>${pill(m.carryoverPct, 'churn')}</td>
+            <td class="metric">${pill(m.commitCompletePct, 'completion')}</td>
+            <td class="metric">${pill(m.breakInPct, 'churn')}</td>
+            <td class="metric">${pill(m.removedPct, 'churn')}</td>
+            <td class="metric">${pill(m.carryoverPct, 'churn')}</td>
             <td>${fmtNum(m.velocity)}</td></tr>`;
         }).join('')}</tbody>
         <tfoot><tr><td>Average</td><td>${fmtNum(avg(rs, 'committed'))}</td>
           <td>${fmtNum(avg(rs, 'committedCompleted'))}</td>
-          <td>${pill(aCommit, 'completion')}</td><td>${pill(aBreak, 'churn')}</td>
-          <td>${pill(aRemove, 'churn')}</td><td>${pill(aCarry, 'churn')}</td>
+          <td class="metric">${pill(aCommit, 'completion')}</td>
+          <td class="metric">${pill(aBreak, 'churn')}</td>
+          <td class="metric">${pill(aRemove, 'churn')}</td>
+          <td class="metric">${pill(aCarry, 'churn')}</td>
           <td>${fmtNum(aVel)}</td></tr></tfoot>
       </table></div>
     </div>`;
@@ -2148,16 +2166,17 @@ function renderTeamsView() {
         commitment each team can realistically take on — see the Rolling 5 view for the working.</p>
       <div class="tablewrap">
       <table>
-        <thead><tr><th>Team</th><th>Sprints</th><th>Commitment completion</th>
-          <th>Break-in</th><th>Removed</th><th>Carryover</th><th>Avg velocity</th>
+        <thead><tr><th>Team</th><th>Sprints</th><th class="metric">Commitment completion</th>
+          <th class="metric">Break-in</th><th class="metric">Removed</th>
+          <th class="metric">Carryover</th><th>Avg velocity</th>
           <th>Next sprint target</th></tr></thead>
         <tbody>${rowsData.map(r => `<tr class="clickable" data-id="${r.team.id}">
           <td>${esc(r.team.name)}</td>
           <td>${r.count}</td>
-          <td>${pill(r.commit, 'completion')}</td>
-          <td>${pill(r.breakIn, 'churn')}</td>
-          <td>${pill(r.removed, 'churn')}</td>
-          <td>${pill(r.carry, 'churn')}</td>
+          <td class="metric">${pill(r.commit, 'completion')}</td>
+          <td class="metric">${pill(r.breakIn, 'churn')}</td>
+          <td class="metric">${pill(r.removed, 'churn')}</td>
+          <td class="metric">${pill(r.carry, 'churn')}</td>
           <td>${fmtNum(r.vel)}</td>
           <td>${r.target ? '<strong>' + fmtNum(Math.round(r.target.recommended)) + '</strong>' : '—'}</td></tr>`).join('')}</tbody>
       </table></div>
