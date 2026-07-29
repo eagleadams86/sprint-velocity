@@ -1350,9 +1350,26 @@ function renderSprintView() {
     ['General', s.notes && s.notes.general]
   ].filter(([, v]) => v && v.trim());
 
-  /* The chart adds these up, so an un-entered figure has to become 0 here even
-     though it stays null everywhere it's displayed. */
-  const dropped = Math.max(0, m.committed - num(m.committedCompleted) - num(m.carriedOut));
+  /* The Committed bar has to break apart the commitment and *only* the commitment,
+     so it can't use `carriedOut` as-is: that figure is the whole not-completed
+     section, which also carries break-in work that never joined the commitment.
+     Stacking all of it here overstated carryover and left "dropped" as whatever
+     was left over — which silently absorbed the error in the opposite direction
+     and read as 1 point dropped on a sprint that dropped 6.
+
+     So: dropped work is the removed points, capped at the commitment shortfall
+     (a team can remove work it had already finished), and the carried slice is
+     the rest of the shortfall. The Carryover tile keeps showing the full figure —
+     that's the number that actually rolls into the next sprint.
+
+     Keeping the bar summing to `committed` means the carried slice is still the
+     residual, so on hand-entered figures that don't balance the unexplained points
+     land there rather than in "dropped". That's the safer place for them: "dropped"
+     names a specific thing that happened, "carried out" is the shortfall by
+     default. Jira-pasted sprints always balance. */
+  const shortfall = Math.max(0, m.committed - num(m.committedCompleted));
+  const dropped = Math.min(num(m.removed), shortfall);
+  const carriedFromCommit = shortfall - dropped;
   const addedDone = Math.max(0, num(m.velocity) - num(m.committedCompleted));
 
   const st = sprintStatus(s);
@@ -1413,7 +1430,7 @@ function renderSprintView() {
       <figure style="margin:0">
         <div class="chartbox short">
           <canvas id="sprintChart" role="img"
-            aria-label="Commitment of ${fmtNum(m.committed)} points: ${fmtNum(m.committedCompleted)} completed, ${fmtNum(m.carriedOut)} carried out, ${fmtNum(dropped)} dropped. Delivered ${fmtNum(m.velocity)} points total, of which ${fmtNum(addedDone)} was added work."></canvas>
+            aria-label="Commitment of ${fmtNum(m.committed)} points: ${fmtNum(m.committedCompleted)} completed, ${fmtNum(carriedFromCommit)} carried out, ${fmtNum(dropped)} dropped. Delivered ${fmtNum(m.velocity)} points total, of which ${fmtNum(addedDone)} was added work."></canvas>
         </div>
       </figure>
       <div class="row" style="margin-top:12px">
@@ -1422,6 +1439,12 @@ function renderSprintView() {
           <strong>${fmtNum(m.added)}</strong> added ·
           <strong>${fmtNum(m.removed)}</strong> removed</span>
       </div>
+      ${num(m.carriedOut) > carriedFromCommit ? `<p class="muted" style="font-size:13px;margin:8px 0 0">→
+        The bar shows the <strong>${fmtNum(carriedFromCommit)}</strong> carried-out
+        point${carriedFromCommit === 1 ? '' : 's'} that came from the commitment. The other
+        <strong>${fmtNum(num(m.carriedOut) - carriedFromCommit)}</strong> of the
+        <strong>${fmtNum(m.carriedOut)}</strong> going to the next sprint broke in after the
+        sprint started, so it was never part of the commitment this bar breaks apart.</p>` : ''}
       ${m.addedThenRemoved ? `<p class="muted" style="font-size:13px;margin:8px 0 0">↩
         <strong>${fmtNum(m.addedThenRemoved)}</strong> point${m.addedThenRemoved === 1 ? '' : 's'}
         came into the sprint after it started and then went back out again. That work is
@@ -1443,7 +1466,7 @@ function renderSprintView() {
       datasets: [
         { label: 'Completed from commitment', data: [m.committedCompleted, m.committedCompleted],
           backgroundColor: cssVar('--c-completed'), maxBarThickness: 72 },
-        { label: 'Carried out', data: [m.carriedOut, 0], backgroundColor: cssVar('--c-carry'), maxBarThickness: 72 },
+        { label: 'Carried out', data: [carriedFromCommit, 0], backgroundColor: cssVar('--c-carry'), maxBarThickness: 72 },
         { label: 'Dropped', data: [dropped, 0], backgroundColor: cssVar('--c-committed'), maxBarThickness: 72 },
         { label: 'Added work completed', data: [0, addedDone], backgroundColor: cssVar('--c-added'), maxBarThickness: 72 }
       ]

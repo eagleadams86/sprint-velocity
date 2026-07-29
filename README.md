@@ -113,6 +113,13 @@ it happened.
 mid-sprint and didn't finish, it still rolls into the next sprint, so it's counted — which
 means carryover can be larger than the shortfall against the commitment.
 
+Because of that, the *Where the points went* Committed bar shows only the carried-out points
+that came **from the commitment**, and the card says so whenever that's less than the full
+carryover figure on the tile. Its dropped slice is the removed points, capped at the
+shortfall. Stacking the whole carryover figure into that bar used to overstate carryover and
+leave "dropped" as a residual, which under-reported removed work — a sprint that dropped six
+points read as one.
+
 Nothing is saved by pasting. **Use these numbers** fills the boxes, you check them, and the
 sprint saves only when you press Save sprint. Your "why" notes are never touched. If the
 paste can't be read, it says so and shows what it did find rather than filling in zeros.
