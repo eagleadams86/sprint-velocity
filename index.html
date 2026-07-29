@@ -1475,6 +1475,17 @@ function wireSprintSelectors(piId, numSel) {
 }
 
 function renderNeedPi() {
+  /* Reachable in a shared view when the shared team has no sprints at all, since
+     the payload only carries PIs its sprints actually sit in. A visitor can't add
+     one, so say what's happened rather than offering a button that isn't theirs. */
+  if (viewOnly) {
+    viewsEl.innerHTML = `<div class="card empty">
+      <h2>No sprint data for this team</h2>
+      <p>Nothing has been recorded for ${esc(activeTeam() ? activeTeam().name : 'this team')} yet,
+         so there's nothing to show.</p>
+    </div>`;
+    return;
+  }
   viewsEl.innerHTML = `<div class="card empty">
     <h2>Add a Program Increment first</h2>
     <p>Sprints live inside a PI. Create one — "PI 2026.3", say — and you can start entering data.</p>
