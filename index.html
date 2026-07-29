@@ -205,16 +205,22 @@ select.ctl:hover { border-color: var(--text-muted); }
   font-weight: 700; border: 1px solid var(--amber); color: var(--amber);
   background: var(--amber-bg); white-space: nowrap; }
 
-/* Fixed width so a column of pills reads as one stack, not a ragged edge.
-   6ch fits the longest value fmtPct() can produce ("100.0%"); tabular figures
-   keep the digits themselves from shifting. */
-.pill { display: inline-block; box-sizing: content-box; min-width: 6ch;
+/* Fixed width so a column of pills reads as one stack, not a ragged edge. 6ch fits
+   the longest value fmtPct() can produce ("100.0%") and 14px is the glyph slot below;
+   tabular figures keep the digits themselves from shifting. */
+.pill { display: inline-block; box-sizing: content-box; min-width: calc(6ch + 14px);
   padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 700;
   border: 1px solid; text-align: center; font-variant-numeric: tabular-nums; }
 .pill.green  { color: var(--green); background: var(--green-bg); border-color: var(--green); }
 .pill.yellow { color: var(--amber); background: var(--amber-bg); border-color: var(--amber); }
 .pill.red    { color: var(--red);   background: var(--red-bg);   border-color: var(--red); }
 .pill.none   { color: var(--text-muted); border-color: var(--border-strong); }
+/* Same ✓ / ! / ✕ the tiles carry, for the same reason — colour is never the only
+   signal. Fixed-width slot because the three glyphs are different widths, and the
+   pill centres its contents: without it the percentage shifts sideways from row to
+   row depending on which status it happens to be. */
+.pill .glyph { font-size: 11px; margin-left: 3px; vertical-align: 0;
+  display: inline-block; width: 11px; text-align: center; }
 
 /* ── Tables ─────────────────────────────────────────────────────────────── */
 .tablewrap { overflow-x: auto; }
@@ -1266,7 +1272,10 @@ function tile(label, valueHtml, ragClass, foot, hero, helpKey) {
 
 function pill(value, scale) {
   const r = rag(value, scale);
-  return `<span class="pill ${r}">${fmtPct(value, scale)}<span class="sr-only"> — ${RAG_TEXT[r]}</span></span>`;
+  const glyph = RAG_GLYPH[r];
+  return `<span class="pill ${r}">${fmtPct(value, scale)}${
+    glyph ? `<span class="glyph" aria-hidden="true">${glyph}</span>` : ''
+  }<span class="sr-only"> — ${RAG_TEXT[r]}</span></span>`;
 }
 
 function toast(msg) {
