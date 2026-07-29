@@ -121,7 +121,9 @@ select.ctl:hover { border-color: var(--text-muted); }
 }
 #teamSel:hover { border-color: var(--text-muted); }
 
-.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 20px; }
+/* The gap matches the 20px above and below the row, so the tabs are spaced by the
+   same rhythm in both directions. */
+.tabs { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
 /* An explicit display beats the hidden attribute's UA rule, so hiding the row
    needs saying again here. */
 .tabs[hidden] { display: none; }
@@ -137,7 +139,7 @@ select.ctl:hover { border-color: var(--text-muted); }
    it sits apart from the three views of the current team — but only while the row
    fits on one line. Pushed right on a wrapped row it lands alone on the second
    line, reading as an orphan rather than a separation. */
-@media (min-width: 440px) { .tab[data-view="teams"] { margin-left: auto; } }
+@media (min-width: 470px) { .tab[data-view="teams"] { margin-left: auto; } }
 .tab:hover { border-color: var(--text-muted); }
 /* Now that every tab is a button, the selected one has to be filled rather than
    merely outlined to still read as "you are here". These are the palette's own
