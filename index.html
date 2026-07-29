@@ -279,6 +279,15 @@ figcaption { font-size: 13px; color: var(--text-secondary); margin-bottom: 6px; 
 details.datatable { margin-top: 10px; }
 details.datatable summary { cursor: pointer; font-size: 13px; color: var(--text-secondary); }
 
+/* A few short paragraphs of reasoning. Capped to one readable measure they left the
+   right half of a wide card empty, so they flow into two columns instead — the
+   column width is a floor, so it drops back to one when there isn't room for two
+   rather than squeezing the line length. Paragraphs stay whole across the break. */
+.explain { columns: 2 34ch; column-gap: 40px;
+  font-size: 14px; color: var(--text-secondary); margin-top: 10px; }
+.explain p { margin: 0 0 10px; break-inside: avoid; }
+.explain p:last-child { margin-bottom: 0; }
+
 /* ── Toolbar rows, dialogs, misc ────────────────────────────────────────── */
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .row.spread { justify-content: space-between; }
@@ -2113,27 +2122,27 @@ function targetCapacityCard(team, includeSix) {
     </div>
     <details class="datatable" style="margin-top:16px">
       <summary>How this is worked out</summary>
-      <div style="font-size:14px;color:var(--text-secondary);margin-top:10px;max-width:70ch">
-        <p style="margin:0 0 10px">Over the last ${t.sprints} sprint${t.sprints === 1 ? '' : 's'},
+      <div class="explain">
+        <p>Over the last ${t.sprints} sprint${t.sprints === 1 ? '' : 's'},
           ${esc(team.name)} finished an average of <strong>${fmtNum(t.recommended)}</strong> of the points
           they committed to. That is the amount of commitment they have actually been able to deliver,
           so that is the recommendation.</p>
-        <p style="margin:0 0 10px">Their average <em>velocity</em> is higher —
+        <p>Their average <em>velocity</em> is higher —
           <strong>${fmtNum(t.avgVelocity)}</strong> points — but committing to that would over-commit them.
           Velocity counts the break-in work that turns up mid-sprint, and if that capacity is booked out in
           advance there is nothing left to absorb it. That gap is how a fast team still misses its
           commitment every sprint.</p>
-        <p style="margin:0">${t.carriedIn > 0
+        <p>${t.carriedIn > 0
           ? `<strong>${fmtNum(t.carriedIn)}</strong> point${t.carriedIn === 1 ? ' is' : 's are'} already
              carried over from the last sprint and count towards the total, leaving about
              <strong>${fmtNum(Math.round(t.newWork))}</strong> points of new work to pull off the backlog.`
           : 'Nothing was carried over from the last sprint, so the whole commitment is new work.'}</p>
-        ${over ? `<p style="margin:10px 0 0"><strong>This sprint they committed to
+        ${over ? `<p><strong>This sprint they committed to
           ${fmtNum(t.committedAlready)}</strong>, about ${fmtNum(Math.round(t.overBy))} more than the
           last ${t.sprints} sprint${t.sprints === 1 ? '' : 's'} suggest they finish. There is still time
           to pull something out deliberately, which is a better outcome than carrying it over
           unplanned at the end.</p>` : ''}
-        ${overCommitting && !over ? `<p style="margin:10px 0 0">For context, they have been committing to
+        ${overCommitting && !over ? `<p>For context, they have been committing to
           <strong>${fmtNum(t.avgCommitted)}</strong> points a sprint on average — about
           <strong>${fmtNum(Math.round(t.avgCommitted - t.recommended))}</strong> more than they finish.
           Committing closer to the figure above is what moves commitment completion towards the 85% target.</p>` : ''}
