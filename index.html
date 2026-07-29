@@ -216,14 +216,12 @@ select.ctl:hover { border-color: var(--text-muted); }
 .note-ok   { color: var(--green); font-size: 13px; font-weight: 600; }
 .note-warn { color: var(--amber); font-size: 13px; font-weight: 600; }
 .note-err  { color: var(--err);   font-size: 13px; font-weight: 600; }
-.badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px;
+/* A pill hard up against the text it qualifies reads as part of the sentence, so it
+   gets a little more than the word space it follows. */
+.badge { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px;
+  font-size: 12px;
   font-weight: 700; border: 1px solid var(--amber); color: var(--amber);
   background: var(--amber-bg); white-space: nowrap; }
-/* A pill hard up against a heading reads as part of the sentence, so it gets a
-   little more than the word space it follows. Headings only: in the PI table the
-   badge wraps onto its own line under the sprint name, where a left margin would
-   knock it out of line with the column. */
-h2 .badge { margin-left: 6px; }
 
 /* Fixed width so a column of pills reads as one stack, not a ragged edge. 6ch fits
    the longest value fmtPct() can produce ("100.0%") and 14px is the glyph slot below;
@@ -248,6 +246,10 @@ table { border-collapse: collapse; width: 100%; font-size: 14px;
   font-variant-numeric: tabular-nums; }
 th, td { text-align: right; padding: 10px 12px; border-bottom: 1px solid var(--border); }
 th:first-child, td:first-child { text-align: left; }
+/* A cell with a status pill stays on one line: squeezed, it would drop the pill
+   under the sprint name, where its left margin knocks it out of line with the
+   column. The table already scrolls sideways, which is the cheaper compromise. */
+td:has(.badge) { white-space: nowrap; }
 th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
   color: var(--text-secondary); font-weight: 600; white-space: nowrap;
   vertical-align: bottom; border-bottom-color: var(--border-strong); }
