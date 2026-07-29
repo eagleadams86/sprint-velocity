@@ -97,6 +97,10 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
 - UI state still moves in memory in view mode (tabs, team picker, toggles) — it just isn't
   persisted. Rows that open the sprint editor lose both handler and `.clickable` class via
   `wireEditRows()`; All-teams rows stay live because switching team is navigation, not editing.
+- A shared view opens on the team's **latest sprint with data** (`focusLatestSprint()`), not on
+  the payload's stored position — applied on load and on every team switch, so old links benefit
+  too. Your own copy deliberately keeps the sprint you were last on: that's a working position
+  you chose, not a starting point handed to you.
 - A share link decodes **asynchronously**, so boot paints a holding card instead of calling
   `render()` — otherwise the viewer's own teams flash on screen under a "shared view" banner.
   A failed decode shows an error card and **never** falls through to their own data.

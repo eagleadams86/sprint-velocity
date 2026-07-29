@@ -273,6 +273,10 @@ The *Share* button builds a link that shows someone your figures without them si
 useful for a stakeholder, a manager, or an SM covering for you. They get the Sprint, Current
 PI and Rolling 5 views for the teams you picked, with every edit control gone.
 
+It opens on the **most recent sprint that has data**, so the first thing they see is your
+latest numbers rather than an empty slot — and it follows each team to its own latest sprint
+if they switch between them.
+
 You choose per link:
 
 - **Which teams** — the team you're looking at is ticked by default. Sharing one team doesn't
