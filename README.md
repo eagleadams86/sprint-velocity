@@ -281,14 +281,21 @@ pools throughout. Its `All teams` row also pools every point from every team rat
 averaging the rows above it, which is why that row won't equal the mean of its own column
 — the dashboard's Total behaves the same way.
 
-The **Current PI** view shows both too: the *PI total* row and the *PI commitment
-completion* tile are pooled (so they match the dashboard), while the *Average per sprint*
-tile is the average-of-sprints figure. A wide gap between them means one sprint is
-skewing the total.
+**Current PI** and **Rolling 5** both put the two methods side by side at the foot of
+their *The numbers* table, as a pair of summary rows:
 
-**Rolling 5** shows both at the foot of its *The numbers* table — an **Average per sprint**
-row and a **Pooled total** row. The tiles at the top of that view are all averages of
-sprints; the pooled row is the one that matches the dashboard.
+| View | Average-of-sprints row | Pooled row (matches the dashboard) |
+|---|---|---|
+| Current PI | **Average per sprint** | **PI total** |
+| Rolling 5 | **Average per sprint** | **Pooled total** |
+
+On both, the pooled row's committed and delivered figures are **totals**, while the
+average row's are **per-sprint means** — which is what makes the arithmetic visible.
+Every summary row carries an ⓘ explaining its own method and naming the other.
+
+The tiles at the top of Rolling 5 are all averages of sprints. Current PI's tiles are a
+mix: *PI commitment completion* is pooled, *Average per sprint* is the average-of-sprints
+figure, and a wide gap between them means one sprint is skewing the total.
 
 Comparison 2 also carries **Actual complete** — everything delivered, break-in work
 included, against what was committed. It goes above 100% when a team finished more than it

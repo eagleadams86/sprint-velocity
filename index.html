@@ -1170,6 +1170,23 @@ const METRIC_HELP = {
       start. It goes above 100% when a team finished more than it signed up for, which says
       throughput was high, not that the plan held.` },
 
+  /* The two summary rows under the PI table. Same job as the pair on Rolling 5: say which
+     of the two averages you're looking at, and name the other, so the gap between them
+     reads as a difference in method rather than an error. */
+  piAvgRow: { title: 'Average per sprint', target: null,
+    body: `What a typical sprint in this PI looked like: each sprint's own figures averaged, so
+      <em>every sprint counts equally</em> whatever its size. Its committed and delivered
+      figures are per-sprint means rather than totals. This is the better read on the team's
+      habit — one unusually big sprint can't drown out the rest — and its percentage is the
+      same figure as the <em>average per sprint</em> tile at the top of this view.` },
+  piTotalRow: { title: 'PI total', target: null,
+    body: `Every point across this PI's counted sprints added into one total, with each
+      percentage taken once at the end — so <em>a bigger sprint pulls harder</em> than a small
+      one. This is the method the <strong>Agile Operations Dashboard</strong> uses, so it's the
+      row that reconciles with what the ART reports upward. The <em>average per sprint</em> row
+      above is the other method, giving every sprint equal weight — a wide gap between the two
+      means one sprint is skewing the total.` },
+
   /* The two summary rows under the sprint table. They're the same sprints through two
      different averages, which nobody guesses from looking — and the only question either
      row raises is why it doesn't match the other, so each one answers it. */
@@ -2077,7 +2094,7 @@ function renderPiView() {
 
     <div class="card">
       <h2>The numbers</h2>
-      <p class="sub">Click any sprint to add or edit its data. The PI total row covers
+      <p class="sub">Click any sprint to add or edit its data. Both summary rows cover
         ${countedRunning.length
           ? `the sprints being counted, including <strong>${countedRunning.map(x => 'S' + x.sprintNumber).join(', ')}</strong>
              which ${countedRunning.length === 1 ? 'is' : 'are'} still running`
@@ -2118,13 +2135,24 @@ function renderPiView() {
             <td>${fmtNum(m.velocity)}</td>
             <td>${hasNotes ? '💬' : ''}</td></tr>`;
         }).join('')}</tbody>
-        <tfoot><tr>
-          <td>PI total</td><td>${fmtNum(piCommitted)}</td><td>${fmtNum(piCompleted)}</td>
-          <td class="metric">${pill(piCommitPct, 'completion')}</td>
-          <td>${fmtNum(sum(closed, 'added'))}</td><td>${fmtNum(sum(closed, 'removed'))}</td>
-          <td>${fmtNum(sum(closed, 'carriedIn'))}</td><td>${fmtNum(sum(closed, 'carriedOut'))}</td>
-          <td>${fmtNum(piVelocity)}</td><td></td>
-        </tr></tfoot>
+        <tfoot>
+          <tr>
+            <td>Average per sprint${helpBtn('piAvgRow', 'Average per sprint')}</td>
+            <td>${fmtNum(avg(closed, 'committed'))}</td><td>${fmtNum(avg(closed, 'committedCompleted'))}</td>
+            <td class="metric">${pill(avgCommitPct, 'completion')}</td>
+            <td>${fmtNum(avg(closed, 'added'))}</td><td>${fmtNum(avg(closed, 'removed'))}</td>
+            <td>${fmtNum(avg(closed, 'carriedIn'))}</td><td>${fmtNum(avg(closed, 'carriedOut'))}</td>
+            <td>${fmtNum(avg(closed, 'velocity'))}</td><td></td>
+          </tr>
+          <tr>
+            <td>PI total${helpBtn('piTotalRow', 'PI total')}</td>
+            <td>${fmtNum(piCommitted)}</td><td>${fmtNum(piCompleted)}</td>
+            <td class="metric">${pill(piCommitPct, 'completion')}</td>
+            <td>${fmtNum(sum(closed, 'added'))}</td><td>${fmtNum(sum(closed, 'removed'))}</td>
+            <td>${fmtNum(sum(closed, 'carriedIn'))}</td><td>${fmtNum(sum(closed, 'carriedOut'))}</td>
+            <td>${fmtNum(piVelocity)}</td><td></td>
+          </tr>
+        </tfoot>
       </table></div>
     </div>`;
 

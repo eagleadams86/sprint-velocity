@@ -50,13 +50,20 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   percentage (every sprint equal); `pooled()` sums the points and divides once (bigger sprints
   weigh more). The All teams view shows both — Comparison 1 uses `avg()`, Comparison 2 uses
   `pooled()` — over the *same* sprint set, so they can only ever differ by method. **Comparison
-  2 is the method the Agile Operations Dashboard uses**, as is the PI view's total row/tile
-  and Rolling 5's "Pooled total" footer row; the PI "Average per sprint" tile and every
-  Rolling 5 tile are `avg()`. Don't "fix" one to agree with the other, and don't let a new
-  figure pick a method silently — say which it is in the UI.
-- Rolling 5 deliberately keeps the **tiles at the top on `avg()` only** and shows the pooled
-  figures **only as a second footer row** on its table. A fuller pooled treatment there was
-  built and rejected as too much for the view — don't rebuild it.
+  2 is the method the Agile Operations Dashboard uses**, as is the PI view's "PI total" row
+  and commitment-completion tile, and Rolling 5's "Pooled total" row; the PI "Average per
+  sprint" tile/row and every Rolling 5 tile are `avg()`. Don't "fix" one to agree with the
+  other, and don't let a new figure pick a method silently — say which it is in the UI.
+- Current PI and Rolling 5 each show the two methods as **a pair of footer rows** on their
+  numbers table, average first then pooled, each with a `helpBtn` naming its method and the
+  other. Rolling 5 deliberately keeps its **tiles on `avg()` only** — a fuller pooled
+  treatment there (extra tile cards, a worked-example note) was built and rejected as too
+  much for the view, so don't rebuild it.
+- **Help buttons (`helpBtn`) need breathing room**: `.tile-help` carries `margin-left: 7px`,
+  zeroed inside `.tile .label` (a flex row that already pins it right). `td:has(.tile-help)`
+  is `nowrap` so a wrapping label can't orphan the circle onto a line of its own. This is a
+  standing preference of Charles's across all his projects — icons must never sit flush
+  against the word.
 - **Blank means 0.** `val()` saves 0 for an empty box and `metrics()` uses `num()` throughout.
   Blanks were once kept as `null` so a half-typed sprint couldn't read as real results; the
   sprint lifecycle now does that job, data mostly arrives via the Jira paste where absent
