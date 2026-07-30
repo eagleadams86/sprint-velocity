@@ -827,6 +827,50 @@ function blankState() {
   };
 }
 
+/* ── Ids arriving from outside ──────────────────────────────────────────────
+   Every *name* in this app is escaped at the point it's rendered, but ids are
+   different: they're written straight into attribute values in a dozen places
+   (`data-id`, `<option value>`, `data-del-team`), on the fair assumption that
+   uid() only ever produces [a-z0-9].
+
+   That assumption breaks at the three places data comes in from outside — a
+   share link, an imported file, the cloud document — because all three are just
+   somebody's JSON. An id like `x"><img src=q onerror=…>` closes the attribute
+   and opens a tag, and the browser runs it: the read-only guard on save() is no
+   defence, since injected script isn't going through save().
+
+   Cleaning them once here beats escaping at each render site, which is a list
+   that grows every time a view learns to key off an id. Anything that isn't a
+   plain id is swapped for a fresh one and every reference to it rewritten
+   through the same map, so the data still hangs together afterwards — a sprint
+   whose team was renamed still points at that team. Render sites escape as well;
+   this is the boundary, that's the belt. */
+const ID_OK = /^[A-Za-z0-9_-]{1,64}$/;
+
+function sanitizeIds(data) {
+  if (!data || typeof data !== 'object') return data;
+  const remap = new Map();
+  const clean = (id) => {
+    if (typeof id !== 'string' || !id || ID_OK.test(id)) return id;
+    if (!remap.has(id)) remap.set(id, uid());
+    return remap.get(id);
+  };
+  const list = (v) => (Array.isArray(v) ? v : []);
+  list(data.teams).forEach(t => { if (t) t.id = clean(t.id); });
+  list(data.pis).forEach(p => { if (p) p.id = clean(p.id); });
+  list(data.sprints).forEach(s => {
+    if (!s) return;
+    s.id = clean(s.id);
+    s.teamId = clean(s.teamId);
+    s.piId = clean(s.piId);
+  });
+  if (data.settings && typeof data.settings === 'object') {
+    data.settings.activeTeamId = clean(data.settings.activeTeamId);
+    data.settings.activePiId = clean(data.settings.activePiId);
+  }
+  return data;
+}
+
 /* ── Read-only share view ───────────────────────────────────────────────────
    A share link carries its payload in the URL fragment, so this is known before
    anything renders. `viewOnly` then does two jobs: it strips every edit
@@ -854,7 +898,7 @@ function load() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return blankState();
-    const parsed = JSON.parse(raw);
+    const parsed = sanitizeIds(JSON.parse(raw));
     return Object.assign(blankState(), parsed,
       { settings: Object.assign(blankState().settings, parsed.settings || {}) });
   } catch (e) {
@@ -1766,7 +1810,7 @@ function renderTeamPicker() {
   const sel = document.getElementById('teamSel');
   const active = activeTeam();
   sel.innerHTML = state.teams.map(t =>
-    `<option value="${t.id}"${active && t.id === active.id ? ' selected' : ''}>${esc(t.name)}</option>`).join('');
+    `<option value="${esc(t.id)}"${active && t.id === active.id ? ' selected' : ''}>${esc(t.name)}</option>`).join('');
   sel.hidden = state.teams.length === 0;
 }
 
@@ -1779,7 +1823,7 @@ function renderWelcome() {
       <h2>Nothing shared here</h2>
       <p>This link doesn’t contain any team data. Ask whoever sent it for a fresh one.</p>
       <div class="row" style="justify-content:center;margin-top:18px">
-        <a class="btn primary" href="${location.pathname}">Open my own data</a>
+        <a class="btn primary" href="${esc(location.pathname)}">Open my own data</a>
       </div></div>`;
     return;
   }
@@ -1820,7 +1864,7 @@ function renderSprintView() {
         <div class="row">
           <label class="sr-only" for="piSel">PI</label>
           <select id="piSel" class="ctl">${pis.map(p =>
-            `<option value="${p.id}"${p.id === piId ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
+            `<option value="${esc(p.id)}"${p.id === piId ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
           <label class="sr-only" for="numSel">Sprint</label>
           <select id="numSel" class="ctl">${Array.from({ length: SPRINTS_PER_PI }, (_, i) => i + 1).map(n =>
             `<option value="${n}"${n === numSel ? ' selected' : ''}>Sprint ${n}${
@@ -2054,7 +2098,7 @@ function renderPiView() {
         <div class="row">
           <label class="sr-only" for="piSel2">PI</label>
           <select id="piSel2" class="ctl">${state.pis.map(p =>
-            `<option value="${p.id}"${p.id === piId ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
+            `<option value="${esc(p.id)}"${p.id === piId ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
         </div>
         <span class="muted" style="font-size:13px">${closed.length} of ${SPRINTS_PER_PI} sprints
           ${countedRunning.length ? 'counted' : 'complete'}${
@@ -2283,7 +2327,7 @@ function renderRollingView() {
           <th>Velocity</th></tr></thead>
         <tbody>${rs.map(s => {
           const m = metrics(s);
-          return `<tr class="clickable" data-id="${s.id}">
+          return `<tr class="clickable" data-id="${esc(s.id)}">
             <td>${esc(sprintLabel(s))}</td>
             <td>${fmtNum(m.committed)}</td>
             <td>${fmtNum(m.committedCompleted)}</td>
@@ -2555,7 +2599,7 @@ function renderTeamsView() {
           <th class="metric">Break-in</th><th class="metric">Removed</th>
           <th class="metric">Carryover</th><th>Avg velocity</th>
           <th>Next sprint target</th></tr></thead>
-        <tbody>${rowsData.map(r => `<tr class="clickable" data-id="${r.team.id}">
+        <tbody>${rowsData.map(r => `<tr class="clickable" data-id="${esc(r.team.id)}">
           <td>${esc(r.team.name)}</td>
           <td>${r.count}</td>
           <td class="metric">${pill(r.commit, 'completion')}</td>
@@ -2582,7 +2626,7 @@ function renderTeamsView() {
           <th class="metric">Break-in</th><th class="metric">Removed</th>
           <th class="metric">Carryover</th>
           <th>Actual complete${helpBtn('actualComplete', 'Actual complete')}</th></tr></thead>
-        <tbody>${rowsData.map(r => `<tr class="clickable" data-id="${r.team.id}">
+        <tbody>${rowsData.map(r => `<tr class="clickable" data-id="${esc(r.team.id)}">
           <td>${esc(r.team.name)}</td>
           <td>${r.count}</td>
           <td>${fmtNum(r.pool.committed)}</td>
@@ -2705,7 +2749,7 @@ function openSprint(teamId, piId, sprintNumber) {
   F('sprintDialogTitle').textContent =
     `${teamById(teamId).name} — ${piById(piId).name} · Sprint ${sprintNumber}`;
   F('f_pi').innerHTML = state.pis.map(p =>
-    `<option value="${p.id}"${p.id === piId ? ' selected' : ''}>${esc(p.name)}</option>`).join('');
+    `<option value="${esc(p.id)}"${p.id === piId ? ' selected' : ''}>${esc(p.name)}</option>`).join('');
   F('f_num').innerHTML = Array.from({ length: SPRINTS_PER_PI }, (_, i) => i + 1).map(n =>
     `<option value="${n}"${n === sprintNumber ? ' selected' : ''}>Sprint ${n}${
       n === IP_SPRINT ? ' (IP)' : ''}</option>`).join('');
@@ -3175,18 +3219,18 @@ function renderManage() {
     <tr><td>${esc(t.name)}</td>
       <td class="muted">${state.sprints.filter(s => s.teamId === t.id).length} sprints</td>
       <td style="white-space:nowrap">
-        <button class="btn small" data-rename-team="${t.id}">Rename</button>
-        <button class="btn small" data-del-team="${t.id}">Delete</button></td></tr>`).join('')
+        <button class="btn small" data-rename-team="${esc(t.id)}">Rename</button>
+        <button class="btn small" data-del-team="${esc(t.id)}">Delete</button></td></tr>`).join('')
     : '<tr><td class="muted">No teams yet.</td></tr>';
 
   F('piRows').innerHTML = state.pis.length ? state.pis.map((p, i) => `
     <tr><td>${esc(p.name)}</td>
       <td class="muted">${state.sprints.filter(s => s.piId === p.id).length} sprints</td>
       <td style="white-space:nowrap">
-        <button class="btn small" data-up-pi="${p.id}"${i === 0 ? ' disabled' : ''} title="Move earlier">↑</button>
-        <button class="btn small" data-down-pi="${p.id}"${i === state.pis.length - 1 ? ' disabled' : ''} title="Move later">↓</button>
-        <button class="btn small" data-rename-pi="${p.id}">Rename</button>
-        <button class="btn small" data-del-pi="${p.id}">Delete</button></td></tr>`).join('')
+        <button class="btn small" data-up-pi="${esc(p.id)}"${i === 0 ? ' disabled' : ''} title="Move earlier">↑</button>
+        <button class="btn small" data-down-pi="${esc(p.id)}"${i === state.pis.length - 1 ? ' disabled' : ''} title="Move later">↓</button>
+        <button class="btn small" data-rename-pi="${esc(p.id)}">Rename</button>
+        <button class="btn small" data-del-pi="${esc(p.id)}">Delete</button></td></tr>`).join('')
     : '<tr><td class="muted">No PIs yet.</td></tr>';
 
   manageDialog.querySelectorAll('[data-rename-team]').forEach(b => b.onclick = () => {
@@ -3279,7 +3323,7 @@ F('importFile').onchange = (e) => {
   const reader = new FileReader();
   reader.onload = () => {
     try {
-      const parsed = JSON.parse(reader.result);
+      const parsed = sanitizeIds(JSON.parse(reader.result));
       if (!parsed || !Array.isArray(parsed.teams) || !Array.isArray(parsed.sprints))
         throw new Error('not a Sprint Velocity export');
       const msg = `Replace everything in this browser with ${parsed.teams.length} team(s) and `
@@ -3389,7 +3433,9 @@ async function decodeShare(token) {
   const p = JSON.parse(json);
   if (!p || !Array.isArray(p.teams) || !Array.isArray(p.sprints) || !p.teams.length)
     throw new Error('not a share payload');
-  return p;
+  /* A link is the least trusted input the app has — it arrives from someone else
+     by definition, which is the whole point of the feature. */
+  return sanitizeIds(p);
 }
 
 /* ── Opening a shared link ──────────────────────────────────────────────── */
@@ -3431,7 +3477,7 @@ function renderShareError() {
          wrap them across two lines. Ask whoever sent it for a fresh copy, and paste the
          whole thing in one go.</p>
       <div class="row" style="justify-content:center;margin-top:18px">
-        <a class="btn primary" href="${location.pathname}">Open my own data</a>
+        <a class="btn primary" href="${esc(location.pathname)}">Open my own data</a>
       </div>
     </div>`;
 }
@@ -3445,7 +3491,7 @@ function shareBanner() {
     <strong>👁 Read-only view${shareMeta && shareMeta.label ? ' — ' + esc(shareMeta.label) : ''}</strong>
     <span class="muted">Shared${when ? ' on ' + when : ''}. Nothing you do here is saved,
       and your own data is untouched.</span>
-    <a class="mine" href="${location.pathname}">Open my own data</a>
+    <a class="mine" href="${esc(location.pathname)}">Open my own data</a>
   </div>`;
 }
 
@@ -3461,7 +3507,7 @@ const SHARE_WARN_AT = 8000;
 function openShare() {
   const active = activeTeam();
   F('shareTeams').innerHTML = state.teams.map(t =>
-    `<label class="checkline"><input type="checkbox" data-share-team="${t.id}"${
+    `<label class="checkline"><input type="checkbox" data-share-team="${esc(t.id)}"${
       active && t.id === active.id ? ' checked' : ''}><span>${esc(t.name)}</span></label>`).join('');
   F('shareTeams').querySelectorAll('input').forEach(i => { i.onchange = refreshShareLink; });
   F('shareAllTeams').checked = false;
@@ -3623,6 +3669,7 @@ document.querySelectorAll('.tab').forEach(tab => {
 /* ── Hooks the sync module calls ────────────────────────────────────────── */
 window.svGet = () => state;
 window.svAdopt = (incoming, ts) => {
+  incoming = sanitizeIds(incoming);
   state = Object.assign(blankState(), incoming,
     { settings: Object.assign(blankState().settings, (incoming && incoming.settings) || {}) });
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
