@@ -1097,8 +1097,7 @@ function metrics(s) {
     commitCompletePct:  pct(s.committedCompleted),
     breakInPct:         pct(s.added),
     removedPct:         pct(s.removed),
-    carryoverPct:       pct(s.carriedOut),
-    churnPct:           pct(num(s.added) + num(s.removed))
+    carryoverPct:       pct(s.carriedOut)
   };
 }
 
@@ -1351,7 +1350,9 @@ function nextSprintTarget(teamId, includeSix) {
   const rs = rollingSprints(teamId, includeSix);
   if (!rs.length) return null;
 
-  const done = rs.map(s => metrics(s).committedCompleted).filter(v => v !== null);
+  /* Not filtered for nulls: committedCompleted goes through num(), so a blank box
+     is 0 and never null. The percentages are the only figures that can be null. */
+  const done = rs.map(s => metrics(s).committedCompleted);
   if (!done.length) return null;
   const recommended = done.reduce((a, b) => a + b, 0) / done.length;
   const low = Math.min(...done), high = Math.max(...done);
@@ -3578,9 +3579,12 @@ async function refreshShareLink() {
 
   const link = F('shareLink'), meta = F('shareMeta'), warn = F('shareWarn');
   const busy = ++shareSeq;
-  const setBusy = (state) => {
-    F('shareCopyBtn').disabled = state;
-    F('shareOpenBtn').disabled = state;
+  /* Not named `state`: this function reads the app's own `state` a few lines below
+     to build the payload, and shadowing it here is a trap waiting for whoever adds
+     the next line to this block. */
+  const setBusy = (on) => {
+    F('shareCopyBtn').disabled = on;
+    F('shareOpenBtn').disabled = on;
   };
 
   if (!teamIds.length) {
