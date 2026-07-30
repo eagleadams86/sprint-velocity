@@ -572,14 +572,18 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
   <!-- Filled once when a share link is opened; empty and invisible otherwise. -->
   <div id="shareBar"></div>
 
+  <!-- A tablist owes a screen reader two things this row was missing: which panel
+       each tab drives (aria-controls), and a single stop in the tab order rather
+       than one per tab. tabindex is roved in render() alongside aria-selected;
+       the arrow keys are wired at the foot of the page. -->
   <div class="tabs" role="tablist" aria-label="Views">
-    <button class="tab" role="tab" data-view="sprint"  aria-selected="true">Sprint</button>
-    <button class="tab" role="tab" data-view="pi"      aria-selected="false">Current PI</button>
-    <button class="tab" role="tab" data-view="rolling" aria-selected="false">Rolling 5</button>
-    <button class="tab" role="tab" data-view="teams"   aria-selected="false">All teams</button>
+    <button class="tab" role="tab" id="tab-sprint"  aria-controls="views" data-view="sprint"  aria-selected="true"  tabindex="0">Sprint</button>
+    <button class="tab" role="tab" id="tab-pi"      aria-controls="views" data-view="pi"      aria-selected="false" tabindex="-1">Current PI</button>
+    <button class="tab" role="tab" id="tab-rolling" aria-controls="views" data-view="rolling" aria-selected="false" tabindex="-1">Rolling 5</button>
+    <button class="tab" role="tab" id="tab-teams"   aria-controls="views" data-view="teams"   aria-selected="false" tabindex="-1">All teams</button>
   </div>
 
-  <main id="views"></main>
+  <main id="views" role="tabpanel" aria-labelledby="tab-sprint"></main>
 
   <p class="privacy" id="privacyNote">🔒 Private — your data is stored in this browser only. No account
     needed. Sign in with Google if you want the same data on your other devices.</p>
@@ -757,20 +761,20 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
     them and no sign-in. The data travels <em>inside</em> the link itself — it isn't uploaded
     anywhere, and it doesn't touch whatever they have saved in their own browser.</p>
 
-  <div class="formpanel">
+  <fieldset class="formpanel">
     <legend>Which teams</legend>
     <div class="checklist" id="shareTeams"></div>
-  </div>
+  </fieldset>
 
-  <div class="formpanel">
+  <fieldset class="formpanel">
     <legend>What to include</legend>
     <label class="checkline"><input type="checkbox" id="shareAllTeams">
       <span>The <strong>All teams</strong> comparison view</span></label>
     <label class="checkline"><input type="checkbox" id="shareNotes">
       <span>Sprint notes — your written comments on what was added, removed and carried over</span></label>
-  </div>
+  </fieldset>
 
-  <div class="formpanel">
+  <fieldset class="formpanel">
     <legend>Your link</legend>
     <input type="text" id="shareLink" readonly aria-label="Read-only share link">
     <p class="sub muted" id="shareMeta" style="margin:8px 0 0"></p>
@@ -779,7 +783,7 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
       <button type="button" class="btn primary" id="shareCopyBtn">Copy link</button>
       <button type="button" class="btn" id="shareOpenBtn">Preview it</button>
     </div>
-  </div>
+  </fieldset>
 
   <p class="sub muted" style="margin-top:14px">This is a <strong>snapshot</strong>, frozen as it
     looks right now — later edits won't appear, so send a fresh link when the numbers move.
@@ -1375,6 +1379,11 @@ function nextSprintTarget(teamId, includeSix) {
     slot,
     inFlight: !!(slot && slot.sprint),
     committedAlready,
+    /* A running sprint whose commitment hasn't been keyed in yet has nothing to
+       compare against — 0 isn't a small commitment, it's an unanswered question.
+       One flag for both, so the card can't show "actually committed 0" alongside
+       a tick and "in line with the suggestion", which is what it used to do. */
+    hasCommitment: committedAlready !== null && committedAlready > 0,
     overBy: (committedAlready !== null && committedAlready > 0)
       ? committedAlready - recommended : null,
     isIpSprint: !!slot && slot.sprintNumber === IP_SPRINT
@@ -1435,6 +1444,25 @@ function parsePoints(cell) {
   return v === null ? null : { start: v, current: v };
 }
 
+/* The estimate is the last column of a row, but a report can carry a cell after it:
+   an empty field copies through as "-", and taking the rightmost cell on trust then
+   reads an 8-point story as 0 — every row, silently, until the checksum complains.
+
+   So the rightmost cell holding an actual figure wins, and a bare "-" is only used
+   when the row offers nothing else. That keeps a genuinely unestimated issue reading
+   as 0, which is what it means, without letting a decorative dash mask a real
+   estimate sitting one column to its left. */
+function pointsFromCells(cells) {
+  let blank = null;
+  for (let i = cells.length - 1; i >= 0; i--) {
+    const p = parsePoints(cells[i]);
+    if (!p) continue;
+    if (p.start || p.current) return p;
+    if (blank === null) blank = p;     // a zero — remember it, but keep looking left
+  }
+  return blank;
+}
+
 /* Reads "(9)" as both sides equal, and "(21 → 15)" as start 21, current 15. */
 function parseTotal(match) {
   const a = parsePoints(match[1]);
@@ -1451,9 +1479,17 @@ function parseJiraSprintReport(text) {
 
   /* Browsers disagree on how a table copies: most give one row per line with tabs
      between cells, some flatten it to one cell per line. Both shapes appear in the
-     wild, so both are handled — the flattened branch is picked when a line holds
-     nothing but an issue key. */
-  const flattened = lines.some(l => JIRA_KEY_ONLY.test(l));
+     wild, so both are handled.
+
+     Which shape this is goes on a count, not on whether a bare issue key appears
+     anywhere. A single stray key — a linked issue, an epic that copied onto its own
+     line — used to be enough to read an ordinary tab-separated report as flattened,
+     and the flattened branch then found one row out of five and zeroed everything.
+     A real flattened paste has every issue on a line of its own, so it wins the
+     count outright; a tabbed one with a stray key doesn't. */
+  const bareKeys = lines.filter(l => JIRA_KEY_ONLY.test(l)).length;
+  const tabbedKeys = lines.filter(l => JIRA_KEY.test(l) && l.includes('\t')).length;
+  const flattened = bareKeys > tabbedKeys;
   let cur = null;
 
   for (let i = 0; i < lines.length; i++) {
@@ -1472,18 +1508,18 @@ function parseJiraSprintReport(text) {
     if (flattened) {
       const m = line.match(JIRA_KEY_ONLY);
       if (!m) continue;
-      let pts = null;
+      const cells = [];
       for (let j = i + 1; j < lines.length; j++) {
         if (JIRA_KEY_ONLY.test(lines[j]) || sectionOf(lines[j])) break;
-        const p = parsePoints(lines[j]);
-        if (p) pts = p;
+        cells.push(lines[j]);
       }
+      const pts = pointsFromCells(cells);
       rows[cur].push({ key: m[1], added: m[2] === '*', points: pts || { start: 0, current: 0 } });
     } else {
       const m = line.match(JIRA_KEY);
       if (!m) continue;
       const cells = line.split('\t').map(c => c.trim()).filter(Boolean);
-      const pts = parsePoints(cells[cells.length - 1]);
+      const pts = pointsFromCells(cells);
       rows[cur].push({ key: m[1], added: m[2] === '*', points: pts || { start: 0, current: 0 } });
     }
   }
@@ -1797,8 +1833,14 @@ function render() {
   if (!state.teams.length) { renderWelcome(); return; }
 
   const view = state.settings.view || 'sprint';
-  document.querySelectorAll('.tab').forEach(t =>
-    t.setAttribute('aria-selected', String(t.dataset.view === view)));
+  document.querySelectorAll('.tab').forEach(t => {
+    const on = t.dataset.view === view;
+    t.setAttribute('aria-selected', String(on));
+    /* Roving tabindex: only the selected tab is in the tab order, so reaching the
+       view below costs one press rather than four. */
+    t.tabIndex = on ? 0 : -1;
+  });
+  viewsEl.setAttribute('aria-labelledby', 'tab-' + view);
 
   if (view === 'sprint')       renderSprintView();
   else if (view === 'pi')      renderPiView();
@@ -2457,19 +2499,19 @@ function targetCapacityCard(team, includeSix) {
     <h2>Target capacity for ${slotName}${t.inFlight ? ' <span class="badge">◐ In progress</span>' : ''}</h2>
     <p class="sub">What ${esc(team.name)} can realistically commit to, based on their last
       ${t.sprints} finished sprint${t.sprints === 1 ? '' : 's'}.${
-      t.inFlight ? ' This sprint is already under way, so compare it with what they signed up for.' : ''}</p>
+      t.hasCommitment ? ' This sprint is already under way, so compare it with what they signed up for.' : ''}</p>
     <div class="tiles">
       ${tile('Recommended commitment', fmtNum(Math.round(t.recommended)), null,
         'story points', true)}
-      ${t.committedAlready !== null ? tile('Actually committed', fmtNum(t.committedAlready),
+      ${t.hasCommitment ? tile('Actually committed', fmtNum(t.committedAlready),
         over ? 'red' : under ? 'yellow' : 'green',
         over ? `${fmtNum(Math.round(t.overBy))} more than the suggestion`
              : under ? `${fmtNum(Math.abs(Math.round(t.overBy)))} under the suggestion`
                      : 'in line with the suggestion') : ''}
       ${tile('Already carried over', fmtNum(t.carriedIn), null,
         t.slot && t.slot.last ? `from ${esc(sprintLabel(t.slot.last))}` : 'from the last finished sprint')}
-      ${t.committedAlready === null ? tile('New work to pull in', fmtNum(Math.round(t.newWork)), null,
-        'on top of the carryover') : ''}
+      ${t.hasCommitment ? '' : tile('New work to pull in', fmtNum(Math.round(t.newWork)), null,
+        'on top of the carryover')}
       ${tile('Recent range', `${fmtNum(t.low)}–${fmtNum(t.high)}`, null,
         'committed points finished per sprint')}
     </div>
@@ -3308,11 +3350,16 @@ F('helpCloseBtn').onclick = () => F('helpDialog').close();
 
 F('exportBtn').onclick = () => {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
+  a.href = url;
   a.download = `sprint-velocity-${new Date().toISOString().slice(0, 10)}.json`;
   a.click();
-  URL.revokeObjectURL(a.href);
+  /* Revoking in the same tick races the download starting: Chrome usually wins,
+     Firefox has historically handed back an empty file. One turn of the event loop
+     settles it and costs nothing — this is a backup, so a silent empty one is the
+     worst outcome available. */
+  setTimeout(() => URL.revokeObjectURL(url), 0);
   toast('Exported');
 };
 
@@ -3662,8 +3709,27 @@ document.getElementById('teamSel').onchange = (e) => {
   save(); render();
 };
 
+/* Arrow keys move along the tabs and switch view as they go, which is what a
+   tablist is expected to do once only one of its tabs is in the tab order. Hidden
+   tabs are skipped — a shared view without the All teams panel shouldn't have an
+   invisible stop on the end of the row. */
+const visibleTabs = () => [...document.querySelectorAll('.tab')].filter(t => !t.hidden);
+
 document.querySelectorAll('.tab').forEach(tab => {
   tab.onclick = () => { state.settings.view = tab.dataset.view; save(); render(); };
+  tab.onkeydown = (e) => {
+    const step = { ArrowLeft: -1, ArrowRight: 1, Home: 'first', End: 'last' }[e.key];
+    if (step === undefined) return;
+    e.preventDefault();
+    const list = visibleTabs();
+    const i = list.indexOf(tab);
+    const next = step === 'first' ? list[0]
+      : step === 'last' ? list[list.length - 1]
+      : list[(i + step + list.length) % list.length];
+    /* render() rewrites aria-selected and tabindex but never rebuilds these
+       buttons, so focus survives the click. */
+    if (next) { next.focus(); next.click(); }
+  };
 });
 
 /* ── Hooks the sync module calls ────────────────────────────────────────── */
