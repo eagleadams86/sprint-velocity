@@ -242,9 +242,12 @@ select.ctl:hover { border-color: var(--text-muted); }
    header slides, the moment Firebase reports who you are. */
 #syncBtn { min-width: 125px; }
 
-/* The gap matches the 20px above and below the row, so the tabs are spaced by the
-   same rhythm in both directions. */
-.tabs { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
+/* The gap matches the header chrome's, so a row of tabs is spaced like every other
+   run of buttons and pickers on the page. It was 20px to echo the space above and
+   below the row, but that symmetry only read as the tabs sitting oddly far apart
+   from each other. The 20px margin below stays — that one separates the row from
+   the view under it, which is a different job. */
+.tabs { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
 /* An explicit display beats the hidden attribute's UA rule, so hiding the row
    needs saying again here. */
 .tabs[hidden] { display: none; }
