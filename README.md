@@ -130,7 +130,11 @@ sprint saves only when you press Save sprint. Your "why" notes are never touched
 paste can't be read, it says so and shows what it did find rather than filling in zeros.
 
 Both common paste shapes work — tab-separated rows and one-cell-per-line — since browsers
-differ in how they copy tables.
+differ in how they copy tables. Which shape you've pasted is decided on a count of the
+rows, so a stray issue key that copied onto a line of its own can't make an ordinary
+report look like the other kind. Estimates are read from the rightmost cell holding an
+actual figure, so a spare `-` in a column after the points can't mask them; an issue with
+genuinely no estimate still reads as 0.
 
 ## Recording a sprint before it's over
 
@@ -316,7 +320,11 @@ over-committed. That gap is how a fast team still misses its commitment every ti
 
 The card also splits the total into what's **already carried over** from last sprint and
 how much **new work** that leaves to pull off the backlog, and shows the recent range so
-you can see how much faith the number deserves. It warns you when there are fewer than
+you can see how much faith the number deserves. When the sprint it's aiming at is already
+running and has a commitment recorded, it swaps the new-work figure for a comparison
+against what the team actually signed up for — there's still time to descope. A running
+sprint whose commitment hasn't been entered yet keeps the forecast, since 0 committed is
+an unanswered question rather than a small commitment. It warns you when there are fewer than
 three sprints of history, when the team's delivery swings by more than 30%, and when the
 next sprint up is the IP sprint.
 
@@ -344,6 +352,11 @@ series keeps the same hue throughout — committed grey, completed blue, velocit
 break-in amber, removed violet, carryover red — so a chart reads the same way whichever
 palette you're in. Charts re-render on a switch, because their colours are resolved when
 they're built.
+
+RAG state is never carried by colour alone — every tile and pill also has a glyph and a
+spelled-out status for a screen reader. The view tabs work from the keyboard the way a tab
+row is expected to: arrow keys move along the row and switch view, Home and End jump to the
+ends, and the row takes a single stop in the tab order rather than one per tab.
 
 ---
 
@@ -385,6 +398,14 @@ Two things to know:
   won't appear — send a fresh link when the figures move.
 - **It can't be withdrawn.** Anyone holding the link can open it. Treat it like emailing a
   spreadsheet, not like a permission you can revoke.
+
+A link you receive is treated as untrusted, because by definition it came from someone
+else. Names have always been escaped before they reach the page; the ids that hold the
+data together are now checked too, and anything that isn't a plain id is replaced with a
+fresh one before the link renders. Without that, an id crafted to look like markup could
+run code in your browser when you opened the link — reaching your own saved data and your
+sign-in, neither of which the read-only guard covers. The same check runs on an imported
+backup file and on the copy that comes down from sync.
 
 Links run to a few hundred characters for a typical team. If one gets long enough that a mail
 client might break it across two lines, the dialog says so and suggests sharing fewer teams or
@@ -429,6 +450,13 @@ browser's data in the sibling PAPTrack app. After that first reconciliation (tra
 account via `sv-sync-uid`), and for live updates pushed from another device, whichever side
 changed most recently wins. Signing out or losing connectivity just leaves the local copy
 in charge.
+
+Underneath that, one rule holds everywhere: **an empty copy never beats a copy with data
+in it**, whichever looks newer. Signing in on a browser with nothing in it yet puts an
+empty copy in the cloud stamped with the current time, and without that rule the device
+holding your actual sprints — stamped whenever you last edited it — would treat the empty
+copy as newer and empty itself. Clearing everything deliberately still reaches your other
+devices, but it asks before it takes effect on each one.
 
 ---
 

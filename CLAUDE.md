@@ -102,7 +102,17 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   over-commits the team. Don't "improve" it into a velocity-based figure; the reasoning is
   in the comment above the function and in the card's "How this is worked out".
 - RAG state must never be conveyed by colour alone — tiles and pills carry a glyph and an
-  `sr-only` status. Every theme is WCAG AA on the figures; keep them that way.
+  `sr-only` status. Every theme is WCAG AA on the figures; keep them that way. The view tabs
+  are a real tablist: `aria-controls` onto `#views` (`role="tabpanel"`), roving `tabindex`
+  set in `render()` beside `aria-selected`, and arrow/Home/End wired at the foot of the
+  file, skipping hidden tabs.
+- **Ids from outside are not trusted.** `sanitizeIds()` runs on everything entering through
+  `load()`, `decodeShare()`, the JSON import and `svAdopt()`, replacing any id that isn't
+  `[A-Za-z0-9_-]{1,64}` with a fresh one and rewriting every reference through the same map.
+  Names were always escaped; ids go into attributes (`data-id`, `<option value>`) in a dozen
+  places and weren't, so a crafted share link could run script — which `viewOnly` does
+  nothing about, since injected code doesn't go through `save()`. Render sites escape too.
+  Don't add a render site that interpolates an id raw, and don't drop the boundary check.
 - Charts resolve their colours from CSS custom properties at construction time, so a theme
   switch has to rebuild them (`render()` does this). Chart animation is deliberately off.
 - Optional cross-device sync is ported from PAPTrack: Google sign-in + one Firestore doc
@@ -110,7 +120,11 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   `FIREBASE_CONFIG` controls it; set it to `null` to force fully-local mode. The config is
   a public client config, not a secret — access is enforced by the Firestore rules. The
   first-sign-in "which copy do you want to keep?" dialog is load-bearing; don't replace it
-  with timestamp guessing.
+  with timestamp guessing. Underneath it, **an empty copy never beats a copy with data in
+  it**, whichever is newer — the dialog only fires when both sides hold data, so without
+  that rule a fresh browser's empty push (stamped `now`) silently emptied the device that
+  had the sprints. Keep both halves; the guard is what makes the dialog's narrow trigger
+  safe.
 - Firebase authorized domain is `eagleadams86.github.io`, so sync works at this
   `/sprint-velocity/` path unchanged.
 - **Paste from Jira:** `parseJiraSprintReport()` / `deriveFromJira()` are pure functions on
@@ -118,7 +132,11 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   lifecycle and blank-vs-zero rules apply unchanged. Committed = every issue **not** marked
   `*` (removed ones included — they were in the sprint at start); carried out = the whole
   not-completed section, which can exceed `committed − completed`. Handles both tab-separated
-  and one-cell-per-line pastes; browsers differ. **Estimates can be a range** — Jira writes a
+  and one-cell-per-line pastes; browsers differ — decided on a **count** of rows of each
+  shape, not on whether a bare issue key appears anywhere, since one stray key used to flip
+  a tabbed report into the flattened branch and throw most of it away. `pointsFromCells()`
+  takes the rightmost cell holding a real figure rather than the last cell outright, so a
+  trailing `-` can't zero a row; a genuinely unestimated issue still reads 0. **Estimates can be a range** — Jira writes a
   mid-sprint re-estimate as `8 → 2` on a row and `Story Points (21 → 15)` in a header, so
   `parsePoints()` returns `{start, current}`. **Only `committed` uses `jiraStart()`** — it
   records what was signed up for; every other figure uses `jiraCurrent()`, what the work
