@@ -125,6 +125,18 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   that rule a fresh browser's empty push (stamped `now`) silently emptied the device that
   had the sprints. Keep both halves; the guard is what makes the dialog's narrow trigger
   safe.
+- **Sync failures are surfaced, not logged.** `syncError` + `setSyncError()`/`clearSyncError()`
+  drive `updateUI()`, so the button reads "⚠️ Not syncing" and the privacy note carries the
+  cause and the remedy; `describeSyncError()` maps Firestore codes to plain English. Every
+  catch site feeds it — the debounced push, `startSync()`, and the `onSnapshot` **error
+  callback** (a listener that errors is dropped by Firestore and never fires again, so
+  without that second argument another device's updates just stop arriving). A successful
+  `pushNow()` is the only thing that clears it, which is why there's deliberately no retry
+  button: transient causes are retried by the SDK, permanent ones (oversized doc, rules)
+  aren't fixed by pressing anything, and the next save recovers the state on its own. The
+  toast fires on the *transition* only, never per retry. Sizing context: 6 teams × 1 year
+  with notes ≈ 133 KB against Firestore's 1 MiB, so the cap is ~8 years away — the
+  visibility is the point, not a size guard.
 - Firebase authorized domain is `eagleadams86.github.io`, so sync works at this
   `/sprint-velocity/` path unchanged.
 - **Paste from Jira:** `parseJiraSprintReport()` / `deriveFromJira()` are pure functions on

@@ -3840,16 +3840,79 @@ async function init() {
   db = Fs.getFirestore(app);
   A.onAuthStateChanged(auth, (u) => {
     user = u;
+    syncError = null;          // a change of who's signed in starts clean
     updateUI();
     if (unsub) { unsub(); unsub = null; }
-    if (u) startSync().catch((e) => console.warn('sync failed', e));
+    if (u) startSync().catch((e) => setSyncError(e));
   });
   A.getRedirectResult(auth).catch(() => {}); // completes a mobile redirect sign-in, if one is in flight
   btn.addEventListener('click', onClick);
 }
 
+/* ── Saying so when sync stops working ──────────────────────────────────────
+   Every failure path here used to end at console.warn, which nobody has open. The
+   app went on looking signed in and the privacy line went on promising the data
+   was reaching your other devices, while nothing had left the browser for weeks —
+   you'd find out when a second device turned out to be months behind.
+
+   Nothing is ever lost when this happens: localStorage is the source of truth and
+   the cloud only mirrors it. But "your data is safe" and "your data is synced" are
+   different promises, and the header should only make the one that's true.
+
+   There's deliberately no retry button. Firestore already retries the transient
+   causes on its own, and the causes it can't retry — the document being too big,
+   the rules refusing — won't be fixed by pressing anything. Recovery comes from
+   the next successful push, which every edit attempts, so the state clears itself
+   the moment sync genuinely works again. */
+let syncError = null;
+
+/* Plain English, because the people reading it are Scrum Masters, and the useful
+   part is the second sentence: what to actually do about it. */
+function describeSyncError(e) {
+  const code = String((e && e.code) || e || '');
+  if (code.includes('invalid-argument')) return {
+    reason: 'There’s more history here than can be synced in one go.',
+    fix: 'Export a backup, then delete a PI you no longer need — sync picks up again on the next change.' };
+  if (code.includes('permission-denied') || code.includes('unauthenticated')) return {
+    reason: 'Google refused the sign-in for this data.',
+    fix: 'Signing out and back in usually clears it.' };
+  if (code.includes('resource-exhausted')) return {
+    reason: 'This project has hit its daily sync limit.',
+    fix: 'It resets tomorrow; nothing is lost in the meantime.' };
+  if (code.includes('unavailable') || code.includes('deadline-exceeded')) return {
+    reason: 'Couldn’t reach Google just now.',
+    fix: 'It should sort itself out — the next change will try again.' };
+  return { reason: 'Sync has stopped working.',
+    fix: 'The next change will try again. If it keeps up, sign out and back in.' };
+}
+
+function setSyncError(e) {
+  console.warn('sync problem', e);
+  const first = !syncError;
+  syncError = describeSyncError(e);
+  updateUI();
+  /* Announce the change of state, not every retry. Each save() schedules another
+     push, so a lasting problem calls this repeatedly — toasting every time would be
+     noise, and the header carries the state for as long as it lasts anyway. The
+     note at the foot of the page is where the detail lives, so say where to look. */
+  if (first) window.toast('⚠️ Not syncing — see the note at the foot of the page');
+}
+
+/* Called on every successful push, so recovery needs no intervention. */
+function clearSyncError() {
+  if (!syncError) return;
+  syncError = null;
+  updateUI();
+  window.toast('Syncing again ☁️');
+}
+
 function updateUI() {
-  if (user) {
+  if (user && syncError) {
+    btn.textContent = '⚠️ Not syncing';
+    btn.title = syncError.reason + ' ' + syncError.fix;
+    privacyNote.textContent = `⚠️ Not syncing — ${syncError.reason} Everything is still saved in `
+      + `this browser, but your other devices aren’t getting it. ${syncError.fix}`;
+  } else if (user) {
     btn.textContent = `☁️ ${user.displayName ? user.displayName.split(' ')[0] : user.email}`;
     btn.title = 'Syncing across your devices — click to sign out';
     privacyNote.textContent = `☁️ Signed in as ${user.email} — your sprint data syncs privately to your own account and still works offline.`;
@@ -3987,26 +4050,33 @@ async function startSync() {
         + 'to your other devices.');
       if (keep) {
         touchLocal();
-        pushNow().catch((e) => console.warn('push failed', e));
+        pushNow().catch(setSyncError);
         window.toast('Kept this device’s data');
         return;
       }
     }
     window.svAdopt(r.data, r.updatedAt);
     window.toast('Synced from another device ☁️');
+  }, (e) => {
+    /* A listener that dies stays dead — Firestore hands it to this callback and
+       drops it. Without one, losing permission mid-session meant updates from
+       another device just stopped arriving, with the header still saying "syncing". */
+    setSyncError(e);
+    unsub = null;
   });
 }
 
 async function pushNow() {
   if (!user) return;
   await Fs.setDoc(docRef(), { data: window.svGet(), updatedAt: localTs() || Date.now() });
+  clearSyncError();
 }
 
 /* Called by save() on every local change; debounced so rapid edits batch up. */
 window.cloudPush = () => {
   if (!user) return;
   clearTimeout(pushTimer);
-  pushTimer = setTimeout(() => pushNow().catch((e) => console.warn('push failed', e)), 1200);
+  pushTimer = setTimeout(() => pushNow().catch(setSyncError), 1200);
 };
 </script>
 </body>

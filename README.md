@@ -451,6 +451,21 @@ account via `sv-sync-uid`), and for live updates pushed from another device, whi
 changed most recently wins. Signing out or losing connectivity just leaves the local copy
 in charge.
 
+**When sync stops working, it says so.** Every failure used to end in the browser console,
+which nobody has open — so the button went on showing your name and the note went on
+promising your data was reaching your other devices, while nothing had left the browser for
+weeks. The button now reads **⚠️ Not syncing**, and the note at the foot of the page says
+what went wrong and what to do about it. Nothing is ever lost when this happens: this
+browser stays the source of truth and the cloud only mirrors it. There's no retry button
+on purpose — Google already retries the temporary causes, the permanent ones wouldn't be
+fixed by pressing anything, and the state clears itself the moment a save gets through.
+
+**How much can it hold?** One Firestore document per user, capped at 1 MiB. Six teams
+through a full year — four PIs, 144 sprints, with written notes on every one — comes to
+about 133 KB, or 13% of that. Roughly eight years of that pace before it fills, or four if
+the notes run long. If you ever do reach it, the app tells you rather than failing quietly,
+and the fix is to export a backup and delete a PI you no longer need.
+
 Underneath that, one rule holds everywhere: **an empty copy never beats a copy with data
 in it**, whichever looks newer. Signing in on a browser with nothing in it yet puts an
 empty copy in the cloud stamped with the current time, and without that rule the device
