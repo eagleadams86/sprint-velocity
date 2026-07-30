@@ -415,6 +415,19 @@ details.datatable summary { cursor: pointer; font-size: 13px; color: var(--text-
 /* ── Toolbar rows, dialogs, misc ────────────────────────────────────────── */
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .row.spread { justify-content: space-between; }
+
+/* The sprint toolbar. On a narrow screen the outer row is the one thing that must
+   not wrap: the pickers stack up on the left and the button stays pinned to the top
+   right, where it reads as the action for the sprint you've just chosen. Letting it
+   wrap instead dropped it onto a third line underneath, looking like a separate
+   control that happened to be nearby. The pickers shrink rather than overflow —
+   min-width:0 undoes a flex item's default refusal to go below its content — which
+   only bites if the button's label grows: both of its labels are short enough today
+   that the sprint picker still gets its full width on a phone. Keep them that way. */
+.sprint-bar { flex-wrap: nowrap; align-items: flex-start; }
+.sprint-bar > .row { flex: 1; min-width: 0; }
+.sprint-bar > .row > select { max-width: 100%; }
+.sprint-bar > .btn { flex: none; }
 label.field { display: block; font-size: 13px; color: var(--text-secondary);
   font-weight: 600; margin-bottom: 4px; }
 .grid-fields { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
@@ -1680,7 +1693,7 @@ function renderSprintView() {
 
   const selector = `
     <div class="card">
-      <div class="row spread">
+      <div class="row spread sprint-bar">
         <div class="row">
           <label class="sr-only" for="piSel">PI</label>
           <select id="piSel" class="ctl">${pis.map(p =>
@@ -1695,7 +1708,7 @@ function renderSprintView() {
              page. .primary stays for dialogs and empty states, where a single
              strong call to action is the point. -->
         ${viewOnly ? '' :
-          `<button class="btn" id="editSprintBtn">${s ? 'Edit Sprint' : 'Add data for this sprint'}</button>`}
+          `<button class="btn" id="editSprintBtn">${s ? 'Edit Sprint' : 'Add Sprint'}</button>`}
       </div>
     </div>`;
 
