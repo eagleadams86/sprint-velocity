@@ -251,7 +251,44 @@ rather than dragging them down.
   commitment completion on one chart, and an instability chart plotting break-in, removed
   and carryover against shaded 15% / 20% threshold bands.
 - **All teams** — every team's rolling averages side by side, plus each team's next-sprint
-  target in one column, so the one that needs attention is obvious.
+  target in one column, so the one that needs attention is obvious. It carries **two
+  comparison tables**, the same sprints through two different averages — see below.
+
+## The two comparison tables
+
+The All teams view shows the same rolling window twice, because there are two honest ways
+to average a percentage and they answer different questions.
+
+**Comparison 1 — average of sprints.** Each sprint's own percentage is worked out first,
+then those percentages are averaged. Every sprint counts equally whatever its size.
+
+**Comparison 2 — pooled totals.** Every point is added into one total and the percentage
+taken once at the end. A bigger sprint pulls harder than a small one.
+
+A team with two sprints — 6 of 9 committed points done, then 5 of 14 — scores **51%** by
+the first method (67% and 36%, averaged) and **48%** by the second (11 of 23). Neither is
+wrong; the first describes the typical sprint, the second describes the body of work.
+
+| | Comparison 1 | Comparison 2 |
+|---|---|---|
+| Method | Average of each sprint's % | One pooled total, divided once |
+| Weights sprints by size | No | Yes |
+| Best for | Coaching a team — the habit | Reporting upward — the actual work |
+| Matches the Agile Operations Dashboard | No | **Yes** |
+
+**Comparison 2 is the one that reconciles with the Agile Operations Dashboard**, which
+pools throughout. Its `All teams` row also pools every point from every team rather than
+averaging the rows above it, which is why that row won't equal the mean of its own column
+— the dashboard's Total behaves the same way.
+
+The **Current PI** view shows both too: the *PI total* row and the *PI commitment
+completion* tile are pooled (so they match the dashboard), while the *Average per sprint*
+tile is the average-of-sprints figure. A wide gap between them means one sprint is
+skewing the total.
+
+Comparison 2 also carries **Actual complete** — everything delivered, break-in work
+included, against what was committed. It goes above 100% when a team finished more than it
+signed up for, which says throughput was high, not that the plan held.
 
 ## Target capacity for the next sprint
 

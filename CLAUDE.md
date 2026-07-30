@@ -46,6 +46,13 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
 - `chart.min.js` is a **vendored third-party build — do not hand-edit.**
 - **`metrics()` and `rag()` in `index.html` are the only places the numbers are
   calculated.** Every tile, table and chart reads from them. Thresholds change in one spot.
+- **Two averaging methods, both deliberate.** `avg()` is the mean of each sprint's own
+  percentage (every sprint equal); `pooled()` sums the points and divides once (bigger sprints
+  weigh more). The All teams view shows both — Comparison 1 uses `avg()`, Comparison 2 uses
+  `pooled()` — over the *same* sprint set, so they can only ever differ by method. **Comparison
+  2 is the method the Agile Operations Dashboard uses**, as is the PI view's total row/tile;
+  the PI "Average per sprint" tile is `avg()`. Don't "fix" one to agree with the other, and
+  don't let a new figure pick a method silently — say which it is in the UI.
 - **Blank means 0.** `val()` saves 0 for an empty box and `metrics()` uses `num()` throughout.
   Blanks were once kept as `null` so a half-typed sprint couldn't read as real results; the
   sprint lifecycle now does that job, data mostly arrives via the Jira paste where absent

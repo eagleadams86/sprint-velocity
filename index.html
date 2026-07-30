@@ -337,11 +337,27 @@ select.ctl:hover { border-color: var(--text-muted); }
 #jiraPreview table { font-size: 13px; }
 #jiraPreview td.n { font-weight: 700; width: 1%; white-space: nowrap; }
 #jiraPreview td.why { color: var(--text-secondary); text-align: left; font-size: 12px; }
+/* The two comparison tables in All teams run the same sprints through two
+   different averages. Nobody guesses that from looking, so the difference gets
+   its own boxed note under the second one rather than a line of small print. */
+.methodnote { border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 12px 14px; margin-top: 16px; background: var(--bg-card-alt);
+  font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+.methodnote h3 { margin: 0 0 6px; font-size: 13px; color: var(--text-primary); }
+.methodnote p { margin: 0 0 8px; }
+.methodnote p:last-child { margin-bottom: 0; }
+.methodnote strong { color: var(--text-primary); }
 .note-ok   { color: var(--green); font-size: 13px; font-weight: 600; }
 .note-warn { color: var(--amber); font-size: 13px; font-weight: 600; }
 .note-err  { color: var(--err);   font-size: 13px; font-weight: 600; }
 /* A pill hard up against the text it qualifies reads as part of the sentence, so it
    gets a little more than the word space it follows. */
+/* Neutral sibling of .badge — .badge is amber because it always means "in flight",
+   and a heading tag that just names a source shouldn't borrow that alarm. */
+.tag { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0; vertical-align: 2px;
+  border: 1px solid var(--border-strong); color: var(--text-secondary);
+  background: var(--bg-card-alt); white-space: nowrap; }
 .badge { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px;
   font-size: 12px;
   font-weight: 700; border: 1px solid var(--amber); color: var(--amber);
@@ -1089,7 +1105,9 @@ const METRIC_HELP = {
   /* Current PI */
   piCommitCompletion: { title: 'PI commitment completion', target: TARGET_COMPLETION,
     body: `Every committed point across the PI's counted sprints, against how much of it got
-      finished. Because it's one big total, a large sprint moves it more than a small one.` },
+      finished. Because it's one big total, a large sprint moves it more than a small one — the
+      same pooled method the Agile Operations Dashboard uses, so this is the PI figure that
+      reconciles with it.` },
   piAvgCompletion: { title: 'Average per sprint', target: TARGET_COMPLETION,
     body: `The mean of each sprint's own completion, so every sprint counts equally whatever
       its size. A big gap between this and the PI figure means one sprint is skewing the
@@ -1117,6 +1135,24 @@ const METRIC_HELP = {
   rollCarryover: { title: 'Avg carryover', target: TARGET_CHURN,
     body: `Mean carryover across the window — the habitual spill from one sprint into the
       next. ${ROLLING_WINDOW_NOTE}` },
+  /* All teams — the two comparison tables. Each explains its own method and names
+     the other, because the only question either one raises is "why doesn't this
+     match the table above it". */
+  teamsMean: { title: 'Average of sprints', target: TARGET_COMPLETION,
+    body: `Each sprint's own percentage is worked out first, then those percentages are
+      averaged — so <em>every sprint counts equally</em> whatever its size. This is the better
+      read on a team's habit: one unusually big sprint can't drown out the rest. The pooled
+      table below answers the other question. ${ROLLING_WINDOW_NOTE}` },
+  teamsPooled: { title: 'Pooled totals', target: TARGET_COMPLETION,
+    body: `Every point across the window is added into one total and the percentage taken
+      once at the end — so <em>a bigger sprint pulls harder</em> than a small one. This is the
+      better read on the body of work as a whole, and it's the method the Agile Operations
+      Dashboard uses, so these are the figures that reconcile with it. ${ROLLING_WINDOW_NOTE}` },
+  actualComplete: { title: 'Actual complete', target: null,
+    body: `Everything delivered — break-in work included — against what was committed at the
+      start. It goes above 100% when a team finished more than it signed up for, which says
+      throughput was high, not that the plan held.` },
+
   rollVelocity: { title: 'Avg velocity', target: null,
     body: `Mean points completed per sprint across the window, break-in included. The target
       capacity below deliberately uses <em>committed points finished</em> instead, which is
@@ -1128,6 +1164,38 @@ function avg(sprints, key) {
   const vals = sprints.map(s => metrics(s)[key]).filter(v => v !== null && isFinite(v));
   if (!vals.length) return null;
   return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+
+/* Pooled percentages: every point across the sprints goes into one total, and the
+   division happens once at the end — "how did this body of work go", as opposed to
+   avg() above, which asks "how does a typical sprint go".
+
+   Both are honest averages of a rate and they disagree whenever the sprints differ
+   in size, because pooling weights each sprint by how much was committed to it. A
+   team with a small good sprint and a large bad one scores better on avg() than on
+   this. Neither is a correction of the other, so the All teams view shows both side
+   by side and names the difference rather than picking a winner.
+
+   This is also the method the Agile Operations Dashboard uses, so these are the
+   figures that reconcile with what the ART reports upward. */
+function pooled(sprints) {
+  const committed = sum(sprints, 'committed');
+  const pct = (key) => (committed > 0 ? (sum(sprints, key) / committed) * 100 : null);
+  return {
+    count: sprints.length,
+    committed,
+    committedCompleted: sum(sprints, 'committedCompleted'),
+    velocity: sum(sprints, 'velocity'),
+    commitCompletePct: pct('committedCompleted'),
+    breakInPct:        pct('added'),
+    removedPct:        pct('removed'),
+    carryoverPct:      pct('carriedOut'),
+    /* Everything delivered against what was committed, break-in included — so it
+       goes above 100% when a team finished more than it signed up for. That says
+       throughput was high, not that the plan held, which is why it sits apart from
+       the four RAG-rated figures and carries no colour. */
+    actualCompletePct: pct('velocity')
+  };
 }
 
 /* Totals treat an un-entered figure as nothing to add, rather than propagating
@@ -1449,16 +1517,21 @@ function fmtDateRange(a, b) {
   return one(a) + ' – ' + one(b);
 }
 
+/* The same ⓘ a tile carries, for use beside a heading or a column name — the one
+   delegated [data-help] listener picks it up wherever it lands. */
+function helpBtn(helpKey, label) {
+  if (!helpKey || !METRIC_HELP[helpKey]) return '';
+  return `<button type="button" class="tile-help" data-help="${esc(helpKey)}"
+    aria-label="What does ${esc(label)} mean?">i</button>`;
+}
+
 /* `helpKey` is optional and names an entry in METRIC_HELP; the button it renders is
    picked up by one delegated listener rather than wired per render. */
 function tile(label, valueHtml, ragClass, foot, hero, helpKey) {
   const status = RAG_TEXT[ragClass || 'none'];
   const glyph = RAG_GLYPH[ragClass || 'none'];
-  const help = helpKey && METRIC_HELP[helpKey]
-    ? `<button type="button" class="tile-help" data-help="${esc(helpKey)}"
-        aria-label="What does ${esc(label)} mean?">i</button>` : '';
   return `<div class="tile ${ragClass || ''}${hero ? ' hero' : ''}">
-    <div class="label">${esc(label)}${help}</div>
+    <div class="label">${esc(label)}${helpBtn(helpKey, label)}</div>
     <div class="value">${valueHtml}${glyph ? `<span class="glyph" aria-hidden="true">${glyph}</span>` : ''}
       ${ragClass && ragClass !== 'none' ? `<span class="sr-only">— ${status}</span>` : ''}</div>
     ${foot ? `<div class="foot">${foot}</div>` : ''}
@@ -2348,17 +2421,34 @@ function renderTeamsView() {
   const rowsData = state.teams.map(t => {
     const rs = rollingSprints(t.id, includeSix);
     return {
-      team: t, count: rs.length,
+      team: t, count: rs.length, sprints: rs,
       commit: avg(rs, 'commitCompletePct'),
       breakIn: avg(rs, 'breakInPct'),
       removed: avg(rs, 'removedPct'),
       carry: avg(rs, 'carryoverPct'),
       vel: avg(rs, 'velocity'),
+      /* Same sprints, the other average — so the two tables can only ever differ
+         by method, never by which sprints they looked at. */
+      pool: pooled(rs),
       target: nextSprintTarget(t.id, includeSix)
     };
   });
   const withData = rowsData.filter(r => r.count > 0);
   const anyOpen = state.teams.reduce((a, t) => a + openSprints(t.id).length, 0);
+  /* The bottom row pools every point from every team, rather than averaging the
+     rows above it — the same rule as each row, applied one level up. It's what the
+     dashboard's Total does, and it's why that total doesn't match the mean of the
+     column it sits under. */
+  const allPooled = pooled(rowsData.reduce((a, r) => a.concat(r.sprints), []));
+
+  /* The two methods are easiest to believe when you're shown a team they actually
+     disagree about, so the note picks the widest gap out of your own data rather
+     than explaining in the abstract. */
+  const gaps = withData
+    .filter(r => r.commit !== null && r.pool.commitCompletePct !== null)
+    .map(r => Object.assign({ gap: Math.abs(r.commit - r.pool.commitCompletePct) }, r))
+    .sort((a, b) => b.gap - a.gap);
+  const widest = gaps.length && gaps[0].gap >= 1 ? gaps[0] : null;
 
   viewsEl.innerHTML = rollingToolbar(includeSix) + `
     <div class="card">
@@ -2366,15 +2456,19 @@ function renderTeamsView() {
       <p class="sub">Every team you support, side by side${includeSix ? '' : ', with sprint 6 excluded'}.
         Finished sprints only${anyOpen ? ` — ${anyOpen} sprint${anyOpen === 1 ? '' : 's'} still in flight
         ${anyOpen === 1 ? 'is' : 'are'} not counted` : ''}.
-        ${withData.length ? '' : 'No team has a finished sprint yet.'}</p>
+        ${withData.length ? 'The chart plots the average-of-sprints figure from Comparison 1 below.'
+          : 'No team has a finished sprint yet.'}</p>
       ${withData.length ? `<div class="chartbox"><canvas id="teamsChart" role="img"
-        aria-label="Average commitment completion percentage by team against the 85 percent target. Figures in the table below."></canvas></div>` : ''}
+        aria-label="Average commitment completion percentage by team, averaged across sprints, against the 85 percent target. Figures in the Comparison 1 table below."></canvas></div>` : ''}
     </div>
 
     <div class="card">
-      <h2>Comparison</h2>
-      <p class="sub">Click a team to switch to it. <strong>Next sprint target</strong> is the
-        commitment each team can realistically take on — see the Rolling 5 view for the working.</p>
+      <h2>Comparison 1 — average of sprints${helpBtn('teamsMean', 'the average-of-sprints method')}</h2>
+      <p class="sub">Each sprint's own percentage worked out first, then averaged, so
+        <strong>every sprint counts equally</strong> whatever its size. This is the read on how a
+        typical sprint goes for the team. Click a team to switch to it. <strong>Next sprint
+        target</strong> is the commitment each team can realistically take on — see the Rolling 5
+        view for the working.</p>
       <div class="tablewrap">
       <table>
         <thead><tr><th>Team</th><th>Sprints</th><th class="metric">Commitment completion</th>
@@ -2391,6 +2485,66 @@ function renderTeamsView() {
           <td>${fmtNum(r.vel)}</td>
           <td>${r.target ? '<strong>' + fmtNum(Math.round(r.target.recommended)) + '</strong>' : '—'}</td></tr>`).join('')}</tbody>
       </table></div>
+    </div>
+
+    <div class="card">
+      <h2>Comparison 2 — pooled totals${helpBtn('teamsPooled', 'the pooled-totals method')}
+        <span class="tag">matches the Agile Operations Dashboard</span></h2>
+      <p class="sub">Every point added into one total first, then the percentage taken once, so
+        <strong>a bigger sprint pulls harder</strong> than a small one. This is the read on how the
+        body of work as a whole went — and it's the method the <strong>Agile Operations
+        Dashboard</strong> uses, so these are the figures that reconcile with what the ART reports
+        upward. Same sprints as the table above; only the arithmetic differs.</p>
+      <div class="tablewrap">
+      <table>
+        <thead><tr><th>Team</th><th>Sprints</th><th>Committed</th><th>Cmt. done</th>
+          <th class="metric">Commitment completion</th>
+          <th class="metric">Break-in</th><th class="metric">Removed</th>
+          <th class="metric">Carryover</th>
+          <th>Actual complete${helpBtn('actualComplete', 'Actual complete')}</th></tr></thead>
+        <tbody>${rowsData.map(r => `<tr class="clickable" data-id="${r.team.id}">
+          <td>${esc(r.team.name)}</td>
+          <td>${r.count}</td>
+          <td>${fmtNum(r.pool.committed)}</td>
+          <td>${fmtNum(r.pool.committedCompleted)}</td>
+          <td class="metric">${pill(r.pool.commitCompletePct, 'completion')}</td>
+          <td class="metric">${pill(r.pool.breakInPct, 'churn')}</td>
+          <td class="metric">${pill(r.pool.removedPct, 'churn')}</td>
+          <td class="metric">${pill(r.pool.carryoverPct, 'churn')}</td>
+          <td>${fmtPct(r.pool.actualCompletePct)}</td></tr>`).join('')}</tbody>
+        <tfoot><tr>
+          <td>All teams</td><td>${allPooled.count}</td>
+          <td>${fmtNum(allPooled.committed)}</td><td>${fmtNum(allPooled.committedCompleted)}</td>
+          <td class="metric">${pill(allPooled.commitCompletePct, 'completion')}</td>
+          <td class="metric">${pill(allPooled.breakInPct, 'churn')}</td>
+          <td class="metric">${pill(allPooled.removedPct, 'churn')}</td>
+          <td class="metric">${pill(allPooled.carryoverPct, 'churn')}</td>
+          <td>${fmtPct(allPooled.actualCompletePct)}</td>
+        </tr></tfoot>
+      </table></div>
+
+      <div class="methodnote">
+        <h3>Why the two tables disagree</h3>
+        <p>They're the same sprints — the difference is <em>when the dividing happens</em>.
+          Comparison 1 divides once per sprint and then averages those percentages.
+          Comparison 2 adds all the points up and divides once at the end, which weights each
+          sprint by how much was committed to it.</p>
+        ${widest ? `<p><strong>${esc(widest.team.name)}</strong> shows the gap most clearly here:
+          <strong>${fmtPct(widest.commit, 'completion')}</strong> by sprint average against
+          <strong>${fmtPct(widest.pool.commitCompletePct, 'completion')}</strong> pooled. Its
+          sprints aren't the same size, so the bigger one carries more weight in the pooled
+          figure and less in the average.</p>` : `<p>Your teams' sprints are close enough in size
+          that the two methods currently land in much the same place. They separate as soon as one
+          sprint is markedly bigger than the others.</p>`}
+        <p><strong>Which to use.</strong> Comparison 1 for coaching a team — it describes the
+          habit, and one outsized sprint can't drown out the rest. Comparison 2 for reporting
+          upward — it describes the actual body of work, and it's what the Agile Operations
+          Dashboard shows, so it's the one that will reconcile. Neither is a correction of the
+          other.</p>
+        <p>The <strong>All teams</strong> row pools every point from every team rather than
+          averaging the rows above it, which is why it won't equal the mean of the column —
+          the dashboard's Total behaves the same way.</p>
+      </div>
     </div>`;
 
   viewsEl.querySelectorAll('tr.clickable').forEach(tr => {
@@ -2408,7 +2562,7 @@ function renderTeamsView() {
       data: {
         labels: withData.map(r => r.team.name),
         datasets: [
-          { type: 'bar', label: 'Avg commitment completion %', order: 2,
+          { type: 'bar', label: 'Commitment completion % (avg of sprints)', order: 2,
             data: withData.map(r => r.commit),
             maxBarThickness: 72,
             backgroundColor: withData.map(r => {
