@@ -7,10 +7,14 @@
 <meta name="description" content="Track sprint predictability across teams: commitment completion, break-in, carryover, and velocity.">
 <link rel="icon" href="favicon.ico">
 <script>
-  /* Apply the saved theme before first paint so there's no light flash. */
+  /* Apply the saved theme before first paint so there's no light flash. The list
+     is repeated here rather than shared with THEMES below because this has to run
+     before the main script parses; keep the two in step. */
   try {
     var t = localStorage.getItem('sv-theme');
-    document.documentElement.setAttribute('data-theme', t === 'light' ? 'light' : 'midnight');
+    var ok = ['light','dark','midnight','forest','synthwave','solarized','sepia'];
+    document.documentElement.setAttribute('data-theme',
+      ok.indexOf(t) === -1 ? 'midnight' : t);
   } catch (e) {}
 </script>
 <link rel="stylesheet" href="theme.css">
@@ -43,6 +47,23 @@
   --chrome-h: 30px;    /* small header buttons + the team picker */
   --control-h: 38.5px; /* full-size buttons + the toolbar pickers beside them */
 }
+/* Every theme keeps the same hue for the same series — committed grey, completed
+   blue, velocity teal, added amber, removed violet, carried red — so a chart reads
+   the same way whichever palette you're in. Only the shade changes, tuned to sit
+   on that theme's card. */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --c-committed:  #9aa5b5;
+  --c-completed:  #60a5fa;
+  --c-velocity:   #2dd4bf;
+  --c-added:      #fbbf24;
+  --c-removed:    #c4b5fd;
+  --c-carry:      #f87171;
+  --band-green:   rgba(74,222,128,.09);
+  --band-yellow:  rgba(252,211,77,.16);
+  --band-red:     rgba(248,113,113,.15);
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.3);
+}
 [data-theme="midnight"] {
   color-scheme: dark;
   --c-committed:  #94a3b8;
@@ -55,6 +76,85 @@
   --band-yellow:  rgba(252,211,77,.16);
   --band-red:     rgba(251,113,133,.15);
   --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.3);
+}
+[data-theme="forest"] {
+  color-scheme: dark;
+  --c-committed:  #9db5a6;
+  --c-completed:  #7cb8ff;
+  --c-velocity:   #4fd1a5;
+  --c-added:      #f0b429;
+  --c-removed:    #cbb2f7;
+  --c-carry:      #fb8a8a;
+  --band-green:   rgba(110,231,160,.09);
+  --band-yellow:  rgba(251,191,36,.15);
+  --band-red:     rgba(248,113,113,.14);
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.3);
+}
+[data-theme="synthwave"] {
+  color-scheme: dark;
+  --c-committed:  #b3a6cc;
+  --c-completed:  #8be9fd;
+  --c-velocity:   #50fa7b;
+  --c-added:      #ffd166;
+  --c-removed:    #bd93f9;
+  --c-carry:      #ff5d8f;
+  --band-green:   rgba(80,250,123,.08);
+  --band-yellow:  rgba(255,209,102,.15);
+  --band-red:     rgba(255,93,143,.14);
+  --shadow: 0 1px 2px rgba(0,0,0,.45), 0 4px 14px rgba(0,0,0,.35);
+}
+/* Solarized's own accents are mid-luminance by design, so its bands need a little
+   more alpha than the other dark themes to register against the teal card. */
+[data-theme="solarized"] {
+  color-scheme: dark;
+  --c-committed:  #93a1a1;
+  --c-completed:  #4ba3e3;
+  --c-velocity:   #2aa198;
+  --c-added:      #c19a0f;
+  --c-removed:    #8c92e0;
+  --c-carry:      #f0605d;
+  --band-green:   rgba(156,179,0,.13);
+  --band-yellow:  rgba(211,160,0,.17);
+  --band-red:     rgba(238,143,122,.15);
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.3);
+}
+[data-theme="sepia"] {
+  color-scheme: light;
+  --c-committed:  #6b6151;
+  --c-completed:  #1d4ed8;
+  --c-velocity:   #0f766e;
+  --c-added:      #a35a09;
+  --c-removed:    #6d28d9;
+  --c-carry:      #a3162f;
+  --band-green:   rgba(69,111,13,.13);
+  --band-yellow:  rgba(202,148,20,.22);
+  --band-red:     rgba(169,61,40,.13);
+  --shadow: 0 1px 2px rgba(90,70,30,.10), 0 4px 12px rgba(90,70,30,.07);
+}
+
+/* ── Contrast corrections ─────────────────────────────────────────────────────
+   theme.css is shared with the lottery pages and stays untouched, but this app
+   leans on its RAG colours far harder: red and green aren't decoration here,
+   they're the reading. A few of the borrowed palettes land under WCAG AA at that
+   job — Solarized worst of all, its red only 2.8:1 against its own card — so the
+   affected tokens are nudged here, in the app's own file, rather than diverging
+   the shared copy. Ratios below are against --bg-card / --bg-card-alt / the pill
+   background, and every one clears 4.5:1. The glyph and sr-only status still do
+   the real work; colour is never the only signal. */
+[data-theme="dark"] {
+  --red-bg: #5c1414;   /* pill red was 3.6:1 on the original #7f1d1d; now 4.9:1 */
+}
+[data-theme="solarized"] {
+  --green: #9cb300; --ok:  #9cb300;   /* 5.5 / 4.6 / 5.3 */
+  --red:   #ee8f7a; --err: #ee8f7a;   /* 5.5 / 4.6 / 6.0 */
+  --amber: #d3a000;                   /* 5.5 / 4.6 / 5.4 */
+  --text-secondary: #adb8b8;          /* 6.4 / 5.4 */
+  --text-muted:     #9daaac;          /* 5.4 / 4.6 */
+}
+[data-theme="sepia"] {
+  --green: #456f0d;                   /* 5.5 / 4.6 / 4.6 */
+  --red:   #a93d28;                   /* 5.7 / 4.8 / 4.6 */
+  --text-muted: #6f6249;              /* 5.5 / 4.7 */
 }
 
 * { box-sizing: border-box; }
@@ -112,14 +212,14 @@ select.ctl {
 }
 select.ctl:hover { border-color: var(--text-muted); }
 
-/* The team picker is the same idea at the smaller header size. */
-#teamSel {
+/* The team and theme pickers are the same idea at the smaller header size. */
+#teamSel, #themeSel {
   background: var(--bg-card-alt); color: var(--text-primary);
   border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
   padding: 4px 9px; font-size: 13px; font-weight: inherit; cursor: pointer;
   min-height: var(--chrome-h);
 }
-#teamSel:hover { border-color: var(--text-muted); }
+#teamSel:hover, #themeSel:hover { border-color: var(--text-muted); }
 
 /* The gap matches the 20px above and below the row, so the tabs are spaced by the
    same rhythm in both directions. */
@@ -372,7 +472,8 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
     <label class="sr-only" for="teamSel">Team</label>
     <select id="teamSel" title="Which team you're looking at"></select>
     <button class="btn small" id="manageBtn" title="Add or rename teams and PIs">Teams &amp; PIs</button>
-    <button class="btn small" id="themeBtn" title="Switch between the light and midnight themes">Theme</button>
+    <label class="sr-only" for="themeSel">Theme</label>
+    <select id="themeSel" title="Change the colour theme"></select>
     <button class="btn small" id="dataBtn" title="Back up or restore your data">Back up</button>
     <button class="btn small" id="shareBtn" title="Create a read-only link to show someone your figures">Share</button>
     <button class="btn small" id="syncBtn" hidden></button>
@@ -1327,9 +1428,9 @@ function toast(msg) {
 window.toast = toast;
 
 /* ═══════════════════════════════ Charts ═══════════════════════════════════
-   Chart.js reads its colours from the CSS custom properties so the two themes
-   stay in charge of the palette. Charts are destroyed and rebuilt on a theme
-   switch (see setTheme) because those values are resolved at construction time. */
+   Chart.js reads its colours from the CSS custom properties so the themes stay in
+   charge of the palette. Charts are destroyed and rebuilt on a theme switch (see
+   applyTheme's caller) because those values are resolved at construction time. */
 
 const charts = {};
 const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -3192,17 +3293,35 @@ function loadSample() {
 
 /* ═════════════════════════════ Theme & chrome ═════════════════════════════ */
 
-function applyTheme() {
-  const t = localStorage.getItem('sv-theme') === 'light' ? 'light' : 'midnight';
-  document.documentElement.setAttribute('data-theme', t);
-  F('themeBtn').textContent = t === 'light' ? '🌙 Midnight' : '☀️ Light';
-  F('themeBtn').setAttribute('aria-label',
-    t === 'light' ? 'Switch to the midnight dark theme' : 'Switch to the light theme');
+/* The palettes themselves live in theme.css; each id here has a matching block
+   there and a set of app tokens in the <style> above. Midnight is the default —
+   anything unrecognised (an old value, a hand-edited key) falls back to it. */
+const THEMES = [
+  { id: 'midnight',  label: 'Midnight',  icon: '✦'  },
+  { id: 'dark',      label: 'Dark',      icon: '☾'  },
+  { id: 'light',     label: 'Light',     icon: '☀'  },
+  { id: 'forest',    label: 'Forest',    icon: '🌲' },
+  { id: 'sepia',     label: 'Sepia',     icon: '📜' },
+  { id: 'solarized', label: 'Solarized', icon: '🌗' },
+  { id: 'synthwave', label: 'Synthwave', icon: '🌆' },
+];
+
+F('themeSel').innerHTML = THEMES.map(t =>
+  `<option value="${t.id}">${t.icon} ${t.label}</option>`).join('');
+
+function themeId() {
+  const t = localStorage.getItem('sv-theme');
+  return THEMES.some(x => x.id === t) ? t : 'midnight';
 }
 
-F('themeBtn').onclick = () => {
-  const next = localStorage.getItem('sv-theme') === 'light' ? 'midnight' : 'light';
-  localStorage.setItem('sv-theme', next);
+function applyTheme() {
+  const t = themeId();
+  document.documentElement.setAttribute('data-theme', t);
+  F('themeSel').value = t;
+}
+
+F('themeSel').onchange = (e) => {
+  localStorage.setItem('sv-theme', e.target.value);
   applyTheme();
   render();   // charts resolve their colours at construction, so rebuild them
 };

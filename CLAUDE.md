@@ -12,8 +12,19 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   vendored `chart.min.js`. Keep it that way: no npm, no bundler, no CDN calls.
 - `theme.css` is a **copy** of the canonical palette in the lottery repo — don't diverge
   it. App-specific tokens (chart series colours, threshold-band tints) live in the
-  `<style>` block at the top of `index.html` instead. Only Light and Midnight are surfaced
-  in the theme picker.
+  `<style>` block at the top of `index.html` instead. All seven palettes are surfaced in
+  the header picker, **midnight is the default**, and an unrecognised stored value falls
+  back to it. The list is written out twice — the pre-paint boot script can't see `THEMES`
+  — so a new theme has to be added in both places.
+- Series colours are defined **per theme but with a fixed hue per series** (committed grey,
+  completed blue, velocity teal, added amber, removed violet, carried red). Only the shade
+  changes; don't reassign a hue to make one theme prettier, the point is that a chart reads
+  the same way in all seven.
+- The **contrast corrections** block in `index.html` overrides a handful of `theme.css`
+  tokens for dark, solarized and sepia. It exists because the shared palettes were written
+  for pages where red and green are decoration, and here they're the reading — Solarized's
+  own red is 2.8:1 on its own card. Correcting them in the app keeps `theme.css` identical
+  to the lottery copy. Measured ratios are in the comment; re-check them if you touch it.
 - `chart.min.js` is a **vendored third-party build — do not hand-edit.**
 - **`metrics()` and `rag()` in `index.html` are the only places the numbers are
   calculated.** Every tile, table and chart reads from them. Thresholds change in one spot.
@@ -55,7 +66,7 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   over-commits the team. Don't "improve" it into a velocity-based figure; the reasoning is
   in the comment above the function and in the card's "How this is worked out".
 - RAG state must never be conveyed by colour alone — tiles and pills carry a glyph and an
-  `sr-only` status. Both themes are WCAG AA; keep them that way.
+  `sr-only` status. Every theme is WCAG AA on the figures; keep them that way.
 - Charts resolve their colours from CSS custom properties at construction time, so a theme
   switch has to rebuild them (`render()` does this). Chart animation is deliberately off.
 - Optional cross-device sync is ported from PAPTrack: Google sign-in + one Firestore doc

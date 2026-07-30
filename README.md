@@ -285,9 +285,15 @@ so you still get five sprints.
 
 ## Themes
 
-Light and Midnight (deep indigo/navy), both meeting WCAG AA contrast. The toggle is in the
-header; your choice is remembered. Charts re-render on a theme switch so their colours
-follow along.
+Seven, picked from the dropdown in the header: **Midnight** (deep indigo/navy, the
+default), Dark, Light, Forest, Sepia, Solarized and Synthwave. Your choice is remembered
+in this browser and isn't part of your data, so it doesn't sync between devices and a
+shared link never carries the sender's theme.
+
+Every one of them meets WCAG AA contrast on the figures, and each series keeps the same
+hue throughout — committed grey, completed blue, velocity teal, break-in amber, removed
+violet, carryover red — so a chart reads the same way whichever palette you're in. Charts
+re-render on a switch, because their colours are resolved when they're built.
 
 ---
 
@@ -402,5 +408,9 @@ Then open http://localhost:8012. (The desktop app's preview pane reads
 `.claude/launch.json`, which is set to the same port.)
 
 `theme.css` is a copy of the canonical palette that lives in the
-[lottery](https://github.com/eagleadams86/lottery) repo — the app only adds its own chart
-series colours and threshold-band tints, defined at the top of `index.html`.
+[lottery](https://github.com/eagleadams86/lottery) repo and is left byte-for-byte
+identical to it. The app adds its own chart series colours and threshold-band tints at
+the top of `index.html`, plus a short block of contrast corrections: this app leans on
+red and green to *mean* something, and a few of the borrowed palettes — Solarized most of
+all — sit under WCAG AA at that job. Those nudges live in `index.html` so the shared
+`theme.css` never has to diverge.
