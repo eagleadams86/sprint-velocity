@@ -285,8 +285,8 @@ so you still get five sprints.
 
 ## Themes
 
-Seven, picked from the dropdown in the header: **Midnight** (deep indigo/navy, the
-default), Dark, Light, Forest, Sepia, Solarized and Synthwave. Your choice is remembered
+Seven, listed alphabetically in the header dropdown: Dark, Forest, Light, **Midnight**
+(deep indigo/navy — the default), Sepia, Solarized and Synthwave. Your choice is remembered
 in this browser and isn't part of your data, so it doesn't sync between devices and a
 shared link never carries the sender's theme.
 

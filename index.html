@@ -237,6 +237,11 @@ select.ctl:hover { border-color: var(--text-muted); }
 }
 #teamSel:hover, #themeSel:hover { border-color: var(--text-muted); }
 
+/* Holds the signed-out label's width. Signing in swaps "Sign in to sync" for a
+   first name, which is shorter — without this the button shrinks, and the whole
+   header slides, the moment Firebase reports who you are. */
+#syncBtn { min-width: 125px; }
+
 /* The gap matches the 20px above and below the row, so the tabs are spaced by the
    same rhythm in both directions. */
 .tabs { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
@@ -485,14 +490,32 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
 <header>
   <div class="headbar">
     <div class="brand">Sprint&nbsp;Velocity <span>· predictability tracker</span></div>
+    <!-- Everything in this row is written out at its final size, because the header
+         is painted long before the script at the foot of the page runs. Filling
+         these from JS meant an empty 40px-wide select widening to 120px once it had
+         options, and the sync button appearing only after Firebase had loaded over
+         the network — the row visibly re-flowed, and re-wrapped onto a second line
+         on a narrow window. Starting hidden costs nothing; growing does. -->
     <label class="sr-only" for="teamSel">Team</label>
-    <select id="teamSel" title="Which team you're looking at"></select>
+    <select id="teamSel" title="Which team you're looking at" hidden></select>
     <button class="btn small" id="manageBtn" title="Add or rename teams and PIs">Teams &amp; PIs</button>
     <label class="sr-only" for="themeSel">Theme</label>
-    <select id="themeSel" title="Change the colour theme"></select>
+    <!-- Alphabetical. Midnight is pre-selected to match the theme the boot script in
+         <head> has already applied, so the picker never reads one theme while the
+         page shows another. THEMES is read back off these options. -->
+    <select id="themeSel" title="Change the colour theme">
+      <option value="dark">☾ Dark</option>
+      <option value="forest">🌲 Forest</option>
+      <option value="light">☀ Light</option>
+      <option value="midnight" selected>✦ Midnight</option>
+      <option value="sepia">📜 Sepia</option>
+      <option value="solarized">🌗 Solarized</option>
+      <option value="synthwave">🌆 Synthwave</option>
+    </select>
     <button class="btn small" id="dataBtn" title="Back up or restore your data">Back up</button>
     <button class="btn small" id="shareBtn" title="Create a read-only link to show someone your figures">Share</button>
-    <button class="btn small" id="syncBtn" hidden></button>
+    <button class="btn small" id="syncBtn"
+      title="Sign in with Google to see the same data on all your devices">☁️ Sign in to sync</button>
   </div>
 </header>
 
@@ -3309,25 +3332,17 @@ function loadSample() {
 
 /* ═════════════════════════════ Theme & chrome ═════════════════════════════ */
 
-/* The palettes themselves live in theme.css; each id here has a matching block
-   there and a set of app tokens in the <style> above. Midnight is the default —
-   anything unrecognised (an old value, a hand-edited key) falls back to it. */
-const THEMES = [
-  { id: 'midnight',  label: 'Midnight',  icon: '✦'  },
-  { id: 'dark',      label: 'Dark',      icon: '☾'  },
-  { id: 'light',     label: 'Light',     icon: '☀'  },
-  { id: 'forest',    label: 'Forest',    icon: '🌲' },
-  { id: 'sepia',     label: 'Sepia',     icon: '📜' },
-  { id: 'solarized', label: 'Solarized', icon: '🌗' },
-  { id: 'synthwave', label: 'Synthwave', icon: '🌆' },
-];
-
-F('themeSel').innerHTML = THEMES.map(t =>
-  `<option value="${t.id}">${t.icon} ${t.label}</option>`).join('');
+/* The picker's options are in the markup, so the list is read back off them rather
+   than kept a second time here — a theme added to one and not the other would be
+   selectable but unrecognised, or recognised but unreachable. The palettes
+   themselves live in theme.css; each id has a matching block there and a set of
+   app tokens in the <style> above. Midnight is the default: anything unrecognised
+   (an old value, a hand-edited key) falls back to it. */
+const THEMES = [...F('themeSel').options].map(o => o.value);
 
 function themeId() {
   const t = localStorage.getItem('sv-theme');
-  return THEMES.some(x => x.id === t) ? t : 'midnight';
+  return THEMES.includes(t) ? t : 'midnight';
 }
 
 function applyTheme() {
@@ -3386,7 +3401,10 @@ if (viewOnly) {
   /* Everything that writes, imports or creates belongs to whoever owns the data,
      not to a visitor. Theme and the team picker stay: those are the viewer's own
      preferences, kept in a separate key, and they don't alter anything shared. */
-  ['manageBtn', 'dataBtn', 'shareBtn'].forEach(id => { F(id).hidden = true; });
+  /* syncBtn is hidden from here rather than left to the sync module: this runs
+     while the page is still parsing, and the module is deferred, so leaving it to
+     the module would show a visitor a sign-in button that then vanished. */
+  ['manageBtn', 'dataBtn', 'shareBtn', 'syncBtn'].forEach(id => { F(id).hidden = true; });
   /* The sync module normally rewrites this line; it never starts here, so the
      default "your data is stored in this browser" text would be misleading. */
   F('privacyNote').textContent = 'This is a read-only copy someone shared with you. It was '
@@ -3431,8 +3449,14 @@ const localTs = () => Number(localStorage.getItem('sv-updated') || 0);
 /* A shared view must not start sync at all. If the visitor happens to be signed
    in, onAuthStateChanged would fire startSync() and svAdopt() would replace the
    shared payload with their own cloud copy — and push it straight back out. */
+/* The button ships visible and signed-out in the markup, so the header is its final
+   width at first paint instead of growing by a button once the SDK has come down
+   the wire. It's taken away again only when sync genuinely can't run — no config,
+   a shared view, or a failed load — which is the case worth a reflow. */
 if (FIREBASE_CONFIG && !window.svViewOnly) {
   init().catch((e) => { console.warn('Sync unavailable:', e); btn.hidden = true; });
+} else {
+  btn.hidden = true;
 }
 
 let A, Fs, auth, db, user = null, unsub = null, pushTimer = null;
@@ -3454,7 +3478,6 @@ async function init() {
     if (u) startSync().catch((e) => console.warn('sync failed', e));
   });
   A.getRedirectResult(auth).catch(() => {}); // completes a mobile redirect sign-in, if one is in flight
-  btn.hidden = false;
   btn.addEventListener('click', onClick);
 }
 

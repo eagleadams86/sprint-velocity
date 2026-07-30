@@ -13,9 +13,10 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
 - `theme.css` is a **copy** of the canonical palette in the lottery repo — don't diverge
   it. App-specific tokens (chart series colours, threshold-band tints) live in the
   `<style>` block at the top of `index.html` instead. All seven palettes are surfaced in
-  the header picker, **midnight is the default**, and an unrecognised stored value falls
-  back to it. The list is written out twice — the pre-paint boot script can't see `THEMES`
-  — so a new theme has to be added in both places.
+  the header picker **in alphabetical order**, **midnight is the default**, and an
+  unrecognised stored value falls back to it. Adding a theme means touching two places:
+  the `<option>` list in the markup (which `THEMES` is read back from) and the array in
+  the pre-paint boot script, which runs in `<head>` and can't see either.
 - Series colours are defined **per theme but with a fixed hue per series** (committed grey,
   completed blue, velocity teal, added amber, removed violet, carried red). Only the shade
   changes; don't reassign a hue to make one theme prettier, the point is that a chart reads
@@ -31,6 +32,17 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
 - Light is corrected via `[data-theme="light"]`, **not `:root`** — its palette lives in
   `:root` in theme.css, but a `:root` rule in the app's own `<style>` sits after every
   `[data-theme]` block at equal specificity and would repaint all seven themes.
+- **Everything in the header row is written into the markup at its final size** — the theme
+  options, the sync button's signed-out label, and `hidden` on the team picker. The header
+  paints well before the script at the foot of the page runs, so anything filled in by JS
+  grows on screen: empty selects went 40px → 120px, and the sync button appeared only once
+  the Firebase SDK had come over the network, which re-wrapped the row onto a second line
+  and shoved the whole page down 42px. Starting hidden costs nothing; growing does. If you
+  add header chrome, give it its final width in the HTML.
+- The sync button is therefore **visible by default and hidden on failure**, not the other
+  way round. The shared-view path hides it from the classic script (which runs during
+  parse) rather than leaving it to the deferred module, so a visitor never sees a sign-in
+  button blink in and out.
 - `chart.min.js` is a **vendored third-party build — do not hand-edit.**
 - **`metrics()` and `rag()` in `index.html` are the only places the numbers are
   calculated.** Every tile, table and chart reads from them. Thresholds change in one spot.
