@@ -3847,37 +3847,83 @@ function chooseSyncSource(local, remote, remoteUpdatedAt) {
 
 const hasData = (d) => !!(d && ((d.teams && d.teams.length) || (d.sprints && d.sprints.length)));
 
+/* Stamps this device's copy as the newest. "Keep this device's data" has to
+   actually win everywhere, and pushNow() sends the timestamp the local copy
+   already carries — which, when the cloud is what looked newer, is the older of
+   the two. Without this the choice sticks here and nowhere else. */
+const touchLocal = () => localStorage.setItem('sv-updated', String(Date.now()));
+
+/* Reconciling the two copies at sign-in.
+
+   The rule underneath all four branches: **an empty copy never beats a copy with
+   data in it, whatever the timestamps say.** Timestamp-wins on its own had a hole
+   worth spelling out, because it cost real data. Signing in on a fresh browser
+   pushes that browser's empty state to the cloud stamped `now`; the reconciliation
+   dialog only opened when *both* sides held data, so the browser that actually had
+   the sprints — carrying an older timestamp, because it was last edited days ago —
+   skipped the dialog, took the empty cloud copy as "newer", and emptied itself. The
+   dialog exists precisely to stop that, so the guard can't be the thing that only
+   asks when there's nothing much at stake.
+
+   With that rule, the dialog is only needed for the genuine conflict: both sides
+   hold data and neither is obviously right. Once per account per browser — after
+   the first reconciliation both sides are caught up and timestamps are enough. A
+   different Google account signing in here re-prompts. */
 async function startSync() {
   const snap = await Fs.getDoc(docRef());
   const remote = snap.exists() ? snap.data() : null;
   const local = window.svGet();
-  // Only ask once per account per browser — after the first reconciliation both sides
-  // are caught up and ordinary timestamp-wins sync is enough. A different Google
-  // account signing in on this browser re-prompts.
+  const remoteHas = !!(remote && hasData(remote.data));
+  const localHas = hasData(local);
   const firstSyncForAccount = localStorage.getItem('sv-sync-uid') !== user.uid;
-  if (firstSyncForAccount && remote && hasData(remote.data) && hasData(local)) {
+
+  if (remoteHas && localHas && firstSyncForAccount) {
     const keepGoogle = await chooseSyncSource(local, remote.data, remote.updatedAt);
     if (keepGoogle) {
       window.svAdopt(remote.data, remote.updatedAt);
       window.toast('Loaded your data from the cloud ☁️');
     } else {
+      touchLocal();
       await pushNow();
       window.toast('Kept this device’s data');
     }
-  } else if (remote && remote.updatedAt > localTs()) {
+  } else if (remoteHas && !localHas) {
+    /* Nothing here to lose. */
+    window.svAdopt(remote.data, remote.updatedAt);
+    window.toast('Loaded your data from the cloud ☁️');
+  } else if (localHas && !remoteHas) {
+    /* The cloud copy is empty — seeded by a sign-in on a browser that had nothing
+       in it yet. It doesn't get to overwrite a device that holds real sprints. */
+    await pushNow();
+  } else if (remoteHas && remote.updatedAt > localTs()) {
     window.svAdopt(remote.data, remote.updatedAt);
     window.toast('Loaded your data from the cloud ☁️');
   } else {
     await pushNow();
   }
   localStorage.setItem('sv-sync-uid', user.uid);
+
   unsub = Fs.onSnapshot(docRef(), (s) => {
     if (s.metadata.hasPendingWrites || !s.exists()) return;
     const r = s.data();
-    if (r.updatedAt > localTs()) {
-      window.svAdopt(r.data, r.updatedAt);
-      window.toast('Synced from another device ☁️');
+    if (!(r.updatedAt > localTs())) return;
+    /* Same rule live. Clearing everything really is something people do, so this
+       asks rather than refusing — but it asks, because the alternative is a device
+       quietly emptying itself while its owner is looking at another tab. Declining
+       re-pushes what's here, stamped now, so the two sides stop disagreeing. */
+    if (!hasData(r.data) && hasData(window.svGet())) {
+      const keep = !confirm('Another device has cleared all its Sprint Velocity data.\n\n'
+        + 'Clear this device too? Cancel keeps what\'s on this device and restores it '
+        + 'to your other devices.');
+      if (keep) {
+        touchLocal();
+        pushNow().catch((e) => console.warn('push failed', e));
+        window.toast('Kept this device’s data');
+        return;
+      }
     }
+    window.svAdopt(r.data, r.updatedAt);
+    window.toast('Synced from another device ☁️');
   });
 }
 
