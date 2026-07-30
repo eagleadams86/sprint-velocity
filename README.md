@@ -1,4 +1,4 @@
-# Sprint Velocity
+# Sprint Predictability · Charlie’s Super Cool Sprint Planner
 
 A sprint predictability tracker for Scrum Masters. Record what each team committed to,
 what they actually finished, and what changed mid-sprint — the app works out commitment
