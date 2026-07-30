@@ -286,6 +286,10 @@ completion* tile are pooled (so they match the dashboard), while the *Average pe
 tile is the average-of-sprints figure. A wide gap between them means one sprint is
 skewing the total.
 
+**Rolling 5** shows both at the foot of its *The numbers* table — an **Average per sprint**
+row and a **Pooled total** row. The tiles at the top of that view are all averages of
+sprints; the pooled row is the one that matches the dashboard.
+
 Comparison 2 also carries **Actual complete** — everything delivered, break-in work
 included, against what was committed. It goes above 100% when a team finished more than it
 signed up for, which says throughput was high, not that the plan held.

@@ -50,9 +50,13 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   percentage (every sprint equal); `pooled()` sums the points and divides once (bigger sprints
   weigh more). The All teams view shows both — Comparison 1 uses `avg()`, Comparison 2 uses
   `pooled()` — over the *same* sprint set, so they can only ever differ by method. **Comparison
-  2 is the method the Agile Operations Dashboard uses**, as is the PI view's total row/tile;
-  the PI "Average per sprint" tile is `avg()`. Don't "fix" one to agree with the other, and
-  don't let a new figure pick a method silently — say which it is in the UI.
+  2 is the method the Agile Operations Dashboard uses**, as is the PI view's total row/tile
+  and Rolling 5's "Pooled total" footer row; the PI "Average per sprint" tile and every
+  Rolling 5 tile are `avg()`. Don't "fix" one to agree with the other, and don't let a new
+  figure pick a method silently — say which it is in the UI.
+- Rolling 5 deliberately keeps the **tiles at the top on `avg()` only** and shows the pooled
+  figures **only as a second footer row** on its table. A fuller pooled treatment there was
+  built and rejected as too much for the view — don't rebuild it.
 - **Blank means 0.** `val()` saves 0 for an empty box and `metrics()` uses `num()` throughout.
   Blanks were once kept as `null` so a half-typed sprint couldn't read as real results; the
   sprint lifecycle now does that job, data mostly arrives via the Jira paste where absent

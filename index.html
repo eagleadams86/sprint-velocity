@@ -408,6 +408,10 @@ tbody tr:hover { background: var(--bg-card-alt); }
 tbody tr:last-child td { border-bottom: none; }
 tr.clickable { cursor: pointer; }
 tfoot td { font-weight: 700; border-top: 2px solid var(--border-strong); border-bottom: none; }
+/* Rolling 5 has two summary rows — the per-sprint average and the pooled total. The
+   second takes a light rule rather than a second heavy one, so the pair reads as one
+   block under the sprints instead of two competing totals. */
+tfoot tr + tr td { border-top: 1px solid var(--border); }
 td.muted, .muted { color: var(--text-muted); }
 
 /* ── Charts ─────────────────────────────────────────────────────────────── */
@@ -2164,6 +2168,14 @@ function renderRollingView() {
   const aCarry  = avg(rs, 'carryoverPct');
   const aVel    = avg(rs, 'velocity');
   const labels  = rs.map(sprintLabel);
+  /* The table's second summary row. The tiles and the row above them average each
+     sprint's own percentage, so every sprint counts equally; this pools the points
+     and divides once, so a bigger sprint pulls harder. Both are honest and they
+     disagree whenever the sprints differ in size — which is worth being able to see
+     rather than having to take on trust. Pooling is also what the Agile Operations
+     Dashboard does, so this row is the one that reconciles with it. */
+  const pCommitted = sum(rs, 'committed');
+  const pooledPct = (key) => (pCommitted > 0 ? (sum(rs, key) / pCommitted) * 100 : null);
 
   viewsEl.innerHTML = rollingToolbar(includeSix) + `
     <div class="card">
@@ -2224,13 +2236,22 @@ function renderRollingView() {
             <td class="metric">${pill(m.carryoverPct, 'churn')}</td>
             <td>${fmtNum(m.velocity)}</td></tr>`;
         }).join('')}</tbody>
-        <tfoot><tr><td>Average</td><td>${fmtNum(avg(rs, 'committed'))}</td>
-          <td>${fmtNum(avg(rs, 'committedCompleted'))}</td>
-          <td class="metric">${pill(aCommit, 'completion')}</td>
-          <td class="metric">${pill(aBreak, 'churn')}</td>
-          <td class="metric">${pill(aRemove, 'churn')}</td>
-          <td class="metric">${pill(aCarry, 'churn')}</td>
-          <td>${fmtNum(aVel)}</td></tr></tfoot>
+        <tfoot>
+          <tr><td>Average per sprint</td><td>${fmtNum(avg(rs, 'committed'))}</td>
+            <td>${fmtNum(avg(rs, 'committedCompleted'))}</td>
+            <td class="metric">${pill(aCommit, 'completion')}</td>
+            <td class="metric">${pill(aBreak, 'churn')}</td>
+            <td class="metric">${pill(aRemove, 'churn')}</td>
+            <td class="metric">${pill(aCarry, 'churn')}</td>
+            <td>${fmtNum(aVel)}</td></tr>
+          <tr><td>Pooled total</td><td>${fmtNum(pCommitted)}</td>
+            <td>${fmtNum(sum(rs, 'committedCompleted'))}</td>
+            <td class="metric">${pill(pooledPct('committedCompleted'), 'completion')}</td>
+            <td class="metric">${pill(pooledPct('added'), 'churn')}</td>
+            <td class="metric">${pill(pooledPct('removed'), 'churn')}</td>
+            <td class="metric">${pill(pooledPct('carriedOut'), 'churn')}</td>
+            <td>${fmtNum(sum(rs, 'velocity'))}</td></tr>
+        </tfoot>
       </table></div>
     </div>`;
 
