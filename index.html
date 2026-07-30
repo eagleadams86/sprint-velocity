@@ -140,9 +140,25 @@
    affected tokens are nudged here, in the app's own file, rather than diverging
    the shared copy. Ratios below are against --bg-card / --bg-card-alt / the pill
    background, and every one clears 4.5:1. The glyph and sr-only status still do
-   the real work; colour is never the only signal. */
+   the real work; colour is never the only signal.
+
+   --text-muted is corrected on the same grounds. It reads as a caption colour in
+   the shared palette, but here it carries table cells, the empty "—" pill and the
+   12px privacy note, and it sat at 4.0–4.4:1 on --bg-card-alt in three themes.
+   The shifts are a couple of steps of lightness — the default barely moves.
+
+   Light is targeted by attribute rather than :root: its palette lives in :root in
+   theme.css, but a :root rule *here* would land after every [data-theme] block
+   above it at equal specificity and repaint all seven themes grey. */
+[data-theme="light"] {
+  --text-muted: #6c6c69;              /* 5.3 / 4.6 / 4.8 vs card / alt / page */
+}
 [data-theme="dark"] {
   --red-bg: #5c1414;   /* pill red was 3.6:1 on the original #7f1d1d; now 4.9:1 */
+  --text-muted: #8d929e;              /* 5.3 / 4.6 / 5.9 */
+}
+[data-theme="midnight"] {
+  --text-muted: #818aaa;              /* 5.2 / 4.6 / 5.6 */
 }
 [data-theme="solarized"] {
   --green: #9cb300; --ok:  #9cb300;   /* 5.5 / 4.6 / 5.3 */

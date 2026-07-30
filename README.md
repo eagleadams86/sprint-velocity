@@ -290,10 +290,12 @@ default), Dark, Light, Forest, Sepia, Solarized and Synthwave. Your choice is re
 in this browser and isn't part of your data, so it doesn't sync between devices and a
 shared link never carries the sender's theme.
 
-Every one of them meets WCAG AA contrast on the figures, and each series keeps the same
-hue throughout — committed grey, completed blue, velocity teal, break-in amber, removed
-violet, carryover red — so a chart reads the same way whichever palette you're in. Charts
-re-render on a switch, because their colours are resolved when they're built.
+Every one of them meets WCAG AA contrast on every piece of text — the figures, the RAG
+pills, the table captions — against each of the three backgrounds it can sit on. Each
+series keeps the same hue throughout — committed grey, completed blue, velocity teal,
+break-in amber, removed violet, carryover red — so a chart reads the same way whichever
+palette you're in. Charts re-render on a switch, because their colours are resolved when
+they're built.
 
 ---
 
@@ -410,7 +412,9 @@ Then open http://localhost:8012. (The desktop app's preview pane reads
 `theme.css` is a copy of the canonical palette that lives in the
 [lottery](https://github.com/eagleadams86/lottery) repo and is left byte-for-byte
 identical to it. The app adds its own chart series colours and threshold-band tints at
-the top of `index.html`, plus a short block of contrast corrections: this app leans on
-red and green to *mean* something, and a few of the borrowed palettes — Solarized most of
-all — sit under WCAG AA at that job. Those nudges live in `index.html` so the shared
-`theme.css` never has to diverge.
+the top of `index.html`, plus a short block of contrast corrections. This app leans on the
+shared palette harder than the pages it was written for: red and green *mean* something
+here rather than decorating, and muted grey carries table cells and captions rather than
+the odd footnote. A few of the borrowed colours — Solarized's red most of all, at 2.8:1
+against its own card — sat under WCAG AA at that job. Those nudges live in `index.html`,
+so the shared `theme.css` never has to diverge.

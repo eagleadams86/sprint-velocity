@@ -21,10 +21,16 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   changes; don't reassign a hue to make one theme prettier, the point is that a chart reads
   the same way in all seven.
 - The **contrast corrections** block in `index.html` overrides a handful of `theme.css`
-  tokens for dark, solarized and sepia. It exists because the shared palettes were written
-  for pages where red and green are decoration, and here they're the reading — Solarized's
-  own red is 2.8:1 on its own card. Correcting them in the app keeps `theme.css` identical
-  to the lottery copy. Measured ratios are in the comment; re-check them if you touch it.
+  tokens for light, dark, midnight, solarized and sepia. It exists because the shared
+  palettes were written for pages where red and green are decoration and `--text-muted` is
+  a caption colour; here the RAG colours *are* the reading (Solarized's red was 2.8:1 on
+  its own card) and muted text carries table cells, the `—` pill and the privacy note.
+  Correcting them in the app keeps `theme.css` identical to the lottery copy. Every text
+  token now clears 4.5:1 on `--bg-card`, `--bg-card-alt` and `--bg` in all seven themes;
+  measured ratios are in the comment, so re-check them if you touch it.
+- Light is corrected via `[data-theme="light"]`, **not `:root`** — its palette lives in
+  `:root` in theme.css, but a `:root` rule in the app's own `<style>` sits after every
+  `[data-theme]` block at equal specificity and would repaint all seven themes.
 - `chart.min.js` is a **vendored third-party build — do not hand-edit.**
 - **`metrics()` and `rag()` in `index.html` are the only places the numbers are
   calculated.** Every tile, table and chart reads from them. Thresholds change in one spot.
