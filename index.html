@@ -193,7 +193,9 @@ header {
 }
 .headbar { max-width: 1180px; margin: 0 auto; padding: 0 16px;
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.brand { font-size: 17px; font-weight: 700; letter-spacing: -.01em; margin-right: auto; }
+/* An <h1>, so the page has a top-level heading — hence the margin reset. */
+.brand { font-size: 17px; font-weight: 700; letter-spacing: -.01em;
+  margin: 0 auto 0 0; }
 .brand span { color: var(--text-muted); font-weight: 500; }
 
 button, select, input, textarea { font: inherit; color: inherit; }
@@ -314,6 +316,16 @@ select.ctl:hover { border-color: var(--text-muted); }
 .tile .label .tile-help { margin-left: 0; }
 .tile-help:hover { color: var(--text-primary); background: var(--bg-card);
   border-color: var(--text-secondary); }
+/* WCAG 2.2 wants a 24px target. The circle itself must stay 16px — it's sized to the
+   label's own line so that adding it never makes a tile row taller — so the *target*
+   grows instead, via a pseudo-element that overflows the button on every side. It is
+   never painted; it only catches the pointer. */
+.tile-help { position: relative; }
+.tile-help::after { content: ''; position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%); width: 24px; height: 24px; }
+/* A checkbox and the words beside it are one target, and the browser's 13px box is
+   well under the minimum — so the label carries the height instead. */
+label.row:has(> input[type=checkbox]), .checkline { min-height: 24px; align-items: center; }
 /* In table cells the button sits on the text baseline rather than the cap line, which
    reads as sunk next to the small type. */
 th .tile-help, td .tile-help { vertical-align: 1px; }
@@ -402,7 +414,7 @@ td:has(.badge) { white-space: nowrap; }
 /* Same reasoning for a cell carrying a help button. Narrow, "Average per sprint" wraps
    over three lines and drops the circle onto a fourth on its own, orphaned from the
    words it belongs to. */
-td:has(.tile-help) { white-space: nowrap; }
+td:has(.tile-help), th:has(.tile-help) { white-space: nowrap; }
 th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
   color: var(--text-secondary); font-weight: 600; white-space: nowrap;
   vertical-align: bottom; border-bottom-color: var(--border-strong); }
@@ -417,14 +429,31 @@ th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
 th.metric, td.metric { text-align: center; width: 108px; min-width: 108px;
   padding-left: 6px; padding-right: 6px; }
 th.metric { white-space: normal; }
+/* The first cell of a data row names that row, so it's a <th scope="row"> — that's
+   what lets a screen reader say "Sprint 3, carried out, 4" instead of reading nine bare
+   numbers. It has to be re-styled back to look like the data it sits with, though: the
+   <th> rules above are written for column headings, and left alone they'd render every
+   sprint name as small uppercase grey. */
+tbody th, tfoot th { font-size: inherit; text-transform: none; letter-spacing: 0;
+  color: var(--text-primary); text-align: left; vertical-align: middle; }
+tbody th { font-weight: 400; white-space: normal; border-bottom-color: var(--border); }
 tbody tr:hover { background: var(--bg-card-alt); }
 tbody tr:last-child td { border-bottom: none; }
 tr.clickable { cursor: pointer; }
-tfoot td { font-weight: 700; border-top: 2px solid var(--border-strong); border-bottom: none; }
+/* The control that opens a row. A real <button> rather than a handler on the <tr>,
+   because a row can't take focus or be pressed from the keyboard, and giving it a
+   button role would break the table semantics that make the numbers readable. It
+   inherits the row's type so it reads as the row's name — which is what it is — and
+   the row's cursor and hover carry the affordance for a mouse. */
+.rowbtn { background: none; border: 0; padding: 0; margin: 0;
+  font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.rowbtn:hover { text-decoration: underline; }
+tfoot td, tfoot th { font-weight: 700; border-top: 2px solid var(--border-strong);
+  border-bottom: none; }
 /* Rolling 5 has two summary rows — the per-sprint average and the pooled total. The
    second takes a light rule rather than a second heavy one, so the pair reads as one
    block under the sprints instead of two competing totals. */
-tfoot tr + tr td { border-top: 1px solid var(--border); }
+tfoot tr + tr td, tfoot tr + tr th { border-top: 1px solid var(--border); }
 td.muted, .muted { color: var(--text-muted); }
 
 /* ── Charts ─────────────────────────────────────────────────────────────── */
@@ -494,6 +523,10 @@ fieldset, .formpanel { border: 1px solid var(--border); border-radius: var(--rad
 legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
   color: var(--text-secondary); font-weight: 700; padding: 0 6px; }
 .warn { color: var(--err); font-size: 13px; margin-top: 10px; }
+/* Live regions have to stay in the accessibility tree to be able to announce, so the
+   ones that come and go are emptied rather than hidden — this is what collapses them
+   while they hold nothing, margin included. */
+.warn:empty, .sub:empty { display: none; }
 .empty { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
 .empty h2 { color: var(--text-primary); }
 #toast {
@@ -532,13 +565,23 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
   margin-right: 5px; vertical-align: 0; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+/* Charts already opt out of animation in code, so this only really governs the toast's
+   fade — but the rule belongs here rather than depending on every future addition
+   remembering to ask. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important; animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important; scroll-behavior: auto !important;
+  }
+}
 </style>
 </head>
 <body>
 
 <header>
   <div class="headbar">
-    <div class="brand">Sprint&nbsp;Predictability <span>· Charlie’s Epic Sprint Planner</span></div>
+    <h1 class="brand">Sprint&nbsp;Predictability <span>· Charlie’s Epic Sprint Planner</span></h1>
     <!-- Everything in this row is written out at its final size, because the header
          is painted long before the script at the foot of the page runs. Filling
          these from JS meant an empty 40px-wide select widening to 120px once it had
@@ -583,7 +626,12 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
     <button class="tab" role="tab" id="tab-teams"   aria-controls="views" data-view="teams"   aria-selected="false" tabindex="-1">All teams</button>
   </div>
 
-  <main id="views" role="tabpanel" aria-labelledby="tab-sprint"></main>
+  <!-- The tabpanel role goes on an inner div, not on <main> itself: putting it on
+       the element *is* its role, so `role="tabpanel"` silently replaced the main
+       landmark and "skip to main content" stopped finding anything. -->
+  <main>
+    <div id="views" role="tabpanel" aria-labelledby="tab-sprint"></div>
+  </main>
 
   <p class="privacy" id="privacyNote">🔒 Private — your data is stored in this browser only. No account
     needed. Sign in with Google if you want the same data on your other devices.</p>
@@ -592,7 +640,7 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
 <div id="toast" role="status" aria-live="polite"></div>
 
 <!-- ── Sprint editor ─────────────────────────────────────────────────────── -->
-<dialog id="sprintDialog">
+<dialog id="sprintDialog" aria-labelledby="sprintDialogTitle">
   <form method="dialog" id="sprintForm">
     <h3 id="sprintDialogTitle">Sprint</h3>
 
@@ -608,7 +656,7 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
         <button type="button" class="btn" id="jiraParseBtn">Read it</button>
         <button type="button" class="btn" id="jiraClearBtn">Clear</button>
       </div>
-      <div id="jiraPreview" hidden></div>
+      <div id="jiraPreview" tabindex="-1" hidden></div>
     </details>
 
     <div class="formpanel">
@@ -623,15 +671,15 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
       </div>
       <div>
         <label class="field" for="f_start">Start date</label>
-        <input type="date" id="f_start">
+        <input type="date" id="f_start" aria-describedby="dateHint">
       </div>
       <div>
         <label class="field" for="f_end">End date</label>
-        <input type="date" id="f_end">
+        <input type="date" id="f_end" aria-describedby="dateHint">
       </div>
       <div>
         <label class="field" for="f_status">Status</label>
-        <select id="f_status">
+        <select id="f_status" aria-describedby="statusHint">
           <option value="auto">Auto (from dates)</option>
           <option value="planned">Planned</option>
           <option value="active">In progress</option>
@@ -674,7 +722,7 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
         </div>
         <div>
           <label class="field" for="f_carriedIn">Carried in (from last sprint)</label>
-          <input type="number" id="f_carriedIn" min="0" step="1" inputmode="numeric">
+          <input type="number" id="f_carriedIn" min="0" step="1" inputmode="numeric" aria-describedby="carryHint">
         </div>
         <div>
           <label class="field" for="f_carriedOut">Carried out (to next sprint)</label>
@@ -700,7 +748,7 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
       <textarea id="f_n_general" placeholder="Anything else worth remembering at the retro"></textarea>
     </fieldset>
 
-    <p class="warn" id="sprintWarn" hidden></p>
+    <p class="warn" id="sprintWarn" role="status"></p>
     <div class="row spread" style="margin-top:16px">
       <button type="button" class="btn" id="sprintDeleteBtn">Delete</button>
       <span class="row">
@@ -712,24 +760,24 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
 </dialog>
 
 <!-- ── Teams & PIs ───────────────────────────────────────────────────────── -->
-<dialog id="manageDialog">
-  <h3>Teams &amp; PIs</h3>
+<dialog id="manageDialog" aria-labelledby="manageDialogTitle">
+  <h3 id="manageDialogTitle">Teams &amp; PIs</h3>
   <div class="row spread"><strong style="font-size:14px">Teams</strong>
     <button class="btn small" id="addTeamBtn">+ Add team</button></div>
-  <div class="tablewrap"><table><tbody id="teamRows"></tbody></table></div>
+  <div class="tablewrap"><table aria-label="Teams"><tbody id="teamRows"></tbody></table></div>
   <div class="row spread" style="margin-top:20px"><strong style="font-size:14px">Program Increments</strong>
     <button class="btn small" id="addPiBtn">+ Add PI</button></div>
   <p class="sub muted" style="font-size:12px;margin:4px 0 0">Each PI holds 6 sprints. They're listed
     oldest first — that order is what the rolling window walks back through.</p>
-  <div class="tablewrap"><table><tbody id="piRows"></tbody></table></div>
+  <div class="tablewrap"><table aria-label="Program Increments"><tbody id="piRows"></tbody></table></div>
   <div class="row" style="justify-content:flex-end;margin-top:18px">
     <button class="btn primary" id="manageCloseBtn">Done</button>
   </div>
 </dialog>
 
 <!-- ── Backup / restore ──────────────────────────────────────────────────── -->
-<dialog id="dataDialog">
-  <h3>Back up &amp; restore</h3>
+<dialog id="dataDialog" aria-labelledby="dataDialogTitle">
+  <h3 id="dataDialogTitle">Back up &amp; restore</h3>
   <p class="sub">Your data lives in this browser. Export a JSON file to keep a backup, move to
     another browser, or hand a colleague a starting point.</p>
   <div class="row">
@@ -755,8 +803,8 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
 </dialog>
 
 <!-- ── Share a read-only link ────────────────────────────────────────────── -->
-<dialog id="shareDialog">
-  <h3>Share a read-only link</h3>
+<dialog id="shareDialog" aria-labelledby="shareDialogTitle">
+  <h3 id="shareDialogTitle">Share a read-only link</h3>
   <p class="sub">Anyone opening this link sees the figures you pick, with no way to change
     them and no sign-in. The data travels <em>inside</em> the link itself — it isn't uploaded
     anywhere, and it doesn't touch whatever they have saved in their own browser.</p>
@@ -777,8 +825,8 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
   <fieldset class="formpanel">
     <legend>Your link</legend>
     <input type="text" id="shareLink" readonly aria-label="Read-only share link">
-    <p class="sub muted" id="shareMeta" style="margin:8px 0 0"></p>
-    <p class="warn" id="shareWarn" hidden></p>
+    <p class="sub muted" id="shareMeta" role="status" style="margin:8px 0 0"></p>
+    <p class="warn" id="shareWarn" role="status"></p>
     <div class="row" style="margin-top:10px">
       <button type="button" class="btn primary" id="shareCopyBtn">Copy link</button>
       <button type="button" class="btn" id="shareOpenBtn">Preview it</button>
@@ -795,8 +843,8 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
 </dialog>
 
 <!-- ── First-sync reconciliation ─────────────────────────────────────────── -->
-<dialog id="syncChoiceDialog">
-  <h3>Two copies of your data</h3>
+<dialog id="syncChoiceDialog" aria-labelledby="syncChoiceTitle">
+  <h3 id="syncChoiceTitle">Two copies of your data</h3>
   <p id="syncChoiceBody"></p>
   <div class="row" style="justify-content:flex-end;margin-top:18px">
     <button class="btn" id="syncKeepDeviceBtn">Keep this device's data</button>
@@ -1802,8 +1850,18 @@ const viewsEl = document.getElementById('views');
    switch team (All teams) are navigation, not editing, and stay live. */
 function wireEditRows(handler) {
   viewsEl.querySelectorAll('tr.clickable').forEach(tr => {
-    if (viewOnly) { tr.classList.remove('clickable'); return; }
+    const btn = tr.querySelector('.rowbtn');
+    if (viewOnly) {
+      tr.classList.remove('clickable');
+      /* The button goes too, not just its handler — a control that takes focus and
+         then does nothing is worse than plain text. */
+      if (btn) btn.replaceWith(document.createTextNode(btn.textContent));
+      return;
+    }
     tr.onclick = () => handler(tr);
+    /* The row keeps its handler so a click anywhere still works; the button stops
+       its own click bubbling, or the row would open the dialog a second time. */
+    if (btn) btn.onclick = (e) => { e.stopPropagation(); handler(tr); };
   });
 }
 
@@ -2187,11 +2245,11 @@ function renderPiView() {
              which ${countedRunning.length === 1 ? 'is' : 'are'} still running`
           : 'finished sprints only'}.</p>
       <div class="tablewrap">
-      <table>
+      <table aria-label="Sprint by sprint figures for this PI">
         <thead><tr>
-          <th>Sprint</th><th>Committed</th><th>Cmt. done</th><th class="metric">Complete %</th>
-          <th>Added</th><th>Removed</th><th>Carried in</th><th>Carried out</th>
-          <th>Total done</th><th>Notes</th>
+          <th scope="col">Sprint</th><th scope="col">Committed</th><th scope="col">Cmt. done</th><th scope="col" class="metric">Complete %</th>
+          <th scope="col">Added</th><th scope="col">Removed</th><th scope="col">Carried in</th><th scope="col">Carried out</th>
+          <th scope="col">Total done</th><th scope="col">Notes</th>
         </tr></thead>
         <tbody>${rows.map(({ n, s }) => {
           if (!s) {
@@ -2199,8 +2257,9 @@ function renderPiView() {
                team's cadence puts it — the dates are only a projection until the
                sprint is saved with them. */
             const d = cadenceDates(team.id, piId, n);
-            return `<tr class="clickable" data-num="${n}"><td>Sprint ${n}${
-              n === IP_SPRINT ? ' (IP)' : ''}</td><td colspan="9" class="muted">No data — click to add${
+            return `<tr class="clickable" data-num="${n}"><th scope="row"><button type="button"
+              class="rowbtn" aria-label="Add data for sprint ${n}">Sprint ${n}${
+              n === IP_SPRINT ? ' (IP)' : ''}</button></th><td colspan="9" class="muted">No data — click to add${
               d ? ' · scheduled ' + esc(fmtDateRange(d.startDate, d.endDate)) : ''}</td></tr>`;
           }
           const m = metrics(s);
@@ -2208,8 +2267,9 @@ function renderPiView() {
           const st = sprintStatus(s);
           const open = st !== 'complete';
           return `<tr class="clickable${open ? ' open' : ''}" data-num="${n}">
-            <td>Sprint ${n}${n === IP_SPRINT ? ' (IP)' : ''}${
-              open ? ` <span class="badge">${STATUS_BADGE[st]} ${STATUS_TEXT[st]}</span>` : ''}</td>
+            <th scope="row"><button type="button" class="rowbtn"
+              aria-label="Edit sprint ${n}">Sprint ${n}${n === IP_SPRINT ? ' (IP)' : ''}</button>${
+              open ? ` <span class="badge">${STATUS_BADGE[st]} ${STATUS_TEXT[st]}</span>` : ''}</th>
             <td>${fmtNum(m.committed)}</td>
             <td>${fmtNum(m.committedCompleted)}</td>
             <td class="metric">${open && !isCounted(s)
@@ -2224,7 +2284,7 @@ function renderPiView() {
         }).join('')}</tbody>
         <tfoot>
           <tr>
-            <td>Average per sprint${helpBtn('piAvgRow', 'Average per sprint')}</td>
+            <th scope="row">Average per sprint${helpBtn('piAvgRow', 'Average per sprint')}</th>
             <td>${fmtNum(avg(closed, 'committed'))}</td><td>${fmtNum(avg(closed, 'committedCompleted'))}</td>
             <td class="metric">${pill(avgCommitPct, 'completion')}</td>
             <td>${fmtNum(avg(closed, 'added'))}</td><td>${fmtNum(avg(closed, 'removed'))}</td>
@@ -2232,7 +2292,7 @@ function renderPiView() {
             <td>${fmtNum(avg(closed, 'velocity'))}</td><td></td>
           </tr>
           <tr>
-            <td>PI total${helpBtn('piTotalRow', 'PI total')}</td>
+            <th scope="row">PI total${helpBtn('piTotalRow', 'PI total')}</th>
             <td>${fmtNum(piCommitted)}</td><td>${fmtNum(piCompleted)}</td>
             <td class="metric">${pill(piCommitPct, 'completion')}</td>
             <td>${fmtNum(sum(closed, 'added'))}</td><td>${fmtNum(sum(closed, 'removed'))}</td>
@@ -2363,15 +2423,16 @@ function renderRollingView() {
       <h2>The numbers</h2>
       <p class="sub">Click any sprint to edit it.</p>
       <div class="tablewrap">
-      <table>
-        <thead><tr><th>Sprint</th><th>Committed</th><th>Cmt. done</th>
-          <th class="metric">Complete %</th><th class="metric">Break-in %</th>
-          <th class="metric">Removed %</th><th class="metric">Carryover %</th>
-          <th>Velocity</th></tr></thead>
+      <table aria-label="Figures for each sprint in the rolling window">
+        <thead><tr><th scope="col">Sprint</th><th scope="col">Committed</th><th scope="col">Cmt. done</th>
+          <th scope="col" class="metric">Complete %</th><th scope="col" class="metric">Break-in %</th>
+          <th scope="col" class="metric">Removed %</th><th scope="col" class="metric">Carryover %</th>
+          <th scope="col">Velocity</th></tr></thead>
         <tbody>${rs.map(s => {
           const m = metrics(s);
           return `<tr class="clickable" data-id="${esc(s.id)}">
-            <td>${esc(sprintLabel(s))}</td>
+            <th scope="row"><button type="button" class="rowbtn"
+              aria-label="Edit ${esc(sprintLabel(s))}">${esc(sprintLabel(s))}</button></th>
             <td>${fmtNum(m.committed)}</td>
             <td>${fmtNum(m.committedCompleted)}</td>
             <td class="metric">${pill(m.commitCompletePct, 'completion')}</td>
@@ -2381,7 +2442,7 @@ function renderRollingView() {
             <td>${fmtNum(m.velocity)}</td></tr>`;
         }).join('')}</tbody>
         <tfoot>
-          <tr><td>Average per sprint${helpBtn('rollAvgRow', 'Average per sprint')}</td>
+          <tr><th scope="row">Average per sprint${helpBtn('rollAvgRow', 'Average per sprint')}</th>
             <td>${fmtNum(avg(rs, 'committed'))}</td>
             <td>${fmtNum(avg(rs, 'committedCompleted'))}</td>
             <td class="metric">${pill(aCommit, 'completion')}</td>
@@ -2389,7 +2450,7 @@ function renderRollingView() {
             <td class="metric">${pill(aRemove, 'churn')}</td>
             <td class="metric">${pill(aCarry, 'churn')}</td>
             <td>${fmtNum(aVel)}</td></tr>
-          <tr><td>Pooled total${helpBtn('rollPooledRow', 'Pooled total')}</td>
+          <tr><th scope="row">Pooled total${helpBtn('rollPooledRow', 'Pooled total')}</th>
             <td>${fmtNum(pCommitted)}</td>
             <td>${fmtNum(sum(rs, 'committedCompleted'))}</td>
             <td class="metric">${pill(pooledPct('committedCompleted'), 'completion')}</td>
@@ -2637,13 +2698,14 @@ function renderTeamsView() {
         target</strong> is the commitment each team can realistically take on — see the Rolling 5
         view for the working.</p>
       <div class="tablewrap">
-      <table>
-        <thead><tr><th>Team</th><th>Sprints</th><th class="metric">Commitment completion</th>
-          <th class="metric">Break-in</th><th class="metric">Removed</th>
-          <th class="metric">Carryover</th><th>Avg velocity</th>
-          <th>Next sprint target</th></tr></thead>
+      <table aria-label="Comparison 1 — each team averaged across its sprints">
+        <thead><tr><th scope="col">Team</th><th scope="col">Sprints</th><th scope="col" class="metric">Commitment completion</th>
+          <th scope="col" class="metric">Break-in</th><th scope="col" class="metric">Removed</th>
+          <th scope="col" class="metric">Carryover</th><th scope="col">Avg velocity</th>
+          <th scope="col">Next sprint target</th></tr></thead>
         <tbody>${rowsData.map(r => `<tr class="clickable" data-id="${esc(r.team.id)}">
-          <td>${esc(r.team.name)}</td>
+          <th scope="row"><button type="button" class="rowbtn"
+            aria-label="Switch to ${esc(r.team.name)}">${esc(r.team.name)}</button></th>
           <td>${r.count}</td>
           <td class="metric">${pill(r.commit, 'completion')}</td>
           <td class="metric">${pill(r.breakIn, 'churn')}</td>
@@ -2663,14 +2725,15 @@ function renderTeamsView() {
         Dashboard</strong> uses, so these are the figures that reconcile with what the ART reports
         upward. Same sprints as the table above; only the arithmetic differs.</p>
       <div class="tablewrap">
-      <table>
-        <thead><tr><th>Team</th><th>Sprints</th><th>Committed</th><th>Cmt. done</th>
-          <th class="metric">Commitment completion</th>
-          <th class="metric">Break-in</th><th class="metric">Removed</th>
-          <th class="metric">Carryover</th>
-          <th>Actual complete${helpBtn('actualComplete', 'Actual complete')}</th></tr></thead>
+      <table aria-label="Comparison 2 — each team's points pooled into one total">
+        <thead><tr><th scope="col">Team</th><th scope="col">Sprints</th><th scope="col">Committed</th><th scope="col">Cmt. done</th>
+          <th scope="col" class="metric">Commitment completion</th>
+          <th scope="col" class="metric">Break-in</th><th scope="col" class="metric">Removed</th>
+          <th scope="col" class="metric">Carryover</th>
+          <th scope="col">Actual complete${helpBtn('actualComplete', 'Actual complete')}</th></tr></thead>
         <tbody>${rowsData.map(r => `<tr class="clickable" data-id="${esc(r.team.id)}">
-          <td>${esc(r.team.name)}</td>
+          <th scope="row"><button type="button" class="rowbtn"
+            aria-label="Switch to ${esc(r.team.name)}">${esc(r.team.name)}</button></th>
           <td>${r.count}</td>
           <td>${fmtNum(r.pool.committed)}</td>
           <td>${fmtNum(r.pool.committedCompleted)}</td>
@@ -2680,7 +2743,7 @@ function renderTeamsView() {
           <td class="metric">${pill(r.pool.carryoverPct, 'churn')}</td>
           <td>${fmtPct(r.pool.actualCompletePct)}</td></tr>`).join('')}</tbody>
         <tfoot><tr>
-          <td>All teams</td><td>${allPooled.count}</td>
+          <th scope="row">All teams</th><td>${allPooled.count}</td>
           <td>${fmtNum(allPooled.committed)}</td><td>${fmtNum(allPooled.committedCompleted)}</td>
           <td class="metric">${pill(allPooled.commitCompletePct, 'completion')}</td>
           <td class="metric">${pill(allPooled.breakInPct, 'churn')}</td>
@@ -2715,12 +2778,15 @@ function renderTeamsView() {
     </div>`;
 
   viewsEl.querySelectorAll('tr.clickable').forEach(tr => {
-    tr.onclick = () => {
+    const go = () => {
       state.settings.activeTeamId = tr.dataset.id;
       state.settings.view = 'rolling';
       if (viewOnly) focusLatestSprint(tr.dataset.id);
       save(); render();
     };
+    tr.onclick = go;
+    const btn = tr.querySelector('.rowbtn');
+    if (btn) btn.onclick = (e) => { e.stopPropagation(); go(); };
   });
   wireRollingToolbar();
 
@@ -2903,9 +2969,11 @@ function checkSprintForm() {
     msgs.push('Total completed is lower than the committed points completed.');
   if (gt('f_carriedOut', 'f_committed'))
     msgs.push('Carried out is higher than points committed.');
-  const el = F('sprintWarn');
-  el.hidden = !msgs.length;
-  el.textContent = msgs.length ? '⚠ ' + msgs.join(' ') + ' Saving anyway is fine if that’s right.' : '';
+  /* Emptied rather than `hidden`: this is a live region, and an element toggled out
+     of the accessibility tree announces nothing when it comes back. CSS collapses it
+     while it holds no text. */
+  F('sprintWarn').textContent = msgs.length
+    ? '⚠ ' + msgs.join(' ') + ' Saving anyway is fine if that’s right.' : '';
 }
 
 ['f_committed', 'f_committedCompleted'].forEach(id =>
@@ -2996,6 +3064,10 @@ F('jiraParseBtn').onclick = () => {
     </div>`;
 
   F('jiraApplyBtn').onclick = applyJiraNumbers;
+  /* Results that appear elsewhere on the page are the classic thing a screen reader
+     never mentions. Announcing this whole table would be worse than useless, so focus
+     moves to it instead — which is also where a sighted user is already looking. */
+  box.focus();
 };
 
 /* Carried-in is the previous sprint's carried-out, so it's filled in the moment a
@@ -3590,7 +3662,7 @@ async function refreshShareLink() {
   if (!teamIds.length) {
     link.value = '';
     meta.textContent = 'Pick at least one team.';
-    warn.hidden = true;
+    warn.textContent = '';
     setBusy(true);
     return;
   }
@@ -3610,9 +3682,9 @@ async function refreshShareLink() {
     + `${plural(payload.sprints.length, 'sprint')}`
     + `${F('shareNotes').checked ? ', notes included' : ', no notes'} · `
     + `${url.length.toLocaleString()} characters`;
-  warn.hidden = url.length <= SHARE_WARN_AT;
-  warn.textContent = 'That’s a long link — some mail apps break links this size across '
-    + 'two lines. Sharing fewer teams, or leaving notes out, will shorten it.';
+  warn.textContent = url.length > SHARE_WARN_AT
+    ? 'That’s a long link — some mail apps break links this size across two lines. '
+      + 'Sharing fewer teams, or leaving notes out, will shorten it.' : '';
 }
 
 F('shareBtn').onclick = openShare;

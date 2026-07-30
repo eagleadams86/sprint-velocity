@@ -358,6 +358,16 @@ spelled-out status for a screen reader. The view tabs work from the keyboard the
 row is expected to: arrow keys move along the row and switch view, Home and End jump to the
 ends, and the row takes a single stop in the tab order rather than one per tab.
 
+Everything else is reachable from the keyboard too. The sprint and team names in every
+table are real buttons, so you can tab to a row and press Enter to open it — clicking
+anywhere in the row still works for a mouse. Each table names itself and marks its column
+and row headings, so a screen reader reads "Sprint 3, carried out, 4" rather than nine
+unattached numbers. Every dialog announces its own title, the sprint form's warnings and
+auto-filled hints are tied to the boxes they refer to and read out when they change, and
+pressing **Read it** on a Jira paste moves you to the result rather than leaving it
+unannounced. Small targets like the ⓘ carry a 24px hit area without growing on screen, and
+`prefers-reduced-motion` is honoured.
+
 ---
 
 ## Your data

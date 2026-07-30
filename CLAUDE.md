@@ -105,7 +105,24 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   `sr-only` status. Every theme is WCAG AA on the figures; keep them that way. The view tabs
   are a real tablist: `aria-controls` onto `#views` (`role="tabpanel"`), roving `tabindex`
   set in `render()` beside `aria-selected`, and arrow/Home/End wired at the foot of the
-  file, skipping hidden tabs.
+  file, skipping hidden tabs. `role="tabpanel"` sits on the inner `#views` div, **not on
+  `<main>`** — putting it on the element replaces its role, which silently cost the page its
+  main landmark once already.
+- **A clickable row needs a real control in it.** Every table's first cell is a
+  `<th scope="row">` holding a `.rowbtn` — a `<tr>` can't take focus, and giving it a button
+  role would break the grid semantics that make nine numeric columns readable. The row keeps
+  its own click handler for the mouse and the button stops propagation, or the editor opens
+  twice and `showModal()` throws. `wireEditRows()` replaces the button with plain text in a
+  shared view rather than leaving a control that focuses and does nothing.
+- **Row-header cells need re-styling back.** The `th` rules are written for column headings,
+  so `tbody th, tfoot th` undo the uppercase/grey/small treatment, and `tfoot th` re-takes the
+  bold total styling from `tfoot td`. `th:has(.tile-help)` carries the nowrap guard now that
+  the summary labels are `th`.
+- **Live regions must stay in the tree.** `#sprintWarn`, `#shareMeta` and `#shareWarn` are
+  `role="status"` and are emptied rather than `hidden` — an element toggled out of the tree
+  announces nothing on the way back — with `.warn:empty` collapsing them visually. The Jira
+  preview is deliberately *not* a live region: it's far too long to read aloud, so `box.focus()`
+  moves the user to it instead.
 - **Ids from outside are not trusted.** `sanitizeIds()` runs on everything entering through
   `load()`, `decodeShare()`, the JSON import and `svAdopt()`, replacing any id that isn't
   `[A-Za-z0-9_-]{1,64}` with a fresh one and rewriting every reference through the same map.
