@@ -520,14 +520,14 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
     <select id="teamSel" title="Which team you're looking at" hidden></select>
     <button class="btn small" id="manageBtn" title="Add or rename teams and PIs">Teams &amp; PIs</button>
     <label class="sr-only" for="themeSel">Theme</label>
-    <!-- The four unified themes, default first (matches the other apps). Midnight is
-         pre-selected to match the theme the boot script in <head> has already applied,
-         so the picker never reads one theme while the page shows another. THEMES is
-         read back off these options. -->
+    <!-- The four unified themes, listed alphabetically (matches the other apps).
+         Midnight is pre-selected to match the theme the boot script in <head> has
+         already applied, so the picker never reads one theme while the page shows
+         another. THEMES is read back off these options. -->
     <select id="themeSel" title="Change the colour theme">
-      <option value="midnight" selected>✦ Midnight</option>
       <option value="dark">☾ Dark</option>
       <option value="light">☀ Light</option>
+      <option value="midnight" selected>✦ Midnight</option>
       <option value="sepia">📜 Sepia</option>
     </select>
     <button class="btn small" id="dataBtn" title="Back up or restore your data">Back up</button>

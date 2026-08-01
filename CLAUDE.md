@@ -14,9 +14,10 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   repo eagleadams86/claude-theme-pack), the source of truth for the palette of ALL apps —
   don't diverge it; palette changes go through the pack's `tokens.json` + contrast gate.
   App-specific tokens (chart series colours, threshold-band tints) live in the `<style>`
-  block at the top of `index.html` instead. The four themes (Midnight default, then Dark,
-  Light, Sepia) are surfaced in the header picker **default first**, and an unrecognised
-  stored value (including the retired forest/synthwave/solarized) falls back to midnight.
+  block at the top of `index.html` instead. The four themes (Midnight default) are surfaced
+  in the header picker **in alphabetical order** — Dark, Light, Midnight, Sepia — and an
+  unrecognised stored value (including the retired forest/synthwave/solarized) falls back
+  to midnight.
   Adding a theme means touching two places: the `<option>` list in the markup (which
   `THEMES` is read back from) and the array in the pre-paint boot script, which runs in
   `<head>` and can't see either — plus the pack itself, which is where themes live now.
