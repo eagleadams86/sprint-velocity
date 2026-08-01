@@ -12,7 +12,7 @@
      before the main script parses; keep the two in step. */
   try {
     var t = localStorage.getItem('sv-theme');
-    var ok = ['light','dark','midnight','forest','synthwave','solarized','sepia'];
+    var ok = ['light','dark','midnight','sepia'];
     document.documentElement.setAttribute('data-theme',
       ok.indexOf(t) === -1 ? 'midnight' : t);
   } catch (e) {}
@@ -22,8 +22,10 @@
 <script src="chart.min.js"></script>
 <style>
 /* ── App-specific tokens ──────────────────────────────────────────────────────
-   theme.css is the canonical shared palette (copied from the lottery repo) and is
-   deliberately left untouched. Everything below is only what this app adds on top:
+   theme.css is the shared palette, generated in the claude-theme-pack repo (the
+   source of truth for all apps) and deliberately left untouched — its own gate
+   guarantees WCAG AA for every token on every surface, including the pill and
+   chip backgrounds this app leans on. Everything below is only what this app adds:
    the categorical chart series colors and the translucent threshold bands, which
    need a value per theme because CSS custom properties can't be alpha-blended at
    read time by the charting code. All series colors clear 3:1 against their
@@ -77,47 +79,6 @@
   --band-red:     rgba(251,113,133,.15);
   --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.3);
 }
-[data-theme="forest"] {
-  color-scheme: dark;
-  --c-committed:  #9db5a6;
-  --c-completed:  #7cb8ff;
-  --c-velocity:   #4fd1a5;
-  --c-added:      #f0b429;
-  --c-removed:    #cbb2f7;
-  --c-carry:      #fb8a8a;
-  --band-green:   rgba(110,231,160,.09);
-  --band-yellow:  rgba(251,191,36,.15);
-  --band-red:     rgba(248,113,113,.14);
-  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.3);
-}
-[data-theme="synthwave"] {
-  color-scheme: dark;
-  --c-committed:  #b3a6cc;
-  --c-completed:  #8be9fd;
-  --c-velocity:   #50fa7b;
-  --c-added:      #ffd166;
-  --c-removed:    #bd93f9;
-  --c-carry:      #ff5d8f;
-  --band-green:   rgba(80,250,123,.08);
-  --band-yellow:  rgba(255,209,102,.15);
-  --band-red:     rgba(255,93,143,.14);
-  --shadow: 0 1px 2px rgba(0,0,0,.45), 0 4px 14px rgba(0,0,0,.35);
-}
-/* Solarized's own accents are mid-luminance by design, so its bands need a little
-   more alpha than the other dark themes to register against the teal card. */
-[data-theme="solarized"] {
-  color-scheme: dark;
-  --c-committed:  #93a1a1;
-  --c-completed:  #4ba3e3;
-  --c-velocity:   #2aa198;
-  --c-added:      #c19a0f;
-  --c-removed:    #8c92e0;
-  --c-carry:      #f0605d;
-  --band-green:   rgba(156,179,0,.13);
-  --band-yellow:  rgba(211,160,0,.17);
-  --band-red:     rgba(238,143,122,.15);
-  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.3);
-}
 [data-theme="sepia"] {
   color-scheme: light;
   --c-committed:  #6b6151;
@@ -132,46 +93,13 @@
   --shadow: 0 1px 2px rgba(90,70,30,.10), 0 4px 12px rgba(90,70,30,.07);
 }
 
-/* ── Contrast corrections ─────────────────────────────────────────────────────
-   theme.css is shared with the lottery pages and stays untouched, but this app
-   leans on its RAG colours far harder: red and green aren't decoration here,
-   they're the reading. A few of the borrowed palettes land under WCAG AA at that
-   job — Solarized worst of all, its red only 2.8:1 against its own card — so the
-   affected tokens are nudged here, in the app's own file, rather than diverging
-   the shared copy. Ratios below are against --bg-card / --bg-card-alt / the pill
-   background, and every one clears 4.5:1. The glyph and sr-only status still do
-   the real work; colour is never the only signal.
-
-   --text-muted is corrected on the same grounds. It reads as a caption colour in
-   the shared palette, but here it carries table cells, the empty "—" pill and the
-   12px privacy note, and it sat at 4.0–4.4:1 on --bg-card-alt in three themes.
-   The shifts are a couple of steps of lightness — the default barely moves.
-
-   Light is targeted by attribute rather than :root: its palette lives in :root in
-   theme.css, but a :root rule *here* would land after every [data-theme] block
-   above it at equal specificity and repaint all seven themes grey. */
-[data-theme="light"] {
-  --text-muted: #6c6c69;              /* 5.3 / 4.6 / 4.8 vs card / alt / page */
-}
-[data-theme="dark"] {
-  --red-bg: #5c1414;   /* pill red was 3.6:1 on the original #7f1d1d; now 4.9:1 */
-  --text-muted: #8d929e;              /* 5.3 / 4.6 / 5.9 */
-}
-[data-theme="midnight"] {
-  --text-muted: #818aaa;              /* 5.2 / 4.6 / 5.6 */
-}
-[data-theme="solarized"] {
-  --green: #9cb300; --ok:  #9cb300;   /* 5.5 / 4.6 / 5.3 */
-  --red:   #ee8f7a; --err: #ee8f7a;   /* 5.5 / 4.6 / 6.0 */
-  --amber: #d3a000;                   /* 5.5 / 4.6 / 5.4 */
-  --text-secondary: #adb8b8;          /* 6.4 / 5.4 */
-  --text-muted:     #9daaac;          /* 5.4 / 4.6 */
-}
-[data-theme="sepia"] {
-  --green: #456f0d;                   /* 5.5 / 4.6 / 4.6 */
-  --red:   #a93d28;                   /* 5.7 / 4.8 / 4.6 */
-  --text-muted: #6f6249;              /* 5.5 / 4.7 */
-}
+/* The contrast-corrections block that used to live here is gone: the unified
+   theme pack's gate (check_contrast.py) now verifies every text and status
+   token — including the RAG colours this app reads by — at 4.5:1 on the page,
+   card AND alt/pill surfaces, so the shared palette needs no local nudges. If a
+   future palette problem shows up, fix it in the pack's tokens.json (so every
+   app benefits), not here. The glyph and sr-only status still do the real work;
+   colour is never the only signal. */
 
 * { box-sizing: border-box; }
 body {
@@ -592,17 +520,15 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
     <select id="teamSel" title="Which team you're looking at" hidden></select>
     <button class="btn small" id="manageBtn" title="Add or rename teams and PIs">Teams &amp; PIs</button>
     <label class="sr-only" for="themeSel">Theme</label>
-    <!-- Alphabetical. Midnight is pre-selected to match the theme the boot script in
-         <head> has already applied, so the picker never reads one theme while the
-         page shows another. THEMES is read back off these options. -->
+    <!-- The four unified themes, default first (matches the other apps). Midnight is
+         pre-selected to match the theme the boot script in <head> has already applied,
+         so the picker never reads one theme while the page shows another. THEMES is
+         read back off these options. -->
     <select id="themeSel" title="Change the colour theme">
-      <option value="dark">☾ Dark</option>
-      <option value="forest">🌲 Forest</option>
-      <option value="light">☀ Light</option>
       <option value="midnight" selected>✦ Midnight</option>
+      <option value="dark">☾ Dark</option>
+      <option value="light">☀ Light</option>
       <option value="sepia">📜 Sepia</option>
-      <option value="solarized">🌗 Solarized</option>
-      <option value="synthwave">🌆 Synthwave</option>
     </select>
     <button class="btn small" id="dataBtn" title="Back up or restore your data">Back up</button>
     <button class="btn small" id="shareBtn" title="Create a read-only link to show someone your figures">Share</button>

@@ -10,28 +10,29 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
 
 - The app is **one file — `index.html`** (no build step), alongside `theme.css` and a
   vendored `chart.min.js`. Keep it that way: no npm, no bundler, no CDN calls.
-- `theme.css` is a **copy** of the canonical palette in the lottery repo — don't diverge
-  it. App-specific tokens (chart series colours, threshold-band tints) live in the
-  `<style>` block at the top of `index.html` instead. All seven palettes are surfaced in
-  the header picker **in alphabetical order**, **midnight is the default**, and an
-  unrecognised stored value falls back to it. Adding a theme means touching two places:
-  the `<option>` list in the markup (which `THEMES` is read back from) and the array in
-  the pre-paint boot script, which runs in `<head>` and can't see either.
+- `theme.css` is a **copy of the generated file from `~/claude-theme-pack`** (private
+  repo eagleadams86/claude-theme-pack), the source of truth for the palette of ALL apps —
+  don't diverge it; palette changes go through the pack's `tokens.json` + contrast gate.
+  App-specific tokens (chart series colours, threshold-band tints) live in the `<style>`
+  block at the top of `index.html` instead. The four themes (Midnight default, then Dark,
+  Light, Sepia) are surfaced in the header picker **default first**, and an unrecognised
+  stored value (including the retired forest/synthwave/solarized) falls back to midnight.
+  Adding a theme means touching two places: the `<option>` list in the markup (which
+  `THEMES` is read back from) and the array in the pre-paint boot script, which runs in
+  `<head>` and can't see either — plus the pack itself, which is where themes live now.
 - Series colours are defined **per theme but with a fixed hue per series** (committed grey,
   completed blue, velocity teal, added amber, removed violet, carried red). Only the shade
   changes; don't reassign a hue to make one theme prettier, the point is that a chart reads
-  the same way in all seven.
-- The **contrast corrections** block in `index.html` overrides a handful of `theme.css`
-  tokens for light, dark, midnight, solarized and sepia. It exists because the shared
-  palettes were written for pages where red and green are decoration and `--text-muted` is
-  a caption colour; here the RAG colours *are* the reading (Solarized's red was 2.8:1 on
-  its own card) and muted text carries table cells, the `—` pill and the privacy note.
-  Correcting them in the app keeps `theme.css` identical to the lottery copy. Every text
-  token now clears 4.5:1 on `--bg-card`, `--bg-card-alt` and `--bg` in all seven themes;
-  measured ratios are in the comment, so re-check them if you touch it.
-- Light is corrected via `[data-theme="light"]`, **not `:root`** — its palette lives in
-  `:root` in theme.css, but a `:root` rule in the app's own `<style>` sits after every
-  `[data-theme]` block at equal specificity and would repaint all seven themes.
+  the same way in all four.
+- The old **contrast corrections** block is gone: the theme pack's gate now verifies every
+  text and status token at 4.5:1 on `--bg`, `--surface` and `--surface-alt` in all four
+  themes, so the shared palette needs no local nudges. If a palette problem surfaces, fix
+  it in the pack's `tokens.json` (every app benefits) rather than re-introducing overrides
+  here — that's the drift policy in the pack's CLAUDE.md.
+- If an app-local override is ever unavoidable, target `[data-theme="…"]` blocks, **not
+  `:root`** — a `:root` rule in the app's own `<style>` sits after every `[data-theme]`
+  block at equal specificity and would repaint all themes. (Note: in the pack's theme.css
+  the `:root` palette is Midnight, not Light.)
 - **Everything in the header row is written into the markup at its final size** — the theme
   options, the sync button's signed-out label, and `hidden` on the team picker. The header
   paints well before the script at the foot of the page runs, so anything filled in by JS

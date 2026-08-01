@@ -341,8 +341,9 @@ so you still get five sprints.
 
 ## Themes
 
-Seven, listed alphabetically in the header dropdown: Dark, Forest, Light, **Midnight**
-(deep indigo/navy — the default), Sepia, Solarized and Synthwave. Your choice is remembered
+Four, shared with every other app in this family: **Midnight** (deep indigo/navy — the
+default), Dark, Light and Sepia. (Forest, Solarized and Synthwave were retired in
+August 2026; if you had one selected you'll now see Midnight.) Your choice is remembered
 in this browser and isn't part of your data, so it doesn't sync between devices and a
 shared link never carries the sender's theme.
 
@@ -490,7 +491,7 @@ devices, but it asks before it takes effect on each one.
 ```
 GitHub Pages (static hosting, this repo, main branch)
     ├── index.html    the whole app — markup, styles, logic, no build step
-    ├── theme.css     shared design tokens (copied from the lottery repo)
+    ├── theme.css     shared design tokens (generated in the claude-theme-pack repo)
     └── chart.min.js  vendored Chart.js UMD build — no CDN, no network needed
             ├── all state ──► browser localStorage (source of truth, works offline)
             ├── signed in ──► Firestore doc sprintvelocity/{uid} (optional;
@@ -510,12 +511,11 @@ python3 -m http.server 8012
 Then open http://localhost:8012. (The desktop app's preview pane reads
 `.claude/launch.json`, which is set to the same port.)
 
-`theme.css` is a copy of the canonical palette that lives in the
-[lottery](https://github.com/eagleadams86/lottery) repo and is left byte-for-byte
-identical to it. The app adds its own chart series colours and threshold-band tints at
-the top of `index.html`, plus a short block of contrast corrections. This app leans on the
-shared palette harder than the pages it was written for: red and green *mean* something
-here rather than decorating, and muted grey carries table cells and captions rather than
-the odd footnote. A few of the borrowed colours — Solarized's red most of all, at 2.8:1
-against its own card — sat under WCAG AA at that job. Those nudges live in `index.html`,
-so the shared `theme.css` never has to diverge.
+`theme.css` is a copy of the generated palette from the private `claude-theme-pack`
+repo — the source of truth for the colours of every app in this family — and is left
+byte-for-byte identical to it. The pack's contrast gate verifies every text and status
+colour at WCAG AA on every surface it can sit on (page, card and the alt/pill
+background), which covers even the way this app leans on red and green as the actual
+reading rather than decoration — so the old block of app-local contrast corrections is
+gone. The app still adds its own chart series colours and threshold-band tints at the
+top of `index.html`.
