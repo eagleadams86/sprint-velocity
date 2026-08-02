@@ -341,9 +341,10 @@ so you still get five sprints.
 
 ## Themes
 
-Four, shared with every other app in this family: **Midnight** (deep indigo/navy — the
-default), Dark, Light and Sepia. (Forest, Solarized and Synthwave were retired in
-August 2026; if you had one selected you'll now see Midnight.) Your choice is remembered
+Four, shared with every other app in this family and listed alphabetically in the header
+dropdown: Dark, Light, **Midnight** (deep indigo/navy — the default) and Sepia. (Forest,
+Solarized and Synthwave were retired in August 2026; if you had one selected you'll now
+see Midnight.) Your choice is remembered
 in this browser and isn't part of your data, so it doesn't sync between devices and a
 shared link never carries the sender's theme.
 
