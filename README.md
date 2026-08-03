@@ -55,10 +55,11 @@ The colours now pull their weight too. As of 3 August 2026 the shared theme pack
 checks the three status colours against **each other** under deuteranopia and protanopia,
 not just against their backgrounds — previously the Sepia theme rendered "watch" and "off
 target" in two colours that simulate to an identical shade for a red-green colourblind
-reader, so the glyph was doing all the work on its own. "On target" is a cool colour rather
-than a green in every theme — cyan on Dark and Midnight, blue on Light and Sepia — because
-red-green deficiency flattens the red-green axis and only the blue-yellow one survives. All
-four themes now clear a CIE ΔE of 18 between every pair.
+reader, so the glyph was doing all the work on its own. The colours stay **RAG** — red, amber
+and green, the convention every Scrum Master reads by — but "on target" is a green leaned
+toward blue-green rather than a pure one, because red-green deficiency flattens the red-green
+axis and a leaf green sits right on top of the red. All four themes now clear a CIE ΔE of 18
+between the three figures.
 
 On the light themes the status figures also sit on a **tinted panel** rather than carrying the
 colour in a thin rule and the digits alone. Contrast rules force every status colour dark on a
