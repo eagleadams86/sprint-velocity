@@ -51,6 +51,14 @@ Velocity              = total points completed
 Colour is never the only signal — every figure also carries a ✓ / ! / ✕ glyph and a
 screen-reader status, so the app is readable without colour vision.
 
+The colours now pull their weight too. As of 3 August 2026 the shared theme pack's gate
+checks the three status colours against **each other** under deuteranopia and protanopia,
+not just against their backgrounds — previously the Sepia theme rendered "watch" and "off
+target" in two colours that simulate to an identical shade for a red-green colourblind
+reader, so the glyph was doing all the work on its own. "On target" is a teal rather than a
+green in every theme, because red-green deficiency flattens the red-green axis and only the
+blue-yellow one survives. All four themes now clear a CIE ΔE of 18 between every pair.
+
 Every tile on the Sprint, Current PI and Rolling 5 views has a small **ⓘ** button in its
 top-right corner. Click it for a plain-English definition of that figure — what it means,
 how it's worked out, and the target it's being judged against. It works in a shared

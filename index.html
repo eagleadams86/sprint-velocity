@@ -42,9 +42,9 @@
   --c-added:      #b45309;
   --c-removed:    #7c3aed;
   --c-carry:      #be123c;
-  --band-green:   rgba(26,110,60,.09);
-  --band-yellow:  rgba(217,150,10,.22);
-  --band-red:     rgba(185,28,28,.14);
+  --band-green:   rgba(13,124,141,.09);
+  --band-yellow:  rgba(196,140,8,.22);
+  --band-red:     rgba(160,45,55,.14);
   --shadow: 0 1px 2px rgba(0,0,0,.06), 0 4px 12px rgba(0,0,0,.04);
   --chrome-h: 30px;    /* small header buttons + the team picker */
   --control-h: 38.5px; /* full-size buttons + the toolbar pickers beside them */
@@ -61,9 +61,9 @@
   --c-added:      #fbbf24;
   --c-removed:    #c4b5fd;
   --c-carry:      #f87171;
-  --band-green:   rgba(74,222,128,.09);
-  --band-yellow:  rgba(252,211,77,.16);
-  --band-red:     rgba(248,113,113,.15);
+  --band-green:   rgba(99,219,227,.09);
+  --band-yellow:  rgba(239,190,57,.16);
+  --band-red:     rgba(251,120,116,.15);
   --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.3);
 }
 [data-theme="midnight"] {
@@ -74,9 +74,9 @@
   --c-added:      #fbbf24;
   --c-removed:    #c4b5fd;
   --c-carry:      #fb7185;
-  --band-green:   rgba(74,222,128,.09);
-  --band-yellow:  rgba(252,211,77,.16);
-  --band-red:     rgba(251,113,133,.15);
+  --band-green:   rgba(99,219,227,.09);
+  --band-yellow:  rgba(239,190,57,.16);
+  --band-red:     rgba(251,120,116,.15);
   --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.3);
 }
 [data-theme="sepia"] {
@@ -87,9 +87,9 @@
   --c-added:      #a35a09;
   --c-removed:    #6d28d9;
   --c-carry:      #a3162f;
-  --band-green:   rgba(69,111,13,.13);
-  --band-yellow:  rgba(202,148,20,.22);
-  --band-red:     rgba(169,61,40,.13);
+  --band-green:   rgba(17,120,134,.13);
+  --band-yellow:  rgba(196,145,15,.22);
+  --band-red:     rgba(160,45,55,.13);
   --shadow: 0 1px 2px rgba(90,70,30,.10), 0 4px 12px rgba(90,70,30,.07);
 }
 
@@ -99,7 +99,14 @@
    card AND alt/pill surfaces, so the shared palette needs no local nudges. If a
    future palette problem shows up, fix it in the pack's tokens.json (so every
    app benefits), not here. The glyph and sr-only status still do the real work;
-   colour is never the only signal. */
+   colour is never the only signal.
+
+   Since 2026-08-03 that gate also checks the RAG colours against EACH OTHER
+   under deuteranopia and protanopia, not just against their backgrounds — sepia
+   used to render "watch" and "off target" in two colours that simulate to the
+   identical hex, so the glyph was carrying the meaning alone. `--green` is now a
+   teal in every theme, because red-green deficiency flattens the red-green axis
+   and only the blue-yellow one survives. Don't "restore" it to a green. */
 
 * { box-sizing: border-box; }
 body {
@@ -1709,6 +1716,121 @@ function destroyCharts() {
   Object.keys(charts).forEach(k => { charts[k].destroy(); delete charts[k]; });
 }
 
+/* ── Series texture: the non-colour half of "which bar is which" ─────────────
+   Six categorical colours cannot all be told apart by someone with red-green
+   colour vision deficiency, and no re-shading fixes it: deficiency flattens the
+   red-green axis, leaving blue-yellow plus lightness, which carries about three
+   reliable levels — not six. Measured worst cases, CIE deltaE after Vienot-Brettel
+   simulation (the pack's check_contrast.py has `simulate`/`delta_e`; 18 is its
+   gate): committed vs velocity is 9.1–17.5 in EVERY theme, and they are two of
+   the three bars on the PI chart. committed vs carried is 15.3 (sepia) / 17.8
+   (midnight), adjacent segments of the same stack.
+
+   So each series carries a fill texture as well as a colour, and the texture is
+   FIXED PER SERIES exactly as the hue is — same reason: a chart has to read the
+   same way whichever palette you are in. Colour still does the work for everyone
+   who can see it; the texture is what survives when it can't.
+
+   Re-shading the greys was the alternative and was measured too: it clears the
+   gate, but only by driving committed to near-black on the light and sepia cards,
+   and in midnight exactly one candidate passed, at deltaE 19.0 against a
+   threshold of 18. One point of headroom, with colour still the only cue. This
+   costs nothing from the palette and doesn't degrade.
+
+   Not re-hued, and don't: the fixed-hue rule at the top of this file is what
+   makes the four themes read alike, and hues are not the thing that failed. */
+const SERIES_TEXTURE = {
+  '--c-committed': 'solid',       /* the reference quantity — left plain      */
+  '--c-completed': 'forward',     /* ///                                      */
+  '--c-velocity':  'back',        /* \\\                                      */
+  '--c-added':     'dots',        /* ···                                      */
+  '--c-carry':     'horizontal',  /* ===                                      */
+  '--c-removed':   'cross'        /* line-only today; here so a future bar
+                                     can't quietly pick a taken texture       */
+};
+
+const textures = {};
+
+/* Stripes are the series colour pushed FURTHER from the card, never a second
+   colour: on a light card toward black, on a dark card toward white. Both
+   directions raise contrast, so every part of a textured bar still clears the
+   3:1 the flat colour already did — the texture can't spend the non-text
+   contrast budget (WCAG 1.4.11) that the comment at the top of the file claims. */
+function stripeInk(hex, towardWhite) {
+  const n = parseInt(hex.slice(1), 16);
+  const mix = (c) => Math.round(towardWhite ? c + (255 - c) * .55 : c * .45);
+  return `rgb(${mix(n >> 16 & 255)},${mix(n >> 8 & 255)},${mix(n & 255)})`;
+}
+
+function relLum(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const ch = (c) => { c /= 255; return c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4; };
+  return .2126 * ch(n >> 16 & 255) + .7152 * ch(n >> 8 & 255) + .0722 * ch(n & 255);
+}
+
+/* Returns a CanvasPattern, or the plain colour string for an untextured series —
+   Chart.js takes either wherever a fill goes, including the legend swatch and the
+   tooltip's colour box, so the cue follows the series everywhere by itself. */
+function seriesFill(token) {
+  const color = cssVar(token);
+  const kind = SERIES_TEXTURE[token];
+  if (!kind || kind === 'solid' || !/^#[0-9a-f]{6}$/i.test(color)) return color;
+
+  /* Chart.js scales its context by devicePixelRatio, and a pattern tile is laid
+     out in user space — so the tile is drawn at device resolution and scaled back
+     down through setTransform, or it renders both twice the size and blurred. */
+  const dpr = Math.max(1, Math.round(window.devicePixelRatio || 1));
+  /* The card is in the key, not just the colour: the stripe is mixed toward
+     black or white depending on which way raises contrast, so the same series
+     colour on a light and a dark card is two different tiles. */
+  const onDark = relLum(cssVar('--surface') || '#ffffff') < .35;
+  const key = `${kind}|${color}|${dpr}|${onDark}`;
+  if (textures[key]) return textures[key];
+
+  const S = 8;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = S * dpr;
+  const x = cv.getContext('2d');
+  x.scale(dpr, dpr);
+  x.fillStyle = color;
+  x.fillRect(0, 0, S, S);
+
+  x.strokeStyle = x.fillStyle = stripeInk(color, onDark);
+  x.lineWidth = 1.8;
+  x.lineCap = 'square';
+
+  const line = (x1, y1, x2, y2) => { x.beginPath(); x.moveTo(x1, y1); x.lineTo(x2, y2); x.stroke(); };
+
+  if (kind === 'forward' || kind === 'back') {
+    /* A 45° hatch only tiles seamlessly when the perpendicular spacing divides
+       S/√2 — a round number like 4 leaves a visible seam at every tile edge. */
+    x.save();
+    x.translate(S / 2, S / 2);
+    x.rotate((kind === 'forward' ? -45 : 45) * Math.PI / 180);
+    const gap = S / Math.SQRT2;
+    for (let i = -S; i <= S; i += gap) line(i, -S * 1.5, i, S * 1.5);
+    x.restore();
+  } else if (kind === 'horizontal') {
+    line(-1, S / 4, S + 1, S / 4);
+    line(-1, S * 3 / 4, S + 1, S * 3 / 4);
+  } else if (kind === 'cross') {
+    line(-1, S / 2, S + 1, S / 2);
+    line(S / 2, -1, S / 2, S + 1);
+  } else if (kind === 'dots') {
+    /* Corner dots as well as the centre one, or the tile seams show as gaps. */
+    [[S / 2, S / 2], [0, 0], [S, 0], [0, S], [S, S]].forEach(([cx, cy]) => {
+      x.beginPath(); x.arc(cx, cy, 1.5, 0, Math.PI * 2); x.fill();
+    });
+  }
+
+  const pat = x.createPattern(cv, 'repeat');
+  if (dpr !== 1 && pat.setTransform && window.DOMMatrix) {
+    pat.setTransform(new DOMMatrix([1 / dpr, 0, 0, 1 / dpr, 0, 0]));
+  }
+  textures[key] = pat;
+  return pat;
+}
+
 /* Shades the green/yellow/red zones behind the churn chart so a line crossing a
    threshold is visible at a glance rather than needing a look at the axis. */
 const thresholdBands = {
@@ -1734,6 +1856,10 @@ Chart.register(thresholdBands);
 const gridOpts = () => ({ grid: { color: cssVar('--chart-grid') },
   ticks: { color: cssVar('--chart-tick') } });
 
+/* Chart.js's own label builder, kept as the base so a legend stays whatever the
+   library decides it should be — we only default one field on top of it. */
+const legendLabels = Chart.defaults.plugins.legend.labels.generateLabels;
+
 function baseOptions(extra) {
   extra = extra || {};
 
@@ -1751,8 +1877,16 @@ function baseOptions(extra) {
        tooltip. Those should follow the order the datasets are declared in, so
        putting a line in front of the bars doesn't reshuffle the labels too. */
     legend: { labels: { color: cssVar('--text-secondary'), boxWidth: 12, boxHeight: 12,
-      usePointStyle: true, pointStyle: 'rectRounded',
-      sort: (a, b) => a.datasetIndex - b.datasetIndex } },
+      usePointStyle: true,
+      sort: (a, b) => a.datasetIndex - b.datasetIndex,
+      /* `pointStyle: 'rectRounded'` used to sit here, which is a blunt override:
+         it repaints EVERY swatch as a rounded square, including the line series
+         whose point shape is now the non-colour cue for which line is which.
+         Defaulting it per label instead keeps the square for bars — where the
+         swatch picks up the series texture from the fill on its own — and lets a
+         line show the marker it actually draws. */
+      generateLabels: (chart) => legendLabels(chart).map(
+        (item) => Object.assign(item, { pointStyle: item.pointStyle || 'rectRounded' })) } },
     tooltip: {
       itemSort: (a, b) => a.datasetIndex - b.datasetIndex,
       backgroundColor: cssVar('--bg-card-alt'),
@@ -2066,10 +2200,10 @@ function renderSprintView() {
       labels: ['Committed', 'Delivered'],
       datasets: [
         { label: 'Completed from commitment', data: [m.committedCompleted, m.committedCompleted],
-          backgroundColor: cssVar('--c-completed'), maxBarThickness: 72 },
-        { label: 'Carried out', data: [carriedFromCommit, 0], backgroundColor: cssVar('--c-carry'), maxBarThickness: 72 },
-        { label: 'Dropped', data: [dropped, 0], backgroundColor: cssVar('--c-committed'), maxBarThickness: 72 },
-        { label: 'Added work completed', data: [0, addedDone], backgroundColor: cssVar('--c-added'), maxBarThickness: 72 }
+          backgroundColor: seriesFill('--c-completed'), maxBarThickness: 72 },
+        { label: 'Carried out', data: [carriedFromCommit, 0], backgroundColor: seriesFill('--c-carry'), maxBarThickness: 72 },
+        { label: 'Dropped', data: [dropped, 0], backgroundColor: seriesFill('--c-committed'), maxBarThickness: 72 },
+        { label: 'Added work completed', data: [0, addedDone], backgroundColor: seriesFill('--c-added'), maxBarThickness: 72 }
       ]
     },
     options: baseOptions({
@@ -2271,13 +2405,13 @@ function renderPiView() {
    wherever it dips below a bar's top. */
         { type: 'bar', label: 'Committed', yAxisID: 'y', order: 2,
           data: rows.map(r => r.s ? metrics(r.s).committed : null),
-          backgroundColor: cssVar('--c-committed'), maxBarThickness: 56 },
+          backgroundColor: seriesFill('--c-committed'), maxBarThickness: 56 },
         { type: 'bar', label: 'Committed completed', yAxisID: 'y', order: 2,
           data: rows.map(r => r.s ? metrics(r.s).committedCompleted : null),
-          backgroundColor: cssVar('--c-completed'), maxBarThickness: 56 },
+          backgroundColor: seriesFill('--c-completed'), maxBarThickness: 56 },
         { type: 'bar', label: 'Total completed', yAxisID: 'y', order: 2,
           data: rows.map(r => r.s ? metrics(r.s).velocity : null),
-          backgroundColor: cssVar('--c-velocity'), maxBarThickness: 56 },
+          backgroundColor: seriesFill('--c-velocity'), maxBarThickness: 56 },
         { type: 'line', label: 'Commitment completion %', yAxisID: 'y1', order: 1,
           /* Bars keep showing an unfinished sprint's progress, but the completion
              line stops short of it — a half-done sprint plotted as a percentage
@@ -2426,9 +2560,9 @@ function renderRollingView() {
       labels,
       datasets: [
         { type: 'bar', label: 'Total completed (velocity)', yAxisID: 'y', order: 2,
-          data: rs.map(s => metrics(s).velocity), backgroundColor: cssVar('--c-velocity'), maxBarThickness: 56 },
+          data: rs.map(s => metrics(s).velocity), backgroundColor: seriesFill('--c-velocity'), maxBarThickness: 56 },
         { type: 'bar', label: 'Committed completed', yAxisID: 'y', order: 2,
-          data: rs.map(s => metrics(s).committedCompleted), backgroundColor: cssVar('--c-completed'), maxBarThickness: 56 },
+          data: rs.map(s => metrics(s).committedCompleted), backgroundColor: seriesFill('--c-completed'), maxBarThickness: 56 },
         { type: 'line', label: 'Commitment completion %', yAxisID: 'y1', order: 1,
           data: rs.map(s => metrics(s).commitCompletePct),
           borderColor: cssVar('--text-primary'), backgroundColor: cssVar('--text-primary'),
@@ -2454,15 +2588,24 @@ function renderRollingView() {
     data: {
       labels,
       datasets: [
+        /* A fill texture is no use on a 2px line, so these three carry the same
+           idea as a dash pattern and a point shape instead — solid circle, dashed
+           triangle, dash-dot square. Break-in and carryover are the thinnest
+           colour pair the app actually draws together (deltaE 23.4 simulated,
+           against a gate of 18) and they cross each other constantly; the shape
+           is what tells them apart when the colour won't. */
         { label: 'Break-in %', data: rs.map(s => metrics(s).breakInPct),
           borderColor: cssVar('--c-added'), backgroundColor: cssVar('--c-added'),
-          borderWidth: 2, tension: .25, pointRadius: 4, spanGaps: true },
+          borderWidth: 2, tension: .25, pointRadius: 4, spanGaps: true,
+          pointStyle: 'circle' },
         { label: 'Removed %', data: rs.map(s => metrics(s).removedPct),
           borderColor: cssVar('--c-removed'), backgroundColor: cssVar('--c-removed'),
-          borderWidth: 2, tension: .25, pointRadius: 4, spanGaps: true, borderDash: [5, 3] },
+          borderWidth: 2, tension: .25, pointRadius: 5, spanGaps: true, borderDash: [5, 3],
+          pointStyle: 'triangle' },
         { label: 'Carryover %', data: rs.map(s => metrics(s).carryoverPct),
           borderColor: cssVar('--c-carry'), backgroundColor: cssVar('--c-carry'),
-          borderWidth: 2, tension: .25, pointRadius: 4, spanGaps: true }
+          borderWidth: 2, tension: .25, pointRadius: 4, spanGaps: true, borderDash: [7, 3, 2, 3],
+          pointStyle: 'rect' }
       ]
     },
     options: baseOptions({
