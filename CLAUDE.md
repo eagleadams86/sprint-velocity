@@ -25,6 +25,26 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   completed blue, velocity teal, added amber, removed violet, carried red). Only the shade
   changes; don't reassign a hue to make one theme prettier, the point is that a chart reads
   the same way in all four.
+- **Colour is not what tells the six series apart — texture is.** `SERIES_TEXTURE` gives each
+  series a fixed fill pattern the same way the palette gives it a fixed hue (committed solid,
+  completed `/`, velocity `\`, added dots, carried horizontal, removed cross), built as a
+  CanvasPattern by `seriesFill()`; the three churn *lines*, where a fill is no use, carry a
+  dash pattern and a point shape instead. Chart.js takes a pattern anywhere a colour goes, so
+  legend swatches and tooltip boxes get the cue for free. Measured with the pack's
+  `simulate()`/`delta_e()` at its threshold of 18: committed vs velocity is deltaE 9.1–17.5 in
+  **every** theme and they are two of the three PI-chart bars; committed vs carried fails in
+  midnight and sepia. Six categories don't fit on the blue-yellow axis that survives red-green
+  deficiency — it carries about three levels — so no re-shading fixes this. Re-shading was
+  measured anyway: it clears the gate only by driving committed to near-black on the light and
+  sepia cards, and in midnight exactly **one** candidate passed, at 19.0 against a threshold of
+  18. Don't swap the texture back out for a colour tweak, and don't re-hue.
+  Stripes are the series colour pushed *further from the card* (toward black on a light card,
+  white on a dark one), never a second colour, so a textured bar can't spend the 3:1 non-text
+  contrast the flat colour already had.
+- **`--c-completed` vs `--c-removed` is deltaE 0.4 in sepia and is deliberately left alone.**
+  Blue is never in the churn chart and violet is never in the others, so nothing ever asks you
+  to tell those two apart. Only pairs that share a chart have to clear the gate — measuring all
+  15 pairs makes the palette look far worse than it reads.
 - The old **contrast corrections** block is gone: the theme pack's gate now verifies every
   text and status token at 4.5:1 on `--bg`, `--surface` and `--surface-alt` in all four
   themes, so the shared palette needs no local nudges. If a palette problem surfaces, fix
