@@ -464,14 +464,18 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
   opacity: 0; pointer-events: none; transition: opacity .2s;
 }
 #toast.show { opacity: 1; }
-.privacy { font-size: 12px; color: var(--text-muted); text-align: center;
-  margin: 28px auto 0; max-width: 680px; }
+/* The footer notes line up with the text *inside* the last card, not with the
+   card's outer edge: 18px of card padding + its 1px border. Centred, they read
+   as a separate block floating under the page; left-aligned to the copy above
+   they read as the end of it. */
+.privacy { font-size: 12px; color: var(--text-muted);
+  margin: 28px 0 0; max-width: 680px; padding-left: 19px; }
 
 /* ── "Recent changes" ───────────────────────────────────────────────────── */
 /* No opacity dimming — it would stack on an already-muted token and drop the
    summary below AA in the light palettes. Colour alone carries the hierarchy. */
-.changelog { max-width: 680px; margin: 14px auto 0; font-size: 12.5px;
-  color: var(--text-muted); }
+.changelog { max-width: 680px; margin: 14px 0 0; padding-left: 19px;
+  font-size: 12.5px; color: var(--text-muted); }
 .changelog summary { cursor: pointer; user-select: none; padding: 4px 0; }
 .changelog summary:hover { color: var(--text-secondary); }
 .changelog ol { list-style: none; margin: 10px 0 0; padding: 0; }
