@@ -130,10 +130,15 @@ Nothing is saved by pasting itself — reading the report only shows you the pre
 were happy with can't be lost by closing the form. Your "why" notes are never touched. If the
 paste can't be read, it says so and shows what it did find rather than filling in zeros.
 
-That save is undoable. While it's outstanding the Cancel button reads **Cancel & Undo Save**,
-and pressing it — or Escape, or clicking outside the form — puts your data back exactly as it
-was, right down to the figures the sprint already held. Press **Save sprint** instead and the
+That save is undoable, **by the Cancel button and nothing else**. While it's outstanding the
+button reads **Cancel & Undo Save**, and pressing it puts your data back exactly as it was,
+right down to the figures the sprint already held. Press **Save sprint** instead and the
 numbers stay, along with anything else you typed while you were in there.
+
+Escape and clicking outside the form just close it and **keep** the save. Those are the two
+things you hit by accident, and the whole point of saving at **Use these numbers** is that
+closing the form can't cost you the paste — so undoing is left to the button you have to mean
+to press.
 
 If you're pasting over a sprint that has already finished and has real figures in it, the
 usual "saving will change…" confirmation appears at **Use these numbers** rather than at Save

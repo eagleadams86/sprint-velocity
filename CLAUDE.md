@@ -191,14 +191,18 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
 - **That auto-save is revertible, and the revert is the load-bearing half.** `pendingJiraSave`
   snapshots the record that was there (deep copy), plus `activePiId`/`activeSprintNum`, taken
   **before** the write and **only on the first press** — a second "Use these numbers" must not
-  snapshot the copy the first one saved. Cancel, Escape and a backdrop click all revert;
-  Save sprint and Delete clear the snapshot first, because both are deliberate.
-- **Don't move that revert onto the dialog's `close` event.** It looks like the one hook
-  covering all three dismissals, and it was written that way first: the event is dispatched as
-  a queued task and never fired at all under Electron, so the undo silently didn't happen —
-  strictly worse than not offering one. The three paths are wired individually
-  (`dismissSprintDialog()`, a `keydown` Escape handler, and the `dismiss` argument to
-  `closeOnBackdropClick()`), with `close` left on only as a backstop.
+  snapshot the copy the first one saved.
+- **Only the Cancel button reverts.** Escape and a backdrop click close the dialog and keep the
+  save — they're the two exits you hit by accident, and the point of saving at "Use these
+  numbers" is that closing the form can't cost you the paste, so undoing takes the deliberate
+  button. Save sprint keeps it too, and Delete clears the snapshot rather than fighting it.
+  Nothing clears the snapshot on the keep paths: `openSprint()` resets it, so it can't outlive
+  its sprint.
+- **Don't move that revert onto the dialog's `close` event.** It's the obvious hook for "the
+  user backed out" and it was written that way first: the event is dispatched as a queued task
+  and never fired at all under Electron, so the undo silently didn't happen — strictly worse
+  than not offering one. It would also be wrong now, since `close` can't tell Cancel from the
+  two exits that are supposed to keep the save.
 - The undo has to be **visible**: `setCancelLabel()` switches the button to "Cancel & Undo
   Save" while a snapshot is held. It can't live in the toast — `toast()` is `textContent`-only
   and `pointer-events: none`, so it can't hold a control.

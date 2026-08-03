@@ -598,7 +598,7 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
       <p class="sub" style="margin:10px 0 8px">Open the sprint's <strong>Sprint Report</strong> in
         Jira, select the whole report and copy it, then paste it below. Pressing
         <strong>Use these numbers</strong> saves the sprint straight away, so you can't lose the
-        figures by closing this box — Cancel undoes that save.</p>
+        figures by closing this box — only Cancel undoes that save.</p>
       <label class="sr-only" for="jiraText">Pasted Jira Sprint Report</label>
       <textarea id="jiraText" rows="5" placeholder="Paste the whole Sprint Report here, including the
  &quot;Completed Issues&quot; / &quot;Issues Not Completed&quot; / &quot;Issues Removed From Sprint&quot; headings"></textarea>
@@ -2783,7 +2783,7 @@ const sprintDialog = F('sprintDialog');
    · the press has to have *started* outside too, so selecting text in a field and
      releasing past the edge — easy to do in the Jira paste box — doesn't throw
      away what you were typing. */
-function closeOnBackdropClick(dlg, dismiss) {
+function closeOnBackdropClick(dlg) {
   const outside = (e) => {
     const r = dlg.getBoundingClientRect();
     return e.clientX < r.left || e.clientX > r.right
@@ -2792,17 +2792,14 @@ function closeOnBackdropClick(dlg, dismiss) {
   let startedOutside = false;
   dlg.addEventListener('mousedown', (e) => { startedOutside = outside(e); });
   dlg.addEventListener('click', (e) => {
-    if (startedOutside && outside(e)) (dismiss || (() => dlg.close()))();
+    if (startedOutside && outside(e)) dlg.close();
     startedOutside = false;
   });
 }
 
 /* Every dialog except the sync reconciliation one, which deliberately refuses to
-   be dismissed — picking which copy of your data to keep has to be a choice.
-   The sprint editor gets a dismiss of its own, because backing out of it may have
-   a Jira auto-save to put back. */
-['sprintDialog', 'manageDialog', 'dataDialog', 'helpDialog'].forEach(id =>
-  closeOnBackdropClick(F(id), id === 'sprintDialog' ? () => dismissSprintDialog() : null));
+   be dismissed — picking which copy of your data to keep has to be a choice. */
+['sprintDialog', 'manageDialog', 'dataDialog', 'helpDialog'].forEach(id => closeOnBackdropClick(F(id)));
 
 function openSprint(teamId, piId, sprintNumber) {
   const existing = findSprint(teamId, piId, sprintNumber);
@@ -3014,7 +3011,7 @@ F('jiraParseBtn').onclick = () => {
     <div class="row" style="margin-top:12px">
       <button type="button" class="btn primary" id="jiraApplyBtn">Use these numbers</button>
       <span class="muted" style="font-size:12px">Fills the boxes below and saves the sprint —
-        Cancel puts it back as it was.</span>
+        only Cancel puts it back as it was.</span>
     </div>`;
 
   F('jiraApplyBtn').onclick = applyJiraNumbers;
@@ -3334,26 +3331,22 @@ function autoSaveJiraNumbers() {
   return true;
 }
 
-/* Cancel, Escape and a backdrop click are the three ways out that aren't a save, and
-   all three have to put the auto-save back. They're wired individually rather than
-   hung off the dialog's own `close` event, which looks like the one hook that covers
-   all three: it's dispatched as a queued task and doesn't reliably arrive — it never
-   fired once under Electron — and an undo that silently doesn't happen is worse than
-   no undo at all. `close` stays on as a backstop for any path that slips past. */
-function dismissSprintDialog() {
+/* Only Cancel undoes the auto-save. Escape and a backdrop click close the dialog and
+   leave it standing — they're easy to hit by accident, and the whole point of saving
+   on "Use these numbers" is that closing the form can't cost you the paste. Undoing is
+   the deliberate act, so it takes the deliberate button.
+
+   Which is also why this isn't hung off the dialog's `close` event, the obvious hook
+   for "the user backed out": that event covers all three exits at once, and it's
+   dispatched as a queued task that doesn't reliably arrive — it never fired once under
+   Electron. An undo that silently doesn't happen is worse than no undo at all.
+
+   Nothing needs to clear the snapshot on the paths that keep the save: `openSprint()`
+   resets it, so it can't outlive the sprint it belongs to. */
+F('sprintCancelBtn').onclick = () => {
   if (pendingJiraSave) revertJiraSave();
   sprintDialog.close();
-}
-
-F('sprintCancelBtn').onclick = dismissSprintDialog;
-
-/* A <dialog> closes itself on Escape without going through any of our handlers, so
-   Escape is taken over here. */
-sprintDialog.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') { e.preventDefault(); dismissSprintDialog(); }
-});
-
-sprintDialog.addEventListener('close', () => { if (pendingJiraSave) revertJiraSave(); });
+};
 
 F('sprintSaveBtn').onclick = () => {
   const record = buildSprintRecord();
