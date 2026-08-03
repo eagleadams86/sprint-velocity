@@ -159,7 +159,8 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
 - Firebase authorized domain is `eagleadams86.github.io`, so sync works at this
   `/sprint-velocity/` path unchanged.
 - **Paste from Jira:** `parseJiraSprintReport()` / `deriveFromJira()` are pure functions on
-  text — no DOM, no network, nothing saved. They only ever pre-fill form inputs, so the
+  text — no DOM, no network, nothing saved (the saving happens in `applyJiraNumbers()`, further
+  down). They only ever produce the seven figures, so the
   lifecycle and blank-vs-zero rules apply unchanged. Committed = every issue **not** marked
   `*` (removed ones included — they were in the sprint at start); carried out = the whole
   not-completed section, which can exceed `committed − completed`. Handles both tab-separated
@@ -183,10 +184,32 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   used as a checksum and any mismatch is shown to the user — **keep that visible**, it's what
   makes shipping without every real-world Jira variant safe. A section absent from the paste
   fills its field with 0 — Jira omits a section when nothing fell into it.
+- **"Use these numbers" saves the sprint**, it doesn't just fill the boxes — losing a whole
+  Jira paste by closing the form was the easier mistake to make. `buildSprintRecord()` reads
+  the form and `commitSprint()` writes it; both are shared with Save sprint so the two paths
+  can't drift, and neither toasts, closes or re-renders — the caller does that.
+- **That auto-save is revertible, and the revert is the load-bearing half.** `pendingJiraSave`
+  snapshots the record that was there (deep copy), plus `activePiId`/`activeSprintNum`, taken
+  **before** the write and **only on the first press** — a second "Use these numbers" must not
+  snapshot the copy the first one saved. Cancel, Escape and a backdrop click all revert;
+  Save sprint and Delete clear the snapshot first, because both are deliberate.
+- **Don't move that revert onto the dialog's `close` event.** It looks like the one hook
+  covering all three dismissals, and it was written that way first: the event is dispatched as
+  a queued task and never fired at all under Electron, so the undo silently didn't happen —
+  strictly worse than not offering one. The three paths are wired individually
+  (`dismissSprintDialog()`, a `keydown` Escape handler, and the `dismiss` argument to
+  `closeOnBackdropClick()`), with `close` left on only as a backstop.
+- The undo has to be **visible**: `setCancelLabel()` switches the button to "Cancel & Undo
+  Save" while a snapshot is held. It can't live in the toast — `toast()` is `textContent`-only
+  and `pointer-events: none`, so it can't hold a control.
 - `confirmOverwrite()` guards a finished sprint from an accidental save, listing the
   field-level changes rather than asking a vague "are you sure?" — a warning nobody reads is
   worse than none. It deliberately stays silent for running/planned/new sprints, for a no-op
   save, and for notes-only edits; keep that narrow, or it becomes noise people click through.
+  **It fires at "Use these numbers", not only at Save sprint**, and that placement is
+  load-bearing: once the auto-save has replaced the stored record, the save-time check compares
+  that record against itself, finds nothing changed and stays silent. Declining it fills the
+  boxes without saving — the pre-auto-save behaviour, and the toast says so.
 - **Read-only share links** put the data in the URL fragment (`#share=<marker>.<base64url>`,
   marker 1 = `deflate-raw`, 0 = plain JSON for browsers without `CompressionStream`). Nothing
   after `#` is sent to a server, which is the whole reason this needs no Firestore rules, no

@@ -573,8 +573,9 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
     <details id="jiraBlock">
       <summary>📋 Paste from Jira</summary>
       <p class="sub" style="margin:10px 0 8px">Open the sprint's <strong>Sprint Report</strong> in
-        Jira, select the whole report and copy it, then paste it below. Nothing is saved until you
-        press Save sprint.</p>
+        Jira, select the whole report and copy it, then paste it below. Pressing
+        <strong>Use these numbers</strong> saves the sprint straight away, so you can't lose the
+        figures by closing this box — Cancel undoes that save.</p>
       <label class="sr-only" for="jiraText">Pasted Jira Sprint Report</label>
       <textarea id="jiraText" rows="5" placeholder="Paste the whole Sprint Report here, including the
  &quot;Completed Issues&quot; / &quot;Issues Not Completed&quot; / &quot;Issues Removed From Sprint&quot; headings"></textarea>
@@ -2759,7 +2760,7 @@ const sprintDialog = F('sprintDialog');
    · the press has to have *started* outside too, so selecting text in a field and
      releasing past the edge — easy to do in the Jira paste box — doesn't throw
      away what you were typing. */
-function closeOnBackdropClick(dlg) {
+function closeOnBackdropClick(dlg, dismiss) {
   const outside = (e) => {
     const r = dlg.getBoundingClientRect();
     return e.clientX < r.left || e.clientX > r.right
@@ -2768,14 +2769,17 @@ function closeOnBackdropClick(dlg) {
   let startedOutside = false;
   dlg.addEventListener('mousedown', (e) => { startedOutside = outside(e); });
   dlg.addEventListener('click', (e) => {
-    if (startedOutside && outside(e)) dlg.close();
+    if (startedOutside && outside(e)) (dismiss || (() => dlg.close()))();
     startedOutside = false;
   });
 }
 
 /* Every dialog except the sync reconciliation one, which deliberately refuses to
-   be dismissed — picking which copy of your data to keep has to be a choice. */
-['sprintDialog', 'manageDialog', 'dataDialog', 'helpDialog'].forEach(id => closeOnBackdropClick(F(id)));
+   be dismissed — picking which copy of your data to keep has to be a choice.
+   The sprint editor gets a dismiss of its own, because backing out of it may have
+   a Jira auto-save to put back. */
+['sprintDialog', 'manageDialog', 'dataDialog', 'helpDialog'].forEach(id =>
+  closeOnBackdropClick(F(id), id === 'sprintDialog' ? () => dismissSprintDialog() : null));
 
 function openSprint(teamId, piId, sprintNumber) {
   const existing = findSprint(teamId, piId, sprintNumber);
@@ -2819,6 +2823,7 @@ function openSprint(teamId, piId, sprintNumber) {
   F('jiraPreview').hidden = true;
   F('jiraBlock').open = false;
   jiraDerived = null;
+  clearPendingJiraSave();   // no auto-save carries over from the sprint just closed
 
   F('sprintDeleteBtn').hidden = !existing;
   updateStatusHint();
@@ -2985,8 +2990,8 @@ F('jiraParseBtn').onclick = () => {
     </tbody></table></div>
     <div class="row" style="margin-top:12px">
       <button type="button" class="btn primary" id="jiraApplyBtn">Use these numbers</button>
-      <span class="muted" style="font-size:12px">Fills the boxes below — nothing is saved
-        until you press Save sprint.</span>
+      <span class="muted" style="font-size:12px">Fills the boxes below and saves the sprint —
+        Cancel puts it back as it was.</span>
     </div>`;
 
   F('jiraApplyBtn').onclick = applyJiraNumbers;
@@ -3134,7 +3139,9 @@ function applyJiraNumbers() {
   if (prev !== null && F('f_carriedIn').value.trim() === '') set('f_carriedIn', prev);
   checkSprintForm();
   F('jiraBlock').open = false;
-  toast('Numbers filled in — review, then Save sprint');
+  toast(autoSaveJiraNumbers()
+    ? 'Numbers saved — press Cancel & Undo Save if that’s wrong'
+    : 'Numbers filled in — review, then Save sprint');
 }
 
 F('jiraClearBtn').onclick = () => {
@@ -3142,8 +3149,6 @@ F('jiraClearBtn').onclick = () => {
   F('jiraPreview').hidden = true;
   jiraDerived = null;
 };
-
-F('sprintCancelBtn').onclick = () => sprintDialog.close();
 
 /* Guards a finished sprint against being overwritten by accident — picking the wrong
    sprint from the dropdown, pasting a Jira report and saving would otherwise quietly
@@ -3189,25 +3194,19 @@ function confirmOverwrite(existing, record) {
     + `Save these changes?`);
 }
 
-F('sprintSaveBtn').onclick = () => {
+/* Reading the form and writing the result are split apart because two things save a
+   sprint now — the Save sprint button and the Jira auto-save below — and they must
+   produce byte-identical records. What they *say* afterwards differs, so neither
+   function toasts, closes the dialog or re-renders; that's the caller's job. */
+function buildSprintRecord() {
   /* An empty box saves as 0. Story points are whole numbers, so a decimal typed by
      hand is rounded; averages and targets computed from these are still fractional. */
   const val = (id) => Math.max(0, Math.round(parseFloat(F(id).value) || 0));
-  const piId = F('f_pi').value;
-  const sprintNumber = Number(F('f_num').value);
-
-  /* Moving a sprint onto a slot that already has data would silently create a
-     duplicate, so block it rather than quietly merging the two. */
-  const clash = findSprint(editing.teamId, piId, sprintNumber);
-  if (clash && clash.id !== editing.id) {
-    toast('That sprint already has data — edit it instead');
-    return;
-  }
-
-  const record = {
+  return {
     id: editing.id || uid(),
     teamId: editing.teamId,
-    piId, sprintNumber,
+    piId: F('f_pi').value,
+    sprintNumber: Number(F('f_num').value),
     startDate: F('f_start').value || '',
     endDate: F('f_end').value || '',
     status: F('f_status').value,
@@ -3226,14 +3225,124 @@ F('sprintSaveBtn').onclick = () => {
       general: F('f_n_general').value.trim()
     }
   };
+}
 
+/* Moving a sprint onto a slot that already has data would silently create a
+   duplicate, so block it rather than quietly merging the two. */
+function slotClash(record) {
+  const clash = findSprint(record.teamId, record.piId, record.sprintNumber);
+  return !!(clash && clash.id !== record.id);
+}
+
+function commitSprint(record) {
+  if (slotClash(record)) return false;
+  const i = state.sprints.findIndex(s => s.id === record.id);
+  if (i >= 0) state.sprints[i] = record; else state.sprints.push(record);
+  state.settings.activePiId = record.piId;
+  state.settings.activeSprintNum = record.sprintNumber;
+  save();
+  return true;
+}
+
+/* ── The Jira auto-save, and its undo ───────────────────────────────────────
+   "Use these numbers" used to fill the boxes and stop there, so reading the figures,
+   nodding at them and closing the dialog threw the whole paste away. It now writes
+   the sprint immediately — which trades that hazard for the opposite one, a save
+   nobody asked for, so it is revertible. `pendingJiraSave` is everything the
+   auto-save overwrote, and every way out of the dialog except Save sprint puts it
+   back. */
+let pendingJiraSave = null;
+
+/* The undo has to be visible or it may as well not exist: the button is the only
+   place to say so, since `toast()` is text-only and pointer-events: none. */
+function setCancelLabel() {
+  F('sprintCancelBtn').textContent = pendingJiraSave ? 'Cancel & Undo Save' : 'Cancel';
+}
+
+function clearPendingJiraSave() { pendingJiraSave = null; setCancelLabel(); }
+
+function revertJiraSave() {
+  const snap = pendingJiraSave;
+  clearPendingJiraSave();
+  const i = state.sprints.findIndex(s => s.id === snap.recordId);
+  if (snap.before) {
+    if (i >= 0) state.sprints[i] = snap.before; else state.sprints.push(snap.before);
+  } else if (i >= 0) {
+    state.sprints.splice(i, 1);          // nothing was there before — take it away again
+  }
+  state.settings.activePiId = snap.activePiId;
+  state.settings.activeSprintNum = snap.activeSprintNum;
+  save();
+  render();
+  toast('Auto-save undone');
+}
+
+/* Returns true only if the figures reached storage. Every other path leaves the boxes
+   filled but unsaved — exactly how this worked before — so the paste is never lost,
+   it just still needs Save sprint. */
+function autoSaveJiraNumbers() {
+  if (viewOnly) return false;              // someone else's data — nothing here saves
+  const record = buildSprintRecord();
+  if (slotClash(record)) return false;
+  const i = state.sprints.findIndex(s => s.id === record.id);
+  const before = i >= 0 ? state.sprints[i] : null;
+
+  /* The finished-sprint guard has to fire here rather than at Save sprint: once the
+     auto-save has replaced the stored record, the save-time check is comparing that
+     record against itself, finds nothing changed and stays silent. */
+  if (!confirmOverwrite(before, record)) return false;
+
+  /* Taken before the write, and only on the first press — a second "Use these
+     numbers" must not snapshot the copy the first one saved. */
+  const snapshot = pendingJiraSave || {
+    recordId: record.id,
+    before: before ? JSON.parse(JSON.stringify(before)) : null,
+    activePiId: state.settings.activePiId,
+    activeSprintNum: state.settings.activeSprintNum
+  };
+
+  if (!commitSprint(record)) return false;
+
+  pendingJiraSave = snapshot;
+  editing.id = record.id;                  // so Save sprint updates it, not duplicates it
+  F('sprintDeleteBtn').hidden = false;     // it exists now, even if only provisionally
+  setCancelLabel();
+  render();
+  return true;
+}
+
+/* Cancel, Escape and a backdrop click are the three ways out that aren't a save, and
+   all three have to put the auto-save back. They're wired individually rather than
+   hung off the dialog's own `close` event, which looks like the one hook that covers
+   all three: it's dispatched as a queued task and doesn't reliably arrive — it never
+   fired once under Electron — and an undo that silently doesn't happen is worse than
+   no undo at all. `close` stays on as a backstop for any path that slips past. */
+function dismissSprintDialog() {
+  if (pendingJiraSave) revertJiraSave();
+  sprintDialog.close();
+}
+
+F('sprintCancelBtn').onclick = dismissSprintDialog;
+
+/* A <dialog> closes itself on Escape without going through any of our handlers, so
+   Escape is taken over here. */
+sprintDialog.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { e.preventDefault(); dismissSprintDialog(); }
+});
+
+sprintDialog.addEventListener('close', () => { if (pendingJiraSave) revertJiraSave(); });
+
+F('sprintSaveBtn').onclick = () => {
+  const record = buildSprintRecord();
+  if (slotClash(record)) {
+    toast('That sprint already has data — edit it instead');
+    return;
+  }
   const i = state.sprints.findIndex(s => s.id === record.id);
   if (!confirmOverwrite(i >= 0 ? state.sprints[i] : null, record)) return;
-  if (i >= 0) state.sprints[i] = record; else state.sprints.push(record);
+  if (!commitSprint(record)) return;
 
-  state.settings.activePiId = piId;
-  state.settings.activeSprintNum = sprintNumber;
-  save();
+  clearPendingJiraSave();
   sprintDialog.close();
   render();
   toast('Sprint saved');
@@ -3243,6 +3352,7 @@ F('sprintDeleteBtn').onclick = () => {
   if (!editing || !editing.id) return;
   if (!confirm('Delete this sprint’s data? This can’t be undone.')) return;
   state.sprints = state.sprints.filter(s => s.id !== editing.id);
+  clearPendingJiraSave();                  // deleting is the intent; nothing to put back
   save();
   sprintDialog.close();
   render();

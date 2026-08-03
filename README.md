@@ -125,9 +125,20 @@ shortfall. Stacking the whole carryover figure into that bar used to overstate c
 leave "dropped" as a residual, which under-reported removed work — a sprint that dropped six
 points read as one.
 
-Nothing is saved by pasting. **Use these numbers** fills the boxes, you check them, and the
-sprint saves only when you press Save sprint. Your "why" notes are never touched. If the
+Nothing is saved by pasting itself — reading the report only shows you the preview. Pressing
+**Use these numbers** fills the boxes **and saves the sprint there and then**, so a paste you
+were happy with can't be lost by closing the form. Your "why" notes are never touched. If the
 paste can't be read, it says so and shows what it did find rather than filling in zeros.
+
+That save is undoable. While it's outstanding the Cancel button reads **Cancel & Undo Save**,
+and pressing it — or Escape, or clicking outside the form — puts your data back exactly as it
+was, right down to the figures the sprint already held. Press **Save sprint** instead and the
+numbers stay, along with anything else you typed while you were in there.
+
+If you're pasting over a sprint that has already finished and has real figures in it, the
+usual "saving will change…" confirmation appears at **Use these numbers** rather than at Save
+sprint, listing each figure that would change. Say no and the boxes are still filled in for
+you to look at — nothing is saved until you press Save sprint yourself.
 
 Both common paste shapes work — tab-separated rows and one-cell-per-line — since browsers
 differ in how they copy tables. Which shape you've pasted is decided on a count of the
