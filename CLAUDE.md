@@ -124,7 +124,14 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   over-commits the team. Don't "improve" it into a velocity-based figure; the reasoning is
   in the comment above the function and in the card's "How this is worked out".
 - RAG state must never be conveyed by colour alone — tiles and pills carry a glyph and an
-  `sr-only` status. Every theme is WCAG AA on the figures; keep them that way. The view tabs
+  `sr-only` status. Every theme is WCAG AA on the figures; keep them that way.
+- **A RAG surface is a tint fill plus a status-colour edge, everywhere** — `.tile`, `.pill` and
+  the All teams bars all pair `--green`/`--amber`/`--red` with their `-bg` tint. `ragVar()` is
+  the one place that maps a value to those custom properties, so a chart can't drift from the
+  pill beside it; don't inline the ternary back into a dataset. Solid status-coloured bars are
+  what this replaced: the contrast gate forces all three colours dark on Light and Sepia, so a
+  large solid area reads olive/maroon/bottle-green — three near-blacks — which is the same
+  failure the tinted tiles fixed. The view tabs
   are a real tablist: `aria-controls` onto `#views` (`role="tabpanel"`), roving `tabindex`
   set in `render()` beside `aria-selected`, and arrow/Home/End wired at the foot of the
   file, skipping hidden tabs. `role="tabpanel"` sits on the inner `#views` div, **not on

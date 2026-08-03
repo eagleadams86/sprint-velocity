@@ -67,6 +67,12 @@ pale card, and at that size three dark colours all read as near-black — the fi
 this change was flagged by colour-normal reviewers as well as a colourblind one. A filled panel
 gives the eye a large area of the hue instead.
 
+The **All teams** bar chart follows the same rule: each bar is drawn like the pill in the table
+beneath it — the status tint as the fill, the status colour as the outline — rather than as a
+solid block of the status colour. A solid bar had exactly the problem the tinted panels fixed,
+only larger: on Light and Sepia the three bars rendered olive, maroon and bottle-green, and you
+were being asked to tell three near-blacks apart across the width of a chart.
+
 Every tile on the Sprint, Current PI and Rolling 5 views has a small **ⓘ** button in its
 top-right corner. Click it for a plain-English definition of that figure — what it means,
 how it's worked out, and the target it's being judged against. It works in a shared

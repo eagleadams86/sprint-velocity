@@ -1138,6 +1138,17 @@ function rag(value, scale) {
 const RAG_TEXT  = { green: 'On target', yellow: 'Watch', red: 'Off target', none: 'No data' };
 const RAG_GLYPH = { green: '✓', yellow: '!', red: '✕', none: '' };
 
+/* The custom property a RAG state paints with, so a chart can't drift from the pill
+   beside it: `ragVar(v, s)` gives the status colour, `ragVar(v, s, '-bg')` its tint —
+   the same --green/--green-bg pair .pill and .tile use. 'none' has no status colour,
+   so it borrows the muted pair the .pill.none rule already uses. */
+const RAG_VAR = { green: '--green', yellow: '--amber', red: '--red' };
+const ragVar = (value, scale, suffix) => {
+  const key = rag(value, scale);
+  if (key === 'none') return suffix ? '--surface-alt' : '--border-strong';
+  return RAG_VAR[key] + (suffix || '');
+};
+
 /* ── What each tile means ───────────────────────────────────────────────────
    The ⓘ on a tile opens one of these. The app gets shared as a read-only link
    with Scrum Masters who were never told the definitions, so every figure has to
@@ -2905,13 +2916,19 @@ function renderTeamsView() {
       data: {
         labels: withData.map(r => r.team.name),
         datasets: [
+          /* Drawn as the pill in the table below is drawn — the status tint as the fill,
+             the status colour as the outline — not as a solid block of the status colour.
+             Same reason the tiles were filled: on Light and Sepia the contrast rules force
+             all three status colours dark, so a solid bar rendered olive, maroon and
+             bottle-green, three near-blacks that had to be told apart by eye across the
+             width of a chart. The tint is the large flat area of hue, the outline keeps
+             the bar's edge crisp on the dark themes where the tint is quiet. Colour still
+             isn't the only signal: the bar's figure and its glyph are in the row below. */
           { type: 'bar', label: 'Commitment completion % (avg of sprints)', order: 2,
             data: withData.map(r => r.commit),
-            maxBarThickness: 72,
-            backgroundColor: withData.map(r => {
-              const key = rag(r.commit, 'completion');
-              return key === 'green' ? cssVar('--green') : key === 'yellow' ? cssVar('--amber') : cssVar('--red');
-            }) },
+            maxBarThickness: 72, borderWidth: 2, borderSkipped: false, borderRadius: 4,
+            backgroundColor: withData.map(r => cssVar(ragVar(r.commit, 'completion', '-bg'))),
+            borderColor: withData.map(r => cssVar(ragVar(r.commit, 'completion'))) },
           { type: 'line', label: 'Target 85%', order: 1, data: withData.map(() => 85),
             borderColor: cssVar('--text-secondary'), borderWidth: 1.5, borderDash: [6, 4],
             pointRadius: 0 }
