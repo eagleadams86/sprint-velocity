@@ -237,4 +237,11 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   desktop app's preview pane via `.claude/launch.json`), then commit, push, verify the
   Pages deploy, and spot-check live. Any local server + browser works — don't hunt for a
   specific tool.
-- Write commit subject lines in plain English a non-developer can read.
+- Write commit subject lines in plain English a non-developer can read. **They are now
+  user-facing**: the "Recent changes" box at the foot of the page fetches the last 10
+  commits touching `index.html` from the GitHub API and lists the subject lines verbatim,
+  each linking to its commit. Write them for a reader, not for a diff.
+- The changelog fetches **on first expand, not on load**, so it costs nothing for the
+  common case, and it only renders an `<a>` when the API's `html_url` is a real
+  `https://github.com/` link (a `<span>` otherwise) — the same guard the lottery calculator
+  uses, so a hostile URL from the API can't become a `javascript:` href.

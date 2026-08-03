@@ -392,6 +392,16 @@ data leaves your machine** unless you choose to sign in.
 back. Useful as a backup, for moving between browsers, or for handing a colleague a
 starting point.
 
+## Recent changes
+
+At the foot of the page there's a collapsed **Recent changes** box. Expand it and it fetches
+the last 10 commits to `index.html` from the GitHub API and lists them newest first, each
+one a link to the commit itself. Nothing is fetched until you open it, and if you're offline
+it just says so.
+
+Commit subject lines are written in plain English for this reason — the box is the app's
+changelog, so the commit history *is* the release notes.
+
 ## Sharing a read-only link
 
 The *Share* button builds a link that shows someone your figures without them signing in —
@@ -508,8 +518,9 @@ GitHub Pages (static hosting, this repo, main branch)
             ├── all state ──► browser localStorage (source of truth, works offline)
             ├── signed in ──► Firestore doc sprintvelocity/{uid} (optional;
             │                 last-write-wins by updatedAt, live onSnapshot updates)
-            └── shared    ──► the URL fragment itself (#share=…), read-only, never
-                              uploaded and never written back to localStorage
+            ├── shared    ──► the URL fragment itself (#share=…), read-only, never
+            │                 uploaded and never written back to localStorage
+            └── changelog ──► GitHub commits API, read-only, fetched on first expand
 ```
 
 No server of our own. No build, no dependencies to install, no npm.
