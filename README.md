@@ -379,6 +379,25 @@ break-in amber, removed violet, carryover red — so a chart reads the same way 
 palette you're in. Charts re-render on a switch, because their colours are resolved when
 they're built.
 
+**Which series is which never depends on the colour.** Every bar carries a fill texture as
+well — committed plain, committed-completed hatched one way, total-completed the other,
+carried out in horizontal lines, added work in dots — and the three lines on the instability
+chart carry a dash pattern and a point shape (solid circle, dashed triangle, dash-dot
+square). The texture is fixed per series in the same way the hue is, so it means the same
+thing in all four themes, and it shows up in the chart legend and the hover tooltip as well
+as on the bars.
+
+This is deliberately not a colour fix. Red-green colour vision deficiency flattens the
+red-green axis, leaving blue-yellow and lightness, which carry about three reliable levels
+between them — and there are six series. Measured with the theme pack's simulation, the
+committed grey and the velocity teal land within a CIE ΔE of 9–18 of each other in *every*
+theme, and they're two of the three bars on the PI chart; a re-shading that cleared the
+threshold did exist, but only by turning the committed bar near-black on the Light and Sepia
+cards, and in Midnight only one candidate passed at all. The texture costs the palette
+nothing and doesn't degrade. Stripes are the series' own colour pushed further from the card
+rather than a second colour, so a textured bar still clears the 3:1 non-text contrast a flat
+one did.
+
 RAG state is never carried by colour alone — every tile and pill also has a glyph and a
 spelled-out status for a screen reader. The view tabs work from the keyboard the way a tab
 row is expected to: arrow keys move along the row and switch view, Home and End jump to the

@@ -52,7 +52,15 @@
 /* Every theme keeps the same hue for the same series — committed grey, completed
    blue, velocity teal, added amber, removed violet, carried red — so a chart reads
    the same way whichever palette you're in. Only the shade changes, tuned to sit
-   on that theme's card. */
+   on that theme's card.
+
+   These six are NOT all distinguishable under red-green colour vision deficiency,
+   and deliberately so: see SERIES_TEXTURE further down, where each series also
+   gets a fill texture (bars) or a dash and point shape (lines). Six categories do
+   not fit on the blue-yellow axis that survives the deficiency, so the texture is
+   the cue that actually separates them and the colour is the one that's pleasant.
+   Re-shading these values to chase a colour-only fix was measured and rejected —
+   the reasoning is in that comment. */
 [data-theme="dark"] {
   color-scheme: dark;
   --c-committed:  #9aa5b5;
