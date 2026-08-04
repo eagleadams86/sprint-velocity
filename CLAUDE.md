@@ -38,9 +38,10 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   measured anyway: it clears the gate only by driving committed to near-black on the light and
   sepia cards, and in midnight exactly **one** candidate passed, at 19.0 against a threshold of
   18. Don't swap the texture back out for a colour tweak, and don't re-hue.
-  Stripes are the series colour pushed *further from the card* (toward black on a light card,
-  white on a dark one), never a second colour, so a textured bar can't spend the 3:1 non-text
-  contrast the flat colour already had.
+  Stripes are the series colour at *full strength* over the tinted fill (see the bar-drawing
+  bullet below), never a second colour — the stripe is where a textured bar's 3:1 non-text
+  contrast now lives. They used to be the colour pushed further from the card because the fill
+  was the flat colour; the fill is the thing that moves now, so don't reinstate the push.
 - **`--c-completed` vs `--c-removed` is deltaE 0.4 in sepia and is deliberately left alone.**
   Blue is never in the churn chart and violet is never in the others, so nothing ever asks you
   to tell those two apart. Only pairs that share a chart have to clear the gate — measuring all
@@ -137,6 +138,20 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   file, skipping hidden tabs. `role="tabpanel"` sits on the inner `#views` div, **not on
   `<main>`** — putting it on the element replaces its role, which silently cost the page its
   main landmark once already.
+- **Every bar is a tint fill plus a full-strength edge, not a slab of its colour** — the same
+  rule as the RAG surfaces above, extended to the categorical series bars. `tintOf()` mixes the
+  series colour toward `--surface` (the *card*, not white, which is what makes one constant work
+  in all four themes: on the dark themes the fill goes quiet and the outline is the bright
+  thing), and `seriesBar()` is the one place that pairs that fill with `borderColor` +
+  `borderWidth: 2` + `borderSkipped: false` — never set `backgroundColor: seriesFill(…)` on a
+  dataset by hand, or the bar keeps the tint and loses the edge that carries its contrast.
+  This is what fixed "the charts are dark compared to the rest of the sepia/light theme": the
+  3:1 non-text rule forces every series colour dark on a pale card, so three or four bars read
+  as slabs of near-black. Two tint strengths, both deliberate: `BAR_TINT` (.68) for a textured
+  series, whose stripes put full-strength colour back over about a third of the bar, and
+  `BAR_TINT_SOLID` (.45) for committed, which has only its outline and washed out to invisible
+  on the white Light card at .68. Lines are untouched — a 2px line is not a large flat area, so
+  it keeps the full-strength colour.
 - **A clickable row needs a real control in it.** Every table's first cell is a
   `<th scope="row">` holding a `.rowbtn` — a `<tr>` can't take focus, and giving it a button
   role would break the grid semantics that make nine numeric columns readable. The row keeps

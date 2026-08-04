@@ -73,6 +73,15 @@ solid block of the status colour. A solid bar had exactly the problem the tinted
 only larger: on Light and Sepia the three bars rendered olive, maroon and bottle-green, and you
 were being asked to tell three near-blacks apart across the width of a chart.
 
+**Every other bar chart is drawn that way too.** A bar's area is a tint of its series colour —
+the colour mixed most of the way toward the card behind it — with the full-strength colour on
+the outline and in the texture stripes. The same contrast rule that darkens the status colours
+darkens the series colours, so on the cream Sepia and white Light cards the charts used to read
+as slabs of near-black sitting on a pale page. Moving the colour to the edge keeps the contrast
+where the eye reads the boundary and gives the large area back to the card. Because the tint is
+mixed toward the *card* and not toward white, the same rule works on the dark themes — there the
+fill goes quiet and the outline is the bright thing.
+
 Every tile on the Sprint, Current PI and Rolling 5 views has a small **ⓘ** button in its
 top-right corner. Click it for a plain-English definition of that figure — what it means,
 how it's worked out, and the target it's being judged against. It works in a shared
@@ -408,9 +417,9 @@ committed grey and the velocity teal land within a CIE ΔE of 9–18 of each oth
 theme, and they're two of the three bars on the PI chart; a re-shading that cleared the
 threshold did exist, but only by turning the committed bar near-black on the Light and Sepia
 cards, and in Midnight only one candidate passed at all. The texture costs the palette
-nothing and doesn't degrade. Stripes are the series' own colour pushed further from the card
-rather than a second colour, so a textured bar still clears the 3:1 non-text contrast a flat
-one did.
+nothing and doesn't degrade. Stripes are the series' own colour at full strength over the
+tinted fill, never a second colour — so the texture is also where a textured bar's contrast
+lives, and it reads more clearly than it did when both fill and stripe were dark.
 
 RAG state is never carried by colour alone — every tile and pill also has a glyph and a
 spelled-out status for a screen reader. The view tabs work from the keyboard the way a tab

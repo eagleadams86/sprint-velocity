@@ -41,7 +41,10 @@
    the categorical chart series colors and the translucent threshold bands, which
    need a value per theme because CSS custom properties can't be alpha-blended at
    read time by the charting code. All series colors clear 3:1 against their
-   theme's card background (WCAG 1.4.11, non-text contrast). */
+   theme's card background (WCAG 1.4.11, non-text contrast) — which is what lets
+   a bar be drawn as a TINT of its series color with the full-strength color on
+   the outline and in the texture, rather than as a slab of it. See seriesBar()
+   and tintOf(); these values are the outline, not the fill. */
 :root {
   /* Tells the browser to render its own controls — the date picker's calendar
      button, number-input spinners, scrollbars — to match the theme. Without it the
@@ -1794,40 +1797,75 @@ const SERIES_TEXTURE = {
 
 const textures = {};
 
-/* Stripes are the series colour pushed FURTHER from the card, never a second
-   colour: on a light card toward black, on a dark card toward white. Both
-   directions raise contrast, so every part of a textured bar still clears the
-   3:1 the flat colour already did — the texture can't spend the non-text
-   contrast budget (WCAG 1.4.11) that the comment at the top of the file claims. */
-function stripeInk(hex, towardWhite) {
-  const n = parseInt(hex.slice(1), 16);
-  const mix = (c) => Math.round(towardWhite ? c + (255 - c) * .55 : c * .45);
-  return `rgb(${mix(n >> 16 & 255)},${mix(n >> 8 & 255)},${mix(n & 255)})`;
+/* ── A bar is a TINT with the series colour on its edge, not a slab of it ────
+   The area of a bar is drawn in a tint of the series colour — the colour mixed
+   most of the way toward the card it sits on — and the full-strength colour goes
+   on the outline and into the texture stripes instead. This is the treatment the
+   All-teams status bars already use (see the comment on `teamsChart` further
+   down) and the one the RAG tiles and pills use via `ragVar()`; the categorical
+   series bars simply never got it.
+
+   Why: the 3:1 non-text contrast rule (WCAG 1.4.11) applies to a large flat area
+   of colour, so on the near-white Light and cream Sepia cards every series colour
+   is forced dark, and three or four of them stacked across a chart read as a
+   slab of near-blacks on a pale page. Moving the colour to the edge keeps the
+   contrast where the eye reads the boundary and hands the large area back to the
+   card. Mixing toward `--surface` rather than toward white means one constant
+   works in all four themes: on Midnight the tint goes DOWN toward the dark card,
+   and the outline is the bright thing.
+
+   It also strengthens the colour-blind cue rather than costing anything: a
+   full-strength stripe on a pale fill separates further than the darkened stripe
+   on a dark fill this replaced (stripes used to be pushed away from the card to
+   protect that same contrast budget — the fill is what moves now).
+
+   Two tint strengths, both deliberate. A TEXTURED series can travel further from
+   its colour: the stripes put full strength back over about a third of the bar,
+   so the identity survives a pale fill. The one solid series (committed) has
+   nothing but its outline, and at the same value it washed out to near-invisible
+   on the white Light card — so it keeps more of its colour. */
+const BAR_TINT = .68, BAR_TINT_SOLID = .45;
+
+function tintOf(hex, amount) {
+  const card = cssVar('--surface');
+  if (!/^#[0-9a-f]{6}$/i.test(card)) return hex;
+  const a = parseInt(hex.slice(1), 16), b = parseInt(card.slice(1), 16);
+  const mix = (sh) => {
+    const from = a >> sh & 255;
+    return Math.round(from + ((b >> sh & 255) - from) * amount);
+  };
+  return `rgb(${mix(16)},${mix(8)},${mix(0)})`;
 }
 
-function relLum(hex) {
-  const n = parseInt(hex.slice(1), 16);
-  const ch = (c) => { c /= 255; return c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4; };
-  return .2126 * ch(n >> 16 & 255) + .7152 * ch(n >> 8 & 255) + .0722 * ch(n & 255);
-}
+/* The dataset properties a bar needs, in one place so no chart can pick up the
+   tinted fill without the outline that carries its contrast. Values match the
+   All-teams bar deliberately; `borderSkipped: false` is what draws the base edge
+   at all, and on the stacked horizontal chart it's what separates one segment
+   from the next. */
+const seriesBar = (token) => ({
+  backgroundColor: seriesFill(token),
+  borderColor: cssVar(token),
+  borderWidth: 2, borderSkipped: false, borderRadius: 4
+});
 
-/* Returns a CanvasPattern, or the plain colour string for an untextured series —
-   Chart.js takes either wherever a fill goes, including the legend swatch and the
+/* Returns a CanvasPattern, or the plain tint for an untextured series — Chart.js
+   takes either wherever a fill goes, including the legend swatch and the
    tooltip's colour box, so the cue follows the series everywhere by itself. */
 function seriesFill(token) {
   const color = cssVar(token);
   const kind = SERIES_TEXTURE[token];
-  if (!kind || kind === 'solid' || !/^#[0-9a-f]{6}$/i.test(color)) return color;
+  if (!/^#[0-9a-f]{6}$/i.test(color)) return color;
+  if (!kind || kind === 'solid') return tintOf(color, BAR_TINT_SOLID);
+  const fill = tintOf(color, BAR_TINT);
 
   /* Chart.js scales its context by devicePixelRatio, and a pattern tile is laid
      out in user space — so the tile is drawn at device resolution and scaled back
      down through setTransform, or it renders both twice the size and blurred. */
   const dpr = Math.max(1, Math.round(window.devicePixelRatio || 1));
-  /* The card is in the key, not just the colour: the stripe is mixed toward
-     black or white depending on which way raises contrast, so the same series
-     colour on a light and a dark card is two different tiles. */
-  const onDark = relLum(cssVar('--surface') || '#ffffff') < .35;
-  const key = `${kind}|${color}|${dpr}|${onDark}`;
+  /* The card is in the key, not just the colour: the fill is mixed toward the
+     card, so the same series colour on two different cards is two different
+     tiles — and Light and Sepia must not share one. */
+  const key = `${kind}|${color}|${dpr}|${cssVar('--surface')}`;
   if (textures[key]) return textures[key];
 
   const S = 8;
@@ -1835,10 +1873,10 @@ function seriesFill(token) {
   cv.width = cv.height = S * dpr;
   const x = cv.getContext('2d');
   x.scale(dpr, dpr);
-  x.fillStyle = color;
+  x.fillStyle = fill;
   x.fillRect(0, 0, S, S);
 
-  x.strokeStyle = x.fillStyle = stripeInk(color, onDark);
+  x.strokeStyle = x.fillStyle = color;
   x.lineWidth = 1.8;
   x.lineCap = 'square';
 
@@ -1854,6 +1892,11 @@ function seriesFill(token) {
     for (let i = -S; i <= S; i += gap) line(i, -S * 1.5, i, S * 1.5);
     x.restore();
   } else if (kind === 'horizontal') {
+    /* Thinner than the rest: two straight lines across the tile cover ~45% of it
+       against a 45° hatch's ~32%, and carryover paints the single widest area in
+       the app (most of the Committed bar in a bad sprint), so at equal weight it
+       reads noticeably heavier than the bars either side of it. */
+    x.lineWidth = 1.4;
     line(-1, S / 4, S + 1, S / 4);
     line(-1, S * 3 / 4, S + 1, S * 3 / 4);
   } else if (kind === 'cross') {
@@ -2243,10 +2286,10 @@ function renderSprintView() {
       labels: ['Committed', 'Delivered'],
       datasets: [
         { label: 'Completed from commitment', data: [m.committedCompleted, m.committedCompleted],
-          backgroundColor: seriesFill('--c-completed'), maxBarThickness: 72 },
-        { label: 'Carried out', data: [carriedFromCommit, 0], backgroundColor: seriesFill('--c-carry'), maxBarThickness: 72 },
-        { label: 'Dropped', data: [dropped, 0], backgroundColor: seriesFill('--c-committed'), maxBarThickness: 72 },
-        { label: 'Added work completed', data: [0, addedDone], backgroundColor: seriesFill('--c-added'), maxBarThickness: 72 }
+          ...seriesBar('--c-completed'), maxBarThickness: 72 },
+        { label: 'Carried out', data: [carriedFromCommit, 0], ...seriesBar('--c-carry'), maxBarThickness: 72 },
+        { label: 'Dropped', data: [dropped, 0], ...seriesBar('--c-committed'), maxBarThickness: 72 },
+        { label: 'Added work completed', data: [0, addedDone], ...seriesBar('--c-added'), maxBarThickness: 72 }
       ]
     },
     options: baseOptions({
@@ -2448,13 +2491,13 @@ function renderPiView() {
    wherever it dips below a bar's top. */
         { type: 'bar', label: 'Committed', yAxisID: 'y', order: 2,
           data: rows.map(r => r.s ? metrics(r.s).committed : null),
-          backgroundColor: seriesFill('--c-committed'), maxBarThickness: 56 },
+          ...seriesBar('--c-committed'), maxBarThickness: 56 },
         { type: 'bar', label: 'Committed completed', yAxisID: 'y', order: 2,
           data: rows.map(r => r.s ? metrics(r.s).committedCompleted : null),
-          backgroundColor: seriesFill('--c-completed'), maxBarThickness: 56 },
+          ...seriesBar('--c-completed'), maxBarThickness: 56 },
         { type: 'bar', label: 'Total completed', yAxisID: 'y', order: 2,
           data: rows.map(r => r.s ? metrics(r.s).velocity : null),
-          backgroundColor: seriesFill('--c-velocity'), maxBarThickness: 56 },
+          ...seriesBar('--c-velocity'), maxBarThickness: 56 },
         { type: 'line', label: 'Commitment completion %', yAxisID: 'y1', order: 1,
           /* Bars keep showing an unfinished sprint's progress, but the completion
              line stops short of it — a half-done sprint plotted as a percentage
@@ -2603,9 +2646,9 @@ function renderRollingView() {
       labels,
       datasets: [
         { type: 'bar', label: 'Total completed (velocity)', yAxisID: 'y', order: 2,
-          data: rs.map(s => metrics(s).velocity), backgroundColor: seriesFill('--c-velocity'), maxBarThickness: 56 },
+          data: rs.map(s => metrics(s).velocity), ...seriesBar('--c-velocity'), maxBarThickness: 56 },
         { type: 'bar', label: 'Committed completed', yAxisID: 'y', order: 2,
-          data: rs.map(s => metrics(s).committedCompleted), backgroundColor: seriesFill('--c-completed'), maxBarThickness: 56 },
+          data: rs.map(s => metrics(s).committedCompleted), ...seriesBar('--c-completed'), maxBarThickness: 56 },
         { type: 'line', label: 'Commitment completion %', yAxisID: 'y1', order: 1,
           data: rs.map(s => metrics(s).commitCompletePct),
           borderColor: cssVar('--text-primary'), backgroundColor: cssVar('--text-primary'),
@@ -2936,6 +2979,8 @@ function renderTeamsView() {
         datasets: [
           /* Drawn as the pill in the table below is drawn — the status tint as the fill,
              the status colour as the outline — not as a solid block of the status colour.
+             This is where that treatment started; seriesBar() now does the same for the
+             categorical bars, for the same reason.
              Same reason the tiles were filled: on Light and Sepia the contrast rules force
              all three status colours dark, so a solid bar rendered olive, maroon and
              bottle-green, three near-blacks that had to be told apart by eye across the
