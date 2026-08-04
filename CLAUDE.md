@@ -139,7 +139,9 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   `<main>`** — putting it on the element replaces its role, which silently cost the page its
   main landmark once already.
 - **Every bar is a tint fill plus a full-strength edge, not a slab of its colour** — the same
-  rule as the RAG surfaces above, extended to the categorical series bars. `tintOf()` mixes the
+  rule as the RAG surfaces above, extended to the categorical series bars. This is now a
+  cross-app convention (rule 3 in `~/claude-theme-pack/CLAUDE.md`, also in the lottery
+  portfolio); it adds no tokens, so it's a drawing rule rather than a palette one. `tintOf()` mixes the
   series colour toward `--surface` (the *card*, not white, which is what makes one constant work
   in all four themes: on the dark themes the fill goes quiet and the outline is the bright
   thing), and `seriesBar()` is the one place that pairs that fill with `borderColor` +
