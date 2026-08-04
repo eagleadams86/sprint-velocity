@@ -4097,6 +4097,12 @@ if (viewOnly) {
 } else {
   render();
 }
+
+/* Dev hook for tests.html (which loads this page in a same-origin iframe and
+   calls the pure functions). Function declarations are already reachable as
+   window properties; this exposes the one const the tests need. Nothing in the
+   app reads it. */
+window.__svTestHooks = { fmtPct };
 </script>
 
 <script type="module">

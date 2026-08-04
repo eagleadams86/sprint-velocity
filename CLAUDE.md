@@ -268,6 +268,15 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   desktop app's preview pane via `.claude/launch.json`), then commit, push, verify the
   Pages deploy, and spot-check live. Any local server + browser works — don't hunt for a
   specific tool.
+- **`tests.html` pins the pure functions — open it (same local server) and check "All N
+  tests pass" whenever you touch the Jira parser, `metrics()`/`rag()`/`fmtPct()`,
+  `avg()`/`pooled()`, `sanitizeIds()` or `sprintStatus()`.** It loads the real
+  `index.html` in a hidden iframe and calls the functions directly — no build step, no
+  copies — so it needs `http://localhost` (file:// iframes are blocked in some
+  browsers). `window.__svTestHooks` at the foot of the classic script exists solely to
+  hand it `fmtPct` (a `const`, invisible on `window`); function declarations it reaches
+  directly. When a rule in this file changes, change the matching test in the same
+  commit.
 - Write commit subject lines in plain English a non-developer can read. **They are now
   user-facing**: the "Recent changes" box at the foot of the page fetches the last 10
   commits touching `index.html` from the GitHub API and lists the subject lines verbatim,

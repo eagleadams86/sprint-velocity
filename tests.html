@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sprint Velocity — tests</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Dev-only page: pins the pure functions in index.html. It loads the real app
+     in a hidden same-origin iframe and calls its functions directly, so what's
+     tested is exactly what ships — no copies, no build step. Serve over
+     http://localhost (python3 -m http.server 8012); file:// iframes are blocked
+     in some browsers. Nothing here writes localStorage or calls save(). */
+  body { background: var(--bg); color: var(--text-primary); margin: 0;
+         font: 14px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 28px 20px 60px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .sub { color: var(--text-muted); font-size: 12.5px; margin: 0 0 18px; }
+  #summary { font-weight: 600; padding: 10px 14px; border-radius: 10px; margin-bottom: 16px;
+             border: 1px solid var(--border); background: var(--surface); }
+  #summary.ok  { color: var(--ok);  border-color: var(--ok); }
+  #summary.bad { color: var(--err); border-color: var(--err); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  td { padding: 6px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  td.st { width: 28px; font-weight: 700; }
+  tr.pass td.st { color: var(--ok); }
+  tr.fail td.st { color: var(--err); }
+  tr.fail td.msg { color: var(--err); }
+  .msg { color: var(--text-muted); font-size: 12px; white-space: pre-wrap; }
+  .group td { padding-top: 16px; font-size: 11px; font-weight: 600; letter-spacing: .06em;
+              text-transform: uppercase; color: var(--text-muted); border-bottom-color: var(--border-strong); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Sprint Velocity — pure-function tests</h1>
+  <p class="sub">Runs against the real <code>index.html</code> in a hidden iframe. Read-only: nothing is saved.</p>
+  <div id="summary">Loading app…</div>
+  <table><tbody id="out"></tbody></table>
+</div>
+<iframe id="app" src="index.html" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" title="app under test"></iframe>
+
+<script>
+'use strict';
+const TESTS = [];
+let currentGroup = '';
+function group(name) { TESTS.push({ group: name }); }
+function t(name, fn) { TESTS.push({ name, fn }); }
+
+function fmt(v) { return typeof v === 'string' ? JSON.stringify(v) : JSON.stringify(v); }
+function eq(actual, expected, note) {
+  const a = JSON.stringify(actual), e = JSON.stringify(expected);
+  if (a !== e) throw new Error((note ? note + ': ' : '') + 'expected ' + e + ', got ' + a);
+}
+function approx(actual, expected, note, eps) {
+  if (typeof actual !== 'number' || Math.abs(actual - expected) > (eps || 1e-9))
+    throw new Error((note ? note + ': ' : '') + 'expected ≈' + expected + ', got ' + fmt(actual));
+}
+function ok(cond, note) { if (!cond) throw new Error(note || 'expected truthy'); }
+
+/* ── Fixtures ─────────────────────────────────────────────────────────────── */
+
+/* An ordinary tab-separated Sprint Report paste: three sections, one starred
+   (added mid-sprint) completed issue, and one issue that was added then removed
+   (starred AND in the removed section — must net out of both). Header totals
+   are Jira's own checksums and match the rows. */
+const TABBED = [
+  'Completed Issues',
+  'Key\tSummary\tIssue Type\tPriority\tStatus\tStory Points (13)',
+  'ABC-1\tBuild the thing\tStory\tHigh\tDone\t5',
+  'ABC-2\tFix the thing\tBug\tMedium\tDone\t3',
+  'ABC-3 *\tBroke in and finished\tStory\tHigh\tDone\t5',
+  'Issues Not Completed',
+  'Key\tSummary\tIssue Type\tPriority\tStatus\tStory Points (8)',
+  'ABC-4\tHalf done\tStory\tLow\tIn Progress\t8',
+  'Issues Removed From Sprint',
+  'Key\tSummary\tIssue Type\tPriority\tStatus\tStory Points (7)',
+  'ABC-5\tDescoped\tStory\tLow\tOpen\t2',
+  'ABC-6 *\tIn then out\tStory\tLow\tOpen\t5',
+].join('\n');
+
+/* Mid-sprint re-estimates: rows carry "start → current" and the header carries
+   the same range. Committed must use the start sizes; everything else current. */
+const RESIZED = [
+  'Completed Issues',
+  'Key\tSummary\tStatus\tStory Points (21 → 15)',
+  'XYZ-1\tBig story, shrank\tDone\t13 → 8',
+  'XYZ-2\tSteady-ish\tDone\t8 → 7',
+  'Issues Not Completed',
+  'Key\tSummary\tStatus\tStory Points (5)',
+  'XYZ-3\tRolls over\tIn Progress\t5',
+].join('\n');
+
+/* Some browsers flatten a copied table to one cell per line. Every issue key on
+   its own line — the flattened branch must win on the count of such lines. */
+const FLATTENED = [
+  'Completed Issues',
+  'Story Points (8)',
+  'ABC-1',
+  'First thing',
+  'Story',
+  '5',
+  'ABC-2',
+  'Second thing',
+  'Story',
+  '3',
+].join('\n');
+
+/* The documented regression: one stray bare key (a linked epic copying onto its
+   own line) must NOT flip a tabbed report into the flattened branch. */
+const TABBED_WITH_STRAY = [
+  'Completed Issues',
+  'Key\tSummary\tStatus\tStory Points (8)',
+  'ABC-1\tFirst thing\tDone\t5',
+  'EPIC-99',
+  'ABC-2\tSecond thing\tDone\t3',
+].join('\n');
+
+/* A trailing "-" cell after the estimate column must not zero the row; a row
+   whose only figure is "-" is genuinely unestimated and reads 0. */
+const TRAILING_DASH = [
+  'Completed Issues',
+  'Key\tSummary\tStatus\tStory Points (3)',
+  'ABC-7\tEstimated, decorative dash after\tDone\t3\t-',
+  'ABC-8\tGenuinely unestimated\tDone\t-',
+].join('\n');
+
+/* ── Tests ────────────────────────────────────────────────────────────────── */
+let w; // the app iframe's window
+
+group('sanitizeIds — the untrusted-id boundary');
+t('hostile ids are replaced and every reference rewritten through the same map', () => {
+  const evil = 'x"><img src=q onerror=alert(1)>';
+  const data = {
+    teams: [{ id: evil, name: 'T' }],
+    pis: [{ id: 'ok-pi', name: 'PI' }],
+    sprints: [{ id: 's1', teamId: evil, piId: 'ok-pi', sprintNumber: 1 }],
+    settings: { activeTeamId: evil, activePiId: 'ok-pi' },
+  };
+  const out = w.sanitizeIds(data);
+  const fresh = out.teams[0].id;
+  ok(/^[A-Za-z0-9_-]{1,64}$/.test(fresh), 'replacement id is a plain id');
+  ok(fresh !== evil, 'hostile id was replaced');
+  eq(out.sprints[0].teamId, fresh, 'sprint.teamId follows the team');
+  eq(out.settings.activeTeamId, fresh, 'settings.activeTeamId follows the team');
+  eq(out.pis[0].id, 'ok-pi', 'valid ids pass through untouched');
+});
+t('valid data passes through byte-identical', () => {
+  const data = { teams: [{ id: 'team-1', name: 'A' }], pis: [], sprints: [], settings: {} };
+  const out = w.sanitizeIds(JSON.parse(JSON.stringify(data)));
+  eq(out.teams[0].id, 'team-1');
+});
+t('non-object input is returned as-is, not exploded', () => {
+  eq(w.sanitizeIds(null), null);
+  eq(w.sanitizeIds('junk'), 'junk');
+});
+
+group('metrics — the single calculation spot');
+t('percentages use committed as denominator', () => {
+  const m = w.metrics({ committed: 20, committedCompleted: 17, added: 3, removed: 1, carriedOut: 3, totalCompleted: 20 });
+  approx(m.commitCompletePct, 85);
+  approx(m.breakInPct, 15);
+  approx(m.carryoverPct, 15);
+  eq(m.velocity, 20);
+});
+t('committed 0 yields null percentages (renders as —, skipped by avg), not 0%', () => {
+  const m = w.metrics({ committed: 0, committedCompleted: 0, added: 4 });
+  eq(m.commitCompletePct, null);
+  eq(m.breakInPct, null);
+});
+t('blank boxes read as 0, not NaN', () => {
+  const m = w.metrics({ committed: '10', committedCompleted: '', added: undefined });
+  eq(m.committed, 10);
+  eq(m.committedCompleted, 0);
+  eq(m.added, 0);
+});
+
+group('rag + fmtPct — bands and the never-contradict-the-colour rule');
+t('completion bands: ≥85 green, 75–<85 yellow, <75 red; null is none', () => {
+  eq(w.rag(85, 'completion'), 'green');
+  eq(w.rag(84.99, 'completion'), 'yellow');
+  eq(w.rag(75, 'completion'), 'yellow');
+  eq(w.rag(74.99, 'completion'), 'red');
+  eq(w.rag(null, 'completion'), 'none');
+});
+t('churn bands: ≤15 green, >15–≤20 yellow, >20 red', () => {
+  eq(w.rag(15, 'churn'), 'green');
+  eq(w.rag(15.01, 'churn'), 'yellow');
+  eq(w.rag(20, 'churn'), 'yellow');
+  eq(w.rag(20.01, 'churn'), 'red');
+});
+t('fmtPct keeps a decimal when rounding would cross the band', () => {
+  const fmtPct = w.__svTestHooks.fmtPct;
+  eq(fmtPct(84.6, 'completion'), '84.6%'); // 85% next to a yellow flag would lie
+  eq(fmtPct(85.2, 'completion'), '85%');
+  eq(fmtPct(15.4, 'churn'), '15.4%');      // 15% next to a yellow flag would lie
+  eq(fmtPct(14.6, 'churn'), '15%');
+  eq(fmtPct(null, 'completion'), '—');
+});
+
+group('avg vs pooled — two deliberate methods');
+t('they disagree when sprint sizes differ, by design', () => {
+  const sprints = [
+    { committed: 10, committedCompleted: 9 },   // 90%
+    { committed: 40, committedCompleted: 20 },  // 50%
+  ];
+  approx(w.avg(sprints, 'commitCompletePct'), 70);          // every sprint equal
+  approx(w.pooled(sprints).commitCompletePct, 58);          // 29 / 50 — big sprint pulls harder
+});
+t('avg skips null percentages instead of counting them as 0', () => {
+  const sprints = [
+    { committed: 0, committedCompleted: 0 },    // null pct — must be skipped
+    { committed: 10, committedCompleted: 8 },   // 80%
+  ];
+  approx(w.avg(sprints, 'commitCompletePct'), 80);
+});
+
+group('sprintStatus — the lifecycle');
+t('no dates means complete (pre-lifecycle history stays in the averages)', () => {
+  eq(w.sprintStatus({}), 'complete');
+});
+t('dates resolve planned / active, and a stored status overrides', () => {
+  const iso = (offsetDays) => {
+    const d = new Date(); d.setDate(d.getDate() + offsetDays);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  };
+  eq(w.sprintStatus({ startDate: iso(2), endDate: iso(13) }), 'planned');
+  eq(w.sprintStatus({ startDate: iso(-2), endDate: iso(9) }), 'active');
+  eq(w.sprintStatus({ startDate: iso(-2), endDate: iso(9), status: 'complete' }), 'complete');
+});
+
+group('parsePoints / pointsFromCells — estimate cells');
+t('plain, dash, and all three arrow forms', () => {
+  eq(w.parsePoints('5'), { start: 5, current: 5 });
+  eq(w.parsePoints('-'), { start: 0, current: 0 });
+  eq(w.parsePoints('13 → 8'), { start: 13, current: 8 });
+  eq(w.parsePoints('13 -> 8'), { start: 13, current: 8 });
+  eq(w.parsePoints('13=>8'), { start: 13, current: 8 });
+  eq(w.parsePoints('[NAO 2012 Server Upgrade]'), null, 'a summary is not an estimate');
+  eq(w.parsePoints(''), null);
+});
+t('rightmost real figure wins; a bare dash only when the row offers nothing else', () => {
+  eq(w.pointsFromCells(['Summary text', '3', '-']), { start: 3, current: 3 });
+  eq(w.pointsFromCells(['Summary text', '-']), { start: 0, current: 0 });
+  eq(w.pointsFromCells(['Summary text', 'Story']), null);
+});
+
+group('parseJiraSprintReport + deriveFromJira — the paste pipeline');
+t('tabbed report: all seven figures, starred and in-then-out handled', () => {
+  const parsed = w.parseJiraSprintReport(TABBED);
+  eq(parsed.flattened, false);
+  eq(parsed.found, 6);
+  const d = w.deriveFromJira(parsed);
+  eq(d.committed, 18, 'committed = start sizes of every non-starred row, removed ones included');
+  eq(d.committedCompleted, 8, 'starred completions are not commitment');
+  eq(d.totalCompleted, 13);
+  eq(d.added, 5, 'starred rows still in the sprint');
+  eq(d.removed, 2, 'in-then-out netted out of removed');
+  eq(d.addedThenRemoved, 5, 'and tracked on its own');
+  eq(d.carriedOut, 8, 'the whole not-completed section');
+  ok(d.checks.every(c => c.ok), 'all header checksums reconcile: '
+    + JSON.stringify(d.checks.map(c => [c.section, c.ok])));
+});
+t('re-estimated report: committed on start sizes, the rest on current', () => {
+  const d = w.deriveFromJira(w.parseJiraSprintReport(RESIZED));
+  eq(d.committed, 26, '13 + 8 + 5 at sprint-start sizes');
+  eq(d.committedCompleted, 15, '8 + 7 at current sizes');
+  eq(d.carriedOut, 5);
+  eq(d.resized, 2);
+  eq(d.resizedFrom, 21);
+  eq(d.resizedTo, 15);
+  ok(d.checks.every(c => c.ok), 'range checksums still reconcile');
+  ok(d.checks.some(c => c.resized), 'the resized header is flagged');
+});
+t('flattened (one-cell-per-line) paste parses the same', () => {
+  const parsed = w.parseJiraSprintReport(FLATTENED);
+  eq(parsed.flattened, true);
+  eq(parsed.found, 2);
+  const d = w.deriveFromJira(parsed);
+  eq(d.committed, 8);
+  ok(d.checks.every(c => c.ok));
+});
+t('one stray bare key must not flip a tabbed report into the flattened branch', () => {
+  const parsed = w.parseJiraSprintReport(TABBED_WITH_STRAY);
+  eq(parsed.flattened, false, 'the documented regression');
+  const d = w.deriveFromJira(parsed);
+  eq(d.committed, 8, 'both real rows survive');
+  ok(d.checks.every(c => c.ok), 'the stray key contributes 0 and checksums still pass');
+});
+t('a trailing dash cell cannot zero an estimated row', () => {
+  const d = w.deriveFromJira(w.parseJiraSprintReport(TRAILING_DASH));
+  eq(d.committed, 3, 'ABC-7 keeps its 3; ABC-8 reads 0');
+  ok(d.checks.every(c => c.ok));
+});
+t('junk text parses to an empty result, not a throw', () => {
+  const parsed = w.parseJiraSprintReport('nothing like a jira report\nat all');
+  eq(parsed.found, 0);
+  const d = w.deriveFromJira(parsed);
+  eq(d.committed, 0);
+  eq(d.checks.length, 0);
+});
+
+/* ── Runner ───────────────────────────────────────────────────────────────── */
+window.addEventListener('load', () => {
+  const frame = document.getElementById('app');
+  const start = () => setTimeout(run, 150); // let the app's boot script finish
+  if (frame.contentDocument && frame.contentDocument.readyState === 'complete'
+      && frame.contentWindow.parseJiraSprintReport) start();
+  else frame.addEventListener('load', start, { once: true });
+});
+
+function run() {
+  w = document.getElementById('app').contentWindow;
+  const out = document.getElementById('out');
+  let pass = 0, fail = 0;
+  for (const item of TESTS) {
+    if (item.group) {
+      const tr = document.createElement('tr');
+      tr.className = 'group';
+      tr.innerHTML = '<td colspan="3"></td>';
+      tr.firstChild.textContent = item.group;
+      out.appendChild(tr);
+      continue;
+    }
+    const tr = document.createElement('tr');
+    const st = document.createElement('td'); st.className = 'st';
+    const name = document.createElement('td'); name.textContent = item.name;
+    const msg = document.createElement('td'); msg.className = 'msg';
+    try {
+      item.fn();
+      tr.className = 'pass'; st.textContent = '✓'; pass++;
+    } catch (e) {
+      tr.className = 'fail'; st.textContent = '✕'; msg.textContent = e.message; fail++;
+    }
+    tr.appendChild(st); tr.appendChild(name); tr.appendChild(msg);
+    out.appendChild(tr);
+  }
+  const s = document.getElementById('summary');
+  s.textContent = fail === 0 ? `All ${pass} tests pass` : `${fail} of ${pass + fail} tests FAILED`;
+  s.className = fail === 0 ? 'ok' : 'bad';
+  document.title = (fail === 0 ? '✓ ' : '✕ ') + document.title;
+}
+</script>
+</body>
+</html>
