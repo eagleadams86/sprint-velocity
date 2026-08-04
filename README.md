@@ -518,6 +518,10 @@ To recreate the setup from scratch (e.g. in a fork):
 5. **Project settings → Your apps → Add app → Web** — copy the `firebaseConfig` object and
    paste it as the value of `FIREBASE_CONFIG` in `index.html`
 
+The same rules are kept as a checked-in copy in [`firestore.rules`](firestore.rules) — the
+console is what's live, the file is the audit trail; if the rules ever change in the
+console, update the file to match (same pattern as the paptrack-ios repo).
+
 The config object is not a secret; access is controlled by the rules above, which restrict
 every user to their own document. Each person who signs in — you or a colleague — gets
 their own private data. Sharing the app means sharing the URL, not the data.
@@ -570,6 +574,12 @@ GitHub Pages (static hosting, this repo, main branch)
 ```
 
 No server of our own. No build, no dependencies to install, no npm.
+
+A Content Security Policy `<meta>` tag in `index.html` pins the page down as defence in
+depth: scripts only from this origin and Firebase's CDN, network calls only to the
+Firebase endpoints sync uses plus the GitHub commits API, and no frames except the app's
+own Firebase auth helper. If a new external endpoint is ever added, it has to be added to
+the CSP too or the browser will (deliberately) block it.
 
 ## Working on it locally
 

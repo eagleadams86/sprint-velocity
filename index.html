@@ -2,6 +2,18 @@
 <html lang="en" data-theme="midnight">
 <head>
 <meta charset="utf-8">
+<!-- Content Security Policy. GitHub Pages can't set response headers, so this meta
+     tag is the only place to declare one. 'unsafe-inline' is unavoidable: the app
+     is inline script and style by design, with no build step to generate hashes.
+     The real value is the host allowlists — script only from this origin (the
+     vendored chart.min.js) and Firebase's CDN, network calls only to the Firebase
+     endpoints sync actually uses plus the GitHub API (changelog), frames only from
+     this app's Firebase auth helper. form-action is 'self' rather than 'none'
+     because the sprint editor's forms submit with method="dialog", which some
+     browsers have historically checked against form-action; 'self' keeps that
+     working everywhere while still blocking submission to any external URL.
+     Note: frame-ancestors is ignored in a meta tag; it needs a real header. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://api.github.com; frame-src https://sprintvelocity-141b7.firebaseapp.com; base-uri 'none'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sprint Predictability · Charlie’s Epic Sprint Planner</title>
 <meta name="description" content="Track sprint predictability across teams: commitment completion, break-in, carryover, and velocity.">
