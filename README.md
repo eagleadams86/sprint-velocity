@@ -438,6 +438,12 @@ data leaves your machine** unless you choose to sign in.
 back. Useful as a backup, for moving between browsers, or for handing a colleague a
 starting point.
 
+**Deletion requests** — [privacy.html](privacy.html) promises that emailing the address
+there gets a user's synced copy deleted. [`DATA_DELETION.md`](DATA_DELETION.md) is the
+runbook for doing it: how to map an email address to the right Firestore document (the
+document ID is the Firebase Auth UID, and nothing inside the document identifies anyone),
+what order to delete in, and which copies are genuinely beyond reach.
+
 ## Recent changes
 
 At the foot of the page there's a collapsed **Recent changes** box. Expand it and it fetches
