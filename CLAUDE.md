@@ -263,6 +263,12 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
 - A share link decodes **asynchronously**, so boot paints a holding card instead of calling
   `render()` — otherwise the viewer's own teams flash on screen under a "shared view" banner.
   A failed decode shows an error card and **never** falls through to their own data.
+- **`privacy.html` is the privacy policy** (static page, midnight theme, linked from the app
+  footer via `.privacy-links` — deliberately a separate element from `#privacyNote`, whose
+  textContent the sync code rewrites). Other SMs sign in with their own Google accounts, so
+  it exists for them: what Firestore holds, that rules confine each account to its own data,
+  that share links upload nothing, and the deletion contact. If sync, share links, or what
+  the app stores ever changes, update it and its effective date in the same commit.
 - **README.md is the index** — keep it current whenever the app meaningfully changes.
 - After changes: **browser-test locally first** (`python3 -m http.server 8012`, or the
   desktop app's preview pane via `.claude/launch.json`), then commit, push, verify the

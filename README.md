@@ -567,13 +567,20 @@ GitHub Pages (static hosting, this repo, main branch)
     └── chart.min.js  vendored Chart.js UMD build — no CDN, no network needed
             ├── all state ──► browser localStorage (source of truth, works offline)
             ├── signed in ──► Firestore doc sprintvelocity/{uid} (optional;
-            │                 last-write-wins by updatedAt, live onSnapshot updates)
+            │                 newer-wins by updatedAt with the empty-never-beats-data
+            │                 guard; live onSnapshot updates)
             ├── shared    ──► the URL fragment itself (#share=…), read-only, never
             │                 uploaded and never written back to localStorage
             └── changelog ──► GitHub commits API, read-only, fetched on first expand
 ```
 
 No server of our own. No build, no dependencies to install, no npm.
+
+[`privacy.html`](https://eagleadams86.github.io/sprint-velocity/privacy.html) spells out
+what the app stores and where — linked from the app's footer. Fellow Scrum Masters sign in
+with their own Google accounts, so the policy exists for them as much as for the author:
+what Firestore holds, that access rules confine each account to its own data, that share
+links upload nothing, and how to have a synced copy deleted.
 
 A Content Security Policy `<meta>` tag in `index.html` pins the page down as defence in
 depth: scripts only from this origin and Firebase's CDN, network calls only to the

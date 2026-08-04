@@ -506,6 +506,9 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
    They wrap only when the window is genuinely too narrow. */
 .privacy { font-size: 12px; color: var(--text-muted);
   margin: 28px 0 0; padding-left: 19px; }
+.privacy-links { margin-top: 6px; }
+.privacy-links a { color: var(--text-muted); }
+.privacy-links a:hover { color: var(--text-secondary); }
 
 /* ── "Recent changes" ───────────────────────────────────────────────────── */
 /* No opacity dimming — it would stack on an already-muted token and drop the
@@ -615,6 +618,9 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
 
   <p class="privacy" id="privacyNote">🔒 Private — your data is stored in this browser only. No account
     needed. Sign in with Google if you want the same data on your other devices.</p>
+  <!-- Its own element, not part of #privacyNote: the sync code rewrites that
+       note's textContent, which would silently delete a link nested inside it. -->
+  <p class="privacy privacy-links"><a href="privacy.html">Privacy policy</a></p>
 
   <details class="changelog" id="cl-box">
     <summary>Recent changes</summary>
