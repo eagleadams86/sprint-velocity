@@ -3673,7 +3673,9 @@ F('exportBtn').onclick = () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `sprint-velocity-${new Date().toISOString().slice(0, 10)}.json`;
+  /* todayISO(), not toISOString(): a raw UTC slice stamps tomorrow's date on an
+     evening export west of Greenwich, which is exactly when the name misleads. */
+  a.download = `sprint-velocity-${todayISO()}.json`;
   a.click();
   /* Revoking in the same tick races the download starting: Chrome usually wins,
      Firefox has historically handed back an empty file. One turn of the event loop

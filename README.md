@@ -434,9 +434,9 @@ unannounced. Small targets like the ⓘ carry a 24px hit area without growing on
 `localStorage` in your own browser is the source of truth. **No account is needed and no
 data leaves your machine** unless you choose to sign in.
 
-**Back up & restore** — the *Back up* button exports everything as a JSON file and imports it
-back. Useful as a backup, for moving between browsers, or for handing a colleague a
-starting point.
+**Back up & restore** — the *Back up* button exports everything as a JSON file
+(`sprint-velocity-YYYY-MM-DD.json`, dated in local time) and imports it back. Useful as a
+backup, for moving between browsers, or for handing a colleague a starting point.
 
 **Deletion requests** — [privacy.html](privacy.html) promises that emailing the address
 there gets a user's synced copy deleted. [`DATA_DELETION.md`](DATA_DELETION.md) is the
