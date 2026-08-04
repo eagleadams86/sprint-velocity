@@ -4111,7 +4111,8 @@ if (viewOnly) {
    already hold data the user is asked which to keep (chooseSyncSource) rather than
    the code guessing by timestamp — that guesswork once wiped a browser's data in the
    sibling app. After that first reconciliation, and for live updates arriving from
-   another device, the newer side by 'sv-updated' wins. */
+   another device, the newer side by 'sv-updated' wins — except that an empty copy
+   never silently beats one with data in it; startSync has the full rule. */
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyCAEyY7SEh2Py4pcFiYrJH-s8wYoCGIZ8Y",
   authDomain: "sprintvelocity-141b7.firebaseapp.com",
