@@ -176,6 +176,17 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   places and weren't, so a crafted share link could run script — which `viewOnly` does
   nothing about, since injected code doesn't go through `save()`. Render sites escape too.
   Don't add a render site that interpolates an id raw, and don't drop the boundary check.
+- **The same boundary drops orphans.** After the remapping (never before it — a remapped
+  sprint isn't an orphan), a sprint whose `teamId` or `piId` names nothing in the same
+  payload is removed, and the count left on `sanitizeIds.dropped`. Nothing threw without
+  this: `teamSprints()`/`rollingSprints()` counted the orphan into the Rolling 5 average
+  while every PI-based view couldn't show it, its PI never reaching the picker — a figure
+  moving with no visible sprint behind it. Delete PI / Delete Team filter `state.sprints`
+  correctly, so this only arrives from a hand-edited or damaged payload. All four callers
+  **say so** (`orphanNote()`), per the never-silent-exclusion rule: the import names it in
+  its confirm, before the user commits; the share view and `svAdopt()` toast after
+  `render()`; `load()` hands the count to `bootOrphans` because a toast raised during parse
+  is gone before there's anything to look at.
 - Charts resolve their colours from CSS custom properties at construction time, so a theme
   switch has to rebuild them (`render()` does this). Chart animation is deliberately off.
 - Optional cross-device sync is ported from PAPTrack: Google sign-in + one Firestore doc

@@ -509,6 +509,14 @@ run code in your browser when you opened the link — reaching your own saved da
 sign-in, neither of which the read-only guard covers. The same check runs on an imported
 backup file and on the copy that comes down from sync.
 
+The same boundary also checks that the data hangs together. A sprint that names a team or a
+PI which isn't in the file is left out, because it would otherwise count towards the rolling
+average while being impossible to open or even see — a figure moving with no sprint behind
+it. The app's own *Delete PI* and *Delete Team* buttons tidy up after themselves, so this
+only comes up with a hand-edited or damaged file. When it happens you're told how many
+sprints were left out and why: an import says so before you commit to it, and a link or a
+synced copy says so once it opens.
+
 Links run to a few hundred characters for a typical team. If one gets long enough that a mail
 client might break it across two lines, the dialog says so and suggests sharing fewer teams or
 leaving notes out.

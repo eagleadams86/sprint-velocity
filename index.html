@@ -910,10 +910,29 @@ function blankState() {
    plain id is swapped for a fresh one and every reference to it rewritten
    through the same map, so the data still hangs together afterwards — a sprint
    whose team was renamed still points at that team. Render sites escape as well;
-   this is the boundary, that's the belt. */
+   this is the boundary, that's the belt.
+
+   The second half of the same job is referential integrity. Cleaning an id makes
+   it safe to write into an attribute; it doesn't make it point at anything. A
+   hand-edited backup or a truncated cloud document can hold a sprint whose piId
+   (or teamId) names a PI that isn't in the same payload, and nothing throws —
+   which is the problem. teamSprints() and rollingSprints() both count that
+   sprint, while every PI-based view can't show it, because its PI never reaches
+   the picker. A Rolling 5 average then moves with no visible sprint behind it,
+   the exact failure the exclusion rules exist to prevent. So an orphan is
+   dropped here and the count handed to the caller to say out loud — the app's
+   own Delete PI / Delete Team buttons filter state.sprints properly, so this is
+   only ever reachable from outside. */
 const ID_OK = /^[A-Za-z0-9_-]{1,64}$/;
 
+/* Plain English for however many sprints the boundary just dropped. */
+function orphanNote(n) {
+  return `${n} sprint${n === 1 ? '' : 's'} left out — the team or PI `
+    + `${n === 1 ? 'it points' : 'they point'} at isn’t in this data.`;
+}
+
 function sanitizeIds(data) {
+  sanitizeIds.dropped = 0;   // reset first: a caller must never read a stale count
   if (!data || typeof data !== 'object') return data;
   const remap = new Map();
   const clean = (id) => {
@@ -933,6 +952,15 @@ function sanitizeIds(data) {
   if (data.settings && typeof data.settings === 'object') {
     data.settings.activeTeamId = clean(data.settings.activeTeamId);
     data.settings.activePiId = clean(data.settings.activePiId);
+  }
+  /* After the remapping, never before it: a sprint whose team id was hostile has
+     just been rewritten to the team's fresh id, and is not an orphan. */
+  if (Array.isArray(data.sprints)) {
+    const ids = (arr) => new Set(list(arr).map(r => (r ? r.id : null)).filter(Boolean));
+    const teamIds = ids(data.teams), piIds = ids(data.pis);
+    const kept = data.sprints.filter(s => s && teamIds.has(s.teamId) && piIds.has(s.piId));
+    sanitizeIds.dropped = data.sprints.length - kept.length;
+    data.sprints = kept;
   }
   return data;
 }
@@ -958,6 +986,11 @@ let shareMeta = null;   // { sharedAt, label, allTeams } once a link has been de
    so the flag is mirrored here for it to check before it initialises. */
 window.svViewOnly = viewOnly;
 
+/* load() runs while the page is still parsing, so it can't raise the toast
+   itself — one shown before there's anything to look at is gone by the time
+   there is. Boot says it after the first paint instead. */
+let bootOrphans = 0;
+
 let state = load();
 
 function load() {
@@ -965,6 +998,7 @@ function load() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return blankState();
     const parsed = sanitizeIds(JSON.parse(raw));
+    bootOrphans = sanitizeIds.dropped;
     return Object.assign(blankState(), parsed,
       { settings: Object.assign(blankState().settings, parsed.settings || {}) });
   } catch (e) {
@@ -3783,10 +3817,15 @@ F('importFile').onchange = (e) => {
   reader.onload = () => {
     try {
       const parsed = sanitizeIds(JSON.parse(reader.result));
+      const orphans = sanitizeIds.dropped;
       if (!parsed || !Array.isArray(parsed.teams) || !Array.isArray(parsed.sprints))
         throw new Error('not a Sprint Velocity export');
+      /* The counts quoted here are the ones that will actually arrive, so any
+         sprint the boundary dropped is named before the user decides — not
+         after, when the numbers would already have moved. */
       const msg = `Replace everything in this browser with ${parsed.teams.length} team(s) and `
-        + `${parsed.sprints.length} sprint(s) from this file? Your current data will be lost.`;
+        + `${parsed.sprints.length} sprint(s) from this file? Your current data will be lost.`
+        + (orphans ? `\n\n${orphanNote(orphans)}` : '');
       if (!confirm(msg)) return;
       state = Object.assign(blankState(), parsed,
         { settings: Object.assign(blankState().settings, parsed.settings || {}) });
@@ -3904,6 +3943,7 @@ async function decodeShare(token) {
 async function openSharedView() {
   try {
     const p = await decodeShare(shareToken);
+    const orphans = sanitizeIds.dropped;
     shareMeta = { sharedAt: p.sharedAt, label: p.label, allTeams: !!p.allTeams };
     state = Object.assign(blankState(), {
       teams: p.teams, pis: p.pis || [], sprints: p.sprints,
@@ -3920,6 +3960,7 @@ async function openSharedView() {
     const teamsTab = document.querySelector('.tab[data-view="teams"]');
     if (teamsTab) teamsTab.hidden = !shareMeta.allTeams;
     render();
+    if (orphans) toast(orphanNote(orphans));
   } catch (e) {
     console.warn('share link could not be read', e);
     renderShareError();
@@ -4151,11 +4192,13 @@ document.querySelectorAll('.tab').forEach(tab => {
 window.svGet = () => state;
 window.svAdopt = (incoming, ts) => {
   incoming = sanitizeIds(incoming);
+  const orphans = sanitizeIds.dropped;
   state = Object.assign(blankState(), incoming,
     { settings: Object.assign(blankState().settings, (incoming && incoming.settings) || {}) });
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   localStorage.setItem('sv-updated', String(ts || Date.now()));
   render();
+  if (orphans) toast(orphanNote(orphans));
 };
 window.svCounts = (d) => ({
   teams: (d && d.teams ? d.teams.length : 0),
@@ -4194,6 +4237,7 @@ if (viewOnly) {
   openSharedView();
 } else {
   render();
+  if (bootOrphans) toast(orphanNote(bootOrphans));
 }
 
 /* Dev hook for tests.html (which loads this page in a same-origin iframe and

@@ -144,6 +144,32 @@ t('hostile ids are replaced and every reference rewritten through the same map',
   eq(out.sprints[0].teamId, fresh, 'sprint.teamId follows the team');
   eq(out.settings.activeTeamId, fresh, 'settings.activeTeamId follows the team');
   eq(out.pis[0].id, 'ok-pi', 'valid ids pass through untouched');
+  eq(out.sprints.length, 1, 'a remapped sprint is not mistaken for an orphan');
+  eq(w.sanitizeIds.dropped, 0, 'nothing dropped');
+});
+t('a sprint whose team or PI is missing from the payload is dropped, and counted', () => {
+  const data = {
+    teams: [{ id: 'team-1', name: 'A' }],
+    pis: [{ id: 'pi-1', name: 'PI 1' }],
+    sprints: [
+      { id: 's1', teamId: 'team-1', piId: 'pi-1', sprintNumber: 1 },
+      { id: 's2', teamId: 'team-1', piId: 'pGONE', sprintNumber: 2 },
+      { id: 's3', teamId: 'tGONE', piId: 'pi-1', sprintNumber: 3 },
+    ],
+    settings: {},
+  };
+  const out = w.sanitizeIds(data);
+  eq(out.sprints.length, 1, 'only the sprint whose team and PI are both present survives');
+  eq(out.sprints[0].id, 's1');
+  eq(w.sanitizeIds.dropped, 2, 'the count is handed to the caller so the drop is never silent');
+});
+t('the drop count resets, so a caller never reads a stale one', () => {
+  w.sanitizeIds({ teams: [], pis: [], sprints: [{ id: 's1', teamId: 'gone', piId: 'gone' }] });
+  eq(w.sanitizeIds.dropped, 1);
+  w.sanitizeIds({ teams: [{ id: 't1' }], pis: [{ id: 'p1' }], sprints: [] });
+  eq(w.sanitizeIds.dropped, 0, 'a clean payload reports zero');
+  w.sanitizeIds(null);
+  eq(w.sanitizeIds.dropped, 0, 'so does junk that never reaches the check');
 });
 t('valid data passes through byte-identical', () => {
   const data = { teams: [{ id: 'team-1', name: 'A' }], pis: [], sprints: [], settings: {} };
