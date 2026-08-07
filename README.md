@@ -521,23 +521,27 @@ project — the `FIREBASE_CONFIG` object at the bottom `<script type="module">` 
 fully local, without it. Setting that constant back to `null` returns it to local-only mode
 and hides all sync UI.
 
-### Two sign-in doorways
+### Why sign-in doesn't use Firebase's popup
 
 Corporate web filters block individual `firebaseapp.com` hostnames unpredictably — the block
 is per hostname, not the domain, so a sibling app working is no evidence this one will (the
 sibling Team Dashboard's README tabulates three projects measured on one network on one day:
-two blocked, one fine). The sibling app's fix is **Google Identity Services**: a popup
-straight to `accounts.google.com` returns an OAuth token that Firebase exchanges for the
-same session via `signInWithCredential`.
+two blocked, one fine). Firebase's `signInWithPopup` opens its popup at
+`<project>.firebaseapp.com/__/auth/handler`, so that block kills sign-in outright.
 
-That flow is ported here and switched by `GOOGLE_CLIENT_ID` at the top of the sync module.
-While it's `null` (the current state), sign-in falls back to Firebase's own
-`signInWithPopup` — exactly the previous behaviour. To activate the GIS doorway: in
+Sign-in therefore goes through **Google Identity Services**, the flow proven in Team
+Dashboard: a popup straight to `accounts.google.com` returns an OAuth token that Firebase
+exchanges for the same session via `signInWithCredential`. Same Google account, same
+Firestore data, same rules — only the doorway differs. The old popup flow (and its
+`firebaseapp.com` frame-src and `apis.google.com` CSP entries) is retired.
+
+`GOOGLE_CLIENT_ID` at the top of the sync module is what this flow needs beyond
+`FIREBASE_CONFIG`. It comes from
 [console.cloud.google.com](https://console.cloud.google.com) → APIs & Services →
-Credentials, open the OAuth 2.0 Client ID named *Web client (auto created by Google
-Service)* for this project, add `https://eagleadams86.github.io` (and the exact localhost
-origin you serve from, port included) under **Authorized JavaScript origins**, and paste the
-Client ID into `GOOGLE_CLIENT_ID`. The CSP already allows `accounts.google.com`.
+Credentials → the OAuth 2.0 Client ID named *Web client (auto created by Google Service)*,
+whose **Authorized JavaScript origins** must list `https://eagleadams86.github.io` (and the
+exact localhost origin you serve from, port included) — an unlisted origin makes Google
+refuse with `origin_mismatch` before sign-in starts.
 
 To recreate the setup from scratch (e.g. in a fork):
 

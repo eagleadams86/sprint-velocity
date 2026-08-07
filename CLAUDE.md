@@ -202,16 +202,16 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   visibility is the point, not a size guard.
 - Firebase authorized domain is `eagleadams86.github.io`, so sync works at this
   `/sprint-velocity/` path unchanged.
-- **Sign-in has two doorways, switched by `GOOGLE_CLIENT_ID`** (top of the sync module). Set,
-  sign-in goes through Google Identity Services — a popup straight to accounts.google.com,
-  exchanged for the same Firebase session via `signInWithCredential` — the flow proven in Team
-  Dashboard, because corporate filters block individual `firebaseapp.com` hostnames
-  unpredictably (per hostname, not the domain — a sibling working proves nothing). While it's
-  `null` (the current state, pending the console step) sign-in falls back to Firebase's own
-  `signInWithPopup`, the pre-port behaviour, so nothing regresses. The CSP already carries
-  accounts.google.com in script-src/connect-src/frame-src; keep the firebaseapp.com frame-src
-  entry for as long as the fallback exists. Activating GIS = authorise the app's origins on the
-  project's auto-created OAuth web client and paste its ID in — the README walks through it.
+- **Sign-in goes through Google Identity Services, not Firebase's popup** — the flow proven
+  in Team Dashboard, because corporate filters block individual `firebaseapp.com` hostnames
+  unpredictably (per hostname, not the domain — a sibling working proves nothing). A popup
+  straight to accounts.google.com returns an OAuth token, exchanged for the same Firebase
+  session via `signInWithCredential`. `GOOGLE_CLIENT_ID` (top of the sync module) is this
+  project's OAuth web client — it is NOT part of `FIREBASE_CONFIG`, and the client's
+  Authorized JavaScript origins must list the serving origin (port included) or Google
+  refuses with origin_mismatch. The CSP carries accounts.google.com in
+  script-src/connect-src/frame-src; the old popup fallback and its firebaseapp.com
+  frame-src / apis.google.com entries were retired 2026-08-07 once the client ID landed.
 - **The Rolling 5 velocity chart carries a dashed `linearTrend()` line** (ordinary least
   squares, ported from Team Dashboard; nulls skipped). It's drawn muted — a reading of the
   bars, not a new series — and `linearTrend()` is a pure function pinned by tests.html.
