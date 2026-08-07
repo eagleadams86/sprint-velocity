@@ -543,6 +543,17 @@ exchanges for the same session via `signInWithCredential`. Same Google account, 
 Firestore data, same rules — only the doorway differs. The old popup flow (and its
 `firebaseapp.com` frame-src and `apis.google.com` CSP entries) is retired.
 
+The sync module builds auth with `initializeAuth`, not `getAuth`, so `apis.google.com` is never
+even requested. `getAuth()` always wires in `browserPopupRedirectResolver`, and on Safari, iOS
+and mobile browsers the SDK initialises that resolver during startup — which loads
+`apis.google.com/js/api.js` to build the gapi iframe that carries `signInWithPopup` and
+`signInWithRedirect` results back to the page. This app calls neither, so nothing consumed it;
+the visible symptom was a CSP error in the console on phones and in Safari, and nothing else.
+Token refresh, sign-out and the cross-tab session all run elsewhere in the SDK and never touch
+the resolver. Dropping it costs `signInWithPopup`/`signInWithRedirect`/phone sign-in, which now
+raise `auth/argument-error`; if one is ever wanted, pass `browserPopupRedirectResolver` to that
+call rather than reverting to `getAuth()`.
+
 `GOOGLE_CLIENT_ID` at the top of the sync module is what this flow needs beyond
 `FIREBASE_CONFIG`. It comes from
 [console.cloud.google.com](https://console.cloud.google.com) → APIs & Services →

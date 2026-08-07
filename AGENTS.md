@@ -223,6 +223,11 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   refuses with origin_mismatch. The CSP carries accounts.google.com in
   script-src/connect-src/frame-src; the old popup fallback and its firebaseapp.com
   frame-src / apis.google.com entries were retired 2026-08-07 once the client ID landed.
+  Auth is built with `initializeAuth`, **not `getAuth`** — `getAuth()` always wires in
+  `browserPopupRedirectResolver`, which Safari/iOS/mobile initialise at startup, pulling in
+  apis.google.com/js/api.js for the popup-redirect gapi iframe nothing here reads (it showed
+  up only as a CSP console error). Don't go back to `getAuth()` to "fix" a popup/redirect
+  call — pass the resolver to that call instead. Same change in Team Dashboard.
 - **The Rolling 5 velocity chart carries a dashed `linearTrend()` line** (ordinary least
   squares, ported from Team Dashboard; nulls skipped). It's drawn muted — a reading of the
   bars, not a new series — and `linearTrend()` is a pure function pinned by tests.html.
