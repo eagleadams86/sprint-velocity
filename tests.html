@@ -215,6 +215,20 @@ t('avg skips null percentages instead of counting them as 0', () => {
   approx(w.avg(sprints, 'commitCompletePct'), 80);
 });
 
+group('linearTrend — the dashed trend line (ported from Team Dashboard)');
+t('fits a straight line through clean points', () => {
+  const tr = w.linearTrend([2, 4, 6, 8]);
+  approx(tr[0], 2); approx(tr[3], 8);
+});
+t('skips nulls without dragging the line', () => {
+  const tr = w.linearTrend([2, null, 6, 8]);
+  approx(tr[0], 2); approx(tr[1], 4); approx(tr[3], 8);
+});
+t('fewer than two real points means no line at all', () => {
+  eq(w.linearTrend([5]), [null]);
+  eq(w.linearTrend([null, 5, null]), [null, null, null]);
+});
+
 group('sprintStatus — the lifecycle');
 t('no dates means complete (pre-lifecycle history stays in the averages)', () => {
   eq(w.sprintStatus({}), 'complete');

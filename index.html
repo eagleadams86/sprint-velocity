@@ -13,7 +13,7 @@
      browsers have historically checked against form-action; 'self' keeps that
      working everywhere while still blocking submission to any external URL.
      Note: frame-ancestors is ignored in a meta tag; it needs a real header. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://api.github.com; frame-src https://sprintvelocity-141b7.firebaseapp.com; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://apis.google.com https://accounts.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://accounts.google.com https://api.github.com; frame-src https://sprintvelocity-141b7.firebaseapp.com https://accounts.google.com; base-uri 'none'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sprint Predictability · Charlie’s Epic Sprint Planner</title>
 <meta name="description" content="Track sprint predictability across teams: commitment completion, break-in, carryover, and velocity.">
@@ -623,7 +623,8 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
     needed. Sign in with Google if you want the same data on your other devices.</p>
   <!-- Its own element, not part of #privacyNote: the sync code rewrites that
        note's textContent, which would silently delete a link nested inside it. -->
-  <p class="privacy privacy-links"><a href="privacy.html">Privacy policy</a></p>
+  <p class="privacy privacy-links"><a href="privacy.html">Privacy policy</a> &middot;
+    <a href="https://eagleadams86.github.io/team-dashboard/">Team Dashboard — the sibling app</a></p>
 
   <details class="changelog" id="cl-box">
     <summary>Recent changes</summary>
@@ -1762,6 +1763,26 @@ function destroyCharts() {
   Object.keys(charts).forEach(k => { charts[k].destroy(); delete charts[k]; });
 }
 
+/* Ordinary least squares over the point index — the dashed trend line the
+   sibling Team Dashboard app draws on every chart, ported here for the
+   velocity bars. Nulls are skipped, so a gap doesn't drag the line.
+   Pure — pinned by tests.html. */
+function linearTrend(values) {
+  const pts = [];
+  values.forEach((v, i) => { if (v != null && isFinite(v)) pts.push([i, v]); });
+  if (pts.length < 2) return values.map(() => null);
+  const n = pts.length;
+  const sx = pts.reduce((a, p) => a + p[0], 0);
+  const sy = pts.reduce((a, p) => a + p[1], 0);
+  const sxx = pts.reduce((a, p) => a + p[0] * p[0], 0);
+  const sxy = pts.reduce((a, p) => a + p[0] * p[1], 0);
+  const denom = n * sxx - sx * sx;
+  if (denom === 0) return values.map(() => null);
+  const slope = (n * sxy - sx * sy) / denom;
+  const intercept = (sy - slope * sx) / n;
+  return values.map((_, i) => intercept + slope * i);
+}
+
 /* ── Series texture: the non-colour half of "which bar is which" ─────────────
    Six categorical colours cannot all be told apart by someone with red-green
    colour vision deficiency, and no re-shading fixes it: deficiency flattens the
@@ -2655,7 +2676,13 @@ function renderRollingView() {
           borderWidth: 2, tension: .25, pointRadius: 4, spanGaps: true },
         { type: 'line', label: 'Target 85%', yAxisID: 'y1', order: 1, data: rs.map(() => 85),
           borderColor: cssVar('--green'), borderWidth: 1.5, borderDash: [6, 4],
-          pointRadius: 0, fill: false }
+          pointRadius: 0, fill: false },
+        /* The sibling app's dashed trend line, fitted to velocity. Muted rather
+           than a series colour: it's a reading of the bars, not a new series. */
+        { type: 'line', label: 'Velocity trend', yAxisID: 'y', order: 1,
+          data: linearTrend(rs.map(s => metrics(s).velocity)),
+          borderColor: cssVar('--text-muted'), borderWidth: 1.5, borderDash: [6, 4],
+          pointRadius: 0, fill: false, tension: 0 }
       ]
     },
     options: baseOptions({
@@ -4181,7 +4208,35 @@ const FIREBASE_CONFIG = {
   appId: "1:255575017001:web:5ab6eceff78bd825827e38"
 };
 
+/* ── Why sign-in prefers Google Identity Services over Firebase's popup ──────
+   Firebase's signInWithPopup opens its popup at
+   <project>.firebaseapp.com/__/auth/handler and only redirects to Google from
+   there — and corporate web filters block individual firebaseapp.com hostnames
+   unpredictably. The block is per *hostname*, not the domain: on the same
+   network on the same day, this project's hostname and a sibling app's were
+   both refused while a third sibling's went through untouched. Which way a
+   filter categorises a given hostname is outside our control and can change,
+   so "the other apps are fine" is not evidence this one will be.
+
+   The sibling Team Dashboard app proved the fix: a popup straight to
+   accounts.google.com (Google Identity Services) returns an OAuth access
+   token, and Firebase exchanges it for the same session via
+   signInWithCredential. Same Google account, same Firestore data, same rules —
+   only the doorway changes. accounts.google.com is a mainstream Google domain
+   and isn't blocked the same way.
+
+   ⚠️ GOOGLE_CLIENT_ID is NOT part of FIREBASE_CONFIG and can't be derived from
+   it. Get it from Google Cloud Console → APIs & Services → Credentials → the
+   OAuth 2.0 Client ID named "Web client (auto created by Google Service)", and
+   that same screen must list this app's origins (https://eagleadams86.github.io
+   plus the exact localhost origin, port included) under "Authorized JavaScript
+   origins" or Google refuses with origin_mismatch. While it's null the app
+   falls back to Firebase's own popup — sign-in keeps working exactly as before,
+   just without the corporate-network fix. */
+const GOOGLE_CLIENT_ID = null;
+
 const SDK = 'https://www.gstatic.com/firebasejs/12.16.0/';
+const GIS = 'https://accounts.google.com/gsi/client';
 const btn = document.getElementById('syncBtn');
 const privacyNote = document.getElementById('privacyNote');
 const localTs = () => Number(localStorage.getItem('sv-updated') || 0);
@@ -4199,13 +4254,30 @@ if (FIREBASE_CONFIG && !window.svViewOnly) {
   btn.hidden = true;
 }
 
-let A, Fs, auth, db, user = null, unsub = null, pushTimer = null;
+let A, Fs, auth, db, user = null, unsub = null, pushTimer = null, tokenClient = null;
+
+/* Google's sign-in client is a classic script, not a module — it hangs
+   window.google off the page once it's in. Resolves as soon as that's true.
+   Only loaded when GOOGLE_CLIENT_ID is set. */
+function loadGis() {
+  return new Promise((resolve, reject) => {
+    if (window.google?.accounts?.oauth2) return resolve();
+    const s = document.createElement('script');
+    s.src = GIS; s.async = true; s.defer = true;
+    s.onload = () => window.google?.accounts?.oauth2
+      ? resolve()
+      : reject(new Error('Google sign-in client loaded but exposed no oauth2 API'));
+    s.onerror = () => reject(new Error('Could not load Google sign-in client'));
+    document.head.appendChild(s);
+  });
+}
 
 async function init() {
   const [{ initializeApp }, authMod, fsMod] = await Promise.all([
     import(SDK + 'firebase-app.js'),
     import(SDK + 'firebase-auth.js'),
     import(SDK + 'firebase-firestore.js'),
+    GOOGLE_CLIENT_ID ? loadGis() : null,
   ]);
   A = authMod; Fs = fsMod;
   const app = initializeApp(FIREBASE_CONFIG);
@@ -4219,7 +4291,40 @@ async function init() {
     if (u) startSync().catch((e) => setSyncError(e));
   });
   A.getRedirectResult(auth).catch(() => {}); // completes a mobile redirect sign-in, if one is in flight
+  if (GOOGLE_CLIENT_ID) {
+    /* Built once, reused for every sign-in. requestAccessToken() must be called
+       from inside the click handler or the browser treats the popup as
+       unsolicited and blocks it. */
+    tokenClient = window.google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: 'openid email profile',
+      callback: (resp) => {
+        if (!resp || !resp.access_token) { onSignInFailed(resp); return; }
+        /* null id_token: Firebase accepts an OAuth access token on its own and
+           reads the profile from it. */
+        const cred = A.GoogleAuthProvider.credential(null, resp.access_token);
+        A.signInWithCredential(auth, cred).catch(onSignInFailed);
+      },
+      error_callback: (err) => {
+        /* Closing the popup is a normal thing to do, not a failure worth a toast. */
+        if (err && /popup_closed|user_cancel/.test(String(err.type))) return;
+        onSignInFailed(err);
+      },
+    });
+  }
   btn.addEventListener('click', onClick);
+}
+
+function onSignInFailed(e) {
+  console.warn('sign-in error', e);
+  const s = String((e && (e.type || e.code || e.message)) || e || '');
+  if (s.includes('origin_mismatch') || s.includes('idpiframe') || s.includes('invalid_client')) {
+    window.toast('Sign-in rejected — this site isn’t an authorised origin for the Google client');
+  } else if (s.includes('popup_failed_to_open')) {
+    window.toast('Sign-in popup was blocked — allow popups for this site and try again');
+  } else {
+    window.toast('Sign-in failed — check the Firebase setup');
+  }
 }
 
 /* ── Saying so when sync stops working ──────────────────────────────────────
@@ -4301,6 +4406,15 @@ async function onClick() {
     if (confirm('Sign out? The app keeps working with the local copy on this device.')) A.signOut(auth);
     return;
   }
+  if (tokenClient) {
+    /* Everything after this happens in the token client's callbacks — the popup
+       goes to accounts.google.com and comes back with a token, and
+       onAuthStateChanged picks it up from there. No redirect fallback needed:
+       unlike Firebase's hosted handler, this popup works on mobile Safari. */
+    tokenClient.requestAccessToken();
+    return;
+  }
+  /* Fallback while GOOGLE_CLIENT_ID is unset: Firebase's own hosted popup. */
   const provider = new A.GoogleAuthProvider();
   try {
     await A.signInWithPopup(auth, provider);
@@ -4309,10 +4423,7 @@ async function onClick() {
     if (e && /popup|operation-not-supported/.test(String(e.code))) {
       try { await A.signInWithRedirect(auth, provider); return; } catch { /* fall through */ }
     }
-    if (String(e && e.code) !== 'auth/popup-closed-by-user') {
-      window.toast('Sign-in failed — check the Firebase setup');
-      console.warn('sign-in error', e);
-    }
+    if (String(e && e.code) !== 'auth/popup-closed-by-user') onSignInFailed(e);
   }
 }
 
