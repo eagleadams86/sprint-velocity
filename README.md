@@ -9,6 +9,12 @@ completion, break-in, carryover and velocity, and flags each one against your ta
 Built for Scrum Masters running several teams on a SAFe-style cadence: six sprints to a
 Program Increment, with sprint 6 reserved for innovation and planning.
 
+One of a pair: [Team Dashboard](https://eagleadams86.github.io/team-dashboard/) is the
+sibling app for weekly flow metrics, sharing this app's look and behaviour — the same sticky
+header, button tabs, tiles, ⓘ help dialogs, theme picker and footer. Each links to the other
+at the foot of the page. If a chrome rule changes in one app, it should change in the other
+too.
+
 ---
 
 ## What it tracks
@@ -299,8 +305,10 @@ rather than dragging them down.
   points actually went, and the notes.
 - **Current PI** — all six sprints of a PI, with PI totals and a sprint-by-sprint chart.
 - **Rolling 5** — the last five sprints for a team, crossing PI boundaries. Velocity and
-  commitment completion on one chart, and an instability chart plotting break-in, removed
-  and carryover against shaded 15% / 20% threshold bands.
+  commitment completion on one chart — with a dashed **velocity trend line** fitted by
+  ordinary least squares, the same treatment every chart in the sibling Team Dashboard app
+  carries — and an instability chart plotting break-in, removed and carryover against
+  shaded 15% / 20% threshold bands.
 - **All teams** — every team's rolling averages side by side, plus each team's next-sprint
   target in one column, so the one that needs attention is obvious. It carries **two
   comparison tables**, the same sprints through two different averages — see below.
@@ -512,6 +520,24 @@ project — the `FIREBASE_CONFIG` object at the bottom `<script type="module">` 
 `index.html` points at it. Signing in is entirely optional: the app is fully usable, and
 fully local, without it. Setting that constant back to `null` returns it to local-only mode
 and hides all sync UI.
+
+### Two sign-in doorways
+
+Corporate web filters block individual `firebaseapp.com` hostnames unpredictably — the block
+is per hostname, not the domain, so a sibling app working is no evidence this one will (the
+sibling Team Dashboard's README tabulates three projects measured on one network on one day:
+two blocked, one fine). The sibling app's fix is **Google Identity Services**: a popup
+straight to `accounts.google.com` returns an OAuth token that Firebase exchanges for the
+same session via `signInWithCredential`.
+
+That flow is ported here and switched by `GOOGLE_CLIENT_ID` at the top of the sync module.
+While it's `null` (the current state), sign-in falls back to Firebase's own
+`signInWithPopup` — exactly the previous behaviour. To activate the GIS doorway: in
+[console.cloud.google.com](https://console.cloud.google.com) → APIs & Services →
+Credentials, open the OAuth 2.0 Client ID named *Web client (auto created by Google
+Service)* for this project, add `https://eagleadams86.github.io` (and the exact localhost
+origin you serve from, port included) under **Authorized JavaScript origins**, and paste the
+Client ID into `GOOGLE_CLIENT_ID`. The CSP already allows `accounts.google.com`.
 
 To recreate the setup from scratch (e.g. in a fork):
 
