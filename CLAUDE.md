@@ -231,7 +231,9 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
 - **The Rolling 5 velocity chart carries a dashed `linearTrend()` line** (ordinary least
   squares, ported from Team Dashboard; nulls skipped). It's drawn muted — a reading of the
   bars, not a new series — and `linearTrend()` is a pure function pinned by tests.html.
-- **The chrome is shared with Team Dashboard** — sticky header, button tabs, tiles, ⓘ help,
+- **The chrome is shared with Team Dashboard** (the `claude-team-dashboard` repo; the app
+  itself is titled **Flow Metrics** on screen — display-only rename, every identifier still
+  says team-dashboard) — sticky header, button tabs, tiles, ⓘ help,
   footer, changelog box. The two apps are meant to read as one family; if a chrome rule
   changes here, change it there too (and vice versa). **Each app's header carries an
   `.applink` to the other** — a plain `<a class="btn small applink">`, no script, mirrored

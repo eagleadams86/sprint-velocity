@@ -9,7 +9,8 @@ completion, break-in, carryover and velocity, and flags each one against your ta
 Built for Scrum Masters running several teams on a SAFe-style cadence: six sprints to a
 Program Increment, with sprint 6 reserved for innovation and planning.
 
-One of a pair: [Team Dashboard](https://eagleadams86.github.io/team-dashboard/) is the
+One of a pair: [Flow Metrics](https://eagleadams86.github.io/team-dashboard/) (the
+`team-dashboard` repo — the app was renamed on screen only) is the
 sibling app for weekly flow metrics, sharing this app's look and behaviour — the same sticky
 header, button tabs, tiles, ⓘ help dialogs, theme picker and footer. **Each app's header
 carries a link to the other**, next to the title — one click either way, from anywhere on
