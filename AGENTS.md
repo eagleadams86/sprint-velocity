@@ -233,7 +233,14 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   bars, not a new series — and `linearTrend()` is a pure function pinned by tests.html.
 - **The chrome is shared with Team Dashboard** — sticky header, button tabs, tiles, ⓘ help,
   footer, changelog box. The two apps are meant to read as one family; if a chrome rule
-  changes here, change it there too (and vice versa). The footer cross-links the sibling.
+  changes here, change it there too (and vice versa). **Each app's header carries an
+  `.applink` to the other** — a plain `<a class="btn small applink">`, no script, mirrored
+  in Team Dashboard — sitting with the title rather than in the control cluster: it is
+  navigation, not another thing to do to the data, and it stays visible in a shared view.
+  `.applink` (not `.brand`, whose margin is now plain `0`) carries the `margin-right: auto`
+  that pushes the controls right, and needs `display: inline-flex` because `.btn.small`
+  pins its height with `min-height`, which an inline box ignores. The footer keeps its
+  cross-link too.
 - **Paste from Jira:** `parseJiraSprintReport()` / `deriveFromJira()` are pure functions on
   text — no DOM, no network, nothing saved (the saving happens in `applyJiraNumbers()`, further
   down). They only ever produce the seven figures, so the

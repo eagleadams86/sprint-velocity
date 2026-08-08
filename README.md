@@ -11,9 +11,10 @@ Program Increment, with sprint 6 reserved for innovation and planning.
 
 One of a pair: [Team Dashboard](https://eagleadams86.github.io/team-dashboard/) is the
 sibling app for weekly flow metrics, sharing this app's look and behaviour — the same sticky
-header, button tabs, tiles, ⓘ help dialogs, theme picker and footer. Each links to the other
-at the foot of the page. If a chrome rule changes in one app, it should change in the other
-too.
+header, button tabs, tiles, ⓘ help dialogs, theme picker and footer. **Each app's header
+carries a link to the other**, next to the title — one click either way, from anywhere on
+the page — and both still cross-link at the foot of the page. If a chrome rule changes in
+one app, it should change in the other too.
 
 ---
 
