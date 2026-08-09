@@ -685,10 +685,16 @@ Then open http://localhost:8012. (The desktop app's preview pane reads
 
 **Tests:** open http://localhost:8012/tests.html — it loads the real `index.html` in a
 hidden iframe and pins the pure functions (the Jira paste parser, the metrics and RAG
-bands, `avg` vs `pooled`, the id sanitizer, the sprint lifecycle). No build step and no
-frameworks: the page either says "All N tests pass" in green or lists what broke. Run it
-whenever those functions change; it needs the local server, since `file://` iframes are
-blocked in some browsers.
+bands, `avg` vs `pooled`, the shape and id sanitizers, the sprint lifecycle). No build step
+and no frameworks: the page either says "All N tests pass" in green or lists what broke.
+Run it whenever those functions change; it needs the local server, since `file://` iframes
+are blocked in some browsers.
+
+![tests](https://github.com/eagleadams86/sprint-velocity/actions/workflows/tests.yml/badge.svg)
+
+The suite also runs on every push: [`.github/workflows/tests.yml`](.github/workflows/tests.yml)
+serves the folder, opens `tests.html` in headless Chromium and fails the build if the
+summary goes red or the page throws — same workflow as the rest of the app family.
 
 `theme.css` is a copy of the generated palette from the private `claude-theme-pack`
 repo — the source of truth for the colours of every app in this family — and is left
