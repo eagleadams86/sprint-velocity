@@ -5,6 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sprint Velocity — Privacy Policy</title>
 <link rel="icon" href="favicon.ico">
+<script>
+  /* The same pre-paint boot as index.html: honour the saved theme, so this page
+     doesn't open midnight on someone who chose Light. Keep the list in step
+     with the app's. */
+  try {
+    var t = localStorage.getItem('sv-theme');
+    var ok = ['light','dark','midnight','sepia'];
+    document.documentElement.setAttribute('data-theme',
+      ok.indexOf(t) === -1 ? 'midnight' : t);
+  } catch (e) {}
+</script>
 <link rel="stylesheet" href="theme.css">
 <style>
   body { margin: 0; background: var(--bg); color: var(--text-primary);
