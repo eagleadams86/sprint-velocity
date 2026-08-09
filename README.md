@@ -525,6 +525,12 @@ run code in your browser when you opened the link — reaching your own saved da
 sign-in, neither of which the read-only guard covers. The same check runs on an imported
 backup file and on the copy that comes down from sync.
 
+The same boundary now also guards the *shape* of what arrives: a payload whose team, PI or
+sprint list isn't a list at all — or holds entries that aren't records — is coerced to a
+sane shape instead of being copied in raw, where the first render after it would have thrown
+on a blank page. The file import and share links still refuse a wrong file outright (the
+shape is checked before it's coerced, so any old JSON can't slip through as an empty export).
+
 The same boundary also checks that the data hangs together. A sprint that names a team or a
 PI which isn't in the file is left out, because it would otherwise count towards the rolling
 average while being impossible to open or even see — a figure moving with no sprint behind

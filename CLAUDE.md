@@ -190,6 +190,13 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   announces nothing on the way back — with `.warn:empty` collapsing them visually. The Jira
   preview is deliberately *not* a live region: it's far too long to read aloud, so `box.focus()`
   moves the user to it instead.
+- **Shapes from outside are not trusted either.** `coerceShape()` runs in front of
+  `sanitizeIds()` at every entry point, forcing `teams`/`pis`/`sprints` to arrays of
+  objects and `settings` to an object — without it, `Object.assign(blankState(), parsed)`
+  copies `teams: "junk"` or a null entry straight into state and the next render throws on
+  a blank page. Order matters at the two rejecting callers: the import and `decodeShare()`
+  shape-check the RAW parse first and coerce second, or coercion would turn any JSON into
+  a valid empty export. Pinned in tests.html.
 - **Ids from outside are not trusted.** `sanitizeIds()` runs on everything entering through
   `load()`, `decodeShare()`, the JSON import and `svAdopt()`, replacing any id that isn't
   `[A-Za-z0-9_-]{1,64}` with a fresh one and rewriting every reference through the same map.

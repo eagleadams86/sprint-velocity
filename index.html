@@ -958,6 +958,24 @@ function orphanNote(n) {
     + `${n === 1 ? 'it points' : 'they point'} at isn’t in this data.`;
 }
 
+/* The shape guard in front of every copy that arrives from outside — the saved
+   copy, an imported file, a share link, the cloud document. sanitizeIds() below
+   cleans the ids *inside* the lists; this makes sure the lists are lists at
+   all. Without it, Object.assign(blankState(), parsed) happily sets teams to
+   "junk" or leaves a null entry in an array, and the first teamById()/render()
+   after that throws on every frame — a blank page with no way back, off one
+   damaged or hand-edited payload. Callers that must REJECT a wrong file (the
+   import, the share decode) check the raw shape first and coerce second, so
+   this can never turn an arbitrary JSON into a valid empty export. */
+function coerceShape(data) {
+  const d = (data && typeof data === 'object') ? data : {};
+  for (const k of ['teams', 'pis', 'sprints']) {
+    d[k] = (Array.isArray(d[k]) ? d[k] : []).filter(x => x && typeof x === 'object');
+  }
+  if (!d.settings || typeof d.settings !== 'object') d.settings = {};
+  return d;
+}
+
 function sanitizeIds(data) {
   sanitizeIds.dropped = 0;   // reset first: a caller must never read a stale count
   if (!data || typeof data !== 'object') return data;
@@ -1024,7 +1042,7 @@ function load() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return blankState();
-    const parsed = sanitizeIds(JSON.parse(raw));
+    const parsed = sanitizeIds(coerceShape(JSON.parse(raw)));
     bootOrphans = sanitizeIds.dropped;
     return Object.assign(blankState(), parsed,
       { settings: Object.assign(blankState().settings, parsed.settings || {}) });
@@ -1036,8 +1054,17 @@ function load() {
 
 function save() {
   if (viewOnly) return;   // someone else's data — never write it over your own
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  localStorage.setItem('sv-updated', String(Date.now()));
+  /* Guarded like load(): Safari's private mode and a full quota both throw
+     here, and an unguarded throw would kill the click handler mid-save with
+     nothing on screen to say so. The in-memory state is still good — and it
+     still reaches the cloud below if signed in — so warn and carry on. */
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem('sv-updated', String(Date.now()));
+  } catch (e) {
+    console.warn('Could not write saved data', e);
+    toast('⚠️ This browser is blocking storage (full, or private mode?) — changes may be lost when the tab closes');
+  }
   if (window.cloudPush) window.cloudPush();
 }
 
@@ -3914,10 +3941,15 @@ F('importFile').onchange = (e) => {
   const reader = new FileReader();
   reader.onload = () => {
     try {
-      const parsed = sanitizeIds(JSON.parse(reader.result));
-      const orphans = sanitizeIds.dropped;
-      if (!parsed || !Array.isArray(parsed.teams) || !Array.isArray(parsed.sprints))
+      const rawParsed = JSON.parse(reader.result);
+      /* Shape-check the RAW parse, before coerceShape(): coercion would turn
+         any JSON into a valid empty export, and the wrong file picked out of a
+         Downloads folder must be refused, not imported as nothing. */
+      if (!rawParsed || typeof rawParsed !== 'object'
+          || !Array.isArray(rawParsed.teams) || !Array.isArray(rawParsed.sprints))
         throw new Error('not a Sprint Velocity export');
+      const parsed = sanitizeIds(coerceShape(rawParsed));
+      const orphans = sanitizeIds.dropped;
       /* The counts quoted here are the ones that will actually arrive, so any
          sprint the boundary dropped is named before the user decides — not
          after, when the numbers would already have moved. */
@@ -4030,8 +4062,10 @@ async function decodeShare(token) {
   if (!p || !Array.isArray(p.teams) || !Array.isArray(p.sprints) || !p.teams.length)
     throw new Error('not a share payload');
   /* A link is the least trusted input the app has — it arrives from someone else
-     by definition, which is the whole point of the feature. */
-  return sanitizeIds(p);
+     by definition, which is the whole point of the feature. The shape check
+     above has already refused a non-share payload, so coercing here can only
+     drop junk entries, never wave a wrong payload through. */
+  return sanitizeIds(coerceShape(p));
 }
 
 /* ── Opening a shared link ──────────────────────────────────────────────── */
@@ -4289,7 +4323,7 @@ document.querySelectorAll('.tab').forEach(tab => {
 /* ── Hooks the sync module calls ────────────────────────────────────────── */
 window.svGet = () => state;
 window.svAdopt = (incoming, ts) => {
-  incoming = sanitizeIds(incoming);
+  incoming = sanitizeIds(coerceShape(incoming));
   const orphans = sanitizeIds.dropped;
   state = Object.assign(blankState(), incoming,
     { settings: Object.assign(blankState().settings, (incoming && incoming.settings) || {}) });
@@ -4722,8 +4756,27 @@ async function pushNow() {
 window.cloudPush = () => {
   if (!user) return;
   clearTimeout(pushTimer);
-  pushTimer = setTimeout(() => pushNow().catch(setSyncError), 1200);
+  pushTimer = setTimeout(() => { pushTimer = null; pushNow().catch(setSyncError); }, 1200);
 };
+
+/* The debounce means "edit, then close the tab inside 1.2s" would leave the
+   push scheduled but never sent — localStorage has the change, the cloud
+   doesn't, and the other devices stay stale until the NEXT edit on this one.
+   Flush a pending push the moment the page is hidden; pagehide too, for the
+   paths that skip visibilitychange. Best-effort by nature — a request this
+   late in a page's life can still be cut off — but the next edit or sign-in
+   re-sends regardless, so nothing is ever lost, only late. Ported from
+   Flow Metrics (Team Dashboard). */
+const flushPush = () => {
+  if (!user || !pushTimer) return;
+  clearTimeout(pushTimer);
+  pushTimer = null;
+  pushNow().catch(() => { /* page is going away — nowhere left to report */ });
+};
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') flushPush();
+});
+addEventListener('pagehide', flushPush);
 </script>
 
 <script>

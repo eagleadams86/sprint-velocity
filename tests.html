@@ -181,6 +181,33 @@ t('non-object input is returned as-is, not exploded', () => {
   eq(w.sanitizeIds('junk'), 'junk');
 });
 
+group('coerceShape — the shape guard in front of the same boundary');
+t('a list that is not a list becomes an empty one instead of crashing every render', () => {
+  const out = w.coerceShape({ teams: 'junk', pis: 42, sprints: null });
+  eq(out.teams, []);
+  eq(out.pis, []);
+  eq(out.sprints, []);
+});
+t('null and junk entries inside a list are dropped, real ones kept', () => {
+  const out = w.coerceShape({ teams: [null, { id: 't1', name: 'A' }, 'junk'], pis: [], sprints: [] });
+  eq(out.teams.length, 1);
+  eq(out.teams[0].id, 't1');
+});
+t('missing lists become empty ones, junk settings become an object', () => {
+  const out = w.coerceShape({ settings: 'junk' });
+  eq(out.teams, []);
+  eq(out.settings, {});
+});
+t('junk input becomes a blank shape, never a throw', () => {
+  eq(w.coerceShape(null).teams, []);
+  eq(w.coerceShape('junk').sprints, []);
+});
+t('a well-formed payload passes through unchanged', () => {
+  const data = { teams: [{ id: 't1', name: 'A' }], pis: [{ id: 'p1' }],
+                 sprints: [{ id: 's1', teamId: 't1', piId: 'p1' }], settings: { view: 'sprint' } };
+  eq(w.coerceShape(JSON.parse(JSON.stringify(data))), data);
+});
+
 group('metrics — the single calculation spot');
 t('percentages use committed as denominator', () => {
   const m = w.metrics({ committed: 20, committedCompleted: 17, added: 3, removed: 1, carriedOut: 3, totalCompleted: 20 });
