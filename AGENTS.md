@@ -77,6 +77,12 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   and commitment-completion tile, and Rolling 5's "Pooled total" row; the PI "Average per
   sprint" tile/row and every Rolling 5 tile are `avg()`. Don't "fix" one to agree with the
   other, and don't let a new figure pick a method silently — say which it is in the UI.
+- **Both comparison tables end in an `All teams` row, each in its own table's method**
+  (`allMean` on `avg()`, `allPooled` on `pooled()`), taken across every counted sprint from
+  every team — **never** the mean of the rows above, so neither equals the mean of its own
+  column and a six-sprint team pulls six times as hard as a one-sprint team. The lone plain
+  sum is Comparison 1's next-sprint target: points, not a rate, so the column adds up. The
+  `methodnote` under Comparison 2 explains both rows; keep it in step if either changes.
 - Current PI and Rolling 5 each show the two methods as **a pair of footer rows** on their
   numbers table, average first then pooled, each with a `helpBtn` naming its method and the
   other. Rolling 5 deliberately keeps its **tiles on `avg()` only** — a fuller pooled
@@ -258,6 +264,13 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   that pushes the controls right, and needs `display: inline-flex` because `.btn.small`
   pins its height with `min-height`, which an inline box ignores. The footer keeps its
   cross-link too.
+- **The sprint form has two disclosures, both `<details>`: `#jiraBlock` above the figures and
+  `#notesBlock` (Why? — optional) below them.** They share one CSS rule so a closed one reads
+  as a panel of the form, not a stray link. Both are set on every `openSprint()` so neither
+  inherits the last sprint's state: Jira always closed, notes closed **unless the sprint
+  already has one**, since folding away writing the user can't see is there is the one way
+  this could lose them something. The textareas stay in the DOM while closed, so
+  `buildSprintRecord()` reads them either way.
 - **Paste from Jira:** `parseJiraSprintReport()` / `deriveFromJira()` are pure functions on
   text — no DOM, no network, nothing saved (the saving happens in `applyJiraNumbers()`, further
   down). They only ever produce the seven figures, so the

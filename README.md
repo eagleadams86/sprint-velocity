@@ -35,7 +35,10 @@ Per team, per sprint:
 | **Brought in, then removed** | Work that arrived mid-sprint and left again — counted in neither break-in nor removed |
 
 Plus free-text notes on **why** work was added, removed, or carried over — the context you
-want in front of you at the retro, not three sprints later when nobody remembers.
+want in front of you at the retro, not three sprints later when nobody remembers. They sit
+behind a **Why? (optional)** heading in the sprint form, folded away so the numbers and the
+Save button fit on one screen; open it when you want it. A sprint that already has notes opens
+with it unfolded, so nothing hides writing you can't see is there.
 
 ## The metrics
 
@@ -344,9 +347,14 @@ wrong; the first describes the typical sprint, the second describes the body of 
 | Matches the Agile Operations Dashboard | No | **Yes** |
 
 **Comparison 2 is the one that reconciles with the Agile Operations Dashboard**, which
-pools throughout. Its `All teams` row also pools every point from every team rather than
-averaging the rows above it, which is why that row won't equal the mean of its own column
-— the dashboard's Total behaves the same way.
+pools throughout.
+
+Both tables end in an **All teams** row, and each applies its own table's method across every
+team at once rather than averaging the rows above it — so neither row equals the mean of the
+column it sits under. Comparison 1 counts every sprint from every team as one equal sprint, so
+a team with six of them pulls six times as hard as a team with one; Comparison 2 pools every
+point, exactly as the dashboard's Total does. The single exception is Comparison 1's
+**next sprint target**: that's points rather than a rate, so the team targets simply add up.
 
 **Current PI** and **Rolling 5** both put the two methods side by side at the foot of
 their *The numbers* table, as a pair of summary rows:

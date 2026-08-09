@@ -328,10 +328,15 @@ th .tile-help, td .tile-help { vertical-align: 1px; }
 /* An in-flight sprint is easy to misread as a bad one, so say so up front. */
 .card.banner { border-left: 4px solid var(--amber); background: var(--bg-card-alt); }
 .card.banner > h2 { color: var(--amber); }
-/* Paste-from-Jira block inside the sprint form. */
-#jiraBlock { border: 1px solid var(--border); border-radius: var(--radius-sm);
-  padding: 10px 12px; margin-bottom: 14px; background: var(--bg-card-alt); }
-#jiraBlock > summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+/* The two collapsible blocks in the sprint form — the Jira paste box above the
+   figures, the optional notes below them. They're the same raised panel as a
+   fieldset, with the summary standing in for the legend, so a closed one reads
+   as a section of the form rather than a stray link. */
+#jiraBlock, #notesBlock { border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 10px 12px; background: var(--bg-card-alt); }
+#jiraBlock { margin-bottom: 14px; }
+#notesBlock { margin-top: 14px; }
+#jiraBlock > summary, #notesBlock > summary { cursor: pointer; font-weight: 600; font-size: 14px; }
 #jiraBlock textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px; min-height: 90px; }
 #jiraPreview { margin-top: 12px; }
@@ -768,9 +773,13 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
       <p class="sub" id="carryHint" style="margin:10px 0 0" hidden></p>
     </fieldset>
 
-    <fieldset>
-      <legend>Why? (optional)</legend>
-      <label class="field" for="f_n_added">Work added</label>
+    <!-- A disclosure rather than a fieldset: four empty boxes and their examples
+         are most of the form's height, and they're optional. Closed, the numbers
+         and the buttons fit on one screen. openSprint() opens it when the sprint
+         already has notes, so nothing ever hides writing that exists. -->
+    <details id="notesBlock">
+      <summary>Why? (optional)</summary>
+      <label class="field" for="f_n_added" style="margin-top:10px">Work added</label>
       <textarea id="f_n_added" placeholder="e.g. production defect, unplanned dependency from Team B"></textarea>
       <label class="field" for="f_n_removed" style="margin-top:10px">Work removed</label>
       <textarea id="f_n_removed" placeholder="e.g. descoped by PO, blocked on vendor"></textarea>
@@ -778,7 +787,7 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
       <textarea id="f_n_carriedOut" placeholder="e.g. story underestimated, key engineer out sick"></textarea>
       <label class="field" for="f_n_general" style="margin-top:10px">General notes</label>
       <textarea id="f_n_general" placeholder="Anything else worth remembering at the retro"></textarea>
-    </fieldset>
+    </details>
 
     <p class="warn" id="sprintWarn" role="status"></p>
     <div class="row spread" style="margin-top:16px">
@@ -2983,7 +2992,23 @@ function renderTeamsView() {
      rows above it — the same rule as each row, applied one level up. It's what the
      dashboard's Total does, and it's why that total doesn't match the mean of the
      column it sits under. */
-  const allPooled = pooled(rowsData.reduce((a, r) => a.concat(r.sprints), []));
+  const allSprints = rowsData.reduce((a, r) => a.concat(r.sprints), []);
+  const allPooled = pooled(allSprints);
+  /* Comparison 1's bottom row is the same idea in that table's own method: every
+     counted sprint from every team, each sprint's percentage weighing the same as
+     any other — so it is not the mean of the rows above it either, and a team with
+     six sprints pulls on it six times as hard as a team with one. Its next-sprint
+     target is the only figure here that is a plain sum: a target is points, not a
+     rate, so adding the column up is exactly what it means. */
+  const allMean = {
+    count:   allSprints.length,
+    commit:  avg(allSprints, 'commitCompletePct'),
+    breakIn: avg(allSprints, 'breakInPct'),
+    removed: avg(allSprints, 'removedPct'),
+    carry:   avg(allSprints, 'carryoverPct'),
+    vel:     avg(allSprints, 'velocity'),
+    target:  rowsData.reduce((a, r) => a + (r.target ? Math.round(r.target.recommended) : 0), 0)
+  };
 
   /* The two methods are easiest to believe when you're shown a team they actually
      disagree about, so the note picks the widest gap out of your own data rather
@@ -3029,6 +3054,15 @@ function renderTeamsView() {
           <td class="metric">${pill(r.carry, 'churn')}</td>
           <td>${fmtNum(r.vel)}</td>
           <td>${r.target ? '<strong>' + fmtNum(Math.round(r.target.recommended)) + '</strong>' : '—'}</td></tr>`).join('')}</tbody>
+        <tfoot><tr>
+          <th scope="row">All teams</th><td>${allMean.count}</td>
+          <td class="metric">${pill(allMean.commit, 'completion')}</td>
+          <td class="metric">${pill(allMean.breakIn, 'churn')}</td>
+          <td class="metric">${pill(allMean.removed, 'churn')}</td>
+          <td class="metric">${pill(allMean.carry, 'churn')}</td>
+          <td>${fmtNum(allMean.vel)}</td>
+          <td>${allMean.target ? '<strong>' + fmtNum(allMean.target) + '</strong>' : '—'}</td>
+        </tr></tfoot>
       </table></div>
     </div>
 
@@ -3087,9 +3121,13 @@ function renderTeamsView() {
           upward — it describes the actual body of work, and it's what the Agile Operations
           Dashboard shows, so it's the one that will reconcile. Neither is a correction of the
           other.</p>
-        <p>The <strong>All teams</strong> row pools every point from every team rather than
-          averaging the rows above it, which is why it won't equal the mean of the column —
-          the dashboard's Total behaves the same way.</p>
+        <p>Each table's <strong>All teams</strong> row applies that table's own method across
+          every team at once, rather than averaging the rows above it — which is why neither
+          equals the mean of the column it sits under. Comparison 1 treats every sprint from
+          every team as one equal sprint, so a team with six of them pulls six times as hard
+          as a team with one; Comparison 2 pools every point, so the dashboard's Total behaves
+          the same way. The one plain sum in either row is Comparison 1's <strong>next sprint
+          target</strong>: that's points rather than a rate, so the team targets simply add up.</p>
       </div>
     </div>`;
 
@@ -3199,6 +3237,11 @@ function openSprint(teamId, piId, sprintNumber) {
   F('f_n_removed').value = n.removed || '';
   F('f_n_carriedOut').value = n.carriedOut || '';
   F('f_n_general').value = n.general || '';
+  /* Notes are optional and are most of this form's height, so the block starts
+     closed — unless this sprint already has some, in which case closing it would
+     hide writing the user can't see is there. Set on every open, so it can't
+     inherit the last sprint's state. */
+  F('notesBlock').open = !!(n.added || n.removed || n.carriedOut || n.general);
 
   /* Carried-out and total-completed have obvious defaults, but only until the user
      types their own — some unfinished work gets dropped rather than carried, and
