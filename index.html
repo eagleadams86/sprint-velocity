@@ -418,7 +418,13 @@ tbody th, tfoot th { font-size: inherit; text-transform: none; letter-spacing: 0
   color: var(--text-primary); text-align: left; vertical-align: middle; }
 tbody th { font-weight: 400; white-space: normal; border-bottom-color: var(--border); }
 tbody tr:hover { background: var(--bg-card-alt); }
-tbody tr:last-child td { border-bottom: none; }
+/* The row-header cell has to be named here as well as the data cells. Written for
+   `td` alone, the rule left the last row's <th scope="row"> holding a border its
+   own row no longer had — a line under the team name that stopped at the end of
+   the first column. It showed wherever a table's last body row has no tfoot
+   beneath it to absorb it, which is every row of Comparison 1 in All teams, and
+   is unmissable there when you support a single team and that row is the table. */
+tbody tr:last-child td, tbody tr:last-child th { border-bottom: none; }
 tr.clickable { cursor: pointer; }
 /* The control that opens a row. A real <button> rather than a handler on the <tr>,
    because a row can't take focus or be pressed from the keyboard, and giving it a
