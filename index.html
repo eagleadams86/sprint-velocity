@@ -2153,9 +2153,46 @@ function render() {
   renderTeamPicker();
   destroyCharts();
 
+  const view = renderTabs();
+
   if (!state.teams.length) { renderWelcome(); return; }
 
-  const view = state.settings.view || 'sprint';
+  if (view === 'sprint')       renderSprintView();
+  else if (view === 'pi')      renderPiView();
+  else if (view === 'rolling') renderRollingView();
+  else                         renderTeamsView();
+}
+
+/* Which views are worth offering, and which one is on screen. A tab is only ever
+   hidden because the view behind it has nothing to say: All teams compares teams,
+   so it needs a second one; Current PI and Rolling 5 both read the active team's
+   sprints, so they need at least one recorded sprint. They come back the moment
+   the data does — and because it's the *active* team's sprints, switching to a
+   team you haven't recorded anything for takes them away again.
+
+   A shared view keeps its own rule for All teams: the sender decides whether the
+   comparison travels with the link, and a link carrying two teams may still say
+   no. That check used to sit in openSharedView(), which ran once; it lives here
+   now so there is one place that decides what the row contains. */
+function renderTabs() {
+  const team = activeTeam();
+  const shown = {
+    sprint:  true,
+    pi:      !!team && teamSprints(team.id).length > 0,
+    rolling: !!team && teamSprints(team.id).length > 0,
+    teams:   viewOnly ? !!(shareMeta && shareMeta.allTeams) : state.teams.length > 1
+  };
+  /* Nothing to look at yet, so the whole row goes rather than leaving a lone
+     Sprint tab hovering over the welcome card. */
+  document.querySelector('.tabs').hidden = !state.teams.length;
+  document.querySelectorAll('.tab').forEach(t => { t.hidden = !shown[t.dataset.view]; });
+
+  /* A view can't stay on screen once its tab has gone. The stored value is
+     corrected in memory and left for the next save to persist — a render must
+     not write, least of all push to the cloud. */
+  let view = state.settings.view || 'sprint';
+  if (!shown[view]) view = state.settings.view = 'sprint';
+
   document.querySelectorAll('.tab').forEach(t => {
     const on = t.dataset.view === view;
     t.setAttribute('aria-selected', String(on));
@@ -2164,11 +2201,7 @@ function render() {
     t.tabIndex = on ? 0 : -1;
   });
   viewsEl.setAttribute('aria-labelledby', 'tab-' + view);
-
-  if (view === 'sprint')       renderSprintView();
-  else if (view === 'pi')      renderPiView();
-  else if (view === 'rolling') renderRollingView();
-  else                         renderTeamsView();
+  return view;
 }
 
 function renderTeamPicker() {
@@ -2235,12 +2268,16 @@ function renderSprintView() {
             `<option value="${n}"${n === numSel ? ' selected' : ''}>Sprint ${n}${
               n === IP_SPRINT ? ' (IP)' : ''}${sprintPickerNote(team.id, piId, n)}</option>`).join('')}</select>
         </div>
-        <!-- Plain .btn, not .primary: this sits in a toolbar alongside the header
-             chrome, so the inverted treatment made it the one loud thing on the
-             page. .primary stays for dialogs and empty states, where a single
-             strong call to action is the point. -->
+        <!-- One button, two jobs, two treatments. On an empty slot it says Add
+             Sprint and it is the only thing to do on the page, so it takes the
+             filled .primary of "Add your first team" and "Add a PI" — the app's
+             mark for "this is the call to action". Once the sprint exists it says
+             Edit Sprint and goes back to a plain .btn: it's toolbar chrome beside
+             the pickers then, and inverted it was the one loud thing on a page
+             already full of figures. -->
         ${viewOnly ? '' :
-          `<button class="btn" id="editSprintBtn">${s ? 'Edit Sprint' : 'Add Sprint'}</button>`}
+          `<button class="btn${s ? '' : ' primary'}" id="editSprintBtn">${
+            s ? 'Edit Sprint' : 'Add Sprint'}</button>`}
       </div>
     </div>`;
 
@@ -3972,11 +4009,11 @@ async function openSharedView() {
        already sent open on their latest sprint too. */
     const team = activeTeam();
     if (team) focusLatestSprint(team.id);
-    /* The bar and the tab list are fixed for the life of the page, so they're set
-       here rather than inside render(), which runs on every interaction. */
+    /* The banner is fixed for the life of the page, so it's set here rather than
+       inside render(), which runs on every interaction. The All teams tab used to
+       be hidden here too; renderTabs() owns that now, and reads shareMeta — set
+       just above — for the same decision. */
     F('shareBar').innerHTML = shareBanner();
-    const teamsTab = document.querySelector('.tab[data-view="teams"]');
-    if (teamsTab) teamsTab.hidden = !shareMeta.allTeams;
     render();
     if (orphans) toast(orphanNote(orphans));
   } catch (e) {

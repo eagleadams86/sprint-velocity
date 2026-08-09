@@ -134,10 +134,25 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   large solid area reads olive/maroon/bottle-green — three near-blacks — which is the same
   failure the tinted tiles fixed. The view tabs
   are a real tablist: `aria-controls` onto `#views` (`role="tabpanel"`), roving `tabindex`
-  set in `render()` beside `aria-selected`, and arrow/Home/End wired at the foot of the
+  set in `renderTabs()` beside `aria-selected`, and arrow/Home/End wired at the foot of the
   file, skipping hidden tabs. `role="tabpanel"` sits on the inner `#views` div, **not on
   `<main>`** — putting it on the element replaces its role, which silently cost the page its
   main landmark once already.
+- **`renderTabs()` is the one place that decides which views are on offer**, and it hides a
+  tab only when the view behind it has nothing to say: **All teams** needs a second team,
+  **Current PI** and **Rolling 5** need at least one recorded sprint *for the active team*
+  (so they come and go as you switch teams), and with no teams at all the whole row goes
+  rather than leaving a lone Sprint tab over the welcome card. If the stored view's tab has
+  just been hidden it falls back to `sprint`, corrected **in memory** — a render must never
+  `save()`, which would push to the cloud. **A shared view keeps its own rule for All
+  teams** (`shareMeta.allTeams`, which the sender opts into and which already requires two
+  teams): that check moved out of `openSharedView()` into `renderTabs()`, so don't
+  reinstate it there.
+- **The sprint button is `.primary` only while it says "Add Sprint".** On an empty slot it's
+  the one thing to do on the page, so it matches "Add your first team" and "Add a PI"; once
+  the sprint exists it says "Edit Sprint" and drops back to a plain `.btn`, because it is
+  then toolbar chrome beside the pickers and the inverted fill made it the loudest thing on
+  a page full of figures. Don't make both states match.
 - **Every bar is a tint fill plus a full-strength edge, not a slab of its colour** — the same
   rule as the RAG surfaces above, extended to the categorical series bars. This is now a
   cross-app convention (rule 3 in `~/claude-theme-pack/CLAUDE.md`, also in the lottery

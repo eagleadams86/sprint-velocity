@@ -315,6 +315,12 @@ rather than dragging them down.
   target in one column, so the one that needs attention is obvious. It carries **two
   comparison tables**, the same sprints through two different averages — see below.
 
+A view is only offered once there's something in it. **All teams** appears when you have a
+second team; **Current PI** and **Rolling 5** appear once the team you're on has a recorded
+sprint, and step aside again if you switch to a team you haven't recorded anything for. With
+no teams at all there are no tabs — just the welcome card. If the view you were on goes away,
+you land back on **Sprint**.
+
 ## The two comparison tables
 
 The All teams view shows the same rolling window twice, because there are two honest ways
