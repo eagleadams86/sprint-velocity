@@ -4676,7 +4676,16 @@ const localTs = () => Number(localStorage.getItem('sv-updated') || 0);
    width at first paint instead of growing by a button once the SDK has come down
    the wire. It's taken away again only when sync genuinely can't run — no config,
    a shared view, or a failed load — which is the case worth a reflow. */
-if (FIREBASE_CONFIG && !window.svViewOnly) {
+/* tests.html loads this page in a hidden iframe (marked data-sv-tests) to reach
+   the pure functions. The harness must not boot a real session: if this origin
+   had ever signed in, onAuthStateChanged would fire inside the invisible iframe
+   and sync — or the "another device cleared its data" dialog nobody can see —
+   would run mid-test. Same guard as the sibling Team Dashboard app. */
+let inTestHarness = false;
+try { inTestHarness = !!(window.frameElement && window.frameElement.hasAttribute('data-sv-tests')); }
+catch (e) { /* cross-origin parent — not the harness */ }
+
+if (FIREBASE_CONFIG && !window.svViewOnly && !inTestHarness) {
   init().catch((e) => { console.warn('Sync unavailable:', e); btn.hidden = true; });
 } else {
   btn.hidden = true;

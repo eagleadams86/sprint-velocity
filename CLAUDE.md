@@ -409,7 +409,15 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   `avg()`/`pooled()`, `sanitizeIds()` or `sprintStatus()`.** It loads the real
   `index.html` in a hidden iframe and calls the functions directly — no build step, no
   copies — so it needs `http://localhost` (file:// iframes are blocked in some
-  browsers). CI runs the same page headless on every push (`.github/workflows/tests.yml`) and fails the build if the summary goes red. `window.__svTestHooks` at the foot of the classic script exists solely to
+  browsers). **It also refuses to run anywhere else, and that is load-bearing:** Pages
+  publishes `tests.html` beside the app, where the iframe would be the signed-in copy and
+  `onAuthStateChanged` would start a real sync — or raise the which-copy dialog — inside an
+  invisible frame. Two guards, both needed: the iframe carries `data-sv-tests`, which the
+  sync module checks before `init()`, and the gate at the foot of `tests.html` never creates
+  the iframe at all off localhost (booting the app IS the side effect, so the check can't
+  live in the load handler). Don't put the iframe back in the markup. CI runs the same page
+  headless on every push (`.github/workflows/tests.yml`) on `localhost:8012`, so the gate
+  lets it through, and fails the build if the summary goes red. `window.__svTestHooks` at the foot of the classic script exists solely to
   hand it `fmtPct` (a `const`, invisible on `window`); function declarations it reaches
   directly. When a rule in this file changes, change the matching test in the same
   commit.

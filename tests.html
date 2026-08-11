@@ -10,7 +10,15 @@
      in a hidden same-origin iframe and calls its functions directly, so what's
      tested is exactly what ships — no copies, no build step. Serve over
      http://localhost (python3 -m http.server 8012); file:// iframes are blocked
-     in some browsers. Nothing here writes localStorage or calls save(). */
+     in some browsers. Nothing here writes localStorage or calls save().
+
+     But the iframe boots the real app, which is not nothing: on an origin that
+     has signed in, the sync module would start a live Firestore session inside
+     an invisible frame. Two guards, and both are needed. The iframe carries
+     data-sv-tests, which index.html checks so sync never initialises in the
+     harness. And the gate at the foot of this script refuses to create the
+     iframe at all off localhost — GitHub Pages publishes this file next to the
+     app, so "somewhere else" is a page anyone can open. */
   body { background: var(--bg); color: var(--text-primary); margin: 0;
          font: 14px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
   .wrap { max-width: 860px; margin: 0 auto; padding: 28px 20px 60px; }
@@ -34,11 +42,14 @@
 <body>
 <div class="wrap">
   <h1>Sprint Velocity — pure-function tests</h1>
-  <p class="sub">Runs against the real <code>index.html</code> in a hidden iframe. Read-only: nothing is saved.</p>
+  <p class="sub">Runs against the real <code>index.html</code> in a hidden iframe. Read-only:
+    nothing is saved — and it only runs on <code>localhost</code>, where that iframe can't be
+    your signed-in copy of the app.</p>
   <div id="summary">Loading app…</div>
   <table><tbody id="out"></tbody></table>
 </div>
-<iframe id="app" src="index.html" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none" title="app under test"></iframe>
+<!-- The iframe is built in script, not here: it boots the real app, so it must
+     not exist until the localhost gate at the foot of this file has passed. -->
 
 <script>
 'use strict';
@@ -436,13 +447,49 @@ t('junk text parses to an empty result, not a throw', () => {
 });
 
 /* ── Runner ───────────────────────────────────────────────────────────────── */
-window.addEventListener('load', () => {
-  const frame = document.getElementById('app');
-  const start = () => setTimeout(run, 150); // let the app's boot script finish
-  if (frame.contentDocument && frame.contentDocument.readyState === 'complete'
-      && frame.contentWindow.parseJiraSprintReport) start();
-  else frame.addEventListener('load', start, { once: true });
-});
+
+/* The localhost gate. Booting the app is itself the side effect worth guarding:
+   on the published origin the iframe would be a real, signed-in copy, and
+   onAuthStateChanged would start a Firestore session — or raise the "another
+   device cleared its data" dialog — inside a frame nobody can see. So the check
+   comes before the iframe exists, not inside its load handler.
+
+   '' covers file://, which has no host: the suite can't run there either way
+   (file:// iframes are blocked) and its storage is a throwaway opaque origin, so
+   it falls through to the ordinary "serve it over localhost" advice. */
+const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]', ''];
+
+if (LOCAL_HOSTS.includes(location.hostname)) {
+  const frame = document.createElement('iframe');
+  frame.id = 'app';
+  frame.title = 'app under test';
+  /* index.html checks for this and leaves the sync module uninitialised. */
+  frame.setAttribute('data-sv-tests', '');
+  frame.setAttribute('aria-hidden', 'true');
+  frame.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none';
+  frame.addEventListener('load', () => setTimeout(run, 150), { once: true }); // let boot finish
+  frame.src = 'index.html';           /* set before append: one load event, the real one */
+  document.body.appendChild(frame);
+} else {
+  const s = document.getElementById('summary');
+  s.className = 'bad';
+  s.textContent = 'Not run here — this page boots a live copy of the app.';
+  const tr = document.createElement('tr');
+  const td = document.createElement('td');
+  td.colSpan = 3;
+  td.style.cssText = 'font-size:13px;line-height:1.6';
+  td.innerHTML =
+    'The suite loads the app in a hidden frame to test it. On <strong></strong> ' +
+    'that frame would be your real, signed-in copy, quietly starting a sync session where ' +
+    'you can\'t see it. It runs on <code>localhost</code> only, against a copy served from ' +
+    'the repo folder:<br><br><code>cd ~/claude-sprint-velocity &amp;&amp; ' +
+    'python3 -m http.server 8012</code><br>then open ' +
+    '<code>http://localhost:8012/tests.html</code>.<br><br>' +
+    'Nothing has been changed by opening this page — <a href="index.html">back to the app</a>.';
+  td.querySelector('strong').textContent = location.hostname;
+  tr.appendChild(td);
+  document.getElementById('out').appendChild(tr);
+}
 
 function run() {
   w = document.getElementById('app').contentWindow;
