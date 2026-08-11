@@ -646,10 +646,20 @@ devices, but it asks before it takes effect on each one.
 
 ## Architecture
 
+The icon — a sprint cycle opening at the commitment point, on the midnight tile
+the whole app family wears — is drawn by `make_favicon.py` (Pillow). The inline
+SVG in the page is what browsers show in the tab and what the header wears;
+`favicon.ico` is the fallback a browser fetches from the site root on its own,
+and what a bookmark uses. The script keeps the two the same picture rather than
+leaving a binary nobody can review in a diff. Re-run it with
+`python3 make_favicon.py`, then bump the `?v=` on every `favicon.ico` reference
+— browsers hold on to an icon for a long time.
+
 ```
 GitHub Pages (static hosting, this repo, main branch)
     ├── index.html    the whole app — markup, styles, logic, no build step
     ├── theme.css     shared design tokens (generated in the claude-theme-pack repo)
+    ├── favicon.ico   the tab icon's fallback, drawn by make_favicon.py
     └── chart.min.js  vendored Chart.js UMD build — no CDN, no network needed
             ├── all state ──► browser localStorage (source of truth, works offline)
             ├── signed in ──► Firestore doc sprintvelocity/{uid} (optional;

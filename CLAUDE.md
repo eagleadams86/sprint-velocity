@@ -261,7 +261,7 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   bars, not a new series — and `linearTrend()` is a pure function pinned by tests.html.
 - **The chrome is shared with Team Dashboard** (the `claude-team-dashboard` repo; the app
   itself is titled **Flow Metrics** on screen — display-only rename, every identifier still
-  says team-dashboard) — sticky header, button tabs, tiles, ⓘ help,
+  says team-dashboard) — sticky header, brand mark, button tabs, tiles, ⓘ help,
   footer, changelog box. The two apps are meant to read as one family; if a chrome rule
   changes here, change it there too (and vice versa). **Each app's header carries an
   `.applink` to the other** — a plain `<a class="btn small applink">`, no script, mirrored
@@ -271,6 +271,20 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   that pushes the controls right, and needs `display: inline-flex` because `.btn.small`
   pins its height with `min-height`, which an inline box ignores. The footer keeps its
   cross-link too.
+- **Each app wears its own mark in the header, from the same family tile** — midnight page,
+  soft disc in the corner, one gradient stroke in the accent, the same shapes Money Map and
+  PAPTrack use. Here it's the sprint cycle; Flow Metrics has three weeks of bars. It is
+  drawn twice, by `make_favicon.py` (Pillow → `favicon.ico`) and as the inline SVG data URI
+  in `<head>`, and the two must stay the same picture — the SVG is what a browser actually
+  shows, the `.ico` is the fallback it fetches from the site root on its own and what the
+  header `<img>` wears. Re-running the script means bumping `?v=` on **every**
+  `favicon.ico` reference, `privacy.html` included, or the old icon stays cached for months.
+  The two extra tints (`#a5b4fc`, `#141c33`) are artwork, not palette: they came from Money
+  Map's icon and are copied byte-for-byte rather than re-picked, so nothing new enters the
+  theme pack. `.brand img` sits in the text's own flow with `vertical-align: middle` —
+  **don't make `.brand` a flex row** the way Money Map does. This brand line wraps on a
+  phone, and as flex items the title and the "· Charlie's Epic…" span become two columns,
+  so the subtitle wraps inside a narrow one beside the title instead of running on below it.
 - **The sprint form has two disclosures, both `<details>`: `#jiraBlock` above the figures and
   `#notesBlock` (Why? — optional) below them.** They share one CSS rule so a closed one reads
   as a panel of the form, not a stray link. Both are set on every `openSprint()` so neither

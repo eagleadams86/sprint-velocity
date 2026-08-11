@@ -20,7 +20,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sprint Predictability · Charlie’s Epic Sprint Planner</title>
 <meta name="description" content="Track sprint predictability across teams: commitment completion, break-in, carryover, and velocity.">
-<link rel="icon" href="favicon.ico">
+<!-- The mark is the sprint itself: a cycle that comes round again, opening at the
+     commitment point. It's the family tile Money Map, PAPTrack and Flow Metrics wear
+     — midnight page, soft disc in the corner, one gradient stroke in the accent.
+     The SVG is what every current browser shows; favicon.ico is the fallback a
+     browser fetches from the site root on its own, and what a bookmark uses. The two
+     are the same picture — make_favicon.py draws this geometry — so keep them in
+     step. img-src allows data: URIs, so the SVG costs no extra request. -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'> <defs><linearGradient id='g' x1='10' y1='52' x2='54' y2='12' gradientUnits='userSpaceOnUse'> <stop offset='0' stop-color='%23818cf8'/><stop offset='1' stop-color='%23a5b4fc'/></linearGradient></defs> <rect width='64' height='64' rx='14' fill='%230a0e1a'/> <circle cx='14' cy='52' r='20' fill='%23141c33'/> <path d='M42.93 18.98 A17 17 0 1 1 24.82 16.59' fill='none' stroke='url(%23g)' stroke-width='6' stroke-linecap='round'/> <circle cx='42.93' cy='18.98' r='6.5' fill='%23a5b4fc'/> <circle cx='42.93' cy='18.98' r='2.4' fill='%230a0e1a'/> </svg>">
+<link rel="alternate icon" href="favicon.ico?v=1">
 <script>
   /* Apply the saved theme before first paint so there's no light flash. The list
      is repeated here rather than shared with THEMES below because this has to run
@@ -159,6 +167,16 @@ header {
 .brand { font-size: 17px; font-weight: 700; letter-spacing: -.01em;
   margin: 0; }
 .brand span { color: var(--text-muted); font-weight: 500; }
+/* The mark from the browser tab, worn in the header too. Width and height are on
+   the element, not just in CSS, so the row is laid out at its final size before the
+   icon arrives — the header paints long before anything else runs, and a growing
+   header is the one thing this row must never do.
+   The icon sits in the text's own flow (Money Map makes .brand a flex row instead;
+   don't copy that here). This brand line is long enough to wrap on a phone, and as
+   flex items the title and the "· Charlie's Epic…" span become two columns — the
+   subtitle then wraps inside a narrow one beside the title rather than running on
+   below it. Mirrored in Flow Metrics, whose line is longer still. */
+.brand img { width: 22px; height: 22px; vertical-align: middle; margin-right: 9px; }
 /* The link to Team Dashboard sits with the title, so it — not .brand — carries the
    auto margin that pushes the control cluster to the right edge. An <a> is inline,
    and .btn.small pins its height with min-height, which inline boxes ignore: hence
@@ -604,7 +622,11 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
 
 <header>
   <div class="headbar">
-    <h1 class="brand">Sprint&nbsp;Predictability <span>· Charlie’s Epic Sprint Planner</span></h1>
+    <!-- ?v= is not decoration: a browser holds on to a favicon for a long time, and
+         without it the header would keep showing whatever icon it cached the first
+         time. Bump it on both references whenever make_favicon.py is re-run. -->
+    <h1 class="brand"><img src="favicon.ico?v=1" width="22" height="22" alt=""
+      >Sprint&nbsp;Predictability <span>· Charlie’s Epic Sprint Planner</span></h1>
     <!-- A real <a>, not a button that navigates: ⌘-click, middle-click and "open in
          new tab" all keep working, and it needs no script. It stays visible in a
          shared view — it's navigation, not an edit control. Mirrored in Team
