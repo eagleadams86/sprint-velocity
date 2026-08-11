@@ -501,9 +501,38 @@ You choose per link:
 
 - **Which teams** — the team you're looking at is ticked by default. Sharing one team doesn't
   reveal the others, or even the names of PIs that team never ran in.
+- **How much history** — all of it (the default), the last 2 PIs, this PI only, or the last 5
+  or 10 sprints for each team. See below.
 - **The All teams comparison view** — only offered when you've picked more than one team.
 - **Sprint notes** — your written comments on what was added, removed and carried over.
   **Off by default**, so candid retro commentary doesn't travel by accident.
+
+### How much history
+
+A link carries its data inside itself, so the longer your history grows, the longer the link
+gets — and a very long one can be broken in half by a mail client on the way. **How much
+history** is the way out of that: it shortens the link without you deleting a single sprint.
+
+The sprint options are **per team**, so sharing three teams with "the last 10 sprints" gives
+ten each rather than ten between them. The PI options are the other way round — a PI is a
+program increment your teams share, so "this PI only" means the same PI for everybody and the
+comparison views stay lined up.
+
+**As much as fits in a mailable link** does the choosing for you: it works out the largest
+window that still comes in under the length where mail clients start breaking links, and tells
+you what it settled on. If your whole history already fits, it says so and leaves it alone.
+
+The dialog says what you'd expect it to say and one thing you might not:
+
+- how many sprints of your total went in, and how long the link came out;
+- a team left with nothing by the window — likely with *this PI only* — is named and left out
+  of the link entirely, rather than shipped as an empty tab;
+- and if the window leaves a team with fewer than five finished sprints, it warns you, because
+  **their Rolling 5 will then average fewer sprints than yours does** — trimming below five
+  changes the figures rather than just the size of the link.
+
+Whoever opens a trimmed link is told so in the banner at the top, so a figure that doesn't
+match yours has a visible reason. They aren't told how much history sits behind it.
 
 **The data rides inside the link itself**, compressed into the part after the `#`. Browsers
 never send that part to a server, so the figures go straight from your browser to theirs —
@@ -540,8 +569,8 @@ sprints were left out and why: an import says so before you commit to it, and a 
 synced copy says so once it opens.
 
 Links run to a few hundred characters for a typical team. If one gets long enough that a mail
-client might break it across two lines, the dialog says so and suggests sharing fewer teams or
-leaving notes out.
+client might break it across two lines, the dialog says so and points at the three things that
+shorten it — fewer teams, no notes, or less history.
 
 ## Cross-device sync (Firebase, free tier — optional)
 

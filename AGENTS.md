@@ -333,6 +333,29 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   account and no network. `buildSharePayload()` emits a **trimmed copy** — chosen teams only,
   only the PIs their sprints reference, notes stripped unless asked for, and never anything
   identifying. Don't shortcut it to serialising `state`.
+- **How much history a link carries is a third lever, beside teams and notes.**
+  `trimShareSprints()` applies it and is **pure** (it takes the PI list rather than reading
+  state) so tests.html can pin it; `parseShareScope()` turns the picker value into its scope.
+  Sprint windows are **per team** — a two-team link must not spend its whole window on the
+  busier team — and PI windows are **global**, because a PI is a program increment the teams
+  share and cutting it per team would leave the comparison views on different quarters. It
+  runs **before `usedPis`** in `buildSharePayload()`, or a link cut back to this PI still
+  carries the names of the PIs it no longer reaches. Unlike `rollingSprints()` it applies
+  neither `isCounted()` nor the IP-sprint rule: a link carries what was recorded, and the
+  recipient's own views count or exclude it by the usual rules.
+- **The window's exclusions are never silent, on both sides.** A team the window leaves empty
+  is dropped from the payload (never *all* of them — `decodeShare()` refuses a teamless
+  payload) and named in the dialog, because shipping it lands the recipient on an empty sprint
+  card. Cutting a team below `ROLLING_WINDOW` warns too: that changes the *figures* the
+  recipient sees, not just the length of the link. The recipient's banner says a window is in
+  force, built by `shareRangeNote()` from `range: { kind, n }` — **two numbers, never a
+  sentence the sender wrote**, so a hand-edited link has no text to inject — and deliberately
+  without a total, so the sender isn't publishing how much history exists behind it.
+- **"As much as fits" bisects, and must keep checking `shareSeq` between trials.** Link length
+  only grows with the window, so `fitShareWindow()` binary-searches it in about six encodes
+  instead of fifty. It searches sprints, not PIs: a PI step is six sprints and overshoots by
+  thousands of characters. With several encodes in flight, checking the sequence only at the
+  end would let a stale search finish over a fresh one.
 - **`save()` is the view-mode chokepoint.** `viewOnly` makes it a no-op, and because it's the
   one place that writes localStorage *and* calls `cloudPush()`, that single guard is what
   guarantees a shared link can't overwrite the viewer's own data — often another SM in the same

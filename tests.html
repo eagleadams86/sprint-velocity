@@ -208,6 +208,74 @@ t('a well-formed payload passes through unchanged', () => {
   eq(w.coerceShape(JSON.parse(JSON.stringify(data))), data);
 });
 
+group('trimShareSprints — how much history a share link carries');
+/* Two teams on the same three PIs, deliberately out of order in the array and with
+   the busier team ahead of the other, so per-team windowing and program ordering
+   are both actually being tested rather than falling out of the input order. */
+const PIS = [{ id: 'p1' }, { id: 'p2' }, { id: 'p3' }];
+const SS = [
+  { id: 'b2', teamId: 'B', piId: 'p2', sprintNumber: 1 },
+  { id: 'a3', teamId: 'A', piId: 'p1', sprintNumber: 3 },
+  { id: 'a5', teamId: 'A', piId: 'p3', sprintNumber: 1 },
+  { id: 'a1', teamId: 'A', piId: 'p1', sprintNumber: 1 },
+  { id: 'a4', teamId: 'A', piId: 'p2', sprintNumber: 1 },
+  { id: 'a2', teamId: 'A', piId: 'p1', sprintNumber: 2 },
+  { id: 'b1', teamId: 'B', piId: 'p1', sprintNumber: 6 },
+];
+const ids = (out) => out.map(s => s.id).sort();
+
+t('all history is handed straight back — the same array, not a filtered copy', () => {
+  ok(w.trimShareSprints(SS, PIS, { kind: 'all' }) === SS, 'an explicit "all"');
+  ok(w.trimShareSprints(SS, PIS, null) === SS, 'a missing scope means all');
+});
+t('a sprint window is per team, so the busier team cannot eat the whole window', () => {
+  const out = w.trimShareSprints(SS, PIS, { kind: 'sprint', n: 2 });
+  eq(ids(out), ['a4', 'a5', 'b1', 'b2'], 'each team keeps its own last 2');
+});
+t('program order beats array order — the newest are by PI then sprint number', () => {
+  eq(ids(w.trimShareSprints(SS, PIS, { kind: 'sprint', n: 1 })), ['a5', 'b2']);
+  eq(ids(w.trimShareSprints(SS, PIS, { kind: 'sprint', n: 3 })),
+     ['a3', 'a4', 'a5', 'b1', 'b2'], 'A reaches back into p1, B has only 2 to give');
+});
+t('the payload keeps its stored order, so two links stay diffable', () => {
+  eq(w.trimShareSprints(SS, PIS, { kind: 'sprint', n: 2 }).map(s => s.id),
+     ['b2', 'a5', 'a4', 'b1']);
+});
+t('a PI window is global and never splits a PI', () => {
+  eq(ids(w.trimShareSprints(SS, PIS, { kind: 'pi', n: 1 })), ['a5'],
+     'only the newest PI any sprint reaches, for every team alike');
+  eq(ids(w.trimShareSprints(SS, PIS, { kind: 'pi', n: 2 })), ['a4', 'a5', 'b2']);
+});
+t('a window bigger than the history is a no-op, and an empty list never throws', () => {
+  eq(ids(w.trimShareSprints(SS, PIS, { kind: 'sprint', n: 99 })), ids(SS));
+  eq(ids(w.trimShareSprints(SS, PIS, { kind: 'pi', n: 99 })), ids(SS));
+  eq(w.trimShareSprints([], PIS, { kind: 'sprint', n: 2 }), []);
+});
+t('unfinished and IP sprints stay in — the recipient\'s views exclude them, not the share', () => {
+  const mixed = [
+    { id: 'x1', teamId: 'A', piId: 'p3', sprintNumber: 5 },
+    { id: 'ip', teamId: 'A', piId: 'p3', sprintNumber: 6, status: 'planned' },
+  ];
+  eq(ids(w.trimShareSprints(mixed, PIS, { kind: 'sprint', n: 2 })), ['ip', 'x1']);
+});
+
+group('parseShareScope — the picker value');
+t('the two windowed forms parse to a kind and a count', () => {
+  eq(w.parseShareScope('pi:2'), { kind: 'pi', n: 2 });
+  eq(w.parseShareScope('n:10'), { kind: 'sprint', n: 10 });
+});
+t('everything else means the whole history, including the automatic option', () => {
+  eq(w.parseShareScope('all'), { kind: 'all' });
+  eq(w.parseShareScope('fit'), { kind: 'all' }, 'fit starts wide; the search narrows it');
+  eq(w.parseShareScope(''), { kind: 'all' });
+  eq(w.parseShareScope(undefined), { kind: 'all' });
+});
+t('a junk or zero count can never produce an empty window', () => {
+  eq(w.parseShareScope('n:0'), { kind: 'sprint', n: 1 });
+  eq(w.parseShareScope('pi:junk'), { kind: 'pi', n: 1 });
+  eq(w.parseShareScope('n:-4'), { kind: 'sprint', n: 1 });
+});
+
 group('metrics — the single calculation spot');
 t('percentages use committed as denominator', () => {
   const m = w.metrics({ committed: 20, committedCompleted: 17, added: 3, removed: 1, carriedOut: 3, totalCompleted: 20 });

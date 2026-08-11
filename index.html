@@ -879,6 +879,21 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
 
   <fieldset class="formpanel">
     <legend>What to include</legend>
+    <div style="margin-bottom:12px">
+      <label class="field" for="shareHistory">How much history</label>
+      <select id="shareHistory">
+        <option value="all">All history</option>
+        <option value="fit">As much as fits in a mailable link</option>
+        <optgroup label="By PI">
+          <option value="pi:2">The last 2 PIs</option>
+          <option value="pi:1">This PI only</option>
+        </optgroup>
+        <optgroup label="By sprint">
+          <option value="n:10">The last 10 sprints per team</option>
+          <option value="n:5">The last 5 sprints per team</option>
+        </optgroup>
+      </select>
+    </div>
     <label class="checkline"><input type="checkbox" id="shareAllTeams">
       <span>The <strong>All teams</strong> comparison view</span></label>
     <label class="checkline"><input type="checkbox" id="shareNotes">
@@ -889,6 +904,7 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
     <legend>Your link</legend>
     <input type="text" id="shareLink" readonly aria-label="Read-only share link">
     <p class="sub muted" id="shareMeta" role="status" style="margin:8px 0 0"></p>
+    <p class="sub muted" id="shareScope" role="status" style="margin:6px 0 0"></p>
     <p class="warn" id="shareWarn" role="status"></p>
     <div class="row" style="margin-top:10px">
       <button type="button" class="btn primary" id="shareCopyBtn">Copy link</button>
@@ -4033,14 +4049,88 @@ async function squeeze(bytes, Stream, format) {
   return new Uint8Array(await new Response(s.readable).arrayBuffer());
 }
 
+/* ── How much history goes in ───────────────────────────────────────────────
+   A link carries its data in the URL, so a long history eventually makes one too
+   long to survive a mail client. The window is the way out: it shortens the link
+   without touching a single stored sprint, which is the whole point — deleting
+   real data to be able to share it is the wrong trade.
+
+   'all' | 'fit' | 'pi:2' | 'n:10' from the picker; 'fit' has no fixed window of
+   its own — refreshShareLink() searches for the largest one that fits — so it
+   starts life as 'all' and the search narrows from there. */
+function parseShareScope(value) {
+  const [kind, n] = String(value || 'all').split(':');
+  if (kind !== 'pi' && kind !== 'n') return { kind: 'all' };
+  return { kind: kind === 'n' ? 'sprint' : 'pi', n: Math.max(1, parseInt(n, 10) || 1) };
+}
+
+/* Program order is (PI index, sprint number) — the same order teamSprints() puts a
+   team's sprints in — so a cut is always "the most recent N", never whatever order
+   they happen to sit in inside state.sprints.
+
+   Sprint windows are per team, so a two-team link doesn't spend its whole window on
+   the busier team. PI windows are global: a PI is a program increment the teams
+   share, and cutting it per team would leave the comparison views lined up on
+   different quarters.
+
+   Neither isCounted() nor the IP-sprint rule applies here, unlike rollingSprints():
+   a link carries what the team recorded, and the recipient's own views then count or
+   exclude it by the usual rules. A planned sprint does spend a slot of a sprint
+   window — it costs almost nothing in the link, and dropping it would lose the
+   "S5 planned" note every view prints.
+
+   Pure on purpose — it takes the PI list rather than reading state — so tests.html
+   can pin it. */
+function trimShareSprints(sprints, pis, scope) {
+  if (!scope || scope.kind === 'all' || !sprints.length) return sprints;
+  const order = new Map((pis || []).map((p, i) => [p.id, i]));
+  const at = (s) => (order.has(s.piId) ? order.get(s.piId) : -1);
+
+  if (scope.kind === 'pi') {
+    const newest = sprints.reduce((m, s) => Math.max(m, at(s)), -1);
+    return sprints.filter(s => at(s) > newest - scope.n);
+  }
+
+  const byTeam = new Map();
+  for (const s of sprints) {
+    if (!byTeam.has(s.teamId)) byTeam.set(s.teamId, []);
+    byTeam.get(s.teamId).push(s);
+  }
+  const keep = new Set();
+  for (const group of byTeam.values()) {
+    group.sort((a, b) => (at(a) - at(b)) || (a.sprintNumber - b.sprintNumber));
+    for (const s of group.slice(-scope.n)) keep.add(s);
+  }
+  /* Filtered out of the original rather than concatenated back together, so the
+     payload keeps the order the sprints were stored in and a diff of two links
+     built minutes apart stays readable. */
+  return sprints.filter(s => keep.has(s));
+}
+
 /* Only the PIs the included sprints actually sit in, so sharing one team doesn't
    leak the names of PIs it never ran in. Order is preserved because piIndex()
    drives sprint ordering everywhere else. */
-function buildSharePayload({ teamIds, includeNotes, includeAllTeams }) {
-  const teams = state.teams.filter(t => teamIds.includes(t.id));
-  const sprints = state.sprints
-    .filter(s => teamIds.includes(s.teamId))
+function buildSharePayload({ teamIds, includeNotes, includeAllTeams, scope }) {
+  const picked = state.teams.filter(t => teamIds.includes(t.id));
+  const mine = state.sprints.filter(s => teamIds.includes(s.teamId));
+  /* Before the notes strip and before usedPis, so the PI list narrows with the
+     window — a link cut back to this PI must not still carry the names of the ones
+     it no longer reaches. */
+  const sprints = trimShareSprints(mine, state.pis, scope)
     .map(s => includeNotes ? s : Object.assign({}, s, { notes: {} }));
+
+  /* A window can leave a team with nothing — "this PI only" for a team that ran no
+     sprints in it. Sending the team anyway lands the recipient on an empty sprint
+     card, so it's dropped here and named in the dialog instead, per the rule that
+     an exclusion is never silent. Never all of them, though: decodeShare() refuses a
+     payload with no teams outright, and someone who simply hasn't recorded a sprint
+     yet should still get the link they get today. */
+  const alive = new Set(sprints.map(s => s.teamId));
+  const emptied = picked.filter(t => !alive.has(t.id) && mine.some(s => s.teamId === t.id));
+  const drop = emptied.length && emptied.length < picked.length;
+  const teams = drop ? picked.filter(t => !emptied.includes(t)) : picked;
+  buildSharePayload.dropped = drop ? emptied.map(t => t.name) : [];
+
   const usedPis = new Set(sprints.map(s => s.piId));
   return {
     v: 1,
@@ -4050,6 +4140,10 @@ function buildSharePayload({ teamIds, includeNotes, includeAllTeams }) {
     teams,
     pis: state.pis.filter(p => usedPis.has(p.id)),
     sprints,
+    /* Numbers only, and undefined on a full history so JSON.stringify drops the key
+       entirely. The recipient's banner is built from these two figures rather than
+       from a sentence the sender wrote, so a hand-edited link has no text to inject. */
+    range: scope && scope.kind !== 'all' ? { kind: scope.kind, n: scope.n } : undefined,
     settings: {
       activeTeamId: teams.length ? teams[0].id : null,
       includeSprint6InRolling: !!state.settings.includeSprint6InRolling,
@@ -4098,7 +4192,7 @@ async function openSharedView() {
   try {
     const p = await decodeShare(shareToken);
     const orphans = sanitizeIds.dropped;
-    shareMeta = { sharedAt: p.sharedAt, label: p.label, allTeams: !!p.allTeams };
+    shareMeta = { sharedAt: p.sharedAt, label: p.label, allTeams: !!p.allTeams, range: p.range };
     state = Object.assign(blankState(), {
       teams: p.teams, pis: p.pis || [], sprints: p.sprints,
       settings: Object.assign(blankState().settings, p.settings || {})
@@ -4136,6 +4230,20 @@ function renderShareError() {
     </div>`;
 }
 
+/* Says out loud that a link holds a window rather than the whole history, so a
+   figure the sender's own Rolling 5 disagrees with has a visible reason. Read as
+   two numbers and rebuilt into a sentence here — nothing the sender typed reaches
+   the page — and deliberately without a total: the recipient learns a window is in
+   force without the sender publishing how much history exists behind it. */
+function shareRangeNote(range) {
+  if (!range || (range.kind !== 'pi' && range.kind !== 'sprint')) return '';
+  const n = Math.max(1, Math.floor(Number(range.n) || 1));
+  const what = range.kind === 'pi'
+    ? (n === 1 ? 'the most recent PI' : `the last ${n} PIs`)
+    : `the last ${n} sprint${n === 1 ? '' : 's'} per team`;
+  return ` It holds ${what} — earlier history isn’t included.`;
+}
+
 function shareBanner() {
   const when = shareMeta && shareMeta.sharedAt
     ? new Date(shareMeta.sharedAt).toLocaleDateString(undefined,
@@ -4144,7 +4252,7 @@ function shareBanner() {
   return `<div class="viewbar">
     <strong>👁 Read-only view${shareMeta && shareMeta.label ? ' — ' + esc(shareMeta.label) : ''}</strong>
     <span class="muted">Shared${when ? ' on ' + when : ''}. Nothing you do here is saved,
-      and your own data is untouched.</span>
+      and your own data is untouched.${shareRangeNote(shareMeta && shareMeta.range)}</span>
     <a class="mine" href="${esc(location.pathname)}">Open my own data</a>
   </div>`;
 }
@@ -4166,6 +4274,11 @@ function openShare() {
   F('shareTeams').querySelectorAll('input').forEach(i => { i.onchange = refreshShareLink; });
   F('shareAllTeams').checked = false;
   F('shareNotes').checked = false;
+  /* Reset rather than remembered, like the two checkboxes: a window is a decision
+     about one link, and inheriting the last one would quietly send less than the
+     sender meant to. The default stays the whole history — trimming by surprise
+     would be worse than a link that's too long and says so. */
+  F('shareHistory').value = 'all';
   refreshShareLink();
   shareDialog.showModal();
 }
@@ -4177,13 +4290,86 @@ function sharePicked() {
 
 let shareSeq = 0;   // a slow encode must not overwrite the box after a later tick
 
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+
+/* The largest per-team sprint window whose link still comes in under the warning
+   length. Link length only grows with the window, so this bisects rather than
+   counting down — six encodes on a year of history instead of fifty — and the
+   result of the last window that fitted is kept, so the answer needs no final
+   rebuild. Sprints rather than PIs because it's the finer of the two knobs: a PI
+   step is six sprints at a time, which overshoots by thousands of characters.
+
+   Returns null when a later tick has started a newer search, exactly as the caller's
+   own sequence check does — with several encodes in flight, checking only at the end
+   would let a stale search finish over a fresh one. */
+async function fitShareWindow(build, teamIds, busy) {
+  const per = new Map();
+  for (const s of state.sprints) {
+    if (teamIds.includes(s.teamId)) per.set(s.teamId, (per.get(s.teamId) || 0) + 1);
+  }
+  let lo = 1, hi = Math.max(1, ...per.values()), best = null;
+  while (lo <= hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    const out = await build({ kind: 'sprint', n: mid });
+    if (busy !== shareSeq) return null;
+    if (out.url.length <= SHARE_WARN_AT) { best = out; lo = mid + 1; } else { hi = mid - 1; }
+  }
+  /* Nothing fitted, which means notes or sheer team count is the cost rather than
+     history. One sprint each is the shortest link there is; the length warning then
+     fires on it and names the other two levers. */
+  if (best) return best;
+  const out = await build({ kind: 'sprint', n: 1 });
+  return busy === shareSeq ? out : null;
+}
+
+/* What the sender is told about the window. For the automatic option this is the
+   only place the answer appears, so it says the figure it landed on rather than
+   just "trimmed". */
+function shareScopeNote(scope, auto) {
+  if (!scope || scope.kind === 'all') {
+    return auto ? 'Your whole history fits — nothing was left out.' : '';
+  }
+  const what = scope.kind === 'pi'
+    ? (scope.n === 1 ? 'this PI' : `the last ${scope.n} PIs`)
+    : `the last ${plural(scope.n, 'sprint')} per team`;
+  return auto
+    ? `Trimmed to ${what} to keep the link short enough to email.`
+    : `This link holds ${what}.`;
+}
+
+/* "A", "A and B", "A, B and C" — a list a person would say out loud. */
+function andList(names) {
+  if (names.length < 3) return names.join(' and ');
+  return names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+}
+
+/* Cutting below the rolling window changes the figures the recipient sees, not just
+   the size of the link — their Rolling 5 would average three sprints where yours
+   averages five. Same rule as every view that drops a sprint: say which, and why.
+
+   Only for a team the window left with *something*: at zero there's no average to
+   disagree with, and renderTabs() won't offer the view at all. */
+function shareRollingNote(payload, scope) {
+  if (!scope || scope.kind === 'all') return '';
+  const short = payload.teams.map(t => ({
+    name: t.name,
+    n: payload.sprints.filter(s => s.teamId === t.id && isCounted(s)
+      && (state.settings.includeSprint6InRolling || s.sprintNumber !== IP_SPRINT)).length
+  })).filter(x => x.n > 0 && x.n < ROLLING_WINDOW);
+  if (!short.length) return '';
+  return `Rolling 5 will average fewer than ${ROLLING_WINDOW} sprints for `
+    + andList(short.map(x => `${x.name} (${x.n})`))
+    + ', so those figures won’t match yours.';
+}
+
 async function refreshShareLink() {
   const teamIds = sharePicked();
   const multi = teamIds.length > 1;
   F('shareAllTeams').disabled = !multi;
   if (!multi) F('shareAllTeams').checked = false;
 
-  const link = F('shareLink'), meta = F('shareMeta'), warn = F('shareWarn');
+  const link = F('shareLink'), meta = F('shareMeta');
+  const note = F('shareScope'), warn = F('shareWarn');
   const busy = ++shareSeq;
   /* Not named `state`: this function reads the app's own `state` a few lines below
      to build the payload, and shadowing it here is a trap waiting for whoever adds
@@ -4196,35 +4382,61 @@ async function refreshShareLink() {
   if (!teamIds.length) {
     link.value = '';
     meta.textContent = 'Pick at least one team.';
+    note.textContent = '';
     warn.textContent = '';
     setBusy(true);
     return;
   }
 
-  const payload = buildSharePayload({
-    teamIds, includeNotes: F('shareNotes').checked,
-    includeAllTeams: F('shareAllTeams').checked
-  });
-  const token = await encodeShare(payload);
-  if (busy !== shareSeq) return;
+  const includeNotes = F('shareNotes').checked;
+  const includeAllTeams = F('shareAllTeams').checked;
+  const choice = F('shareHistory').value;
+  const auto = choice === 'fit';
+  const total = state.sprints.filter(s => teamIds.includes(s.teamId)).length;
 
-  const url = location.origin + location.pathname + SHARE_PREFIX + token;
-  link.value = url;
+  /* One trial: payload, its dropped-team list read straight away before another
+     trial can overwrite it, and the finished URL to measure. */
+  const build = async (scope) => {
+    const payload = buildSharePayload({ teamIds, includeNotes, includeAllTeams, scope });
+    const dropped = buildSharePayload.dropped;
+    const url = location.origin + location.pathname + SHARE_PREFIX + await encodeShare(payload);
+    return { payload, dropped, url, scope };
+  };
+
+  let out = await build(parseShareScope(auto ? 'all' : choice));
+  if (busy !== shareSeq) return;
+  if (auto && out.url.length > SHARE_WARN_AT) {
+    out = await fitShareWindow(build, teamIds, busy);
+    if (!out) return;
+  }
+
+  link.value = out.url;
   setBusy(false);
-  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
-  meta.textContent = `${plural(payload.teams.length, 'team')}, `
-    + `${plural(payload.sprints.length, 'sprint')}`
-    + `${F('shareNotes').checked ? ', notes included' : ', no notes'} · `
-    + `${url.length.toLocaleString()} characters`;
-  warn.textContent = url.length > SHARE_WARN_AT
-    ? 'That’s a long link — some mail apps break links this size across two lines. '
-      + 'Sharing fewer teams, or leaving notes out, will shorten it.' : '';
+
+  const kept = out.payload.sprints.length;
+  meta.textContent = `${plural(out.payload.teams.length, 'team')}, `
+    + `${kept < total ? `${kept} of ${total} sprints` : plural(kept, 'sprint')}`
+    + `${includeNotes ? ', notes included' : ', no notes'} · `
+    + `${out.url.length.toLocaleString()} characters`;
+  note.textContent = shareScopeNote(out.scope, auto);
+  warn.textContent = [
+    out.dropped.length
+      ? `${andList(out.dropped)} ${out.dropped.length === 1 ? 'has' : 'have'} nothing `
+        + `in this window, so ${out.dropped.length === 1 ? 'it isn’t' : 'they aren’t'} in the link.`
+      : '',
+    shareRollingNote(out.payload, out.scope),
+    out.url.length > SHARE_WARN_AT
+      ? 'That’s a long link — some mail apps break links this size across two lines. '
+        + 'Sharing fewer teams, leaving notes out, or choosing less history will shorten it.'
+      : ''
+  ].filter(Boolean).join(' ');
 }
 
 F('shareBtn').onclick = openShare;
 F('shareCloseBtn').onclick = () => shareDialog.close();
 F('shareNotes').onchange = refreshShareLink;
 F('shareAllTeams').onchange = refreshShareLink;
+F('shareHistory').onchange = refreshShareLink;
 
 F('shareCopyBtn').onclick = async () => {
   const url = F('shareLink').value;
