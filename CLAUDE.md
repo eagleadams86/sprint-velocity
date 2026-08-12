@@ -230,6 +230,26 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   places and weren't, so a crafted share link could run script — which `viewOnly` does
   nothing about, since injected code doesn't go through `save()`. Render sites escape too.
   Don't add a render site that interpolates an id raw, and don't drop the boundary check.
+- **`sanitizeIds()` must never invent a key, and `cleanKey()` is why.** `x.id = clean(x.id)`
+  on an **absent** key looks harmless and isn't: `clean()` returns what it was given, and
+  the assignment creates the key holding `undefined`. `JSON.stringify` drops that, so
+  localStorage and every export look perfect — but `setDoc()` walks the *live* object and
+  Firestore rejects the whole document over one `undefined`, with `invalid-argument`. That
+  is what shipping `settings.artFilter` did on 2026-08-12: every browser holding a copy
+  saved before ARTs existed stopped syncing until something happened to set the field, and
+  the local copy gave no sign of it. Add an optional field and it goes through `cleanKey()`
+  too. Pinned in tests.html by *key*, not by value — `x === undefined` passes either way.
+- **`pushNow()` sends the state through JSON, exactly as `save()` writes it locally**
+  (`forCloud()`), so the two copies are the same bytes by construction rather than nearly
+  so. Don't "simplify" it back to passing `state` straight to `setDoc()`: that asymmetry —
+  localStorage silently dropping what Firestore refuses outright — is the whole mechanism
+  of the bug above.
+- **`invalid-argument` does not mean "too big".** Firestore reports both an oversized
+  document and an unstorable value under that one code, and `describeSyncError()` used to
+  assume the first, so an app bug told the user to export a backup and **delete a PI**.
+  The size wording now appears only when Firestore's own message mentions size; anything
+  else says the fault is in the app and asks for nothing to be deleted. A remedy that
+  destroys data must never be the guess.
 - **The same boundary drops orphans.** After the remapping (never before it — a remapped
   sprint isn't an orphan), a sprint whose `teamId` or `piId` names nothing in the same
   payload is removed, and the count left on `sanitizeIds.dropped`. Nothing threw without

@@ -1063,24 +1063,30 @@ function sanitizeIds(data) {
     return remap.get(id);
   };
   const list = (v) => (Array.isArray(v) ? v : []);
-  /* artId only when the team has one — writing `undefined` over an absent key would
-     put an `artId` on every team in every export for no reason. */
-  list(data.teams).forEach(t => { if (t) { t.id = clean(t.id); if (t.artId) t.artId = clean(t.artId); } });
-  list(data.arts).forEach(a => { if (a) a.id = clean(a.id); });
-  list(data.pis).forEach(p => { if (p) p.id = clean(p.id); });
+  /* Write back only where clean() can actually have changed something — which is
+     only ever a string. `x.id = clean(x.id)` on an ABSENT key looks harmless and
+     isn't: clean() hands back what it was given, and the assignment CREATES the key
+     holding `undefined`. JSON.stringify drops that, so localStorage and every export
+     look perfect, but the cloud push hands Firestore the live object and Firestore
+     refuses `undefined` outright with invalid-argument — one absent key stopped sync
+     for the whole document. That is exactly what shipping `settings.artFilter` did
+     to every browser holding a copy saved before ARTs existed. Any new optional
+     field goes through here the same way. */
+  const cleanKey = (o, k) => { if (o && typeof o[k] === 'string') o[k] = clean(o[k]); };
+  list(data.teams).forEach(t => { cleanKey(t, 'id'); cleanKey(t, 'artId'); });
+  list(data.arts).forEach(a => cleanKey(a, 'id'));
+  list(data.pis).forEach(p => cleanKey(p, 'id'));
   list(data.sprints).forEach(s => {
-    if (!s) return;
-    s.id = clean(s.id);
-    s.teamId = clean(s.teamId);
-    s.piId = clean(s.piId);
+    cleanKey(s, 'id');
+    cleanKey(s, 'teamId');
+    cleanKey(s, 'piId');
   });
   if (data.settings && typeof data.settings === 'object') {
-    data.settings.activeTeamId = clean(data.settings.activeTeamId);
-    data.settings.activePiId = clean(data.settings.activePiId);
+    cleanKey(data.settings, 'activeTeamId');
+    cleanKey(data.settings, 'activePiId');
     /* ART_NONE is a sentinel, not an id — clean() would swap it for a fresh one
        and silently turn "teams in no ART" into a filter matching nothing. */
-    if (data.settings.artFilter !== ART_NONE)
-      data.settings.artFilter = clean(data.settings.artFilter);
+    if (data.settings.artFilter !== ART_NONE) cleanKey(data.settings, 'artFilter');
   }
   /* A team pointing at an ART that isn't in the same payload is un-grouped rather
      than dropped: unlike an orphaned sprint it changes no figure — every number in
@@ -5094,9 +5100,22 @@ let syncError = null;
    part is the second sentence: what to actually do about it. */
 function describeSyncError(e) {
   const code = String((e && e.code) || e || '');
-  if (code.includes('invalid-argument')) return {
-    reason: 'There’s more history here than can be synced in one go.',
-    fix: 'Export a backup, then delete a PI you no longer need — sync picks up again on the next change.' };
+  /* Firestore reports two unrelated things as invalid-argument: a document over the
+     1 MiB cap, and a value it can't store (an `undefined` anywhere in the object).
+     Only the first is about size, and this branch used to assume it was — so a bug
+     in this file told the user to export a backup and delete a PI, which is the
+     worst advice this app is capable of giving. The size wording is now used only
+     when Firestore's own message says size; anything else says plainly that the
+     problem is here, and asks for nothing to be deleted. */
+  if (code.includes('invalid-argument')) {
+    const detail = String((e && e.message) || '');
+    if (/maximum allowed size|too large|exceeds/i.test(detail)) return {
+      reason: 'There’s more history here than can be synced in one go.',
+      fix: 'Export a backup, then delete a PI you no longer need — sync picks up again on the next change.' };
+    return {
+      reason: 'The cloud refused this copy of your data — that’s a fault in the app, not in what you entered.',
+      fix: 'Nothing is lost: everything is still here and still saved. Reloading the page usually clears it.' };
+  }
   if (code.includes('permission-denied') || code.includes('unauthenticated')) return {
     reason: 'Google refused the sign-in for this data.',
     fix: 'Signing out and back in usually clears it.' };
@@ -5282,9 +5301,19 @@ async function startSync() {
   });
 }
 
+/* The cloud copy is sent through JSON, exactly as save() writes the local one, so
+   the two are the same bytes by construction. It is not tidiness: setDoc() walks the
+   live object, and Firestore rejects the whole document if it finds a single
+   `undefined` anywhere in it — where localStorage would simply have dropped that key
+   and carried on. That asymmetry is how one absent setting took sync down while every
+   local copy looked perfect, so the serialisation is now the same on both sides
+   rather than nearly the same. sanitizeIds() is where undefined is kept out in the
+   first place; this is the belt to that boundary's braces. */
+const forCloud = (s) => JSON.parse(JSON.stringify(s));
+
 async function pushNow() {
   if (!user) return;
-  await Fs.setDoc(docRef(), { data: window.svGet(), updatedAt: localTs() || Date.now() });
+  await Fs.setDoc(docRef(), { data: forCloud(window.svGet()), updatedAt: localTs() || Date.now() });
   clearSyncError();
 }
 

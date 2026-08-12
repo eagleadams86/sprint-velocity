@@ -693,6 +693,12 @@ about 133 KB, or 13% of that. Roughly eight years of that pace before it fills, 
 the notes run long. If you ever do reach it, the app tells you rather than failing quietly,
 and the fix is to export a backup and delete a PI you no longer need.
 
+That advice is now only given when the size is genuinely the problem. Firestore reports an
+oversized document and a value it can't store under the same error code, and the app used
+to assume the first — so a bug of its own once told a user to delete a PI. A remedy that
+destroys data is never the guess: anything that isn't demonstrably about size now says the
+fault is in the app, and asks for nothing to be deleted.
+
 Underneath that, one rule holds everywhere: **an empty copy never beats a copy with data
 in it**, whichever looks newer. Signing in on a browser with nothing in it yet puts an
 empty copy in the cloud stamped with the current time, and without that rule the device

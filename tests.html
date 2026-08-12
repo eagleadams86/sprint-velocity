@@ -191,6 +191,40 @@ t('non-object input is returned as-is, not exploded', () => {
   eq(w.sanitizeIds(null), null);
   eq(w.sanitizeIds('junk'), 'junk');
 });
+/* The regression that took cloud sync down when ARTs shipped. `x.id = clean(x.id)`
+   on an absent key creates it holding `undefined`; JSON.stringify drops that, so
+   localStorage and every export looked perfect, while setDoc() walked the live
+   object and Firestore refused the whole document with invalid-argument. Checked by
+   key, not by value — `out.settings.artFilter === undefined` passes either way. */
+const undefKeys = (o) => Object.keys(o).filter(k => o[k] === undefined);
+t('a setting that is absent stays absent, never created holding undefined', () => {
+  const out = w.sanitizeIds({ teams: [], arts: [], pis: [], sprints: [],
+                              settings: { view: 'sprint' } });
+  eq(undefKeys(out.settings), [], 'invisible in JSON, fatal to the cloud push');
+  ok(!('artFilter' in out.settings), 'a copy saved before ARTs existed gains no artFilter key');
+});
+t('the same holds for every id the boundary touches', () => {
+  const out = w.sanitizeIds({ teams: [{ name: 'no id' }], arts: [{ name: 'no id' }],
+                              pis: [{ name: 'no id' }], sprints: [], settings: {} });
+  eq(undefKeys(out.teams[0]), []);
+  eq(undefKeys(out.arts[0]), []);
+  eq(undefKeys(out.pis[0]), []);
+  eq(undefKeys(out.settings), []);
+});
+t('a whole saved copy survives the round trip with no undefined anywhere in it', () => {
+  /* What the cloud push actually hands Firestore — every nested object, not just
+     the top level, since one undefined at any depth rejects the document. */
+  const deepUndef = (v, path) => (v && typeof v === 'object')
+    ? Object.keys(v).flatMap(k => v[k] === undefined ? [path + '.' + k] : deepUndef(v[k], path + '.' + k))
+    : [];
+  const out = w.sanitizeIds(w.coerceShape({
+    teams: [{ id: 't1', name: 'A' }],
+    pis: [{ id: 'p1', name: 'PI 1' }],
+    sprints: [{ id: 's1', teamId: 't1', piId: 'p1', sprintNumber: 1 }],
+    settings: { activeTeamId: 't1', view: 'sprint' },
+  }));
+  eq(deepUndef(out, 'state'), []);
+});
 
 t('a team pointing at a missing ART is un-grouped, never dropped', () => {
   const data = {
