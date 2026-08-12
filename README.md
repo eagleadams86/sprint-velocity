@@ -499,8 +499,9 @@ if they switch between them.
 
 You choose per link:
 
-- **Which teams** — the team you're looking at is ticked by default. Sharing one team doesn't
-  reveal the others, or even the names of PIs that team never ran in.
+- **Which teams** — the team you're looking at is ticked by default; **Select all** takes the
+  lot, and the count above the list says where you are. Sharing one team doesn't reveal the
+  others, or even the names of PIs that team never ran in.
 - **How much history** — all of it (the default), the last 2 PIs, this PI only, or the last 5
   or 10 sprints for each team. See below.
 - **The All teams comparison view** — only offered when you've picked more than one team.

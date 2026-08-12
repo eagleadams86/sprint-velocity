@@ -594,6 +594,16 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
    free to reserve a horizontal scrollbar it never needs — a 15px white stripe
    under a short list. Mirrored from Team Dashboard. */
 .checklist { display: grid; gap: 7px; max-height: 200px; overflow: hidden auto; }
+/* The count sits opposite the one control that changes the whole list. */
+.checklist-head { display: flex; align-items: baseline; justify-content: space-between;
+  gap: 10px; margin-bottom: 8px; }
+/* The share dialog's two choices sit side by side once there is room, rather
+   than stacking and pushing the link below the fold. No align-items: start —
+   the panels stretch to the taller of them, so the pair reads as one row.
+   Mirrored in Team Dashboard and Golf Handicap. */
+@media (min-width: 760px) {
+  #shareDialog .share-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+}
 .checkline { display: flex; gap: 8px; align-items: center; font-size: 14px; }
 .checkline input { flex: none; }
 #shareLink {
@@ -872,8 +882,13 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
     them and no sign-in. The data travels <em>inside</em> the link itself — it isn't uploaded
     anywhere, and it doesn't touch whatever they have saved in their own browser.</p>
 
+  <div class="share-choices">
   <fieldset class="formpanel">
     <legend>Which Teams</legend>
+    <div class="checklist-head">
+      <span class="sub muted" id="shareTeamCount" role="status"></span>
+      <button type="button" class="btn small" id="shareSelectAll">Select all</button>
+    </div>
     <div class="checklist" id="shareTeams"></div>
   </fieldset>
 
@@ -899,6 +914,7 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
     <label class="checkline"><input type="checkbox" id="shareNotes">
       <span>Sprint notes — your written comments on what was added, removed and carried over</span></label>
   </fieldset>
+  </div>
 
   <fieldset class="formpanel">
     <legend>Your Link</legend>
@@ -4271,7 +4287,10 @@ function openShare() {
   F('shareTeams').innerHTML = state.teams.map(t =>
     `<label class="checkline"><input type="checkbox" data-share-team="${esc(t.id)}"${
       active && t.id === active.id ? ' checked' : ''}><span>${esc(t.name)}</span></label>`).join('');
-  F('shareTeams').querySelectorAll('input').forEach(i => { i.onchange = refreshShareLink; });
+  F('shareTeams').querySelectorAll('input').forEach(i => {
+    i.onchange = () => { syncSelectAll(); refreshShareLink(); };
+  });
+  syncSelectAll();
   F('shareAllTeams').checked = false;
   F('shareNotes').checked = false;
   /* Reset rather than remembered, like the two checkboxes: a window is a decision
@@ -4287,6 +4306,29 @@ function sharePicked() {
   return Array.from(F('shareTeams').querySelectorAll('input:checked'))
     .map(i => i.dataset.shareTeam);
 }
+
+const shareBoxes = () => Array.from(F('shareTeams').querySelectorAll('input'));
+
+/* One button rather than an All/None pair: with everything ticked the only
+   useful thing it can do is clear the lot, so it says so. The count beside it
+   is what makes that readable at a glance once there are more than a few
+   teams. Hidden below two, where selecting wholesale means nothing. */
+function syncSelectAll() {
+  const boxes = shareBoxes();
+  const picked = boxes.filter(i => i.checked).length;
+  const btn = F('shareSelectAll');
+  btn.textContent = (boxes.length && picked === boxes.length) ? 'Select none' : 'Select all';
+  btn.hidden = boxes.length < 2;
+  F('shareTeamCount').textContent = `${picked} of ${boxes.length} selected`;
+}
+
+F('shareSelectAll').addEventListener('click', () => {
+  const boxes = shareBoxes();
+  const turnOn = boxes.some(i => !i.checked);
+  boxes.forEach(i => { i.checked = turnOn; });
+  syncSelectAll();
+  refreshShareLink();
+});
 
 let shareSeq = 0;   // a slow encode must not overwrite the box after a later tick
 
