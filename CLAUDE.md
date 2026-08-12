@@ -416,6 +416,7 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   sync module checks before `init()`, and the gate at the foot of `tests.html` never creates
   the iframe at all off localhost (booting the app IS the side effect, so the check can't
   live in the load handler). Don't put the iframe back in the markup. CI runs the same page
+  **`file://` is deliberately NOT in `LOCAL_HOSTS`**: it has no hostname, and `''` used to sit in that list on the reasoning that the suite couldn't run there anyway — but that sent it down the iframe branch, where the frame silently fails to load and the suite blamed the app. Opening the file off disk now gets the advice that fixes it, and a frame that never loaded the app is reported as a setup problem rather than as every test failing at once.
   headless on every push (`.github/workflows/tests.yml`) on `localhost:8012`, so the gate
   lets it through, and fails the build if the summary goes red. `window.__svTestHooks` at the foot of the classic script exists solely to
   hand it `fmtPct` (a `const`, invisible on `window`); function declarations it reaches
