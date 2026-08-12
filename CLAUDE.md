@@ -117,6 +117,32 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   sprints into every figure for last-day planning. It's deliberately one predicate so no two
   views can disagree; `targetSprintSlot()` then stops aiming at the running sprint, since a
   sprint being counted as data isn't the one you're planning. Planned sprints never count.
+- **An ART is a grouping of teams and nothing else.** `state.arts` is a flat list beside
+  `teams` and `pis`, a team carries an optional `artId`, and **no figure anywhere is worked
+  out per ART** — an ART's numbers are simply what its teams' numbers come to under the two
+  methods the All teams view already applies, so `metrics()` and `rag()` never learn the
+  concept exists. `teamsInArt()` and `groupTeamsByArt()` are pure (they take the team list
+  rather than reading state) and pinned in tests.html; `groupTeamsByArt()` is a **stable**
+  sort, so grouping never reshuffles teams inside a train. Assignment is a `<select>` in the
+  team's own row of Teams & PIs rather than a team-picker inside each ART: it reads the way
+  the data does, and it can't put a team on two trains. The header team picker groups with
+  plain `<optgroup>` once an ART exists.
+- **The All teams view filters once, at the top.** `renderTeamsView()` derives `shown` from
+  `state.settings.artFilter` before anything else, and both tables, both footer rows, the
+  chart and the in-flight count all come off that one list — so no corner of the page can
+  still be counting teams the picker left out. Its exclusions are never silent, the same
+  rule as every other view: `artToolbar()` says how many teams are hidden, and the footer
+  row says which scope it covers ("All teams on Payments ART") rather than a flat "All
+  teams" that would read as the whole portfolio in a screenshot.
+- **`ART_NONE` is `~none`, deliberately not a legal id.** `~` fails `ID_OK`, so no ART
+  arriving in a share link or a hand-edited file can collide with the sentinel — which is
+  why `sanitizeIds()` has to *skip* it when cleaning `settings.artFilter`. Clean it and the
+  "teams on no ART" filter becomes a fresh uid matching nothing.
+- **A team whose ART is missing is un-grouped, never dropped** — unlike an orphaned sprint
+  on the same boundary. An ART changes no figure, so a broken label must not cost a team its
+  sprints; it reads as "No ART" on screen, which is where it can be seen and fixed. Same for
+  a saved filter naming an ART that's gone, and same for Delete ART, which is the one delete
+  in Teams & PIs with no confirm because it destroys nothing.
 - `rollingSprints()` is the chokepoint — filtering there covers Rolling 5, All teams and the
   capacity target at once. The PI view filters separately via its own `closed` list.
 - Exclusions must never be silent: every view that drops a sprint says which one and why
@@ -191,7 +217,7 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   preview is deliberately *not* a live region: it's far too long to read aloud, so `box.focus()`
   moves the user to it instead.
 - **Shapes from outside are not trusted either.** `coerceShape()` runs in front of
-  `sanitizeIds()` at every entry point, forcing `teams`/`pis`/`sprints` to arrays of
+  `sanitizeIds()` at every entry point, forcing `teams`/`arts`/`pis`/`sprints` to arrays of
   objects and `settings` to an object — without it, `Object.assign(blankState(), parsed)`
   copies `teams: "junk"` or a null entry straight into state and the next render throws on
   a blank page. Order matters at the two rejecting callers: the import and `decodeShare()`
@@ -353,7 +379,10 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   after `#` is sent to a server, which is the whole reason this needs no Firestore rules, no
   account and no network. `buildSharePayload()` emits a **trimmed copy** — chosen teams only,
   only the PIs their sprints reference, notes stripped unless asked for, and never anything
-  identifying. Don't shortcut it to serialising `state`.
+  identifying. Don't shortcut it to serialising `state`. It carries **only the ARTs the
+  included teams are on** (the same rule as `usedPis`) and deliberately **not** the sender's
+  `artFilter`: the link already holds exactly the teams they picked, and opening it
+  pre-filtered would hide some of them behind a picker the recipient has no reason to open.
 - **How much history a link carries is a third lever, beside teams and notes.**
   `trimShareSprints()` applies it and is **pure** (it takes the PI list rather than reading
   state) so tests.html can pin it; `parseShareScope()` turns the picker value into its scope.

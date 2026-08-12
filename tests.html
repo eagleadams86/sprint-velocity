@@ -192,12 +192,89 @@ t('non-object input is returned as-is, not exploded', () => {
   eq(w.sanitizeIds('junk'), 'junk');
 });
 
+t('a team pointing at a missing ART is un-grouped, never dropped', () => {
+  const data = {
+    teams: [{ id: 'team-1', name: 'A', artId: 'aGONE' }, { id: 'team-2', name: 'B', artId: 'art-1' }],
+    arts: [{ id: 'art-1', name: 'Payments' }],
+    pis: [{ id: 'pi-1' }], sprints: [],
+    settings: { artFilter: 'aGONE' },
+  };
+  const out = w.sanitizeIds(data);
+  eq(out.teams.length, 2, 'a broken label never costs a team its data');
+  eq(out.teams[0].artId, null, 'the dangling ART is cleared, so the team reads as "No ART"');
+  eq(out.teams[1].artId, 'art-1', 'a real ART is left alone');
+  eq(out.settings.artFilter, null, 'a filter naming an ART that is gone falls back to all');
+});
+t('a hostile ART id is replaced and the teams on it follow', () => {
+  const evil = 'x"><img src=q onerror=alert(1)>';
+  const out = w.sanitizeIds({
+    teams: [{ id: 't1', name: 'A', artId: evil }],
+    arts: [{ id: evil, name: 'ART' }],
+    pis: [], sprints: [], settings: { artFilter: evil },
+  });
+  const fresh = out.arts[0].id;
+  ok(/^[A-Za-z0-9_-]{1,64}$/.test(fresh), 'replacement id is a plain id');
+  eq(out.teams[0].artId, fresh, 'the team follows its ART through the remap');
+  eq(out.settings.artFilter, fresh, 'so does the saved filter');
+});
+t('the "no ART" filter sentinel survives the boundary intact', () => {
+  const NONE = w.__svTestHooks.ART_NONE;
+  ok(!/^[A-Za-z0-9_-]{1,64}$/.test(NONE), 'the sentinel is not a legal id, so nothing can collide with it');
+  const out = w.sanitizeIds({ teams: [], arts: [], pis: [], sprints: [],
+                              settings: { artFilter: NONE } });
+  eq(out.settings.artFilter, NONE, 'it is not swapped for a fresh id, nor cleared as an orphan');
+});
+
+group('teamsInArt + groupTeamsByArt — the ART grouping');
+const ARTS = [{ id: 'a1', name: 'Payments' }, { id: 'a2', name: 'Platform' }];
+const TEAMS = [
+  { id: 't1', name: 'Kestrel', artId: 'a2' },
+  { id: 't2', name: 'Otter' },
+  { id: 't3', name: 'Puffin', artId: 'a1' },
+  { id: 't4', name: 'Heron', artId: 'a2' },
+];
+const names = (list) => list.map(t => t.name);
+
+t('no filter means every team, and never the caller\'s own array', () => {
+  eq(names(w.teamsInArt(TEAMS, null)), ['Kestrel', 'Otter', 'Puffin', 'Heron']);
+  eq(names(w.teamsInArt(TEAMS, '')), ['Kestrel', 'Otter', 'Puffin', 'Heron']);
+  ok(w.teamsInArt(TEAMS, null) !== TEAMS, 'a copy, so a caller sorting the result cannot reorder state');
+});
+t('an ART filter keeps only its own teams', () => {
+  eq(names(w.teamsInArt(TEAMS, 'a2')), ['Kestrel', 'Heron']);
+  eq(names(w.teamsInArt(TEAMS, 'a1')), ['Puffin']);
+  eq(w.teamsInArt(TEAMS, 'gone'), [], 'an ART with nothing on it filters to nothing, not to everything');
+});
+t('the sentinel picks out the teams on no ART at all', () => {
+  eq(names(w.teamsInArt(TEAMS, w.__svTestHooks.ART_NONE)), ['Otter']);
+});
+t('junk input never throws', () => {
+  eq(w.teamsInArt(null, 'a1'), []);
+  eq(w.teamsInArt(undefined, null), []);
+});
+t('grouping puts each ART\'s teams together, in ART order, un-grouped last', () => {
+  eq(names(w.groupTeamsByArt(TEAMS, ARTS)), ['Puffin', 'Kestrel', 'Heron', 'Otter']);
+});
+t('within a group the teams keep the order they were added in', () => {
+  const swapped = w.groupTeamsByArt(
+    [{ id: 'x', name: 'Later', artId: 'a2' }, { id: 'y', name: 'Earlier', artId: 'a2' }], ARTS);
+  eq(names(swapped), ['Later', 'Earlier'], 'grouping is a stable sort, not a re-ordering');
+});
+t('with no ARTs at all the list comes back untouched', () => {
+  eq(names(w.groupTeamsByArt(TEAMS, [])), ['Kestrel', 'Otter', 'Puffin', 'Heron']);
+  eq(names(w.groupTeamsByArt(TEAMS, null)), ['Kestrel', 'Otter', 'Puffin', 'Heron']);
+});
+
 group('coerceShape — the shape guard in front of the same boundary');
 t('a list that is not a list becomes an empty one instead of crashing every render', () => {
-  const out = w.coerceShape({ teams: 'junk', pis: 42, sprints: null });
+  const out = w.coerceShape({ teams: 'junk', arts: 42, pis: 42, sprints: null });
   eq(out.teams, []);
+  eq(out.arts, []);
   eq(out.pis, []);
   eq(out.sprints, []);
+});
+t('an export written before ARTs existed gains an empty list, not undefined', () => {
+  eq(w.coerceShape({ teams: [], pis: [], sprints: [] }).arts, []);
 });
 t('null and junk entries inside a list are dropped, real ones kept', () => {
   const out = w.coerceShape({ teams: [null, { id: 't1', name: 'A' }, 'junk'], pis: [], sprints: [] });
@@ -214,7 +291,7 @@ t('junk input becomes a blank shape, never a throw', () => {
   eq(w.coerceShape('junk').sprints, []);
 });
 t('a well-formed payload passes through unchanged', () => {
-  const data = { teams: [{ id: 't1', name: 'A' }], pis: [{ id: 'p1' }],
+  const data = { teams: [{ id: 't1', name: 'A' }], arts: [], pis: [{ id: 'p1' }],
                  sprints: [{ id: 's1', teamId: 't1', piId: 'p1' }], settings: { view: 'sprint' } };
   eq(w.coerceShape(JSON.parse(JSON.stringify(data))), data);
 });

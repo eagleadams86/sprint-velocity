@@ -316,7 +316,8 @@ rather than dragging them down.
   shaded 15% / 20% threshold bands.
 - **All teams** — every team's rolling averages side by side, plus each team's next-sprint
   target in one column, so the one that needs attention is obvious. It carries **two
-  comparison tables**, the same sprints through two different averages — see below.
+  comparison tables**, the same sprints through two different averages — see below — and
+  an **ART filter** across the top when your teams are grouped into ARTs.
 
 A view is only offered once there's something in it. **All teams** appears when you have a
 second team; **Current PI** and **Rolling 5** appear once the team you're on has a recorded
@@ -375,6 +376,33 @@ figure, and a wide gap between them means one sprint is skewing the total.
 Comparison 2 also carries **Actual complete** — everything delivered, break-in work
 included, against what was committed. It goes above 100% when a team finished more than it
 signed up for, which says throughput was high, not that the plan held.
+
+## Grouping Teams into ARTs
+
+If you support teams across more than one Agile Release Train, you can group them.
+**Teams, ARTs & PIs** has an **ARTs** section: add one, then set each team's ART from the
+picker in its own row of the Teams table. A team can be on one ART or none — being on none
+is perfectly normal, and nothing forces you to use the feature at all.
+
+An ART is a **label, not a level of maths**. Every figure in the app is still worked out per
+team; there is no separate per-ART calculation, and grouping never changes a single number.
+What it changes is what you're looking at:
+
+- **All teams** gains an **ART** picker across the top — *All ARTs*, each ART by name, and
+  *No ART* if any team is un-grouped. Everything below it follows: both comparison tables,
+  both **All teams** footer rows, the chart, and the count of sprints still in flight. Pick
+  *Payments ART* and the footer row reads **All teams on Payments ART**, worked out across
+  that ART's teams only.
+- The picker says how many teams it's hiding, the same way every other exclusion in the app
+  says what it left out — a figure should never move for a reason that isn't on the page.
+- With no filter, the table **sorts by ART** so a train's teams sit together, and each team
+  carries its ART under its name. The header team picker groups the same way.
+
+Deleting an ART is the cheapest delete in the app: it takes no team and no sprint with it —
+the teams that were on it simply go back to having none.
+
+Share links carry only the ARTs the teams in the link are actually on, so sharing one team
+doesn't publish the names of every train you support.
 
 ## Target Capacity for the Next Sprint
 
@@ -725,7 +753,8 @@ Then open http://localhost:8012. (The desktop app's preview pane reads
 
 **Tests:** open http://localhost:8012/tests.html — it loads the real `index.html` in a
 hidden iframe and pins the pure functions (the Jira paste parser, the metrics and RAG
-bands, `avg` vs `pooled`, the shape and id sanitizers, the sprint lifecycle). No build step
+bands, `avg` vs `pooled`, the shape and id sanitizers, the ART grouping, the sprint
+lifecycle). No build step
 and no frameworks: the page either says "All N tests pass" in green or lists what broke.
 Run it whenever those functions change; it needs the local server, since `file://` iframes
 are blocked in some browsers.

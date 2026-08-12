@@ -117,6 +117,32 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   sprints into every figure for last-day planning. It's deliberately one predicate so no two
   views can disagree; `targetSprintSlot()` then stops aiming at the running sprint, since a
   sprint being counted as data isn't the one you're planning. Planned sprints never count.
+- **An ART is a grouping of teams and nothing else.** `state.arts` is a flat list beside
+  `teams` and `pis`, a team carries an optional `artId`, and **no figure anywhere is worked
+  out per ART** — an ART's numbers are simply what its teams' numbers come to under the two
+  methods the All teams view already applies, so `metrics()` and `rag()` never learn the
+  concept exists. `teamsInArt()` and `groupTeamsByArt()` are pure (they take the team list
+  rather than reading state) and pinned in tests.html; `groupTeamsByArt()` is a **stable**
+  sort, so grouping never reshuffles teams inside a train. Assignment is a `<select>` in the
+  team's own row of Teams & PIs rather than a team-picker inside each ART: it reads the way
+  the data does, and it can't put a team on two trains. The header team picker groups with
+  plain `<optgroup>` once an ART exists.
+- **The All teams view filters once, at the top.** `renderTeamsView()` derives `shown` from
+  `state.settings.artFilter` before anything else, and both tables, both footer rows, the
+  chart and the in-flight count all come off that one list — so no corner of the page can
+  still be counting teams the picker left out. Its exclusions are never silent, the same
+  rule as every other view: `artToolbar()` says how many teams are hidden, and the footer
+  row says which scope it covers ("All teams on Payments ART") rather than a flat "All
+  teams" that would read as the whole portfolio in a screenshot.
+- **`ART_NONE` is `~none`, deliberately not a legal id.** `~` fails `ID_OK`, so no ART
+  arriving in a share link or a hand-edited file can collide with the sentinel — which is
+  why `sanitizeIds()` has to *skip* it when cleaning `settings.artFilter`. Clean it and the
+  "teams on no ART" filter becomes a fresh uid matching nothing.
+- **A team whose ART is missing is un-grouped, never dropped** — unlike an orphaned sprint
+  on the same boundary. An ART changes no figure, so a broken label must not cost a team its
+  sprints; it reads as "No ART" on screen, which is where it can be seen and fixed. Same for
+  a saved filter naming an ART that's gone, and same for Delete ART, which is the one delete
+  in Teams & PIs with no confirm because it destroys nothing.
 - `rollingSprints()` is the chokepoint — filtering there covers Rolling 5, All teams and the
   capacity target at once. The PI view filters separately via its own `closed` list.
 - Exclusions must never be silent: every view that drops a sprint says which one and why
@@ -190,6 +216,13 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   announces nothing on the way back — with `.warn:empty` collapsing them visually. The Jira
   preview is deliberately *not* a live region: it's far too long to read aloud, so `box.focus()`
   moves the user to it instead.
+- **Shapes from outside are not trusted either.** `coerceShape()` runs in front of
+  `sanitizeIds()` at every entry point, forcing `teams`/`arts`/`pis`/`sprints` to arrays of
+  objects and `settings` to an object — without it, `Object.assign(blankState(), parsed)`
+  copies `teams: "junk"` or a null entry straight into state and the next render throws on
+  a blank page. Order matters at the two rejecting callers: the import and `decodeShare()`
+  shape-check the RAW parse first and coerce second, or coercion would turn any JSON into
+  a valid empty export. Pinned in tests.html.
 - **Ids from outside are not trusted.** `sanitizeIds()` runs on everything entering through
   `load()`, `decodeShare()`, the JSON import and `svAdopt()`, replacing any id that isn't
   `[A-Za-z0-9_-]{1,64}` with a fresh one and rewriting every reference through the same map.
@@ -254,7 +287,7 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   bars, not a new series — and `linearTrend()` is a pure function pinned by tests.html.
 - **The chrome is shared with Team Dashboard** (the `claude-team-dashboard` repo; the app
   itself is titled **Flow Metrics** on screen — display-only rename, every identifier still
-  says team-dashboard) — sticky header, button tabs, tiles, ⓘ help,
+  says team-dashboard) — sticky header, brand mark, button tabs, tiles, ⓘ help,
   footer, changelog box. The two apps are meant to read as one family; if a chrome rule
   changes here, change it there too (and vice versa). **Each app's header carries an
   `.applink` to the other** — a plain `<a class="btn small applink">`, no script, mirrored
@@ -264,6 +297,20 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   that pushes the controls right, and needs `display: inline-flex` because `.btn.small`
   pins its height with `min-height`, which an inline box ignores. The footer keeps its
   cross-link too.
+- **Each app wears its own mark in the header, from the same family tile** — midnight page,
+  soft disc in the corner, one gradient stroke in the accent, the same shapes Money Map and
+  PAPTrack use. Here it's the sprint cycle; Flow Metrics has three weeks of bars. It is
+  drawn twice, by `make_favicon.py` (Pillow → `favicon.ico`) and as the inline SVG data URI
+  in `<head>`, and the two must stay the same picture — the SVG is what a browser actually
+  shows, the `.ico` is the fallback it fetches from the site root on its own and what the
+  header `<img>` wears. Re-running the script means bumping `?v=` on **every**
+  `favicon.ico` reference, `privacy.html` included, or the old icon stays cached for months.
+  The two extra tints (`#a5b4fc`, `#141c33`) are artwork, not palette: they came from Money
+  Map's icon and are copied byte-for-byte rather than re-picked, so nothing new enters the
+  theme pack. `.brand img` sits in the text's own flow with `vertical-align: middle` —
+  **don't make `.brand` a flex row** the way Money Map does. This brand line wraps on a
+  phone, and as flex items the title and the "· Charlie's Epic…" span become two columns,
+  so the subtitle wraps inside a narrow one beside the title instead of running on below it.
 - **The sprint form has two disclosures, both `<details>`: `#jiraBlock` above the figures and
   `#notesBlock` (Why? — optional) below them.** They share one CSS rule so a closed one reads
   as a panel of the form, not a stray link. Both are set on every `openSprint()` so neither
@@ -332,7 +379,10 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   after `#` is sent to a server, which is the whole reason this needs no Firestore rules, no
   account and no network. `buildSharePayload()` emits a **trimmed copy** — chosen teams only,
   only the PIs their sprints reference, notes stripped unless asked for, and never anything
-  identifying. Don't shortcut it to serialising `state`.
+  identifying. Don't shortcut it to serialising `state`. It carries **only the ARTs the
+  included teams are on** (the same rule as `usedPis`) and deliberately **not** the sender's
+  `artFilter`: the link already holds exactly the teams they picked, and opening it
+  pre-filtered would hide some of them behind a picker the recipient has no reason to open.
 - **How much history a link carries is a third lever, beside teams and notes.**
   `trimShareSprints()` applies it and is **pure** (it takes the PI list rather than reading
   state) so tests.html can pin it; `parseShareScope()` turns the picker value into its scope.
@@ -388,7 +438,16 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   `avg()`/`pooled()`, `sanitizeIds()` or `sprintStatus()`.** It loads the real
   `index.html` in a hidden iframe and calls the functions directly — no build step, no
   copies — so it needs `http://localhost` (file:// iframes are blocked in some
-  browsers). `window.__svTestHooks` at the foot of the classic script exists solely to
+  browsers). **It also refuses to run anywhere else, and that is load-bearing:** Pages
+  publishes `tests.html` beside the app, where the iframe would be the signed-in copy and
+  `onAuthStateChanged` would start a real sync — or raise the which-copy dialog — inside an
+  invisible frame. Two guards, both needed: the iframe carries `data-sv-tests`, which the
+  sync module checks before `init()`, and the gate at the foot of `tests.html` never creates
+  the iframe at all off localhost (booting the app IS the side effect, so the check can't
+  live in the load handler). Don't put the iframe back in the markup. CI runs the same page
+  **`file://` is deliberately NOT in `LOCAL_HOSTS`**: it has no hostname, and `''` used to sit in that list on the reasoning that the suite couldn't run there anyway — but that sent it down the iframe branch, where the frame silently fails to load and the suite blamed the app. Opening the file off disk now gets the advice that fixes it, and a frame that never loaded the app is reported as a setup problem rather than as every test failing at once.
+  headless on every push (`.github/workflows/tests.yml`) on `localhost:8012`, so the gate
+  lets it through, and fails the build if the summary goes red. `window.__svTestHooks` at the foot of the classic script exists solely to
   hand it `fmtPct` (a `const`, invisible on `window`); function declarations it reaches
   directly. When a rule in this file changes, change the matching test in the same
   commit.

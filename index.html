@@ -457,6 +457,11 @@ tr.clickable { cursor: pointer; }
 .rowbtn { background: none; border: 0; padding: 0; margin: 0;
   font: inherit; color: inherit; text-align: left; cursor: pointer; }
 .rowbtn:hover { text-decoration: underline; }
+/* The ART under a team's name in the All teams tables. A second line inside the same
+   row-header cell rather than a column of its own: Comparison 2 already carries nine
+   columns, and the label is a caption for the name above it, not another figure to
+   read across. Muted and small so it groups the rows without competing with them. */
+.artname { display: block; font-size: 12px; font-weight: 400; color: var(--text-secondary); }
 tfoot td, tfoot th { font-weight: 700; border-top: 2px solid var(--border-strong);
   border-bottom: none; }
 /* Rolling 5 has two summary rows — the per-sprint average and the pooled total. The
@@ -651,7 +656,7 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
          on a narrow window. Starting hidden costs nothing; growing does. -->
     <label class="sr-only" for="teamSel">Team</label>
     <select id="teamSel" title="Which team you're looking at" hidden></select>
-    <button class="btn small" id="manageBtn" title="Add or rename teams and PIs">Teams &amp; PIs</button>
+    <button class="btn small" id="manageBtn" title="Add or rename teams, group them into ARTs, and manage PIs">Teams &amp; PIs</button>
     <label class="sr-only" for="themeSel">Theme</label>
     <!-- The four unified themes, listed alphabetically (matches the other apps).
          Midnight is pre-selected to match the theme the boot script in <head> has
@@ -834,10 +839,16 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
 
 <!-- ── Teams & PIs ───────────────────────────────────────────────────────── -->
 <dialog id="manageDialog" aria-labelledby="manageDialogTitle">
-  <h3 id="manageDialogTitle">Teams &amp; PIs</h3>
+  <h3 id="manageDialogTitle">Teams, ARTs &amp; PIs</h3>
   <div class="row spread"><strong style="font-size:14px">Teams</strong>
     <button class="btn small" id="addTeamBtn">+ Add team</button></div>
   <div class="tablewrap"><table aria-label="Teams"><tbody id="teamRows"></tbody></table></div>
+  <div class="row spread" style="margin-top:20px"><strong style="font-size:14px">ARTs</strong>
+    <button class="btn small" id="addArtBtn">+ Add ART</button></div>
+  <p class="sub muted" style="font-size:12px;margin:4px 0 0">An Agile Release Train groups teams
+    together. It's a label only — every figure is still worked out per team — and the
+    <strong>All teams</strong> view gains a filter for it. Teams need not be on one.</p>
+  <div class="tablewrap"><table aria-label="Agile Release Trains"><tbody id="artRows"></tbody></table></div>
   <div class="row spread" style="margin-top:20px"><strong style="font-size:14px">Program Increments</strong>
     <button class="btn small" id="addPiBtn">+ Add PI</button></div>
   <p class="sub muted" style="font-size:12px;margin:4px 0 0">Each PI holds 6 sprints. They're listed
@@ -963,14 +974,26 @@ const ROLLING_WINDOW = 5;
 
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
+/* The All teams view's ART filter uses this for "teams in no ART at all". It is
+   deliberately not a plain id: `~` fails ID_OK, so no real ART — however the
+   payload arrived — can ever collide with the sentinel, and sanitizeIds() lets it
+   through untouched rather than swapping it for a fresh id. */
+const ART_NONE = '~none';
+
 function blankState() {
   return {
     version: 1,
     teams: [],
+    /* An ART (Agile Release Train) is a grouping of teams, and nothing more: a
+       team carries an optional `artId` and every figure in the app is still
+       worked out per team. The list is here beside teams and PIs so it travels
+       through save/load, import/export, the cloud document and share links
+       without any of them learning a new shape. */
+    arts: [],
     pis: [],
     sprints: [],
     settings: { activeTeamId: null, activePiId: null, includeSprint6InRolling: false,
-                includeInProgress: false, view: 'sprint' }
+                includeInProgress: false, view: 'sprint', artFilter: null }
   };
 }
 
@@ -1023,7 +1046,7 @@ function orphanNote(n) {
    this can never turn an arbitrary JSON into a valid empty export. */
 function coerceShape(data) {
   const d = (data && typeof data === 'object') ? data : {};
-  for (const k of ['teams', 'pis', 'sprints']) {
+  for (const k of ['teams', 'arts', 'pis', 'sprints']) {
     d[k] = (Array.isArray(d[k]) ? d[k] : []).filter(x => x && typeof x === 'object');
   }
   if (!d.settings || typeof d.settings !== 'object') d.settings = {};
@@ -1040,7 +1063,10 @@ function sanitizeIds(data) {
     return remap.get(id);
   };
   const list = (v) => (Array.isArray(v) ? v : []);
-  list(data.teams).forEach(t => { if (t) t.id = clean(t.id); });
+  /* artId only when the team has one — writing `undefined` over an absent key would
+     put an `artId` on every team in every export for no reason. */
+  list(data.teams).forEach(t => { if (t) { t.id = clean(t.id); if (t.artId) t.artId = clean(t.artId); } });
+  list(data.arts).forEach(a => { if (a) a.id = clean(a.id); });
   list(data.pis).forEach(p => { if (p) p.id = clean(p.id); });
   list(data.sprints).forEach(s => {
     if (!s) return;
@@ -1051,7 +1077,20 @@ function sanitizeIds(data) {
   if (data.settings && typeof data.settings === 'object') {
     data.settings.activeTeamId = clean(data.settings.activeTeamId);
     data.settings.activePiId = clean(data.settings.activePiId);
+    /* ART_NONE is a sentinel, not an id — clean() would swap it for a fresh one
+       and silently turn "teams in no ART" into a filter matching nothing. */
+    if (data.settings.artFilter !== ART_NONE)
+      data.settings.artFilter = clean(data.settings.artFilter);
   }
+  /* A team pointing at an ART that isn't in the same payload is un-grouped rather
+     than dropped: unlike an orphaned sprint it changes no figure — every number in
+     this app is worked out per team — and dropping it would throw away real data
+     over a broken label. The team then reads as "No ART" on screen, which is where
+     the user can see it and fix it. Same for a filter naming an ART that's gone. */
+  const artIds = new Set(list(data.arts).map(a => (a ? a.id : null)).filter(Boolean));
+  list(data.teams).forEach(t => { if (t && t.artId && !artIds.has(t.artId)) t.artId = null; });
+  const filter = data.settings && data.settings.artFilter;
+  if (filter && filter !== ART_NONE && !artIds.has(filter)) data.settings.artFilter = null;
   /* After the remapping, never before it: a sprint whose team id was hostile has
      just been rewritten to the team's fresh id, and is not an orphan. */
   if (Array.isArray(data.sprints)) {
@@ -1125,11 +1164,39 @@ function save() {
 /* ── Domain helpers ─────────────────────────────────────────────────────── */
 
 const teamById = (id) => state.teams.find(t => t.id === id) || null;
+const artById  = (id) => state.arts.find(a => a.id === id) || null;
 const piById   = (id) => state.pis.find(p => p.id === id) || null;
 const piIndex  = (id) => state.pis.findIndex(p => p.id === id);
 
 function activeTeam() {
   return teamById(state.settings.activeTeamId) || state.teams[0] || null;
+}
+
+/* ── ARTs ───────────────────────────────────────────────────────────────────
+   The grouping is a filter and a sort, never a second set of figures: an ART's
+   numbers are whatever its teams' numbers add up to under the two averaging
+   methods the All teams view already applies, so nothing here touches metrics().
+
+   Both are pure — they take the team list rather than reading state — so
+   tests.html can pin them, and so a share payload can be grouped before it is
+   ever adopted into state. */
+function teamsInArt(teams, artId) {
+  const list = Array.isArray(teams) ? teams : [];
+  if (!artId) return list.slice();                        // no filter: every team
+  if (artId === ART_NONE) return list.filter(t => !t.artId);
+  return list.filter(t => t.artId === artId);
+}
+
+/* Teams sorted so an ART's teams sit together, ARTs in the order they're listed
+   in Teams & PIs and un-grouped teams last. Within a group the teams keep the
+   order they were added in — the same order the picker and every other view use,
+   so grouping never silently reshuffles a list you know by eye. */
+function groupTeamsByArt(teams, arts) {
+  const order = new Map((arts || []).map((a, i) => [a.id, i]));
+  const rank = (t) => (t.artId && order.has(t.artId) ? order.get(t.artId) : Infinity);
+  return (teams || []).map((t, i) => ({ t, i }))
+    .sort((a, b) => (rank(a.t) - rank(b.t)) || (a.i - b.i))
+    .map(x => x.t);
 }
 
 /* Sprints for a team in program order: PI order first (the list in Teams & PIs is
@@ -2297,8 +2364,24 @@ function renderTabs() {
 function renderTeamPicker() {
   const sel = document.getElementById('teamSel');
   const active = activeTeam();
-  sel.innerHTML = state.teams.map(t =>
-    `<option value="${esc(t.id)}"${active && t.id === active.id ? ' selected' : ''}>${esc(t.name)}</option>`).join('');
+  const opt = (t) =>
+    `<option value="${esc(t.id)}"${active && t.id === active.id ? ' selected' : ''}>${esc(t.name)}</option>`;
+  /* Once teams are grouped into ARTs the picker groups with them — a flat list of a
+     dozen teams from three trains is the thing the grouping exists to fix. Plain
+     <optgroup>, so it costs no script and reads correctly to a screen reader. Teams
+     on no ART go in a group of their own at the end rather than loose above the
+     first one, where the browser would render them as if they belonged to it. */
+  sel.innerHTML = state.arts.length
+    ? state.arts.map(a => {
+        const mine = teamsInArt(state.teams, a.id);
+        return mine.length
+          ? `<optgroup label="${esc(a.name)}">${mine.map(opt).join('')}</optgroup>` : '';
+      }).join('')
+      + (() => {
+        const loose = teamsInArt(state.teams, ART_NONE);
+        return loose.length ? `<optgroup label="No ART">${loose.map(opt).join('')}</optgroup>` : '';
+      })()
+    : state.teams.map(opt).join('');
   sel.hidden = state.teams.length === 0;
 }
 
@@ -3050,9 +3133,78 @@ function wireRollingToolbar() {
 
 /* ── View 4: all teams ──────────────────────────────────────────────────── */
 
+/* The ART picker that narrows this view. It's a card of its own above the two
+   rolling toggles rather than a third row inside them: those two change what
+   counts as a sprint, this changes which teams are on the page at all, and
+   mixing the two in one box made the toggles read as if they were per-ART.
+
+   Hidden entirely until an ART exists, with a pointer to where they're made —
+   an empty picker offering only "All ARTs" is furniture, but a filter nobody
+   can find is worse. */
+function artToolbar(shownCount, hiddenCount) {
+  const filter = state.settings.artFilter || '';
+  if (!state.arts.length) {
+    return viewOnly ? '' : `<div class="card">
+      <p class="sub" style="margin:0">Support more than one ART? Group your teams in
+        <strong>Teams &amp; PIs</strong> and this view gains a filter for them.</p>
+    </div>`;
+  }
+  const opt = (v, label) =>
+    `<option value="${esc(v)}"${filter === v ? ' selected' : ''}>${esc(label)}</option>`;
+  const unassigned = state.teams.some(t => !t.artId);
+  return `<div class="card">
+    <div class="row spread">
+      <label class="row" style="gap:8px;font-size:14px">
+        <span>ART</span>
+        <select id="artFilter" title="Show only the teams on one ART">
+          ${opt('', 'All ARTs')}
+          ${state.arts.map(a => opt(a.id, a.name)).join('')}
+          ${unassigned ? opt(ART_NONE, 'No ART') : ''}
+        </select>
+      </label>
+      <span class="muted" style="font-size:13px">${
+        hiddenCount
+          ? `Showing ${shownCount} of ${plural(state.teams.length, 'team')} — the other
+             ${hiddenCount} ${hiddenCount === 1 ? 'is' : 'are'} in none of the figures below.`
+          : `Showing all ${plural(shownCount, 'team')}. Every figure below follows this picker.`
+      }</span>
+    </div>
+  </div>`;
+}
+
+function wireArtToolbar() {
+  const sel = document.getElementById('artFilter');
+  if (sel) sel.onchange = () => {
+    state.settings.artFilter = sel.value || null;
+    save(); render();
+  };
+}
+
 function renderTeamsView() {
   const includeSix = !!state.settings.includeSprint6InRolling;
-  const rowsData = state.teams.map(t => {
+  /* One filter, applied once, at the top: every figure on this page — both
+     tables, both All-teams rows, the chart and the in-flight count — is derived
+     from `shown` below, so the view can't end up saying it filtered while some
+     corner of it still counted the teams it left out. */
+  const grouped = groupTeamsByArt(state.teams, state.arts);
+  const shown = teamsInArt(grouped, state.settings.artFilter);
+  const hiddenCount = state.teams.length - shown.length;
+  const noArt = state.settings.artFilter === ART_NONE;
+  const art = noArt ? null : artById(state.settings.artFilter);
+  const filtered = noArt || !!art;
+
+  if (!shown.length) {
+    viewsEl.innerHTML = artToolbar(0, hiddenCount) + `
+      <div class="card empty">
+        <h2>No Teams On This ART</h2>
+        <p>Nothing is assigned to it at the moment. Pick <strong>All ARTs</strong> above, or
+           assign a team to it in <strong>Teams &amp; PIs</strong>.</p>
+      </div>`;
+    wireArtToolbar();
+    return;
+  }
+
+  const rowsData = shown.map(t => {
     const rs = rollingSprints(t.id, includeSix);
     return {
       team: t, count: rs.length, sprints: rs,
@@ -3068,7 +3220,7 @@ function renderTeamsView() {
     };
   });
   const withData = rowsData.filter(r => r.count > 0);
-  const anyOpen = state.teams.reduce((a, t) => a + openSprints(t.id).length, 0);
+  const anyOpen = shown.reduce((a, t) => a + openSprints(t.id).length, 0);
   /* The bottom row pools every point from every team, rather than averaging the
      rows above it — the same rule as each row, applied one level up. It's what the
      dashboard's Total does, and it's why that total doesn't match the mean of the
@@ -3100,11 +3252,31 @@ function renderTeamsView() {
     .sort((a, b) => b.gap - a.gap);
   const widest = gaps.length && gaps[0].gap >= 1 ? gaps[0] : null;
 
-  viewsEl.innerHTML = rollingToolbar(includeSix) + `
+  /* The scope goes in the heading and in both footer rows, so a screenshot of one
+     table still says which teams it covered — the picker above it is off-screen the
+     moment anyone scrolls. */
+  const heading = art ? esc(art.name) : noArt ? 'Teams Without An ART' : 'All Teams';
+  const scopeLabel = art ? `All teams on ${esc(art.name)}`
+    : noArt ? 'All teams with no ART' : 'All teams';
+
+  /* Which ART a team is on, under its name. The grouping is a sort, and a sort with
+     no labels is just an order nobody can account for. It goes once the picker has
+     narrowed the page to a single ART — repeating the same name down every row is
+     noise — and never appears at all until an ART exists. */
+  const artTag = (team) => {
+    if (!state.arts.length || filtered) return '';
+    const on = team.artId ? artById(team.artId) : null;
+    return `<span class="artname">${on ? esc(on.name) : 'No ART'}</span>`;
+  };
+
+  viewsEl.innerHTML = artToolbar(shown.length, hiddenCount) + rollingToolbar(includeSix) + `
     <div class="card">
-      <h2>All Teams — Rolling ${ROLLING_WINDOW}-Sprint Averages</h2>
-      <p class="sub">Every team you support, side by side${includeSix ? '' : ', with sprint 6 excluded'}.
-        Finished sprints only${anyOpen ? ` — ${anyOpen} sprint${anyOpen === 1 ? '' : 's'} still in flight
+      <h2>${heading} — Rolling ${ROLLING_WINDOW}-Sprint Averages</h2>
+      <p class="sub">${art ? `Every team on ${esc(art.name)}`
+        : noArt ? 'Every team you haven’t put on an ART yet' : 'Every team you support'}, side by
+        side${includeSix ? '' : ', with sprint 6 excluded'}.
+        ${state.arts.length && !filtered ? 'Grouped by ART. ' : ''}Finished sprints only${
+        anyOpen ? ` — ${anyOpen} sprint${anyOpen === 1 ? '' : 's'} still in flight
         ${anyOpen === 1 ? 'is' : 'are'} not counted` : ''}.
         ${withData.length ? 'The chart plots the average-of-sprints figure from Comparison 1 below.'
           : 'No team has a finished sprint yet.'}</p>
@@ -3127,7 +3299,7 @@ function renderTeamsView() {
           <th scope="col">Next sprint target</th></tr></thead>
         <tbody>${rowsData.map(r => `<tr class="clickable" data-id="${esc(r.team.id)}">
           <th scope="row"><button type="button" class="rowbtn"
-            aria-label="Switch to ${esc(r.team.name)}">${esc(r.team.name)}</button></th>
+            aria-label="Switch to ${esc(r.team.name)}">${esc(r.team.name)}</button>${artTag(r.team)}</th>
           <td>${r.count}</td>
           <td class="metric">${pill(r.commit, 'completion')}</td>
           <td class="metric">${pill(r.breakIn, 'churn')}</td>
@@ -3136,7 +3308,7 @@ function renderTeamsView() {
           <td>${fmtNum(r.vel)}</td>
           <td>${r.target ? '<strong>' + fmtNum(Math.round(r.target.recommended)) + '</strong>' : '—'}</td></tr>`).join('')}</tbody>
         <tfoot><tr>
-          <th scope="row">All teams</th><td>${allMean.count}</td>
+          <th scope="row">${scopeLabel}</th><td>${allMean.count}</td>
           <td class="metric">${pill(allMean.commit, 'completion')}</td>
           <td class="metric">${pill(allMean.breakIn, 'churn')}</td>
           <td class="metric">${pill(allMean.removed, 'churn')}</td>
@@ -3164,7 +3336,7 @@ function renderTeamsView() {
           <th scope="col">Actual complete${helpBtn('actualComplete', 'Actual complete')}</th></tr></thead>
         <tbody>${rowsData.map(r => `<tr class="clickable" data-id="${esc(r.team.id)}">
           <th scope="row"><button type="button" class="rowbtn"
-            aria-label="Switch to ${esc(r.team.name)}">${esc(r.team.name)}</button></th>
+            aria-label="Switch to ${esc(r.team.name)}">${esc(r.team.name)}</button>${artTag(r.team)}</th>
           <td>${r.count}</td>
           <td>${fmtNum(r.pool.committed)}</td>
           <td>${fmtNum(r.pool.committedCompleted)}</td>
@@ -3174,7 +3346,7 @@ function renderTeamsView() {
           <td class="metric">${pill(r.pool.carryoverPct, 'churn')}</td>
           <td>${fmtPct(r.pool.actualCompletePct)}</td></tr>`).join('')}</tbody>
         <tfoot><tr>
-          <th scope="row">All teams</th><td>${allPooled.count}</td>
+          <th scope="row">${scopeLabel}</th><td>${allPooled.count}</td>
           <td>${fmtNum(allPooled.committed)}</td><td>${fmtNum(allPooled.committedCompleted)}</td>
           <td class="metric">${pill(allPooled.commitCompletePct, 'completion')}</td>
           <td class="metric">${pill(allPooled.breakInPct, 'churn')}</td>
@@ -3202,8 +3374,9 @@ function renderTeamsView() {
           upward — it describes the actual body of work, and it's what the Agile Operations
           Dashboard shows, so it's the one that will reconcile. Neither is a correction of the
           other.</p>
-        <p>Each table's <strong>All teams</strong> row applies that table's own method across
-          every team at once, rather than averaging the rows above it — which is why neither
+        <p>Each table's <strong>${scopeLabel}</strong> row applies that table's own method across
+          ${filtered ? 'every team the ART filter leaves' : 'every team'} at once, rather than
+          averaging the rows above it — which is why neither
           equals the mean of the column it sits under. Comparison 1 treats every sprint from
           every team as one equal sprint, so a team with six of them pulls six times as hard
           as a team with one; Comparison 2 pools every point, so the dashboard's Total behaves
@@ -3223,6 +3396,7 @@ function renderTeamsView() {
     const btn = tr.querySelector('.rowbtn');
     if (btn) btn.onclick = (e) => { e.stopPropagation(); go(); };
   });
+  wireArtToolbar();
   wireRollingToolbar();
 
   if (withData.length) {
@@ -3880,13 +4054,41 @@ const manageDialog = F('manageDialog');
 function openManage() { renderManage(); manageDialog.showModal(); }
 
 function renderManage() {
+  /* The ART column is where a team is put on one — a select in the row it belongs
+     to, rather than a list of teams to tick inside each ART. Assignment reads the
+     way the data does (a team has an ART), it can't put a team on two trains, and
+     the whole thing is one control per row instead of a second dialog. The column
+     appears only once an ART exists; before that it would be a picker with one
+     option. */
+  const anyArts = state.arts.length > 0;
+  const artCell = (t) => {
+    if (!anyArts) return '';
+    const opt = (v, label, sel) =>
+      `<option value="${esc(v)}"${sel ? ' selected' : ''}>${esc(label)}</option>`;
+    return `<td><label class="sr-only" for="art-of-${esc(t.id)}">ART for ${esc(t.name)}</label>
+      <select id="art-of-${esc(t.id)}" data-art-of="${esc(t.id)}">
+        ${opt('', 'No ART', !t.artId)}
+        ${state.arts.map(a => opt(a.id, a.name, t.artId === a.id)).join('')}
+      </select></td>`;
+  };
+
   F('teamRows').innerHTML = state.teams.length ? state.teams.map(t => `
     <tr><td>${esc(t.name)}</td>
+      ${artCell(t)}
       <td class="muted">${state.sprints.filter(s => s.teamId === t.id).length} sprints</td>
       <td style="white-space:nowrap">
         <button class="btn small" data-rename-team="${esc(t.id)}">Rename</button>
         <button class="btn small" data-del-team="${esc(t.id)}">Delete</button></td></tr>`).join('')
     : '<tr><td class="muted">No teams yet.</td></tr>';
+
+  F('artRows').innerHTML = state.arts.length ? state.arts.map(a => {
+    const n = state.teams.filter(t => t.artId === a.id).length;
+    return `<tr><td>${esc(a.name)}</td>
+      <td class="muted">${plural(n, 'team')}</td>
+      <td style="white-space:nowrap">
+        <button class="btn small" data-rename-art="${esc(a.id)}">Rename</button>
+        <button class="btn small" data-del-art="${esc(a.id)}">Delete</button></td></tr>`;
+  }).join('') : '<tr><td class="muted">No ARTs yet.</td></tr>';
 
   F('piRows').innerHTML = state.pis.length ? state.pis.map((p, i) => `
     <tr><td>${esc(p.name)}</td>
@@ -3912,6 +4114,31 @@ function renderManage() {
     if (state.settings.activeTeamId === t.id)
       state.settings.activeTeamId = state.teams[0] ? state.teams[0].id : null;
     save(); renderManage(); render();
+  });
+  manageDialog.querySelectorAll('[data-art-of]').forEach(sel => sel.onchange = () => {
+    const t = teamById(sel.dataset.artOf);
+    if (!t) return;
+    t.artId = sel.value || null;
+    /* renderManage() as well as render(): the ARTs table below counts the teams on
+       each one, and it has just changed. */
+    save(); renderManage(); render();
+  });
+  manageDialog.querySelectorAll('[data-rename-art]').forEach(b => b.onclick = () => {
+    const a = artById(b.dataset.renameArt);
+    const name = prompt('ART name', a.name);
+    if (name && name.trim()) { a.name = name.trim(); save(); renderManage(); render(); }
+  });
+  /* Deleting an ART is deliberately the cheapest delete in this dialog: it takes no
+     sprint and no team with it, because an ART owns neither — its teams simply go
+     back to having none. No confirm for the same reason, unlike Delete team and
+     Delete PI, which destroy data. */
+  manageDialog.querySelectorAll('[data-del-art]').forEach(b => b.onclick = () => {
+    const a = artById(b.dataset.delArt);
+    state.arts = state.arts.filter(x => x.id !== a.id);
+    state.teams.forEach(t => { if (t.artId === a.id) t.artId = null; });
+    if (state.settings.artFilter === a.id) state.settings.artFilter = null;
+    save(); renderManage(); render();
+    toast(`${a.name} removed — its teams and their sprints are untouched`);
   });
   manageDialog.querySelectorAll('[data-rename-pi]').forEach(b => b.onclick = () => {
     const p = piById(b.dataset.renamePi);
@@ -3951,6 +4178,13 @@ function addTeam() {
   save(); renderManage(); render();
 }
 
+function addArt() {
+  const name = prompt('ART name (e.g. "Payments ART")', '');
+  if (!name || !name.trim()) return;
+  state.arts.push({ id: uid(), name: name.trim() });
+  save(); renderManage(); render();
+}
+
 function addPi() {
   const suggestion = state.pis.length ? '' : 'PI 1';
   const name = prompt('PI name (e.g. "PI 2026.3")', suggestion);
@@ -3960,6 +4194,7 @@ function addPi() {
 }
 
 F('addTeamBtn').onclick = addTeam;
+F('addArtBtn').onclick = addArt;
 F('addPiBtn').onclick = addPi;
 F('manageCloseBtn').onclick = () => manageDialog.close();
 F('manageBtn').onclick = openManage;
@@ -4148,12 +4383,18 @@ function buildSharePayload({ teamIds, includeNotes, includeAllTeams, scope }) {
   buildSharePayload.dropped = drop ? emptied.map(t => t.name) : [];
 
   const usedPis = new Set(sprints.map(s => s.piId));
+  /* Only the ARTs the shared teams are actually on — same rule as the PIs above, so
+     sharing one team doesn't publish the names of every train you support. A team
+     whose ART didn't make it would be un-grouped by sanitizeIds() at the far end,
+     which is why this filters from the final `teams` list rather than from `picked`. */
+  const usedArts = new Set(teams.map(t => t.artId).filter(Boolean));
   return {
     v: 1,
     sharedAt: Date.now(),
     label: teams.map(t => t.name).join(', '),
     allTeams: !!includeAllTeams && teams.length > 1,
     teams,
+    arts: state.arts.filter(a => usedArts.has(a.id)),
     pis: state.pis.filter(p => usedPis.has(p.id)),
     sprints,
     /* Numbers only, and undefined on a full history so JSON.stringify drops the key
@@ -4162,6 +4403,10 @@ function buildSharePayload({ teamIds, includeNotes, includeAllTeams, scope }) {
     range: scope && scope.kind !== 'all' ? { kind: scope.kind, n: scope.n } : undefined,
     settings: {
       activeTeamId: teams.length ? teams[0].id : null,
+      /* Deliberately not the sender's ART filter: the link already carries exactly
+         the teams they chose, and opening it pre-filtered would hide some of them
+         behind a picker the recipient has no reason to look at. */
+      artFilter: null,
       includeSprint6InRolling: !!state.settings.includeSprint6InRolling,
       includeInProgress: !!state.settings.includeInProgress,
       view: 'sprint'
@@ -4210,7 +4455,7 @@ async function openSharedView() {
     const orphans = sanitizeIds.dropped;
     shareMeta = { sharedAt: p.sharedAt, label: p.label, allTeams: !!p.allTeams, range: p.range };
     state = Object.assign(blankState(), {
-      teams: p.teams, pis: p.pis || [], sprints: p.sprints,
+      teams: p.teams, arts: p.arts || [], pis: p.pis || [], sprints: p.sprints,
       settings: Object.assign(blankState().settings, p.settings || {})
     });
     /* Land on the most recent sprint that has data rather than the payload's own
@@ -4501,12 +4746,18 @@ F('shareOpenBtn').onclick = () => {
 /* ═══════════════════════════════ Sample data ══════════════════════════════ */
 
 function loadSample() {
-  if (!confirm('Load two sample teams with a PI and a bit of history? You can delete them later.')) return;
+  if (!confirm('Load two sample teams on two ARTs, with a PI and a bit of history? You can delete them later.')) return;
   const piA = { id: uid(), name: 'PI 2026.2', sprintCount: 6 };
   const piB = { id: uid(), name: 'PI 2026.3', sprintCount: 6 };
-  const t1 = { id: uid(), name: 'Team Kestrel' };
-  const t2 = { id: uid(), name: 'Team Otter' };
+  /* Two ARTs of one team each rather than one holding both: it's the arrangement
+     where the All teams filter actually does something, so the sample shows what
+     the grouping is for instead of just proving it exists. */
+  const a1 = { id: uid(), name: 'Payments ART' };
+  const a2 = { id: uid(), name: 'Platform ART' };
+  const t1 = { id: uid(), name: 'Team Kestrel', artId: a1.id };
+  const t2 = { id: uid(), name: 'Team Otter', artId: a2.id };
   state.pis.push(piA, piB);
+  state.arts.push(a1, a2);
   state.teams.push(t1, t2);
 
   const mk = (teamId, piId, n, committed, done, added, removed, carriedIn, total, notes) => ({
@@ -4650,9 +4901,9 @@ if (viewOnly) {
 
 /* Dev hook for tests.html (which loads this page in a same-origin iframe and
    calls the pure functions). Function declarations are already reachable as
-   window properties; this exposes the one const the tests need. Nothing in the
+   window properties; this exposes the consts the tests need. Nothing in the
    app reads it. */
-window.__svTestHooks = { fmtPct };
+window.__svTestHooks = { fmtPct, ART_NONE };
 </script>
 
 <script type="module">
