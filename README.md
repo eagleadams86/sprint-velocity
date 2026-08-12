@@ -19,7 +19,7 @@ one app, it should change in the other too.
 
 ---
 
-## What it tracks
+## What It Tracks
 
 Per team, per sprint:
 
@@ -40,7 +40,7 @@ behind a **Why? (optional)** heading in the sprint form, folded away so the numb
 Save button fit on one screen; open it when you want it. A sprint that already has notes opens
 with it unfolded, so nothing hides writing you can't see is there.
 
-## The metrics
+## The Metrics
 
 All four percentages use **committed points** as the denominator:
 
@@ -105,7 +105,7 @@ Percentages display as whole numbers, except when rounding would land on the wro
 a target — 33 of 39 points is 84.6%, so it shows as `84.6%` in yellow rather than as `85%`
 in yellow, which would look like a bug. That's the only time you'll see a decimal.
 
-## Filling a sprint from Jira
+## Filling a Sprint from Jira
 
 Rather than retyping seven numbers, open the sprint's **Sprint Report** in Jira, copy the
 whole thing, and paste it into **📋 Paste from Jira** at the top of the sprint form.
@@ -128,7 +128,7 @@ total in each section header, so the app cross-checks its reading against Jira's
 you if they disagree. And issues with no estimate (`-`) count as zero rather than being
 skipped.
 
-### Stories re-sized mid-sprint
+### Stories Re-Sized Mid-Sprint
 
 When an estimate changes during a sprint, Jira shows both — `8 → 2` on the row, and
 `Story Points (21 → 15)` in the section header. The app reads both sides, and exactly one
@@ -194,7 +194,7 @@ report look like the other kind. Estimates are read from the rightmost cell hold
 actual figure, so a spare `-` in a column after the points can't mask them; an issue with
 genuinely no estimate still reads as 0.
 
-## Recording a sprint before it's over
+## Recording a Sprint Before It's Over
 
 You can create a sprint at planning time and top it up as it runs. An unfinished sprint is
 **shown but never counted** — it stays out of every average, the rolling window, the PI
@@ -224,7 +224,7 @@ committed, so an over-commitment can be descoped now rather than carried over la
 
 Nothing is excluded silently — every view names what it's leaving out.
 
-### Counting a sprint that's still running
+### Counting a Sprint That's Still Running
 
 **Count sprints that are still running**, on the Rolling 5 and All teams views, opts in-flight
 sprints into every figure — the rolling window, the PI totals, the team comparison and the
@@ -237,7 +237,7 @@ sprint is being counted as data, it isn't the sprint you're planning any more.
 
 Sprints that haven't started are never counted either way; they have no results at all.
 
-### Overwriting a finished sprint
+### Overwriting a Finished Sprint
 
 Saving a sprint that has already finished asks first, listing exactly what would change:
 
@@ -259,7 +259,7 @@ hasn't started, none for a new sprint in an empty slot, none if you open an old 
 change nothing, and none for adding a retro note. Only a recorded figure actually changing —
 or the sprint being moved to another slot — triggers it.
 
-### Dates fill themselves
+### Dates Fill Themselves
 
 Key the dates once and the rest of the programme follows. Sprints run on a fixed rhythm, so
 a new sprint form works out its own start and end from a sprint that already has dates,
@@ -287,14 +287,14 @@ stick — including through a change of sprint number. **Sprints already recorde
 dates are left alone**, deliberately: dating them would flip them out of "complete" and pull
 real history out of your averages.
 
-### Carried in fills itself
+### Carried in Fills Itself
 
 Whenever you open a sprint that has no carried-in figure yet, it's filled with what the
 previous sprint carried out — crossing a PI boundary if you're on sprint 1. A note under the
 fields says which sprint it came from, and it never overwrites a number you've already
 entered or typed.
 
-### Blank means zero
+### Blank Means Zero
 
 An empty box saves as 0 — most sprint data arrives from the Jira paste, where a figure that
 isn't there genuinely is nothing, and a `—` where the honest answer is "0 removed" just looks
@@ -304,7 +304,7 @@ The one figure that still shows `—` is a percentage with nothing committed: th
 denominator to divide by, so it can't be a number, and those sprints stay out of averages
 rather than dragging them down.
 
-## The four views
+## The Four Views
 
 - **Sprint** — one sprint in detail: the RAG tiles, a breakdown of where the committed
   points actually went, and the notes.
@@ -324,7 +324,7 @@ sprint, and step aside again if you switch to a team you haven't recorded anythi
 no teams at all there are no tabs — just the welcome card. If the view you were on goes away,
 you land back on **Sprint**.
 
-## The two comparison tables
+## The Two Comparison Tables
 
 The All teams view shows the same rolling window twice, because there are two honest ways
 to average a percentage and they answer different questions.
@@ -376,7 +376,7 @@ Comparison 2 also carries **Actual complete** — everything delivered, break-in
 included, against what was committed. It goes above 100% when a team finished more than it
 signed up for, which says throughput was high, not that the plan held.
 
-## Target capacity for the next sprint
+## Target Capacity for the Next Sprint
 
 The Rolling 5 view turns the history into a number you can take into planning: **how many
 points this team should commit to next sprint**.
@@ -402,7 +402,7 @@ next sprint up is the IP sprint.
 It's a starting point for the planning conversation, not a quota — adjust it for leave,
 holidays and whatever else the team knows about that the numbers don't.
 
-### Sprint 6 and the rolling average
+### Sprint 6 and the Rolling Average
 
 Sprint 6 is the innovation & planning sprint, so it's **excluded from the rolling average
 by default** — an IP sprint isn't meant to look like a delivery sprint, and including it
@@ -462,7 +462,7 @@ unannounced. Small targets like the ⓘ carry a 24px hit area without growing on
 
 ---
 
-## Your data
+## Your Data
 
 `localStorage` in your own browser is the source of truth. **No account is needed and no
 data leaves your machine** unless you choose to sign in.
@@ -477,7 +477,7 @@ runbook for doing it: how to map an email address to the right Firestore documen
 document ID is the Firebase Auth UID, and nothing inside the document identifies anyone),
 what order to delete in, and which copies are genuinely beyond reach.
 
-## Recent changes
+## Recent Changes
 
 At the foot of the page there's a collapsed **Recent changes** box. Expand it and it fetches
 the last 10 commits to `index.html` from the GitHub API and lists them newest first, each
@@ -487,7 +487,7 @@ it just says so.
 Commit subject lines are written in plain English for this reason — the box is the app's
 changelog, so the commit history *is* the release notes.
 
-## Sharing a read-only link
+## Sharing a Read-Only Link
 
 The *Share* button builds a link that shows someone your figures without them signing in —
 useful for a stakeholder, a manager, or an SM covering for you. They get the Sprint, Current
@@ -507,7 +507,7 @@ You choose per link:
 - **Sprint notes** — your written comments on what was added, removed and carried over.
   **Off by default**, so candid retro commentary doesn't travel by accident.
 
-### How much history
+### How Much History
 
 A link carries its data inside itself, so the longer your history grows, the longer the link
 gets — and a very long one can be broken in half by a mail client on the way. **How much
@@ -572,7 +572,7 @@ Links run to a few hundred characters for a typical team. If one gets long enoug
 client might break it across two lines, the dialog says so and points at the three things that
 shorten it — fewer teams, no notes, or less history.
 
-## Cross-device sync (Firebase, free tier — optional)
+## Cross-Device Sync (Firebase, Free Tier — Optional)
 
 Sync is **enabled** in this deployment, backed by the `sprintvelocity-141b7` Firebase
 project — the `FIREBASE_CONFIG` object at the bottom `<script type="module">` block of
@@ -580,7 +580,7 @@ project — the `FIREBASE_CONFIG` object at the bottom `<script type="module">` 
 fully local, without it. Setting that constant back to `null` returns it to local-only mode
 and hides all sync UI.
 
-### Why sign-in doesn't use Firebase's popup
+### Why Sign-In Doesn't Use Firebase's Popup
 
 Corporate web filters block individual `firebaseapp.com` hostnames unpredictably — the block
 is per hostname, not the domain, so a sibling app working is no evidence this one will (the
@@ -713,7 +713,7 @@ Firebase endpoints sync uses plus the GitHub commits API, and no frames except t
 own Firebase auth helper. If a new external endpoint is ever added, it has to be added to
 the CSP too or the browser will (deliberately) block it.
 
-## Working on it locally
+## Working on It Locally
 
 ```bash
 python3 -m http.server 8012

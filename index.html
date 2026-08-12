@@ -690,7 +690,7 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
     <a href="https://eagleadams86.github.io/team-dashboard/">Flow Metrics — the sibling app</a></p>
 
   <details class="changelog" id="cl-box">
-    <summary>Recent changes</summary>
+    <summary>Recent Changes</summary>
     <ol id="cl-list"><li>Loading&hellip;</li></ol>
   </details>
 </div>
@@ -769,7 +769,7 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
     </fieldset>
 
     <fieldset>
-      <legend>Change during the sprint</legend>
+      <legend>Change During the Sprint</legend>
       <div class="grid-fields">
         <div>
           <label class="field" for="f_added">Added after start</label>
@@ -800,7 +800,7 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
          and the buttons fit on one screen. openSprint() opens it when the sprint
          already has notes, so nothing ever hides writing that exists. -->
     <details id="notesBlock">
-      <summary>Why? (optional)</summary>
+      <summary>Why? (Optional)</summary>
       <label class="field" for="f_n_added" style="margin-top:10px">Work added</label>
       <textarea id="f_n_added" placeholder="e.g. production defect, unplanned dependency from Team B"></textarea>
       <label class="field" for="f_n_removed" style="margin-top:10px">Work removed</label>
@@ -840,7 +840,7 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
 
 <!-- ── Backup / restore ──────────────────────────────────────────────────── -->
 <dialog id="dataDialog" aria-labelledby="dataDialogTitle">
-  <h3 id="dataDialogTitle">Back up &amp; restore</h3>
+  <h3 id="dataDialogTitle">Back Up &amp; Restore</h3>
   <p class="sub">Your data lives in this browser. Export a JSON file to keep a backup, move to
     another browser, or hand a colleague a starting point.</p>
   <div class="row">
@@ -867,18 +867,18 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
 
 <!-- ── Share a read-only link ────────────────────────────────────────────── -->
 <dialog id="shareDialog" aria-labelledby="shareDialogTitle">
-  <h3 id="shareDialogTitle">Share a read-only link</h3>
+  <h3 id="shareDialogTitle">Share a Read-Only Link</h3>
   <p class="sub">Anyone opening this link sees the figures you pick, with no way to change
     them and no sign-in. The data travels <em>inside</em> the link itself — it isn't uploaded
     anywhere, and it doesn't touch whatever they have saved in their own browser.</p>
 
   <fieldset class="formpanel">
-    <legend>Which teams</legend>
+    <legend>Which Teams</legend>
     <div class="checklist" id="shareTeams"></div>
   </fieldset>
 
   <fieldset class="formpanel">
-    <legend>What to include</legend>
+    <legend>What to Include</legend>
     <div style="margin-bottom:12px">
       <label class="field" for="shareHistory">How much history</label>
       <select id="shareHistory">
@@ -901,7 +901,7 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
   </fieldset>
 
   <fieldset class="formpanel">
-    <legend>Your link</legend>
+    <legend>Your Link</legend>
     <input type="text" id="shareLink" readonly aria-label="Read-only share link">
     <p class="sub muted" id="shareMeta" role="status" style="margin:8px 0 0"></p>
     <p class="sub muted" id="shareScope" role="status" style="margin:6px 0 0"></p>
@@ -923,7 +923,7 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
 
 <!-- ── First-sync reconciliation ─────────────────────────────────────────── -->
 <dialog id="syncChoiceDialog" aria-labelledby="syncChoiceTitle">
-  <h3 id="syncChoiceTitle">Two copies of your data</h3>
+  <h3 id="syncChoiceTitle">Two Copies of Your Data</h3>
   <p id="syncChoiceBody"></p>
   <div class="row" style="justify-content:flex-end;margin-top:18px">
     <button class="btn" id="syncKeepDeviceBtn">Keep this device's data</button>
@@ -2292,7 +2292,7 @@ function renderWelcome() {
      visitor buttons that write to their own browser. */
   if (viewOnly) {
     viewsEl.innerHTML = `<div class="card empty">
-      <h2>Nothing shared here</h2>
+      <h2>Nothing Shared Here</h2>
       <p>This link doesn’t contain any team data. Ask whoever sent it for a fresh one.</p>
       <div class="row" style="justify-content:center;margin-top:18px">
         <a class="btn primary" href="${esc(location.pathname)}">Open my own data</a>
@@ -2301,7 +2301,7 @@ function renderWelcome() {
   }
   viewsEl.innerHTML = `
     <div class="card empty">
-      <h2>Track how predictable your teams are</h2>
+      <h2>Track How Predictable Your Teams Are</h2>
       <p>Record what each team committed to, what they finished, and what changed mid-sprint.
          The app works out commitment completion, break-in, carryover and velocity, and flags
          each against your targets.</p>
@@ -2357,7 +2357,7 @@ function renderSprintView() {
 
   if (!s) {
     viewsEl.innerHTML = selector + `<div class="card empty">
-      <h2>Nothing recorded yet</h2>
+      <h2>Nothing Recorded Yet</h2>
       <p>${esc(team.name)} has no data for sprint ${numSel} of ${esc(piById(piId).name)}.</p>
     </div>`;
     wireSprintSelectors(piId, numSel);
@@ -2447,7 +2447,7 @@ function renderSprintView() {
     </div>
 
     <div class="card">
-      <h2>Where the points went</h2>
+      <h2>Where the Points Went</h2>
       <p class="sub">The top bar breaks the original commitment apart; the bottom bar shows everything
         the team actually delivered, including work that arrived mid-sprint.</p>
       <figure style="margin:0">
@@ -2526,14 +2526,14 @@ function renderNeedPi() {
      one, so say what's happened rather than offering a button that isn't theirs. */
   if (viewOnly) {
     viewsEl.innerHTML = `<div class="card empty">
-      <h2>No sprint data for this team</h2>
+      <h2>No Sprint Data for This Team</h2>
       <p>Nothing has been recorded for ${esc(activeTeam() ? activeTeam().name : 'this team')} yet,
          so there's nothing to show.</p>
     </div>`;
     return;
   }
   viewsEl.innerHTML = `<div class="card empty">
-    <h2>Add a Program Increment first</h2>
+    <h2>Add a Program Increment First</h2>
     <p>Sprints live inside a PI. Create one — "PI 2026.3", say — and you can start entering data.</p>
     <div class="row" style="justify-content:center;margin-top:16px">
       <button class="btn primary" id="needPiBtn">Add a PI</button></div>
@@ -2606,14 +2606,14 @@ function renderPiView() {
     </div>
 
     <div class="card">
-      <h2>Sprint by sprint</h2>
+      <h2>Sprint by Sprint</h2>
       <p class="sub">Bars are story points on the left axis; the line is commitment completion on the right.</p>
       <div class="chartbox"><canvas id="piChart" role="img"
         aria-label="Committed, completed and delivered points per sprint for ${esc(pi.name)}, with commitment completion percentage. Full figures in the table below."></canvas></div>
     </div>
 
     <div class="card">
-      <h2>The numbers</h2>
+      <h2>The Numbers</h2>
       <p class="sub">Click any sprint to add or edit its data. Both summary rows cover
         ${countedRunning.length
           ? `the sprints being counted, including <strong>${countedRunning.map(x => 'S' + x.sprintNumber).join(', ')}</strong>
@@ -2731,7 +2731,7 @@ function renderRollingView() {
 
   if (!rs.length) {
     viewsEl.innerHTML = rollingToolbar(includeSix) + `<div class="card empty">
-      <h2>${teamSprints(team.id).length ? 'No finished sprints yet' : 'No sprints recorded yet'}</h2>
+      <h2>${teamSprints(team.id).length ? 'No Finished Sprints Yet' : 'No Sprints Recorded Yet'}</h2>
       <p>${teamSprints(team.id).length
         ? `${esc(team.name)} has ${esc(openSprintsNote(team.id))} recorded, but nothing finished — the
            trend and the capacity target start once a sprint completes.`
@@ -2758,7 +2758,7 @@ function renderRollingView() {
 
   viewsEl.innerHTML = rollingToolbar(includeSix) + `
     <div class="card">
-      <h2>${esc(team.name)} — last ${rs.length} sprint${rs.length === 1 ? '' : 's'}</h2>
+      <h2>${esc(team.name)} — Last ${rs.length} Sprint${rs.length === 1 ? '' : 's'}</h2>
       <p class="sub">${esc(labels[0])} → ${esc(labels[labels.length - 1])}${
         includeSix ? '' : ' · sprint 6 (IP) excluded'}${
         rs.some(x => sprintStatus(x) !== 'complete')
@@ -2778,7 +2778,7 @@ function renderRollingView() {
     ${targetCapacityCard(team, includeSix)}
 
     <div class="card">
-      <h2>Velocity and commitment completion</h2>
+      <h2>Velocity and Commitment Completion</h2>
       <p class="sub">How much the team delivers, next to how much of what they promised they finished.
         A team can be fast and unpredictable, or steady and reliable — this is where you see which.</p>
       <div class="chartbox"><canvas id="rollChart" role="img"
@@ -2787,7 +2787,7 @@ function renderRollingView() {
     </div>
 
     <div class="card">
-      <h2>Instability: break-in, removed, carryover</h2>
+      <h2>Instability: Break-In, Removed, Carryover</h2>
       <p class="sub">Each as a share of what was committed. The background is shaded green up to 15%,
         yellow to 20%, red above — a line drifting up out of the green band is the early warning.</p>
       <div class="chartbox"><canvas id="churnChart" role="img"
@@ -2795,7 +2795,7 @@ function renderRollingView() {
     </div>
 
     <div class="card">
-      <h2>The numbers</h2>
+      <h2>The Numbers</h2>
       <p class="sub">Click any sprint to edit it.</p>
       <div class="tablewrap">
       <table aria-label="Figures for each sprint in the rolling window">
@@ -2948,7 +2948,7 @@ function targetCapacityCard(team, includeSix) {
   const under = t.overBy !== null && Math.round(t.overBy) <= -1;
 
   return `<div class="card">
-    <h2>Target capacity for ${slotName}${t.inFlight ? ' <span class="badge">◐ In progress</span>' : ''}</h2>
+    <h2>Target Capacity for ${slotName}${t.inFlight ? ' <span class="badge">◐ In progress</span>' : ''}</h2>
     <p class="sub">What ${esc(team.name)} can realistically commit to, based on their last
       ${t.sprints} finished sprint${t.sprints === 1 ? '' : 's'}.${
       t.hasCommitment ? ' This sprint is already under way, so compare it with what they signed up for.' : ''}</p>
@@ -2968,7 +2968,7 @@ function targetCapacityCard(team, includeSix) {
         'committed points finished per sprint')}
     </div>
     <details class="datatable" style="margin-top:16px">
-      <summary>How this is worked out</summary>
+      <summary>How This Is Worked Out</summary>
       <div class="explain">
         <p>Over the last ${t.sprints} sprint${t.sprints === 1 ? '' : 's'},
           ${esc(team.name)} finished an average of <strong>${fmtNum(t.recommended)}</strong> of the points
@@ -3086,7 +3086,7 @@ function renderTeamsView() {
 
   viewsEl.innerHTML = rollingToolbar(includeSix) + `
     <div class="card">
-      <h2>All teams — rolling ${ROLLING_WINDOW}-sprint averages</h2>
+      <h2>All Teams — Rolling ${ROLLING_WINDOW}-Sprint Averages</h2>
       <p class="sub">Every team you support, side by side${includeSix ? '' : ', with sprint 6 excluded'}.
         Finished sprints only${anyOpen ? ` — ${anyOpen} sprint${anyOpen === 1 ? '' : 's'} still in flight
         ${anyOpen === 1 ? 'is' : 'are'} not counted` : ''}.
@@ -3097,7 +3097,7 @@ function renderTeamsView() {
     </div>
 
     <div class="card">
-      <h2>Comparison 1 — average of sprints${helpBtn('teamsMean', 'the average-of-sprints method')}</h2>
+      <h2>Comparison 1 — Average of Sprints${helpBtn('teamsMean', 'the average-of-sprints method')}</h2>
       <p class="sub">Each sprint's own percentage worked out first, then averaged, so
         <strong>every sprint counts equally</strong> whatever its size. This is the read on how a
         typical sprint goes for the team. Click a team to switch to it. <strong>Next sprint
@@ -3132,7 +3132,7 @@ function renderTeamsView() {
     </div>
 
     <div class="card">
-      <h2>Comparison 2 — pooled totals${helpBtn('teamsPooled', 'the pooled-totals method')}
+      <h2>Comparison 2 — Pooled Totals${helpBtn('teamsPooled', 'the pooled-totals method')}
         <span class="tag">matches the Agile Operations Dashboard</span></h2>
       <p class="sub">Every point added into one total first, then the percentage taken once, so
         <strong>a bigger sprint pulls harder</strong> than a small one. This is the read on how the
@@ -3169,7 +3169,7 @@ function renderTeamsView() {
       </table></div>
 
       <div class="methodnote">
-        <h3>Why the two tables disagree</h3>
+        <h3>Why the Two Tables Disagree</h3>
         <p>They're the same sprints — the difference is <em>when the dividing happens</em>.
           Comparison 1 divides once per sprint and then averages those percentages.
           Comparison 2 adds all the points up and divides once at the end, which weights each
@@ -4220,7 +4220,7 @@ function renderShareError() {
   document.getElementById('teamSel').hidden = true;
   viewsEl.innerHTML = `
     <div class="card empty">
-      <h2>This shared link couldn’t be opened</h2>
+      <h2>This Shared Link Couldn’t Be Opened</h2>
       <p>It looks incomplete — links are long, and mail apps sometimes cut them in half or
          wrap them across two lines. Ask whoever sent it for a fresh copy, and paste the
          whole thing in one go.</p>
@@ -4599,7 +4599,7 @@ if (viewOnly) {
     + 'already had saved in this browser has been changed.';
   /* Decoding is async, so paint a holding card rather than the viewer's own data
      — a flash of their teams under a "shared view" banner would be alarming. */
-  viewsEl.innerHTML = '<div class="card empty"><h2>Opening shared view…</h2></div>';
+  viewsEl.innerHTML = '<div class="card empty"><h2>Opening Shared View…</h2></div>';
   openSharedView();
 } else {
   render();
