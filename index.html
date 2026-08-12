@@ -5109,7 +5109,7 @@ function describeSyncError(e) {
      problem is here, and asks for nothing to be deleted. */
   if (code.includes('invalid-argument')) {
     const detail = String((e && e.message) || '');
-    if (/maximum allowed size|too large|exceeds/i.test(detail)) return {
+    if (/maximum allowed size|exceeds|too large|longer than|bytes/i.test(detail)) return {
       reason: 'There’s more history here than can be synced in one go.',
       fix: 'Export a backup, then delete a PI you no longer need — sync picks up again on the next change.' };
     return {
