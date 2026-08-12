@@ -226,6 +226,27 @@ t('a whole saved copy survives the round trip with no undefined anywhere in it',
   eq(deepUndef(out, 'state'), []);
 });
 
+/* Only numbers and dates are ever saved. The old free-text notes feature was
+   removed on purpose — the figures come from a work Jira and the saved/synced
+   copy must stay clean — so notes arriving in an old localStorage copy, cloud
+   document, backup or share link are deleted at this boundary and counted. */
+t('legacy free-text notes are scrubbed at the boundary, and counted', () => {
+  const out = w.sanitizeIds({
+    teams: [{ id: 't1', name: 'A' }], arts: [], pis: [{ id: 'p1', name: 'PI 1' }],
+    sprints: [
+      { id: 's1', teamId: 't1', piId: 'p1', sprintNumber: 1,
+        notes: { added: 'sensitive detail', removed: '', carriedOut: '', general: '' } },
+      { id: 's2', teamId: 't1', piId: 'p1', sprintNumber: 2 },
+    ],
+    settings: {},
+  });
+  ok(!('notes' in out.sprints[0]), 'the notes key is deleted, not emptied');
+  eq(undefKeys(out.sprints[0]), [], 'and never left holding undefined — that stops the cloud push');
+  eq(w.sanitizeIds.strippedNotes, 1, 'the count is handed to the caller so boot can persist the scrub');
+  w.sanitizeIds({ teams: [], arts: [], pis: [], sprints: [], settings: {} });
+  eq(w.sanitizeIds.strippedNotes, 0, 'and it resets, so a caller never reads a stale one');
+});
+
 t('a team pointing at a missing ART is un-grouped, never dropped', () => {
   const data = {
     teams: [{ id: 'team-1', name: 'A', artId: 'aGONE' }, { id: 'team-2', name: 'B', artId: 'art-1' }],

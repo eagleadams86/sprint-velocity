@@ -346,15 +346,13 @@ th .tile-help, td .tile-help { vertical-align: 1px; }
 /* An in-flight sprint is easy to misread as a bad one, so say so up front. */
 .card.banner { border-left: 4px solid var(--amber); background: var(--bg-card-alt); }
 .card.banner > h2 { color: var(--amber); }
-/* The two collapsible blocks in the sprint form — the Jira paste box above the
-   figures, the optional notes below them. They're the same raised panel as a
-   fieldset, with the summary standing in for the legend, so a closed one reads
+/* The collapsible Jira paste box above the figures. It's the same raised panel
+   as a fieldset, with the summary standing in for the legend, so closed it reads
    as a section of the form rather than a stray link. */
-#jiraBlock, #notesBlock { border: 1px solid var(--border); border-radius: var(--radius-sm);
+#jiraBlock { border: 1px solid var(--border); border-radius: var(--radius-sm);
   padding: 10px 12px; background: var(--bg-card-alt); }
 #jiraBlock { margin-bottom: 14px; }
-#notesBlock { margin-top: 14px; }
-#jiraBlock > summary, #notesBlock > summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+#jiraBlock > summary { cursor: pointer; font-weight: 600; font-size: 14px; }
 #jiraBlock textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px; min-height: 90px; }
 #jiraPreview { margin-top: 12px; }
@@ -810,21 +808,11 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
       <p class="sub" id="carryHint" style="margin:10px 0 0" hidden></p>
     </fieldset>
 
-    <!-- A disclosure rather than a fieldset: four empty boxes and their examples
-         are most of the form's height, and they're optional. Closed, the numbers
-         and the buttons fit on one screen. openSprint() opens it when the sprint
-         already has notes, so nothing ever hides writing that exists. -->
-    <details id="notesBlock">
-      <summary>Why? (Optional)</summary>
-      <label class="field" for="f_n_added" style="margin-top:10px">Work added</label>
-      <textarea id="f_n_added" placeholder="e.g. production defect, unplanned dependency from Team B"></textarea>
-      <label class="field" for="f_n_removed" style="margin-top:10px">Work removed</label>
-      <textarea id="f_n_removed" placeholder="e.g. descoped by PO, blocked on vendor"></textarea>
-      <label class="field" for="f_n_carriedOut" style="margin-top:10px">Work carried over</label>
-      <textarea id="f_n_carriedOut" placeholder="e.g. story underestimated, key engineer out sick"></textarea>
-      <label class="field" for="f_n_general" style="margin-top:10px">General notes</label>
-      <textarea id="f_n_general" placeholder="Anything else worth remembering at the retro"></textarea>
-    </details>
+    <!-- There is deliberately NO free-text notes field on this form. This app
+         records Jira figures copied out of a work system, and a comment box is
+         the one place sensitive detail could ride along into localStorage and
+         the synced cloud copy — so only numbers and dates are ever saved. Don't
+         add one back. -->
 
     <p class="warn" id="sprintWarn" role="status"></p>
     <div class="row spread" style="margin-top:16px">
@@ -922,8 +910,6 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
     </div>
     <label class="checkline"><input type="checkbox" id="shareAllTeams">
       <span>The <strong>All teams</strong> comparison view</span></label>
-    <label class="checkline"><input type="checkbox" id="shareNotes">
-      <span>Sprint notes — your written comments on what was added, removed and carried over</span></label>
   </fieldset>
   </div>
 
@@ -1055,6 +1041,7 @@ function coerceShape(data) {
 
 function sanitizeIds(data) {
   sanitizeIds.dropped = 0;   // reset first: a caller must never read a stale count
+  sanitizeIds.strippedNotes = 0;
   if (!data || typeof data !== 'object') return data;
   const remap = new Map();
   const clean = (id) => {
@@ -1080,6 +1067,15 @@ function sanitizeIds(data) {
     cleanKey(s, 'id');
     cleanKey(s, 'teamId');
     cleanKey(s, 'piId');
+    /* Sprints once carried a free-text `notes` object. The feature was removed
+       on purpose — the figures come out of a work Jira, and a comment field was
+       the one place sensitive detail could ride into the saved and synced copy —
+       so any notes still sitting in an old localStorage copy, cloud document,
+       backup file or share link are dropped right here at the boundary. `delete`,
+       never `s.notes = undefined`: an undefined value stops the Firestore push
+       cold (see cleanKey above). Boot persists the scrub when this counted
+       something, so the cleaned copy replaces the stored ones too. */
+    if ('notes' in s) { delete s.notes; sanitizeIds.strippedNotes++; }
   });
   if (data.settings && typeof data.settings === 'object') {
     cleanKey(data.settings, 'activeTeamId');
@@ -1134,6 +1130,7 @@ window.svViewOnly = viewOnly;
    itself — one shown before there's anything to look at is gone by the time
    there is. Boot says it after the first paint instead. */
 let bootOrphans = 0;
+let bootStrippedNotes = 0;   // legacy free-text notes found in the saved copy
 
 let state = load();
 
@@ -1143,6 +1140,7 @@ function load() {
     if (!raw) return blankState();
     const parsed = sanitizeIds(coerceShape(JSON.parse(raw)));
     bootOrphans = sanitizeIds.dropped;
+    bootStrippedNotes = sanitizeIds.strippedNotes;
     return Object.assign(blankState(), parsed,
       { settings: Object.assign(blankState().settings, parsed.settings || {}) });
   } catch (e) {
@@ -2469,13 +2467,6 @@ function renderSprintView() {
     return;
   }
 
-  const notes = [
-    ['Work added', s.notes && s.notes.added],
-    ['Work removed', s.notes && s.notes.removed],
-    ['Work carried over', s.notes && s.notes.carriedOut],
-    ['General', s.notes && s.notes.general]
-  ].filter(([, v]) => v && v.trim());
-
   /* The Committed bar has to break apart the commitment and *only* the commitment,
      so it can't use `carriedOut` as-is: that figure is the whole not-completed
      section, which also carries break-in work that never joined the commitment.
@@ -2578,12 +2569,7 @@ function renderSprintView() {
         came into the sprint after it started and then went back out again. That work is
         deliberately left out of both break-in and removed — it never joined the commitment,
         and taking it away didn't reduce the commitment either.</p>` : ''}
-    </div>
-
-    ${notes.length ? `<div class="card">
-      <h2>Why</h2>
-      ${notes.map(([k, v]) => `<p style="margin:0 0 12px"><strong>${esc(k)}:</strong> ${esc(v)}</p>`).join('')}
-    </div>` : ''}`;
+    </div>`;
 
   wireSprintSelectors(piId, numSel);
 
@@ -2729,7 +2715,7 @@ function renderPiView() {
         <thead><tr>
           <th scope="col">Sprint</th><th scope="col">Committed</th><th scope="col">Cmt. done</th><th scope="col" class="metric">Complete %</th>
           <th scope="col">Added</th><th scope="col">Removed</th><th scope="col">Carried in</th><th scope="col">Carried out</th>
-          <th scope="col">Total done</th><th scope="col">Notes</th>
+          <th scope="col">Total done</th>
         </tr></thead>
         <tbody>${rows.map(({ n, s }) => {
           if (!s) {
@@ -2739,11 +2725,10 @@ function renderPiView() {
             const d = cadenceDates(team.id, piId, n);
             return `<tr class="clickable" data-num="${n}"><th scope="row"><button type="button"
               class="rowbtn" aria-label="Add data for sprint ${n}">Sprint ${n}${
-              n === IP_SPRINT ? ' (IP)' : ''}</button></th><td colspan="9" class="muted">No data — click to add${
+              n === IP_SPRINT ? ' (IP)' : ''}</button></th><td colspan="8" class="muted">No data — click to add${
               d ? ' · scheduled ' + esc(fmtDateRange(d.startDate, d.endDate)) : ''}</td></tr>`;
           }
           const m = metrics(s);
-          const hasNotes = s.notes && Object.values(s.notes).some(v => v && v.trim());
           const st = sprintStatus(s);
           const open = st !== 'complete';
           return `<tr class="clickable${open ? ' open' : ''}" data-num="${n}">
@@ -2759,8 +2744,7 @@ function renderPiView() {
             <td>${fmtNum(m.removed)}</td>
             <td>${fmtNum(m.carriedIn)}</td>
             <td>${fmtNum(m.carriedOut)}</td>
-            <td>${fmtNum(m.velocity)}</td>
-            <td>${hasNotes ? '💬' : ''}</td></tr>`;
+            <td>${fmtNum(m.velocity)}</td></tr>`;
         }).join('')}</tbody>
         <tfoot>
           <tr>
@@ -2769,7 +2753,7 @@ function renderPiView() {
             <td class="metric">${pill(avgCommitPct, 'completion')}</td>
             <td>${fmtNum(avg(closed, 'added'))}</td><td>${fmtNum(avg(closed, 'removed'))}</td>
             <td>${fmtNum(avg(closed, 'carriedIn'))}</td><td>${fmtNum(avg(closed, 'carriedOut'))}</td>
-            <td>${fmtNum(avg(closed, 'velocity'))}</td><td></td>
+            <td>${fmtNum(avg(closed, 'velocity'))}</td>
           </tr>
           <tr>
             <th scope="row">PI total${helpBtn('piTotalRow', 'PI total')}</th>
@@ -2777,7 +2761,7 @@ function renderPiView() {
             <td class="metric">${pill(piCommitPct, 'completion')}</td>
             <td>${fmtNum(sum(closed, 'added'))}</td><td>${fmtNum(sum(closed, 'removed'))}</td>
             <td>${fmtNum(sum(closed, 'carriedIn'))}</td><td>${fmtNum(sum(closed, 'carriedOut'))}</td>
-            <td>${fmtNum(piVelocity)}</td><td></td>
+            <td>${fmtNum(piVelocity)}</td>
           </tr>
         </tfoot>
       </table></div>
@@ -3487,22 +3471,12 @@ function openSprint(teamId, piId, sprintNumber) {
       n === IP_SPRINT ? ' (IP)' : ''}</option>`).join('');
 
   const s = existing || {};
-  const n = s.notes || {};
   F('f_start').value = s.startDate || '';
   F('f_end').value = s.endDate || '';
   F('f_start').dataset.auto = '';    // nothing projected yet — these are the sprint's own
   ['committed', 'committedCompleted', 'totalCompleted', 'added', 'removed', 'carriedIn',
    'carriedOut', 'addedThenRemoved']
     .forEach(k => { F('f_' + k).value = (s[k] === 0 || s[k]) ? s[k] : ''; });
-  F('f_n_added').value = n.added || '';
-  F('f_n_removed').value = n.removed || '';
-  F('f_n_carriedOut').value = n.carriedOut || '';
-  F('f_n_general').value = n.general || '';
-  /* Notes are optional and are most of this form's height, so the block starts
-     closed — unless this sprint already has some, in which case closing it would
-     hide writing the user can't see is there. Set on every open, so it can't
-     inherit the last sprint's state. */
-  F('notesBlock').open = !!(n.added || n.removed || n.carriedOut || n.general);
 
   /* Carried-out and total-completed have obvious defaults, but only until the user
      types their own — some unfinished work gets dropped rather than carried, and
@@ -3915,13 +3889,7 @@ function buildSprintRecord() {
     removed: val('f_removed'),
     carriedIn: val('f_carriedIn'),
     carriedOut: val('f_carriedOut'),
-    addedThenRemoved: val('f_addedThenRemoved'),
-    notes: {
-      added: F('f_n_added').value.trim(),
-      removed: F('f_n_removed').value.trim(),
-      carriedOut: F('f_n_carriedOut').value.trim(),
-      general: F('f_n_general').value.trim()
-    }
+    addedThenRemoved: val('f_addedThenRemoved')
   };
 }
 
@@ -4281,7 +4249,7 @@ F('importFile').onchange = (e) => {
    something looks wrong.
 
    The payload is a *trimmed copy*, never `state` itself: only the chosen teams,
-   only the PIs their sprints actually reference, and notes only when asked for.
+   only the PIs their sprints actually reference.
    Nothing identifying goes in — no email, no display name, no sync uid. */
 
 const SHARE_FORMAT = 1;
@@ -4367,14 +4335,12 @@ function trimShareSprints(sprints, pis, scope) {
 /* Only the PIs the included sprints actually sit in, so sharing one team doesn't
    leak the names of PIs it never ran in. Order is preserved because piIndex()
    drives sprint ordering everywhere else. */
-function buildSharePayload({ teamIds, includeNotes, includeAllTeams, scope }) {
+function buildSharePayload({ teamIds, includeAllTeams, scope }) {
   const picked = state.teams.filter(t => teamIds.includes(t.id));
   const mine = state.sprints.filter(s => teamIds.includes(s.teamId));
-  /* Before the notes strip and before usedPis, so the PI list narrows with the
-     window — a link cut back to this PI must not still carry the names of the ones
-     it no longer reaches. */
-  const sprints = trimShareSprints(mine, state.pis, scope)
-    .map(s => includeNotes ? s : Object.assign({}, s, { notes: {} }));
+  /* Before usedPis, so the PI list narrows with the window — a link cut back to
+     this PI must not still carry the names of the ones it no longer reaches. */
+  const sprints = trimShareSprints(mine, state.pis, scope);
 
   /* A window can leave a team with nothing — "this PI only" for a team that ran no
      sprints in it. Sending the team anyway lands the recipient on an empty sprint
@@ -4543,8 +4509,7 @@ function openShare() {
   });
   syncSelectAll();
   F('shareAllTeams').checked = false;
-  F('shareNotes').checked = false;
-  /* Reset rather than remembered, like the two checkboxes: a window is a decision
+  /* Reset rather than remembered, like the checkbox: a window is a decision
      about one link, and inheriting the last one would quietly send less than the
      sender meant to. The default stays the whole history — trimming by surprise
      would be worse than a link that's too long and says so. */
@@ -4607,9 +4572,9 @@ async function fitShareWindow(build, teamIds, busy) {
     if (busy !== shareSeq) return null;
     if (out.url.length <= SHARE_WARN_AT) { best = out; lo = mid + 1; } else { hi = mid - 1; }
   }
-  /* Nothing fitted, which means notes or sheer team count is the cost rather than
+  /* Nothing fitted, which means sheer team count is the cost rather than
      history. One sprint each is the shortest link there is; the length warning then
-     fires on it and names the other two levers. */
+     fires on it and names the other lever. */
   if (best) return best;
   const out = await build({ kind: 'sprint', n: 1 });
   return busy === shareSeq ? out : null;
@@ -4681,7 +4646,6 @@ async function refreshShareLink() {
     return;
   }
 
-  const includeNotes = F('shareNotes').checked;
   const includeAllTeams = F('shareAllTeams').checked;
   const choice = F('shareHistory').value;
   const auto = choice === 'fit';
@@ -4690,7 +4654,7 @@ async function refreshShareLink() {
   /* One trial: payload, its dropped-team list read straight away before another
      trial can overwrite it, and the finished URL to measure. */
   const build = async (scope) => {
-    const payload = buildSharePayload({ teamIds, includeNotes, includeAllTeams, scope });
+    const payload = buildSharePayload({ teamIds, includeAllTeams, scope });
     const dropped = buildSharePayload.dropped;
     const url = location.origin + location.pathname + SHARE_PREFIX + await encodeShare(payload);
     return { payload, dropped, url, scope };
@@ -4708,8 +4672,7 @@ async function refreshShareLink() {
 
   const kept = out.payload.sprints.length;
   meta.textContent = `${plural(out.payload.teams.length, 'team')}, `
-    + `${kept < total ? `${kept} of ${total} sprints` : plural(kept, 'sprint')}`
-    + `${includeNotes ? ', notes included' : ', no notes'} · `
+    + `${kept < total ? `${kept} of ${total} sprints` : plural(kept, 'sprint')} · `
     + `${out.url.length.toLocaleString()} characters`;
   note.textContent = shareScopeNote(out.scope, auto);
   warn.textContent = [
@@ -4720,14 +4683,13 @@ async function refreshShareLink() {
     shareRollingNote(out.payload, out.scope),
     out.url.length > SHARE_WARN_AT
       ? 'That’s a long link — some mail apps break links this size across two lines. '
-        + 'Sharing fewer teams, leaving notes out, or choosing less history will shorten it.'
+        + 'Sharing fewer teams or choosing less history will shorten it.'
       : ''
   ].filter(Boolean).join(' ');
 }
 
 F('shareBtn').onclick = openShare;
 F('shareCloseBtn').onclick = () => shareDialog.close();
-F('shareNotes').onchange = refreshShareLink;
 F('shareAllTeams').onchange = refreshShareLink;
 F('shareHistory').onchange = refreshShareLink;
 
@@ -4766,24 +4728,21 @@ function loadSample() {
   state.arts.push(a1, a2);
   state.teams.push(t1, t2);
 
-  const mk = (teamId, piId, n, committed, done, added, removed, carriedIn, total, notes) => ({
+  const mk = (teamId, piId, n, committed, done, added, removed, carriedIn, total) => ({
     id: uid(), teamId, piId, sprintNumber: n, startDate: '', endDate: '',
     committed, committedCompleted: done, totalCompleted: total,
-    added, removed, carriedIn, carriedOut: Math.max(0, committed - done),
-    notes: Object.assign({ added: '', removed: '', carriedOut: '', general: '' }, notes || {})
+    added, removed, carriedIn, carriedOut: Math.max(0, committed - done)
   });
 
   state.sprints.push(
     mk(t1.id, piA.id, 4, 34, 30, 3, 0, 4, 33),
-    mk(t1.id, piA.id, 5, 36, 33, 5, 2, 4, 36, { added: 'Prod defect from the release.' }),
-    mk(t1.id, piA.id, 6, 20, 18, 0, 0, 3, 18, { general: 'IP sprint — hack days and PI planning.' }),
+    mk(t1.id, piA.id, 5, 36, 33, 5, 2, 4, 36),
+    mk(t1.id, piA.id, 6, 20, 18, 0, 0, 3, 18),
     mk(t1.id, piB.id, 1, 38, 35, 4, 0, 2, 38),
-    mk(t1.id, piB.id, 2, 40, 36, 6, 3, 3, 40, { added: 'Two urgent asks from the platform team.',
-      removed: 'Payments story descoped by the PO.' }),
-    mk(t1.id, piB.id, 3, 38, 34, 3, 0, 4, 36, { carriedOut: 'Search story was badly underestimated.' }),
-    mk(t2.id, piB.id, 1, 30, 21, 9, 4, 6, 26, { added: 'Support escalations all sprint.',
-      carriedOut: 'Two engineers pulled onto the audit.' }),
-    mk(t2.id, piB.id, 2, 28, 19, 8, 2, 9, 24, { added: 'More escalations.' }),
+    mk(t1.id, piB.id, 2, 40, 36, 6, 3, 3, 40),
+    mk(t1.id, piB.id, 3, 38, 34, 3, 0, 4, 36),
+    mk(t2.id, piB.id, 1, 30, 21, 9, 4, 6, 26),
+    mk(t2.id, piB.id, 2, 28, 19, 8, 2, 9, 24),
     mk(t2.id, piB.id, 3, 26, 22, 4, 1, 8, 25)
   );
 
@@ -4903,6 +4862,16 @@ if (viewOnly) {
 } else {
   render();
   if (bootOrphans) toast(orphanNote(bootOrphans));
+  /* Legacy sprint notes were scrubbed on the way in; write the cleaned copy back
+     so they're gone from localStorage now, and — because save() stamps this copy
+     as the newest — gone from the synced cloud document as soon as sync starts.
+     One save at boot, only when something was actually removed. */
+  if (bootStrippedNotes) {
+    save();
+    toast('Sprint notes are no longer kept — the written notes on '
+      + `${bootStrippedNotes === 1 ? '1 sprint' : bootStrippedNotes + ' sprints'} were removed. `
+      + 'Only numbers and dates are saved now.');
+  }
 }
 
 /* Dev hook for tests.html (which loads this page in a same-origin iframe and

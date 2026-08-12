@@ -34,11 +34,12 @@ Per team, per sprint:
 | **Carried out** | Committed points not finished, rolling into the next sprint |
 | **Brought in, then removed** | Work that arrived mid-sprint and left again — counted in neither break-in nor removed |
 
-Plus free-text notes on **why** work was added, removed, or carried over — the context you
-want in front of you at the retro, not three sprints later when nobody remembers. They sit
-behind a **Why? (optional)** heading in the sprint form, folded away so the numbers and the
-Save button fit on one screen; open it when you want it. A sprint that already has notes opens
-with it unfolded, so nothing hides writing you can't see is there.
+There is deliberately **no free-text field anywhere in the app**. The figures come out of a
+work Jira, and a comment box is the one place sensitive detail could ride along into the
+saved copy — so beyond the short team/ART/PI names, only numbers and dates are ever saved.
+(Earlier versions had optional per-sprint "Why?" notes; the feature was removed, and any
+notes in a previously saved copy are scrubbed the next time the app opens, locally and from
+the synced copy.)
 
 ## The Metrics
 
@@ -167,9 +168,10 @@ shortfall. Stacking the whole carryover figure into that bar used to overstate c
 leave "dropped" as a residual, which under-reported removed work — a sprint that dropped six
 points read as one.
 
-Nothing is saved by pasting itself — reading the report only shows you the preview. Pressing
+Nothing is saved by pasting itself — reading the report only shows you the preview, and the
+pasted text is never stored: it is read for its figures on the spot and discarded. Pressing
 **Use these numbers** fills the boxes **and saves the sprint there and then**, so a paste you
-were happy with can't be lost by closing the form. Your "why" notes are never touched. If the
+were happy with can't be lost by closing the form. If the
 paste can't be read, it says so and shows what it did find rather than filling in zeros.
 
 That save is undoable, **by the Cancel button and nothing else**. While it's outstanding the
@@ -306,8 +308,8 @@ rather than dragging them down.
 
 ## The Four Views
 
-- **Sprint** — one sprint in detail: the RAG tiles, a breakdown of where the committed
-  points actually went, and the notes.
+- **Sprint** — one sprint in detail: the RAG tiles and a breakdown of where the committed
+  points actually went.
 - **Current PI** — all six sprints of a PI, with PI totals and a sprint-by-sprint chart.
 - **Rolling 5** — the last five sprints for a team, crossing PI boundaries. Velocity and
   commitment completion on one chart — with a dashed **velocity trend line** fitted by
@@ -533,8 +535,9 @@ You choose per link:
 - **How much history** — all of it (the default), the last 2 PIs, this PI only, or the last 5
   or 10 sprints for each team. See below.
 - **The All teams comparison view** — only offered when you've picked more than one team.
-- **Sprint notes** — your written comments on what was added, removed and carried over.
-  **Off by default**, so candid retro commentary doesn't travel by accident.
+
+A link only ever carries names, numbers and dates — there is no free-text anywhere in the
+data, so nothing written can travel by accident.
 
 ### How Much History
 
@@ -598,8 +601,8 @@ sprints were left out and why: an import says so before you commit to it, and a 
 synced copy says so once it opens.
 
 Links run to a few hundred characters for a typical team. If one gets long enough that a mail
-client might break it across two lines, the dialog says so and points at the three things that
-shorten it — fewer teams, no notes, or less history.
+client might break it across two lines, the dialog says so and points at the two things that
+shorten it — fewer teams, or less history.
 
 ## Cross-Device Sync (Firebase, Free Tier — Optional)
 
@@ -687,10 +690,10 @@ browser stays the source of truth and the cloud only mirrors it. There's no retr
 on purpose — Google already retries the temporary causes, the permanent ones wouldn't be
 fixed by pressing anything, and the state clears itself the moment a save gets through.
 
-**How much can it hold?** One Firestore document per user, capped at 1 MiB. Six teams
-through a full year — four PIs, 144 sprints, with written notes on every one — comes to
-about 133 KB, or 13% of that. Roughly eight years of that pace before it fills, or four if
-the notes run long. If you ever do reach it, the app tells you rather than failing quietly,
+**How much can it hold?** One Firestore document per user, capped at 1 MiB. Now that a
+sprint is nothing but numbers and dates, six teams through a full year — four PIs, 144
+sprints — comes to well under 100 KB, so decades of history fit before the cap is anywhere
+in sight. If you ever do reach it, the app tells you rather than failing quietly,
 and the fix is to export a backup and delete a PI you no longer need.
 
 That advice is now only given when the size is genuinely the problem. Firestore reports an

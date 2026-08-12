@@ -283,8 +283,8 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   button: transient causes are retried by the SDK, permanent ones (oversized doc, rules)
   aren't fixed by pressing anything, and the next save recovers the state on its own. The
   toast fires on the *transition* only, never per retry. Sizing context: 6 teams × 1 year
-  with notes ≈ 133 KB against Firestore's 1 MiB, so the cap is ~8 years away — the
-  visibility is the point, not a size guard.
+  of numbers-and-dates sprints is well under 100 KB against Firestore's 1 MiB, so the cap
+  is decades away — the visibility is the point, not a size guard.
 - Firebase authorized domain is `eagleadams86.github.io`, so sync works at this
   `/sprint-velocity/` path unchanged.
 - **Sign-in goes through Google Identity Services, not Firebase's popup** — the flow proven
@@ -331,13 +331,16 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   **don't make `.brand` a flex row** the way Money Map does. This brand line wraps on a
   phone, and as flex items the title and the "· Charlie's Epic…" span become two columns,
   so the subtitle wraps inside a narrow one beside the title instead of running on below it.
-- **The sprint form has two disclosures, both `<details>`: `#jiraBlock` above the figures and
-  `#notesBlock` (Why? — optional) below them.** They share one CSS rule so a closed one reads
-  as a panel of the form, not a stray link. Both are set on every `openSprint()` so neither
-  inherits the last sprint's state: Jira always closed, notes closed **unless the sprint
-  already has one**, since folding away writing the user can't see is there is the one way
-  this could lose them something. The textareas stay in the DOM while closed, so
-  `buildSprintRecord()` reads them either way.
+- **Only numbers and dates are ever saved — there is deliberately NO free-text field in the
+  data (2026-08-12).** The figures come out of Charles's work Jira, and the copy in GitHub-
+  hosted localStorage and Google's Firestore has to stay clean of anything sensitive, so the
+  old per-sprint `notes` object (four "Why?" textareas) was **removed on purpose — don't add
+  a comment/notes field back**. `sanitizeIds()` deletes `notes` from every sprint at the
+  boundary (`delete`, never `= undefined` — see the Firestore rule below) and counts it in
+  `sanitizeIds.strippedNotes`; boot then `save()`s once if anything was stripped, so the
+  scrub reaches localStorage immediately and the cloud copy on the next sync. The only
+  free-text left is the short team/ART/PI names. The sprint form's one disclosure is
+  `#jiraBlock`, closed on every `openSprint()`.
 - **Paste from Jira:** `parseJiraSprintReport()` / `deriveFromJira()` are pure functions on
   text — no DOM, no network, nothing saved (the saving happens in `applyJiraNumbers()`, further
   down). They only ever produce the seven figures, so the
@@ -389,7 +392,7 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
 - `confirmOverwrite()` guards a finished sprint from an accidental save, listing the
   field-level changes rather than asking a vague "are you sure?" — a warning nobody reads is
   worse than none. It deliberately stays silent for running/planned/new sprints, for a no-op
-  save, and for notes-only edits; keep that narrow, or it becomes noise people click through.
+  save; keep that narrow, or it becomes noise people click through.
   **It fires at "Use these numbers", not only at Save sprint**, and that placement is
   load-bearing: once the auto-save has replaced the stored record, the save-time check compares
   that record against itself, finds nothing changed and stays silent. Declining it fills the
@@ -398,12 +401,12 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   marker 1 = `deflate-raw`, 0 = plain JSON for browsers without `CompressionStream`). Nothing
   after `#` is sent to a server, which is the whole reason this needs no Firestore rules, no
   account and no network. `buildSharePayload()` emits a **trimmed copy** — chosen teams only,
-  only the PIs their sprints reference, notes stripped unless asked for, and never anything
+  only the PIs their sprints reference, and never anything
   identifying. Don't shortcut it to serialising `state`. It carries **only the ARTs the
   included teams are on** (the same rule as `usedPis`) and deliberately **not** the sender's
   `artFilter`: the link already holds exactly the teams they picked, and opening it
   pre-filtered would hide some of them behind a picker the recipient has no reason to open.
-- **How much history a link carries is a third lever, beside teams and notes.**
+- **How much history a link carries is the second lever, beside teams.**
   `trimShareSprints()` applies it and is **pure** (it takes the PI list rather than reading
   state) so tests.html can pin it; `parseShareScope()` turns the picker value into its scope.
   Sprint windows are **per team** — a two-team link must not spend its whole window on the
