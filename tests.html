@@ -247,6 +247,57 @@ t('legacy free-text notes are scrubbed at the boundary, and counted', () => {
   eq(w.sanitizeIds.strippedNotes, 0, 'and it resets, so a caller never reads a stale one');
 });
 
+/* The whitelist half of the same boundary: only numbers, dates and short labels
+   are ever saved, so a stray key from a hand-edited backup, cloud document or
+   share link is dropped, and a known key holding the wrong kind of value is
+   pinned back to its type rather than stored as-is. */
+t('stray keys are dropped and wrong-typed values pinned at the boundary', () => {
+  const out = w.sanitizeIds(w.coerceShape({
+    junkTop: 'DAE-1023 a work item summary',
+    teams: [{ id: 't1', name: 'A', smuggled: 'ticket text', artId: null }],
+    arts: [], pis: [{ id: 'p1', name: 'PI 1' }],
+    sprints: [{ id: 's1', teamId: 't1', piId: 'p1', sprintNumber: 1,
+      committed: '12', startDate: 'call John about the incident',
+      status: 'weird', freeText: 'DAE-99 another summary' }],
+    settings: { activeTeamId: 't1', rogue: 'text nobody asked for' },
+  }));
+  ok(!('junkTop' in out), 'a stray top-level key is dropped');
+  ok(!('smuggled' in out.teams[0]), 'a stray team key is dropped');
+  ok(!('freeText' in out.sprints[0]), 'a stray sprint key is dropped');
+  ok(!('rogue' in out.settings), 'a stray settings key is dropped');
+  eq(out.teams[0].artId, null, 'a legitimately-null artId survives');
+  eq(out.sprints[0].committed, 12, 'a figure arriving as a string is stored as a number');
+  eq(out.sprints[0].startDate, '', 'a date that is not a date is emptied, never stored as text');
+  eq(out.sprints[0].status, 'auto', 'an unknown status falls back to auto');
+  ok(w.sanitizeIds.pruned > 0, 'the scrub is counted so boot can persist it');
+  eq(undefKeys(out.sprints[0]), [], 'and nothing is left holding undefined');
+});
+t('a clean copy prunes nothing, so boot never saves for no reason', () => {
+  w.sanitizeIds(w.coerceShape({
+    version: 1,
+    teams: [{ id: 't1', name: 'A', artId: null }],
+    arts: [], pis: [{ id: 'p1', name: 'PI 1', sprintCount: 6 }],
+    sprints: [{ id: 's1', teamId: 't1', piId: 'p1', sprintNumber: 1,
+      startDate: '2026-06-01', endDate: '2026-06-12', status: 'auto',
+      committed: 30, committedCompleted: 28, totalCompleted: 31, added: 3,
+      removed: 0, carriedIn: 2, carriedOut: 2, addedThenRemoved: 0 }],
+    settings: { activeTeamId: 't1', activePiId: 'p1', activeSprintNum: 1,
+      artFilter: null, includeSprint6InRolling: false,
+      includeInProgress: false, view: 'sprint' },
+  }));
+  eq(w.sanitizeIds.pruned, 0, 'every key the app itself writes passes untouched');
+});
+t('share-meta keys cross the boundary intact, for the shared-view banner', () => {
+  const out = w.sanitizeIds(w.coerceShape({
+    v: 1, sharedAt: 1755000000000, label: 'Team A', allTeams: false,
+    range: { kind: 'pi', n: 1 },
+    teams: [{ id: 't1', name: 'A' }], arts: [], pis: [], sprints: [], settings: {},
+  }));
+  eq(out.sharedAt, 1755000000000, 'sharedAt survives');
+  eq(out.label, 'Team A', 'the label survives');
+  eq(out.range.n, 1, 'the range survives — the banner is built from its two numbers');
+});
+
 t('a team pointing at a missing ART is un-grouped, never dropped', () => {
   const data = {
     teams: [{ id: 'team-1', name: 'A', artId: 'aGONE' }, { id: 'team-2', name: 'B', artId: 'art-1' }],

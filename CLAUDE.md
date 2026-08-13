@@ -335,12 +335,22 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   data (2026-08-12).** The figures come out of Charles's work Jira, and the copy in GitHub-
   hosted localStorage and Google's Firestore has to stay clean of anything sensitive, so the
   old per-sprint `notes` object (four "Why?" textareas) was **removed on purpose — don't add
-  a comment/notes field back**. `sanitizeIds()` deletes `notes` from every sprint at the
-  boundary (`delete`, never `= undefined` — see the Firestore rule below) and counts it in
-  `sanitizeIds.strippedNotes`; boot then `save()`s once if anything was stripped, so the
-  scrub reaches localStorage immediately and the cloud copy on the next sync. The only
-  free-text left is the short team/ART/PI names. The sprint form's one disclosure is
-  `#jiraBlock`, closed on every `openSprint()`.
+  a comment/notes field back**. `sanitizeIds()` enforces this as a **whitelist, not a
+  blocklist** (added 2026-08-13): `keepKnown()` rebuilds every team/ART/PI/sprint/settings
+  object from only the keys the app knows, pins each value to its type (numbers must be
+  finite numbers, dates must match `YYYY-MM-DD` or become `''`, status must be one of the
+  four, names capped at 120), and drops stray top-level keys too — except the share-meta
+  keys (`v`/`sharedAt`/`label`/`allTeams`/`range`), which the shared-view banner needs and
+  which never persist because `save()` is a no-op there. `notes` is still counted separately
+  in `sanitizeIds.strippedNotes` (it gets the boot toast — a person's own writing went
+  away); everything else lands in `sanitizeIds.pruned` (a silent boot `save()`, so the scrub
+  reaches localStorage immediately and the cloud on the next sync). Rebuilt objects only
+  ever gain keys that are present and valid, so the boundary can never create a key holding
+  `undefined` — the Firestore rule below. **A new stored field must be added to the
+  `keepKnown` spec or it will be silently stripped** — that's the point, and the same-named
+  test in tests.html pins it. The only free-text left is the short team/ART/PI names. The
+  sprint form's one disclosure is `#jiraBlock`, closed on every `openSprint()`. Sibling
+  rule in Flow Metrics: `cleanWorkType()` + `normalizeSettings`' whitelist.
 - **Paste from Jira:** `parseJiraSprintReport()` / `deriveFromJira()` are pure functions on
   text — no DOM, no network, nothing saved (the saving happens in `applyJiraNumbers()`, further
   down). They only ever produce the seven figures, so the

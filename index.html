@@ -1042,6 +1042,7 @@ function coerceShape(data) {
 function sanitizeIds(data) {
   sanitizeIds.dropped = 0;   // reset first: a caller must never read a stale count
   sanitizeIds.strippedNotes = 0;
+  sanitizeIds.pruned = 0;    // stray keys dropped or wrong-typed values repaired
   if (!data || typeof data !== 'object') return data;
   const remap = new Map();
   const clean = (id) => {
@@ -1084,6 +1085,70 @@ function sanitizeIds(data) {
        and silently turn "teams in no ART" into a filter matching nothing. */
     if (data.settings.artFilter !== ART_NONE) cleanKey(data.settings, 'artFilter');
   }
+
+  /* ── The whitelist: only numbers, dates and short labels get through ───────
+     Everything above cleans the values this app knows about; this pass drops
+     the keys it doesn't, and pins each kept value to its type. A cloud
+     document, backup file or share link is just somebody's JSON: a stray key
+     on it — the retired `notes` object, or anything else carrying text — would
+     otherwise ride along into localStorage and the synced copy for ever, and a
+     known key holding the wrong kind of value (a `committed` holding a
+     sentence) would be stored as-is. That must never happen: the figures come
+     out of a work Jira, and the rule is numbers and dates plus short labels,
+     everywhere. Objects are rebuilt from only the keys that are PRESENT and
+     valid, so no key is ever created holding undefined — see cleanKey above
+     for why that matters. Every drop or repair is counted in
+     sanitizeIds.pruned so boot can persist the scrub. */
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  const STATUSES = ['auto', 'planned', 'active', 'complete'];
+  const keepKnown = (src, spec) => {
+    const out = {};
+    for (const k of Object.keys(src)) {
+      const kind = spec[k], v = src[k];
+      if (kind === 'id' || kind === 'idOrNull') {
+        if (typeof v === 'string' || (kind === 'idOrNull' && v === null)) out[k] = v;
+      } else if (kind === 'label') {
+        if (typeof v === 'string') out[k] = v.slice(0, 120);
+      } else if (kind === 'num') {
+        const n = Number(v);
+        if (Number.isFinite(n)) out[k] = n;
+      } else if (kind === 'date') {
+        out[k] = (typeof v === 'string' && DATE_RE.test(v)) ? v : '';
+      } else if (kind === 'bool') {
+        out[k] = !!v;
+      } else if (kind === 'status') {
+        out[k] = STATUSES.includes(v) ? v : 'auto';
+      }
+      if (!(k in out) || out[k] !== v) sanitizeIds.pruned++;
+    }
+    return out;
+  };
+  const NUMS = {};
+  ['sprintNumber', 'committed', 'committedCompleted', 'totalCompleted', 'added',
+   'removed', 'carriedIn', 'carriedOut', 'addedThenRemoved'].forEach(k => { NUMS[k] = 'num'; });
+  const objects = (v) => list(v).filter(x => x && typeof x === 'object');
+  data.teams = objects(data.teams).map(t => keepKnown(t, { id: 'id', name: 'label', artId: 'idOrNull' }));
+  data.arts = objects(data.arts).map(a => keepKnown(a, { id: 'id', name: 'label' }));
+  data.pis = objects(data.pis).map(p => keepKnown(p, { id: 'id', name: 'label', sprintCount: 'num' }));
+  data.sprints = objects(data.sprints).map(s => keepKnown(s, Object.assign({
+    id: 'id', teamId: 'id', piId: 'id',
+    startDate: 'date', endDate: 'date', status: 'status' }, NUMS)));
+  if (data.settings && typeof data.settings === 'object') {
+    data.settings = keepKnown(data.settings, {
+      activeTeamId: 'idOrNull', activePiId: 'idOrNull', activeSprintNum: 'num',
+      artFilter: 'idOrNull', includeSprint6InRolling: 'bool',
+      includeInProgress: 'bool', view: 'label' });
+  }
+  /* The top level too — with the share-meta keys allowed through, because a
+     share payload crosses this same boundary and the shared-view banner is
+     built from them. They are never persisted: a shared view makes save() a
+     no-op, so they exist only for the length of that visit. */
+  const TOP = ['version', 'teams', 'arts', 'pis', 'sprints', 'settings',
+               'v', 'sharedAt', 'label', 'allTeams', 'range'];
+  for (const k of Object.keys(data)) {
+    if (!TOP.includes(k)) { delete data[k]; sanitizeIds.pruned++; }
+  }
+
   /* A team pointing at an ART that isn't in the same payload is un-grouped rather
      than dropped: unlike an orphaned sprint it changes no figure — every number in
      this app is worked out per team — and dropping it would throw away real data
@@ -1131,6 +1196,7 @@ window.svViewOnly = viewOnly;
    there is. Boot says it after the first paint instead. */
 let bootOrphans = 0;
 let bootStrippedNotes = 0;   // legacy free-text notes found in the saved copy
+let bootPruned = 0;          // stray keys or wrong-typed values found in it
 
 let state = load();
 
@@ -1141,6 +1207,7 @@ function load() {
     const parsed = sanitizeIds(coerceShape(JSON.parse(raw)));
     bootOrphans = sanitizeIds.dropped;
     bootStrippedNotes = sanitizeIds.strippedNotes;
+    bootPruned = sanitizeIds.pruned;
     return Object.assign(blankState(), parsed,
       { settings: Object.assign(blankState().settings, parsed.settings || {}) });
   } catch (e) {
@@ -4862,15 +4929,20 @@ if (viewOnly) {
 } else {
   render();
   if (bootOrphans) toast(orphanNote(bootOrphans));
-  /* Legacy sprint notes were scrubbed on the way in; write the cleaned copy back
-     so they're gone from localStorage now, and — because save() stamps this copy
-     as the newest — gone from the synced cloud document as soon as sync starts.
-     One save at boot, only when something was actually removed. */
-  if (bootStrippedNotes) {
+  /* Anything the boundary scrubbed — legacy sprint notes, a stray key, a value
+     of the wrong type — is written back cleaned, so it's gone from localStorage
+     now and, because save() stamps this copy as the newest, gone from the
+     synced cloud document as soon as sync starts. One save at boot, only when
+     something was actually removed or repaired. The toast is for notes alone:
+     that's the one case where a person's own writing went away and deserves a
+     sentence; a pruned stray key is plumbing. */
+  if (bootStrippedNotes || bootPruned) {
     save();
-    toast('Sprint notes are no longer kept — the written notes on '
-      + `${bootStrippedNotes === 1 ? '1 sprint' : bootStrippedNotes + ' sprints'} were removed. `
-      + 'Only numbers and dates are saved now.');
+    if (bootStrippedNotes) {
+      toast('Sprint notes are no longer kept — the written notes on '
+        + `${bootStrippedNotes === 1 ? '1 sprint' : bootStrippedNotes + ' sprints'} were removed. `
+        + 'Only numbers and dates are saved now.');
+    }
   }
 }
 
