@@ -501,6 +501,14 @@ data leaves your machine** unless you choose to sign in.
 (`sprint-velocity-YYYY-MM-DD.json`, dated in local time) and imports it back. Useful as a
 backup, for moving between browsers, or for handing a colleague a starting point.
 
+**Starting again** — folded away at the foot of the same dialog, under *Start again*, is
+**Delete all data**. It's behind a fold on purpose: the one irreversible action in the app
+shouldn't sit a mis-click away from Export. Pressing it opens a confirmation of its own that
+says exactly how much is going ("This deletes 2 teams, 1 PI and 3 recorded sprints"), warns
+you when you're signed in that the copy in your Google account goes too — your other devices
+ask before clearing themselves — and offers the same JSON export as a last chance to keep any
+of it. Your theme survives; it lives under its own key rather than with the data.
+
 **Deletion requests** — [privacy.html](privacy.html) promises that emailing the address
 there gets a user's synced copy deleted. [`DATA_DELETION.md`](DATA_DELETION.md) is the
 runbook for doing it: how to map an email address to the right Firestore document (the

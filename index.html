@@ -202,6 +202,11 @@ button, select, input, textarea { font: inherit; color: inherit; }
    it sizes ~3px shorter than a button with identical padding and font — pinning
    the height on both is the only way to keep the row even. */
 .btn.small { padding: 4px 9px; font-size: 13px; min-height: var(--chrome-h); }
+/* Destructive buttons. Same shape as every other button — only the colour differs,
+   from the existing --err token, so nothing here diverges from the theme pack.
+   Mirrored in Flow Metrics, Money Map, PAPTrack and Golf Handicap. */
+.btn.danger { color: var(--err); border-color: var(--err); background: transparent; }
+.btn.danger:hover { background: var(--err-bg); }
 select, input[type=text], input[type=number], input[type=date], textarea {
   background: var(--bg-card); border: 1px solid var(--input-border);
   border-radius: var(--radius-sm); padding: 7px 9px;
@@ -476,6 +481,13 @@ td.muted, .muted { color: var(--text-muted); }
 figcaption { font-size: 13px; color: var(--text-secondary); margin-bottom: 6px; }
 details.datatable { margin-top: 10px; }
 details.datatable summary { cursor: pointer; font-size: 13px; color: var(--text-secondary); }
+/* "Start again" inside the backup dialog. Folded away deliberately: the one
+   irreversible action in the app should take a deliberate open, not sit a
+   mis-click away from Export. Same pattern in the sibling apps. */
+details.danger-zone { margin-top: 18px; border-top: 1px solid var(--border); padding-top: 12px; }
+details.danger-zone > summary { cursor: pointer; font-size: 13px; font-weight: 600;
+  color: var(--text-secondary); }
+details.danger-zone > summary:hover { color: var(--text-primary); }
 
 /* A few short paragraphs of reasoning. Capped to one readable measure they left the
    right half of a wide card empty, so they flow into two columns instead — the
@@ -666,7 +678,7 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
       <option value="midnight" selected>✦ Midnight</option>
       <option value="sepia">📜 Sepia</option>
     </select>
-    <button class="btn small" id="dataBtn" title="Back up or restore your data">Back up</button>
+    <button class="btn small" id="dataBtn" title="Back up, restore or clear your data">Back up</button>
     <button class="btn small" id="shareBtn" title="Create a read-only link to show someone your figures">Share</button>
     <button class="btn small" id="syncBtn"
       title="Sign in with Google to see the same data on all your devices">☁️ Sign in to sync</button>
@@ -859,8 +871,33 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
   </div>
   <p class="sub muted" style="margin-top:14px">Importing replaces everything currently in this
     browser. You'll be asked to confirm first.</p>
+  <details class="danger-zone">
+    <summary>Start Again</summary>
+    <p class="sub muted" style="margin-top:10px">Deletes every team, ART, PI and sprint in this
+      browser. Your theme is kept.</p>
+    <div class="row" style="margin-top:10px">
+      <button class="btn danger" id="clearBtn" type="button">Delete all data</button>
+    </div>
+  </details>
   <div class="row" style="justify-content:flex-end;margin-top:18px">
     <button class="btn primary" id="dataCloseBtn">Close</button>
+  </div>
+</dialog>
+
+<!-- ── Confirming a delete-all ───────────────────────────────────────────────
+     Its own dialog rather than a confirm(): this is the one action with no way
+     back, so it gets room to say exactly how much is going, whether it reaches
+     the other devices, and to offer the backup that is the only route back. -->
+<dialog id="clearDialog" aria-labelledby="clearTitle">
+  <h3 id="clearTitle">Delete All Data?</h3>
+  <p class="sub" id="clearBody"></p>
+  <p class="warn" id="clearSyncWarn" role="status"></p>
+  <div class="row spread" style="margin-top:18px">
+    <button class="btn" id="clearBackupBtn" type="button">⬇ Export a backup first</button>
+    <span class="row">
+      <button class="btn" id="clearCancel" type="button">Cancel</button>
+      <button class="btn danger" id="clearConfirm" type="button">Delete everything</button>
+    </span>
   </div>
 </dialog>
 
@@ -3523,7 +3560,7 @@ function closeOnBackdropClick(dlg) {
 
 /* Every dialog except the sync reconciliation one, which deliberately refuses to
    be dismissed — picking which copy of your data to keep has to be a choice. */
-['sprintDialog', 'manageDialog', 'dataDialog', 'helpDialog'].forEach(id => closeOnBackdropClick(F(id)));
+['sprintDialog', 'manageDialog', 'dataDialog', 'clearDialog', 'helpDialog'].forEach(id => closeOnBackdropClick(F(id)));
 
 function openSprint(teamId, piId, sprintNumber) {
   const existing = findSprint(teamId, piId, sprintNumber);
@@ -4247,7 +4284,10 @@ F('dataBtn').onclick = () => dataDialog.showModal();
 F('dataCloseBtn').onclick = () => dataDialog.close();
 F('helpCloseBtn').onclick = () => F('helpDialog').close();
 
-F('exportBtn').onclick = () => {
+/* Its own function because the delete-all dialog offers the same download as its
+   safety net — one press away from losing everything is exactly when a backup is
+   worth taking. */
+function downloadBackup() {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -4262,7 +4302,8 @@ F('exportBtn').onclick = () => {
      worst outcome available. */
   setTimeout(() => URL.revokeObjectURL(url), 0);
   toast('Exported');
-};
+}
+F('exportBtn').onclick = downloadBackup;
 
 F('importBtn').onclick = () => F('importFile').click();
 F('importFile').onchange = (e) => {
@@ -4302,6 +4343,47 @@ F('importFile').onchange = (e) => {
     }
   };
   reader.readAsText(file);
+};
+
+/* ── Delete all data ────────────────────────────────────────────────────────
+   Folded behind "Start again" in the backup dialog and confirmed in a dialog of
+   its own, because it is the only action here with nothing behind it but a
+   backup file. The theme survives: it lives under its own `sv-theme` key rather
+   than in `state`, and someone starting fresh is not asking to lose it. */
+const clearDialog = F('clearDialog');
+
+F('clearBtn').onclick = () => {
+  /* Closed first rather than stacked: a confirmation is the whole screen's
+     business, and backing out of it should not drop you into the dialog you
+     started from as though nothing had been asked. */
+  dataDialog.close();
+  const t = state.teams.length, p = state.pis.length, s = state.sprints.length;
+  const n = (v, w) => `${v} ${w}${v === 1 ? '' : 's'}`;
+  F('clearBody').textContent =
+    `This deletes ${n(t, 'team')}, ${n(p, 'PI')} and ${n(s, 'recorded sprint')}. `
+    + `Your theme is kept. There is no undo — an exported backup is the only way to get `
+    + `any of it back.`;
+  /* Said plainly, because "clear this browser" and "clear every device I own"
+     are very different acts and the button looks identical either way. */
+  const signedIn = typeof window.svSignedIn === 'function' && window.svSignedIn();
+  F('clearSyncWarn').textContent = signedIn
+    ? 'You are signed in, so this also clears the copy in your Google account. Your other devices will ask before clearing themselves.'
+    : '';
+  clearDialog.showModal();
+};
+
+F('clearBackupBtn').onclick = downloadBackup;
+F('clearCancel').onclick = () => clearDialog.close();
+F('clearConfirm').onclick = () => {
+  state = blankState();
+  save();                 // the one write path, so this pushes to the cloud too
+  /* …but save() debounces its push, and a delete must not sit in that window:
+     clearing then closing the tab inside 1.2s would leave the cloud copy intact,
+     to resurrect everything on the next sign-in. */
+  if (window.cloudFlush) window.cloudFlush();
+  clearDialog.close();
+  render();
+  toast('Everything deleted — starting fresh');
 };
 
 /* ═══════════════════════ Read-only share links ════════════════════════════
@@ -5033,6 +5115,11 @@ if (FIREBASE_CONFIG && !window.svViewOnly && !inTestHarness) {
 
 let A, Fs, auth, db, user = null, unsub = null, pushTimer = null, tokenClient = null;
 
+/* The classic script above can't see `user` (this is a module), and the
+   delete-all dialog has to tell the truth about whether deleting reaches the
+   user's other devices. Same hook as Golf Handicap's ghSignedIn. */
+window.svSignedIn = () => !!user;
+
 /* Google's sign-in client is a classic script, not a module — it hangs
    window.google off the page once it's in. Resolves as soon as that's true. */
 function loadGis() {
@@ -5363,6 +5450,16 @@ window.cloudPush = () => {
   if (!user) return;
   clearTimeout(pushTimer);
   pushTimer = setTimeout(() => { pushTimer = null; pushNow().catch(setSyncError); }, 1200);
+};
+
+/* Skips the debounce. "Delete all data" calls this so the cleared state reaches
+   the cloud before the tab can be closed — otherwise the next sign-in would pour
+   everything straight back. */
+window.cloudFlush = () => {
+  if (!user) return;
+  clearTimeout(pushTimer);
+  pushTimer = null;
+  pushNow().catch(setSyncError);
 };
 
 /* The debounce means "edit, then close the tab inside 1.2s" would leave the
