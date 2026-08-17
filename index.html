@@ -564,11 +564,18 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
 .warn:empty, .sub:empty { display: none; }
 .empty { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
 .empty h2 { color: var(--text-primary); }
+/* The toast is a POPOVER, so that it can be seen over an open modal dialog —
+   the reasoning is on toast() itself. Half of what follows undoes the UA's own
+   [popover] rules (inset: 0, margin: auto, a border and a background of its
+   own), which would otherwise park it in a box in the middle of the screen;
+   the z-index still matters on a browser with no popover support, where this
+   is the plain fixed element it has always been. */
 #toast {
-  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
-  background: var(--btn-bg); color: var(--btn-text); padding: 10px 18px;
+  position: fixed; left: 50%; right: auto; top: auto; bottom: 24px;
+  margin: 0; transform: translateX(-50%);
+  background: var(--btn-bg); color: var(--btn-text); border: 0; padding: 10px 18px;
   border-radius: 999px; font-size: 14px; font-weight: 600; z-index: 100;
-  opacity: 0; pointer-events: none; transition: opacity .2s;
+  opacity: 0; pointer-events: none; overflow: visible; transition: opacity .2s;
 }
 #toast.show { opacity: 1; }
 /* The footer notes line up with the text *inside* the last card, not with the
@@ -726,7 +733,7 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
   </details>
 </div>
 
-<div id="toast" role="status" aria-live="polite"></div>
+<div id="toast" popover="manual" role="status" aria-live="polite"></div>
 
 <!-- ── Sprint editor ─────────────────────────────────────────────────────── -->
 <dialog id="sprintDialog" aria-labelledby="sprintDialogTitle">
@@ -2073,12 +2080,50 @@ function pill(value, scale) {
   }<span class="sr-only"> — ${RAG_TEXT[r]}</span></span>`;
 }
 
+/* A modal <dialog> is promoted to the browser's TOP LAYER, which paints above
+   every z-index in the ordinary document — so a toast fired while a dialog was
+   open was drawn UNDER it, and under its backdrop, which reads as no feedback
+   at all. The share dialog's "Copy link" is the case that has to work: it
+   copies and deliberately leaves the dialog open, so the toast is the only
+   thing that says anything happened.
+   A popover is the one way to put something that ISN'T a dialog into the top
+   layer, and the layer is ordered by when things joined it, so a toast raised
+   after a dialog opened sits above it. `manual` because nothing else should
+   dismiss it and Escape belongs to the dialog underneath. On a browser with no
+   popover support the attribute is inert, no UA rules apply to it, and the
+   toast is exactly the fixed element it has always been. */
+const TOAST_POPOVER = 'popover' in HTMLElement.prototype;
+let toastRaised = false;
+
+function raiseToast(el) {
+  if (!TOAST_POPOVER || toastRaised) return;
+  /* A failure here costs the top layer, never the toast. */
+  try { el.showPopover(); toastRaised = true; } catch (e) {}
+}
+function dropToast(el) {
+  if (!toastRaised) return;
+  try { el.hidePopover(); } finally { toastRaised = false; }
+}
+
 function toast(msg) {
   const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.classList.add('show');
   clearTimeout(toast._t);
-  toast._t = setTimeout(() => el.classList.remove('show'), 2600);
+  clearTimeout(toast._hide);
+  /* Raised BEFORE the text is written: a popover is display:none until it is
+     shown, and a live region announces a change it was there for. */
+  raiseToast(el);
+  el.textContent = msg;
+  /* That display flip means the opacity:0 starting state is never painted, so
+     the fade would be skipped entirely; reading a layout property in between
+     settles it and the transition runs. */
+  void el.offsetWidth;
+  el.classList.add('show');
+  toast._t = setTimeout(() => {
+    el.classList.remove('show');
+    /* Leaves the top layer once it has faded, so a spent toast is never parked
+       above whatever opens next. Matches the .2s opacity transition. */
+    toast._hide = setTimeout(() => dropToast(el), 250);
+  }, 2600);
 }
 window.toast = toast;
 

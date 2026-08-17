@@ -399,6 +399,24 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
 - The undo has to be **visible**: `setCancelLabel()` switches the button to "Cancel & Undo
   Save" while a snapshot is held. It can't live in the toast — `toast()` is `textContent`-only
   and `pointer-events: none`, so it can't hold a control.
+- **The toast is a POPOVER (`popover="manual"`), and that is the only way it can be seen
+  while a dialog is open.** A modal `<dialog>` sits in the browser's TOP LAYER, which paints
+  above every z-index in the ordinary document, so a toast fired from an open dialog was
+  drawn under it AND under its backdrop — invisible, indistinguishable from a button that
+  does nothing. It was reported that way in Money Map, about the share dialog's "Copy link",
+  which is the case that has to work: copying deliberately leaves the dialog open, so the
+  toast is the only thing that says it happened. **Anything else that has to appear over a
+  dialog needs the same treatment** — a bigger z-index cannot reach the top layer. Four
+  things `toast()` keeps doing: it raises the popover BEFORE writing the text (a popover is
+  `display:none` until shown, and a live region announces a change it was present for); it
+  reads a layout property in between, or the `display` flip means the `opacity:0` state is
+  never painted and the fade is skipped; it drops out of the top layer 250ms after fading,
+  so a spent toast is never parked above whatever opens next; and it is `manual`, so nothing
+  else can dismiss it and Escape still belongs to the dialog underneath. The CSS undoes the
+  UA's own `[popover]` rules (`inset: 0`, `margin: auto`, a border and a background). On a
+  browser with no popover support the attribute is inert and the toast is exactly the fixed
+  element it always was. Mirrored in Flow Metrics, Golf Handicap and Money Map — all four
+  shared this chrome and all four had the bug.
 - `confirmOverwrite()` guards a finished sprint from an accidental save, listing the
   field-level changes rather than asking a vague "are you sure?" — a warning nobody reads is
   worse than none. It deliberately stays silent for running/planned/new sprints, for a no-op
