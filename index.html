@@ -537,6 +537,14 @@ dialog {
      the height so the scrolling happens inside a dialog that fits. Mirrored from
      Team Dashboard. vh, not dvh: dvh resolves to 0 in some embedded engines. */
   max-height: calc(100vh - 32px); overflow: auto;
+  /* SCROLL CHAINING off. A scroll container that has run out of scroll hands the
+     rest of the gesture to its parent by default, so reaching the foot of a
+     dialog carried straight on into the page behind it — the app scrolling away
+     under a dialog that was still open and still covering it. Reproduced and
+     fixed on real iOS Safari 2026-08-17 (reported in Money Map, where the same
+     chrome had the same default). `contain`, not `none`: the dialog's own
+     scrolling is untouched, only the hand-off is. */
+  overscroll-behavior: contain;
 }
 dialog::backdrop { background: rgba(0,0,0,.55); }
 /* A two-sentence definition stretched across 880px is unreadable, so the help

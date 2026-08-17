@@ -399,6 +399,17 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
 - The undo has to be **visible**: `setCancelLabel()` switches the button to "Cancel & Undo
   Save" while a snapshot is held. It can't live in the toast — `toast()` is `textContent`-only
   and `pointer-events: none`, so it can't hold a control.
+- **Every dialog sets `overscroll-behavior: contain`, and it is not cosmetic.** A scroll
+  container that has run out of scroll hands the rest of the gesture to its parent, so
+  reaching the foot of a dialog carried straight on into the page behind it — the app
+  scrolling away under a dialog still open and still covering it. Reported on a phone in
+  Money Map, where a dialog nearly always scrolls and the gesture is a flick that doesn't
+  stop at the boundary; all four apps shared the default. `contain`, never `none`: the
+  dialog's own scrolling is untouched, only the hand-off is. **A new scrollable region
+  that sits OVER the page needs the same.** Verifying it needs a REAL device — the desktop
+  preview pane's synthetic scrolls aren't hit-tested to the element under the cursor, so
+  the page moves and the dialog doesn't, which looks like the bug whether or not it is
+  there. Reproduced and confirmed fixed in iOS Safari on the simulator.
 - **The toast is a POPOVER (`popover="manual"`), and that is the only way it can be seen
   while a dialog is open.** A modal `<dialog>` sits in the browser's TOP LAYER, which paints
   above every z-index in the ordinary document, so a toast fired from an open dialog was
