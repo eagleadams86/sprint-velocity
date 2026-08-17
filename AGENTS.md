@@ -283,8 +283,8 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   button: transient causes are retried by the SDK, permanent ones (oversized doc, rules)
   aren't fixed by pressing anything, and the next save recovers the state on its own. The
   toast fires on the *transition* only, never per retry. Sizing context: 6 teams × 1 year
-  with notes ≈ 133 KB against Firestore's 1 MiB, so the cap is ~8 years away — the
-  visibility is the point, not a size guard.
+  of numbers-and-dates sprints is well under 100 KB against Firestore's 1 MiB, so the cap
+  is decades away — the visibility is the point, not a size guard.
 - Firebase authorized domain is `eagleadams86.github.io`, so sync works at this
   `/sprint-velocity/` path unchanged.
 - **Sign-in goes through Google Identity Services, not Firebase's popup** — the flow proven
@@ -331,13 +331,26 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   **don't make `.brand` a flex row** the way Money Map does. This brand line wraps on a
   phone, and as flex items the title and the "· Charlie's Epic…" span become two columns,
   so the subtitle wraps inside a narrow one beside the title instead of running on below it.
-- **The sprint form has two disclosures, both `<details>`: `#jiraBlock` above the figures and
-  `#notesBlock` (Why? — optional) below them.** They share one CSS rule so a closed one reads
-  as a panel of the form, not a stray link. Both are set on every `openSprint()` so neither
-  inherits the last sprint's state: Jira always closed, notes closed **unless the sprint
-  already has one**, since folding away writing the user can't see is there is the one way
-  this could lose them something. The textareas stay in the DOM while closed, so
-  `buildSprintRecord()` reads them either way.
+- **Only numbers and dates are ever saved — there is deliberately NO free-text field in the
+  data (2026-08-12).** The figures come out of Charles's work Jira, and the copy in GitHub-
+  hosted localStorage and Google's Firestore has to stay clean of anything sensitive, so the
+  old per-sprint `notes` object (four "Why?" textareas) was **removed on purpose — don't add
+  a comment/notes field back**. `sanitizeIds()` enforces this as a **whitelist, not a
+  blocklist** (added 2026-08-13): `keepKnown()` rebuilds every team/ART/PI/sprint/settings
+  object from only the keys the app knows, pins each value to its type (numbers must be
+  finite numbers, dates must match `YYYY-MM-DD` or become `''`, status must be one of the
+  four, names capped at 120), and drops stray top-level keys too — except the share-meta
+  keys (`v`/`sharedAt`/`label`/`allTeams`/`range`), which the shared-view banner needs and
+  which never persist because `save()` is a no-op there. `notes` is still counted separately
+  in `sanitizeIds.strippedNotes` (it gets the boot toast — a person's own writing went
+  away); everything else lands in `sanitizeIds.pruned` (a silent boot `save()`, so the scrub
+  reaches localStorage immediately and the cloud on the next sync). Rebuilt objects only
+  ever gain keys that are present and valid, so the boundary can never create a key holding
+  `undefined` — the Firestore rule below. **A new stored field must be added to the
+  `keepKnown` spec or it will be silently stripped** — that's the point, and the same-named
+  test in tests.html pins it. The only free-text left is the short team/ART/PI names. The
+  sprint form's one disclosure is `#jiraBlock`, closed on every `openSprint()`. Sibling
+  rule in Flow Metrics: `cleanWorkType()` + `normalizeSettings`' whitelist.
 - **Paste from Jira:** `parseJiraSprintReport()` / `deriveFromJira()` are pure functions on
   text — no DOM, no network, nothing saved (the saving happens in `applyJiraNumbers()`, further
   down). They only ever produce the seven figures, so the
@@ -386,10 +399,28 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
 - The undo has to be **visible**: `setCancelLabel()` switches the button to "Cancel & Undo
   Save" while a snapshot is held. It can't live in the toast — `toast()` is `textContent`-only
   and `pointer-events: none`, so it can't hold a control.
+- **The toast is a POPOVER (`popover="manual"`), and that is the only way it can be seen
+  while a dialog is open.** A modal `<dialog>` sits in the browser's TOP LAYER, which paints
+  above every z-index in the ordinary document, so a toast fired from an open dialog was
+  drawn under it AND under its backdrop — invisible, indistinguishable from a button that
+  does nothing. It was reported that way in Money Map, about the share dialog's "Copy link",
+  which is the case that has to work: copying deliberately leaves the dialog open, so the
+  toast is the only thing that says it happened. **Anything else that has to appear over a
+  dialog needs the same treatment** — a bigger z-index cannot reach the top layer. Four
+  things `toast()` keeps doing: it raises the popover BEFORE writing the text (a popover is
+  `display:none` until shown, and a live region announces a change it was present for); it
+  reads a layout property in between, or the `display` flip means the `opacity:0` state is
+  never painted and the fade is skipped; it drops out of the top layer 250ms after fading,
+  so a spent toast is never parked above whatever opens next; and it is `manual`, so nothing
+  else can dismiss it and Escape still belongs to the dialog underneath. The CSS undoes the
+  UA's own `[popover]` rules (`inset: 0`, `margin: auto`, a border and a background). On a
+  browser with no popover support the attribute is inert and the toast is exactly the fixed
+  element it always was. Mirrored in Flow Metrics, Golf Handicap and Money Map — all four
+  shared this chrome and all four had the bug.
 - `confirmOverwrite()` guards a finished sprint from an accidental save, listing the
   field-level changes rather than asking a vague "are you sure?" — a warning nobody reads is
   worse than none. It deliberately stays silent for running/planned/new sprints, for a no-op
-  save, and for notes-only edits; keep that narrow, or it becomes noise people click through.
+  save; keep that narrow, or it becomes noise people click through.
   **It fires at "Use these numbers", not only at Save sprint**, and that placement is
   load-bearing: once the auto-save has replaced the stored record, the save-time check compares
   that record against itself, finds nothing changed and stays silent. Declining it fills the
@@ -398,12 +429,12 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   marker 1 = `deflate-raw`, 0 = plain JSON for browsers without `CompressionStream`). Nothing
   after `#` is sent to a server, which is the whole reason this needs no Firestore rules, no
   account and no network. `buildSharePayload()` emits a **trimmed copy** — chosen teams only,
-  only the PIs their sprints reference, notes stripped unless asked for, and never anything
+  only the PIs their sprints reference, and never anything
   identifying. Don't shortcut it to serialising `state`. It carries **only the ARTs the
   included teams are on** (the same rule as `usedPis`) and deliberately **not** the sender's
   `artFilter`: the link already holds exactly the teams they picked, and opening it
   pre-filtered would hide some of them behind a picker the recipient has no reason to open.
-- **How much history a link carries is a third lever, beside teams and notes.**
+- **How much history a link carries is the second lever, beside teams.**
   `trimShareSprints()` applies it and is **pure** (it takes the PI list rather than reading
   state) so tests.html can pin it; `parseShareScope()` turns the picker value into its scope.
   Sprint windows are **per team** — a two-team link must not spend its whole window on the
