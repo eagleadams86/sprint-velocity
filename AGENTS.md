@@ -96,6 +96,16 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   .grid-fields` also gives the reason the room the percentage box doesn't need. They double
   as the tail of a sentence ("S1 left out (a major incident)"), so keep any new one a phrase,
   not a clause, and re-measure against ~210px.
+- **The three working dialogs — sprint form, Teams & PIs, Adjust Capacity — are all 1100px**,
+  Money Map's Preferences width. Back up, Delete and the help sheet stay narrow: they are a few
+  lines each, and Money Map keeps its short ones narrow for the same reason. Share and the sync
+  chooser are still on the 880px base — widen them only if asked.
+- **A `.grid-fields` control is capped at 260px, and that cap is what makes a wide dialog
+  survivable.** `auto-fit` hands a short row all the width there is: at 1100px the three
+  Commitment fields took 336px each for a two-digit number, and the lone reason picker in
+  Rolling 5 came out **1032px** wide. The track still stretches so the labels stay spread; only
+  the box stops. Verified to cost nothing at 343/700/1100px — the cap only bites on the short
+  rows it exists for.
 - **`#adjustDialog` is 1100px — Money Map's Preferences width (`--dialog-w-wide` there), asked
   for 2026-08-18 so the two apps' two-up dialogs match.** Its panels sit SIDE BY SIDE above
   1140px (`.adjustcols`), and that breakpoint is chosen so each column lands at ~520px, wide

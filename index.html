@@ -568,9 +568,15 @@ label.field { display: block; font-size: 13px; color: var(--text-secondary);
 .grid-fields > div { display: flex; flex-direction: column; }
 /* One height for every control, because selects, date inputs and number inputs
    each default to a different one (35.5 / 40.5 / 38.5px in Chrome) and a row
-   mixing them lines up on neither edge. */
+   mixing them lines up on neither edge.
+
+   And one CEILING, because `auto-fit` hands a short row all the width there is:
+   at the 1100px dialog the three Commitment fields took 336px each for a
+   two-digit number, and the lone reason picker in Rolling 5 came out 1032px
+   wide. The track still stretches — the labels stay spread across the row — but
+   the box under it stops at a width you can actually aim at. */
 .grid-fields > div > input,
-.grid-fields > div > select { width: 100%; margin-top: auto; height: 40px; }
+.grid-fields > div > select { width: 100%; margin-top: auto; height: 40px; max-width: 260px; }
 dialog {
   border: 1px solid var(--border-strong); border-radius: var(--radius);
   background: var(--bg-card); color: var(--text-primary);
@@ -608,11 +614,12 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
    sprints it applies to on the right — which is also the order the sentence at
    the top reads in. */
 /* Matched to the Preferences window in Money Map (financial-plan), which is that
-   app's `--dialog-w-wide`. Asked for 2026-08-18: the two apps share their chrome
-   and a dialog laid out two-up should be the same window in both. It is wider
-   than this app's sprint form (880px) on purpose — the two panels below sit side
-   by side, so the width buys a real second column rather than a longer line. */
-#adjustDialog { max-width: 1100px; }
+   app's `--dialog-w-wide`. Asked for 2026-08-18: the two apps share their chrome,
+   so the working dialogs are one width in both. The sprint form, Teams & PIs and
+   Adjust Capacity are the three you actually do work in; Back up, Delete and the
+   help sheet stay narrow because they are a few lines each, and Money Map keeps
+   its short ones narrow for the same reason. */
+#sprintDialog, #manageDialog, #adjustDialog { max-width: 1100px; }
 /* Stacked, the first panel sits directly under the intro line — `.formpanel:first-of-type`
    used to zero this and the left panel is a fieldset now. */
 .adjustcols > *:first-child { margin-top: 0; }
