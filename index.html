@@ -1156,7 +1156,7 @@ const REASONS = {
   holiday:     'Public holidays',
   shortSprint: 'A shorter or longer sprint',
   teamChange:  'Someone joined or left',
-  support:     'On the support rota',
+  support:     'Team member(s) on call',
   event:       'Training or an event',
   incident:    'A major incident',
   absence:     'Much of the team away',
@@ -1915,7 +1915,7 @@ const METRIC_HELP = {
   /* Capacity adjustments */
   availability: { title: 'Team availability', target: null,
     body: `How much of a normal sprint the team will actually have, as a percentage — for leave,
-      public holidays, a change of team or a support rota. It scales the recommendation only; the
+      public holidays, a change of team or someone on call. It scales the recommendation only; the
       history behind it is untouched.` },
   excludedSprint: { title: 'Sprint left out', target: null,
     body: `A sprint deliberately kept out of the rolling window because it would mislead the
@@ -2137,7 +2137,7 @@ function nextSprintTarget(teamId, includeSix) {
 
   /* The one thing the rolling window cannot know: whether the sprint being
      planned is a normal sprint. Leave, public holidays, someone joining or
-     leaving, a support rota — none of it is visible in the history, and all of
+     leaving, someone on call — none of it is visible in the history, and all of
      it changes what the team can finish. `availability` is a plain percentage of
      a normal sprint, applied to the OUTPUT only: the method above is untouched,
      still the mean of committed points completed, and `baseRecommended` is kept

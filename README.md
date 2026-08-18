@@ -456,7 +456,7 @@ all stay exactly as they were. The card shows both figures (`80% of 24`), carrie
 quietly become something other than what the sprints say.
 
 Pick a reason from the list — leave or sickness, public holidays, a shorter sprint, someone
-joining or leaving, the support rota, an event. It's a fixed list of options rather than a
+joining or leaving, someone on call, an event. It's a fixed list of options rather than a
 text box on purpose; see [Your Data](#your-data).
 
 Two kinds of change, and the tick box is the difference:
