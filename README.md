@@ -14,7 +14,8 @@ One of a pair: [Flow Metrics](https://eagleadams86.github.io/team-dashboard/) (t
 sibling app for weekly flow metrics, sharing this app's look and behaviour — the same sticky
 header, button tabs, tiles, ⓘ help dialogs, theme picker and footer. **Each app's header
 carries a link to the other**, next to the title — one click either way, from anywhere on
-the page — and both still cross-link at the foot of the page. If a chrome rule changes in
+the page — and both still cross-link at the foot of the page, next to a **How it works**
+link to that app's README on GitHub. If a chrome rule changes in
 one app, it should change in the other too.
 
 ---
@@ -888,7 +889,9 @@ GitHub Pages (static hosting, this repo, main branch)
 No server of our own. No build, no dependencies to install, no npm.
 
 [`privacy.html`](https://eagleadams86.github.io/sprint-velocity/privacy.html) spells out
-what the app stores and where — linked from the app's footer. Fellow Scrum Masters sign in
+what the app stores and where — linked from the app's footer, beside a **How it works** link
+to this README (GitHub renders it on the repo's front page), for anyone who wants more than
+the in-app ⓘ dialogs. Fellow Scrum Masters sign in
 with their own Google accounts, so the policy exists for them as much as for the author:
 what Firestore holds, that access rules confine each account to its own data, that share
 links upload nothing, and how to have a synced copy deleted.
