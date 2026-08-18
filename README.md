@@ -320,7 +320,7 @@ rather than dragging them down.
 - **Current PI** — all six sprints of a PI, with PI totals and a sprint-by-sprint chart.
 - **Rolling 5** — the last five sprints for a team, crossing PI boundaries. Velocity and
   commitment completion on one chart — with a dashed **velocity trend line** fitted by
-  ordinary least squares, the same treatment every chart in the sibling Team Dashboard app
+  ordinary least squares, the same treatment every chart in the sibling Flow Metrics app
   carries — and an instability chart plotting break-in, removed and carryover against
   shaded 15% / 20% threshold bands.
 - **All teams** — every team's rolling averages side by side, plus each team's next-sprint
@@ -333,6 +333,19 @@ second team; **Current PI** and **Rolling 5** appear once the team you're on has
 sprint, and step aside again if you switch to a team you haven't recorded anything for. With
 no teams at all there are no tabs — just the welcome card. If the view you were on goes away,
 you land back on **Sprint**.
+
+### Trying It Without Typing Anything In
+
+The welcome card offers **Load sample data** beside *Add your first team*: two teams
+(Kestrel and Otter) on two ARTs, nine recorded sprints across two PIs, and no dates — so
+every view, both comparison tables, the capacity target and the ART filter all have
+something behind them on a first run. Two ARTs of one team each is deliberate: it's the
+arrangement where the **All teams** ART filter actually does something.
+
+It asks before it loads, and everything it adds is ordinary data you can edit or delete —
+*Teams, ARTs & PIs* removes the teams and PIs, or *Start again* in the Back up dialog
+clears the lot. Don't load it into a browser that already holds real sprints you care
+about: it's added alongside them, not instead of them, and unpicking it is manual.
 
 ## The Two Comparison Tables
 
@@ -618,6 +631,12 @@ one — whether it's left out of the rolling average and which of the fixed reas
 A capacity adjustment saves as a percentage and a reason code against a team and a sprint
 slot. Nothing else.
 
+The names you type — teams, ARTs and PIs — are **capped at 120 characters as they're
+written**, not only on the way back in: the object you name is the one that reaches
+`localStorage` and the cloud, so the cap is applied at the point of the rename as well as
+at the boundary that reads a saved, imported or synced copy. Percentages and reason codes
+pass that same boundary, so a hand-edited file can't widen either.
+
 **Back up & restore** — the *Back up* button exports everything as a JSON file
 (`sprint-velocity-YYYY-MM-DD.json`, dated in local time) and imports it back. Useful as a
 backup, for moving between browsers, or for handing a colleague a starting point.
@@ -875,10 +894,15 @@ what Firestore holds, that access rules confine each account to its own data, th
 links upload nothing, and how to have a synced copy deleted.
 
 A Content Security Policy `<meta>` tag in `index.html` pins the page down as defence in
-depth: scripts only from this origin and Firebase's CDN, network calls only to the
-Firebase endpoints sync uses plus the GitHub commits API, and no frames except the app's
-own Firebase auth helper. If a new external endpoint is ever added, it has to be added to
-the CSP too or the browser will (deliberately) block it.
+depth: scripts only from this origin, Firebase's CDN (`www.gstatic.com`) and Google's
+sign-in client (`accounts.google.com`); network calls only to the Firebase endpoints sync
+uses, `accounts.google.com` and the GitHub commits API; and the only frame allowed is
+`accounts.google.com`, the Google Identity Services popup. **`apis.google.com` and
+`<project>.firebaseapp.com` are deliberately absent** — the Firebase auth helper frame went
+when sign-in moved to Google Identity Services, and the sync module uses `initializeAuth`
+so the SDK never asks for the gapi iframe either (see [Why Sign-In Doesn't Use Firebase's
+Popup](#why-sign-in-doesnt-use-firebases-popup)). If a new external endpoint is ever added,
+it has to be added to the CSP too or the browser will (deliberately) block it.
 
 ## Working on It Locally
 
@@ -890,9 +914,13 @@ Then open http://localhost:8012. (The desktop app's preview pane reads
 `.claude/launch.json`, which is set to the same port.)
 
 **Tests:** open http://localhost:8012/tests.html — it loads the real `index.html` in a
-hidden iframe and pins the pure functions (the Jira paste parser, the metrics and RAG
-bands, `avg` vs `pooled`, the shape and id sanitizers, the ART grouping, the sprint
-lifecycle). No build step
+hidden iframe and pins the pure functions — 96 checks in 18 groups: the Jira paste
+pipeline and its estimate cells, the metrics and RAG bands, `avg` vs `pooled`, the trend
+line, the shape and id sanitizers, the 120-character label cap, the ART grouping, the
+sprint lifecycle, the share-link round trip and its history trimming, and the three
+capacity levers (the availability adjustment, scaling a past sprint, and a sprint left out
+of the rolling window) along with the boundary that stores their percentages and reason
+codes. No build step
 and no frameworks: the page either says "All N tests pass" in green or lists what broke.
 Run it whenever those functions change; it needs the local server, since `file://` iframes
 are blocked in some browsers.
