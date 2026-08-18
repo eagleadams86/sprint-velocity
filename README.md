@@ -41,6 +41,13 @@ saved copy — so beyond the short team/ART/PI names, only numbers and dates are
 notes in a previously saved copy are scrubbed the next time the app opens, locally and from
 the synced copy.)
 
+This is why the two capacity levers below — [adjusting for a sprint that isn't
+normal](#adjusting-for-a-sprint-that-isnt-normal) and [leaving a sprint out of the
+average](#leaving-a-sprint-out-of-the-average) — record *why* as a pick from a fixed list
+rather than in a box you type into. "Why did we drop that sprint?" is the obvious place to
+want free text, and it's exactly where a ticket key or a colleague's name would end up in
+the cloud. A code from the list carries the meaning and can't carry anything else.
+
 ## The Metrics
 
 All four percentages use **committed points** as the denominator:
@@ -425,12 +432,89 @@ you can see how much faith the number deserves. When the sprint it's aiming at i
 running and has a commitment recorded, it swaps the new-work figure for a comparison
 against what the team actually signed up for — there's still time to descope. A running
 sprint whose commitment hasn't been entered yet keeps the forecast, since 0 committed is
-an unanswered question rather than a small commitment. It warns you when there are fewer than
+an unanswered question rather than a small commitment. Comparison 1's **Next sprint target**
+column and its total use the adjusted figures, and mark an adjusted team with a ⚑. It warns you when there are fewer than
 three sprints of history, when the team's delivery swings by more than 30%, and when the
 next sprint up is the IP sprint.
 
-It's a starting point for the planning conversation, not a quota — adjust it for leave,
-holidays and whatever else the team knows about that the numbers don't.
+It's a starting point for the planning conversation, not a quota. The two sections below
+are for the things the history structurally cannot see.
+
+### Adjusting for a Sprint That Isn't Normal
+
+The rolling window knows what the team has been finishing. It has no way of knowing that
+three of them are on leave next sprint, that a bank holiday lands inside it, or that
+somebody left last week — and all of those change what the team can actually take on.
+
+**Adjust capacity** on the Target Capacity card records that as a single figure: how
+available the team will be, as a percentage of a normal sprint. 100% is a normal sprint;
+one person in five away for the whole sprint is roughly 80%; over 100% is allowed for the
+rarer case of extra help or a longer sprint. The recommendation is multiplied by it and
+nothing else changes — the averages, the velocity, the range and the history behind them
+all stay exactly as they were. The card shows both figures (`80% of 24`), carries a
+**⚑ Adjusted** badge, and explains it in *How this is worked out*, so the number can never
+quietly become something other than what the sprints say.
+
+Pick a reason from the list — leave or sickness, public holidays, a shorter sprint, someone
+joining or leaving, someone on call, an event. It's a fixed list of options rather than a
+text box on purpose; see [Your Data](#your-data).
+
+Two kinds of change, and the tick box is the difference:
+
+| | Leave it unticked | Tick **Keep this for later sprints too** |
+|---|---|---|
+| For | Leave, holidays, a one-off shorter sprint | Someone joined or left, a lasting change |
+| Applies to | This sprint only | Every sprint until you change it |
+| Why | It's over once the sprint is | The rolling window needs five sprints to catch up with a change in team size on its own |
+
+A one-off set against a particular sprint always wins over the standing figure — they
+never multiply, so the number on the card is always one you can reason about. **Remove
+adjustment** clears both.
+
+One thing the adjustment surfaces that's easy to miss: **carry-over doesn't shrink when the
+team does.** Work already carried in is still carried in, and it comes off the top of a
+smaller sprint. When it fills the adjusted figure entirely the card says so — there's no
+room to pull in new work at all, which is worth deciding deliberately at planning rather
+than discovering at the end.
+
+### Leaving a Sprint Out of the Average
+
+Sometimes the problem is the history rather than the sprint ahead: a major incident took
+a sprint over, the points were re-baselined onto a different scale, the team was largely
+away, or a team merged and the sprints before it belong to a different team.
+
+The sprint form's **Rolling 5** section takes a sprint out of the rolling average
+and the capacity target, with a reason from the same kind of fixed list. Everything else
+about the sprint is untouched — its own figures still show in the Sprint view, the Current
+PI view and both comparison tables, and it's still a finished sprint rather than one faked
+back to "planned" to hide it, which is how this used to have to be done.
+
+The window still fills to five, reaching further back into the history the same way it does
+for the IP sprint.
+
+**Exclusions are never silent, and they say so on every page an excluded sprint appears
+on:**
+
+| Where | What you see |
+|---|---|
+| Sprint view | A **⚑ Left out of the rolling average** banner spelling out what it does and doesn't change, and the badge on the sprint's own heading |
+| Sprint picker | `Sprint 2 — left out of the average`, before you even open it |
+| Current PI | A **⚑ Left out of the rolling 5** badge on the sprint's row, and a caption naming it as **included** in this PI's totals |
+| Rolling 5 | A badged line under the heading naming it and the reason, and a note on the numbers table explaining the gap in the sprint numbers |
+| All teams | A ⚑ on the team's sprint count in both comparison tables, and a line under the heading naming which team lost which sprint |
+
+Leaving a sprint out also breaks the promise that Comparison 2 reconciles with the Agile
+Operations Dashboard, because the sprint is still in the Dashboard's total until it's
+unselected there too. So that badge becomes conditional and names the sprint —
+*"matches the Agile Operations Dashboard when S1 is unselected there too"* — as do the
+method note beneath it and the ⓘ help on both pooled figures. The **Current PI** total
+keeps the unconditional promise, because that view never drops the sprint in the first
+place.
+
+The Current PI wording matters: an exclusion reaches the rolling average, the All teams
+comparison and the capacity target, and **nothing else**. The sprint's own figures and the
+PI totals are untouched — that's the whole difference between this and setting the sprint
+back to "planned" to hide it.
 
 ### Sprint 6 and the Rolling Average
 
@@ -496,6 +580,11 @@ unannounced. Small targets like the ⓘ carry a 24px hit area without growing on
 
 `localStorage` in your own browser is the source of truth. **No account is needed and no
 data leaves your machine** unless you choose to sign in.
+
+What's saved per sprint is the seven figures, its dates, its status, and — if you've set
+one — whether it's left out of the rolling average and which of the fixed reasons applies.
+A capacity adjustment saves as a percentage and a reason code against a team and a sprint
+slot. Nothing else.
 
 **Back up & restore** — the *Back up* button exports everything as a JSON file
 (`sprint-velocity-YYYY-MM-DD.json`, dated in local time) and imports it back. Useful as a

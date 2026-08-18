@@ -70,6 +70,46 @@ function approx(actual, expected, note, eps) {
 }
 function ok(cond, note) { if (!cond) throw new Error(note || 'expected truthy'); }
 
+/* nextSprintTarget() and rollingSprints() read the app's live `state` rather than
+   taking it as an argument, so these tests swap the collections in, run, and put
+   the originals back — always in a finally, or one failure would leave the fixture
+   in place and every later test would be measuring it. Nothing here calls save():
+   the suite is read-only, which is the promise printed at the top of the page. */
+function withState(data, fn) {
+  const st = w.svGet();
+  const keys = ['teams', 'arts', 'pis', 'sprints', 'plans'];
+  const before = {};
+  keys.forEach(k => { before[k] = st[k]; });
+  const inProg = st.settings.includeInProgress;
+  keys.forEach(k => { st[k] = data[k] || []; });
+  st.settings.includeInProgress = !!data.includeInProgress;
+  try { return fn(); }
+  finally {
+    keys.forEach(k => { st[k] = before[k]; });
+    st.settings.includeInProgress = inProg;
+  }
+}
+
+/* One team, one PI, four finished sprints. No dates on purpose — sprintStatus()
+   treats a dateless sprint as complete, which is what keeps pre-lifecycle history
+   in the averages, and it keeps these fixtures to the figures under test. Four
+   rather than five so the slot being planned is S5, not the IP sprint, whose own
+   caveat would otherwise ride along on every assertion here. */
+function capacityFixture(extra) {
+  const done = [10, 20, 30, 40];
+  return Object.assign({
+    teams: [{ id: 't1', name: 'Team One' }],
+    arts: [],
+    pis: [{ id: 'p1', name: 'PI 1' }],
+    sprints: done.map((v, i) => ({
+      id: 's' + (i + 1), teamId: 't1', piId: 'p1', sprintNumber: i + 1,
+      committed: v, committedCompleted: v, totalCompleted: v,
+      added: 0, removed: 0, carriedIn: 0, carriedOut: 0, addedThenRemoved: 0
+    })),
+    plans: []
+  }, extra || {});
+}
+
 /* ── Fixtures ─────────────────────────────────────────────────────────────── */
 
 /* An ordinary tab-separated Sprint Report paste: three sections, one starred
@@ -383,6 +423,11 @@ t('a list that is not a list becomes an empty one instead of crashing every rend
 t('an export written before ARTs existed gains an empty list, not undefined', () => {
   eq(w.coerceShape({ teams: [], pis: [], sprints: [] }).arts, []);
 });
+t('the same for capacity adjustments — an older export gains an empty plans list', () => {
+  eq(w.coerceShape({ teams: [], arts: [], pis: [], sprints: [] }).plans, []);
+  eq(w.coerceShape({ plans: 'junk' }).plans, []);
+  eq(w.coerceShape({ plans: [null, { id: 'x' }, 'junk'] }).plans.length, 1);
+});
 t('null and junk entries inside a list are dropped, real ones kept', () => {
   const out = w.coerceShape({ teams: [null, { id: 't1', name: 'A' }, 'junk'], pis: [], sprints: [] });
   eq(out.teams.length, 1);
@@ -398,8 +443,12 @@ t('junk input becomes a blank shape, never a throw', () => {
   eq(w.coerceShape('junk').sprints, []);
 });
 t('a well-formed payload passes through unchanged', () => {
+  /* `plans` is listed because coerceShape fills in every list it guards — the same
+     reason `arts` is here rather than being absent. Leaving it out would make this
+     test assert that a collection the app relies on is optional. */
   const data = { teams: [{ id: 't1', name: 'A' }], arts: [], pis: [{ id: 'p1' }],
-                 sprints: [{ id: 's1', teamId: 't1', piId: 'p1' }], settings: { view: 'sprint' } };
+                 sprints: [{ id: 's1', teamId: 't1', piId: 'p1' }], plans: [],
+                 settings: { view: 'sprint' } };
   eq(w.coerceShape(JSON.parse(JSON.stringify(data))), data);
 });
 
@@ -697,6 +746,288 @@ t('the share-meta label and timestamp are pinned too, not just allowed through',
   }));
   eq(out.label.length, 120, 'an unbounded label is capped like every other label');
   ok(!('sharedAt' in out), 'a sharedAt that is not a number is dropped, so the banner never says "Invalid Date"');
+});
+
+group('nextSprintTarget — the availability adjustment');
+t('with nothing set the figure is the plain mean, and says it is unadjusted', () => {
+  withState(capacityFixture(), () => {
+    const t1 = w.nextSprintTarget('t1', false);
+    approx(t1.baseRecommended, 25);
+    approx(t1.recommended, 25, 'no adjustment must not move the number');
+    eq(t1.availability, 100);
+    eq(t1.adjusted, false);
+    eq(t1.availabilitySource, null);
+    eq(t1.slot.sprintNumber, 5, 'the slot being planned is the one after the last recorded');
+  });
+});
+t('a one-off for the slot scales the recommendation but never the history', () => {
+  withState(capacityFixture({
+    plans: [{ id: 'pl1', teamId: 't1', piId: 'p1', sprintNumber: 5, availability: 80, reason: 'leave' }]
+  }), () => {
+    const t1 = w.nextSprintTarget('t1', false);
+    approx(t1.recommended, 20);
+    approx(t1.baseRecommended, 25, 'the mean of the window is untouched');
+    eq(t1.availability, 80);
+    eq(t1.availabilitySource, 'sprint');
+    eq(t1.availabilityReason, 'leave');
+    approx(t1.avgVelocity, 25, 'velocity is history, so it does not move either');
+    eq(t1.low, 10); eq(t1.high, 40);
+  });
+});
+t('a plan for a DIFFERENT slot is not applied to this one', () => {
+  withState(capacityFixture({
+    plans: [{ id: 'pl1', teamId: 't1', piId: 'p1', sprintNumber: 4, availability: 50, reason: 'leave' }]
+  }), () => {
+    approx(w.nextSprintTarget('t1', false).recommended, 25);
+  });
+});
+t("the team's standing figure applies when the slot has no one-off", () => {
+  const fx = capacityFixture();
+  fx.teams = [{ id: 't1', name: 'Team One', availability: 60, availabilityReason: 'teamChange' }];
+  withState(fx, () => {
+    const t1 = w.nextSprintTarget('t1', false);
+    approx(t1.recommended, 15);
+    eq(t1.availabilitySource, 'team', 'the card has to be able to say which lever set it');
+  });
+});
+t('the one-off wins outright over the standing figure — the two never multiply', () => {
+  const fx = capacityFixture({
+    plans: [{ id: 'pl1', teamId: 't1', piId: 'p1', sprintNumber: 5, availability: 80, reason: 'leave' }]
+  });
+  fx.teams = [{ id: 't1', name: 'Team One', availability: 50, availabilityReason: 'teamChange' }];
+  withState(fx, () => {
+    const t1 = w.nextSprintTarget('t1', false);
+    approx(t1.recommended, 20, '80% of 25 — not 40% of it');
+    eq(t1.availabilitySource, 'sprint');
+  });
+});
+t('a standing 100% is not an adjustment, so the card stays quiet', () => {
+  const fx = capacityFixture();
+  fx.teams = [{ id: 't1', name: 'Team One', availability: 100 }];
+  withState(fx, () => {
+    eq(w.nextSprintTarget('t1', false).adjusted, false);
+  });
+});
+t('carry-over does not shrink with the team, and fills a reduced sprint', () => {
+  const fx = capacityFixture({
+    plans: [{ id: 'pl1', teamId: 't1', piId: 'p1', sprintNumber: 5, availability: 80, reason: 'leave' }]
+  });
+  fx.sprints[3].carriedOut = 30;                 // more than 80% of 25
+  withState(fx, () => {
+    const t1 = w.nextSprintTarget('t1', false);
+    eq(t1.carriedIn, 30);
+    approx(t1.recommended, 20);
+    eq(t1.newWork, 0, 'no room at all for new work — and never a negative figure');
+    eq(t1.carryoverFills, true);
+  });
+});
+t('an in-flight commitment is compared against the ADJUSTED figure, not the base', () => {
+  const fx = capacityFixture({
+    plans: [{ id: 'pl1', teamId: 't1', piId: 'p1', sprintNumber: 5, availability: 80, reason: 'leave' }]
+  });
+  fx.sprints.push({ id: 's5', teamId: 't1', piId: 'p1', sprintNumber: 5, status: 'active',
+    committed: 25, committedCompleted: 0, totalCompleted: 0, added: 0, removed: 0,
+    carriedIn: 0, carriedOut: 0, addedThenRemoved: 0 });
+  withState(fx, () => {
+    const t1 = w.nextSprintTarget('t1', false);
+    eq(t1.inFlight, true);
+    eq(t1.committedAlready, 25);
+    approx(t1.overBy, 5, 'committing to the unadjusted figure IS an over-commitment now');
+  });
+});
+t('the spread caveat stays on the history, so an adjustment cannot fake an erratic team', () => {
+  const fx = capacityFixture({
+    plans: [{ id: 'pl1', teamId: 't1', piId: 'p1', sprintNumber: 5, availability: 50, reason: 'leave' }]
+  });
+  withState(fx, () => {
+    const adjusted = w.nextSprintTarget('t1', false);
+    const plain = withState(capacityFixture(), () => w.nextSprintTarget('t1', false));
+    approx(adjusted.spread, plain.spread, 'measured against the unadjusted mean either way');
+    eq(adjusted.steady, plain.steady);
+  });
+});
+
+group('rollingSprints — a sprint deliberately left out');
+/* Seven counted sprints across two PIs, so the window has somewhere older to
+   reach when one is dropped. Values ascend so which sprints are in the window
+   is readable straight off the mean. */
+function windowFixture() {
+  const rows = [
+    ['p1', 1, 10], ['p1', 2, 20], ['p1', 3, 30], ['p1', 4, 40], ['p1', 5, 50],
+    ['p2', 1, 60], ['p2', 2, 70]
+  ];
+  return {
+    teams: [{ id: 't1', name: 'Team One' }],
+    arts: [],
+    pis: [{ id: 'p1', name: 'PI 1' }, { id: 'p2', name: 'PI 2' }],
+    sprints: rows.map(([pi, n, v], i) => ({
+      id: 'w' + i, teamId: 't1', piId: pi, sprintNumber: n,
+      committed: v, committedCompleted: v, totalCompleted: v,
+      added: 0, removed: 0, carriedIn: 0, carriedOut: 0, addedThenRemoved: 0
+    })),
+    plans: []
+  };
+}
+t('the window is the last five, and an exclusion makes it reach further back', () => {
+  withState(windowFixture(), () => {
+    eq(w.rollingSprints('t1', false).map(s => s.committedCompleted), [30, 40, 50, 60, 70]);
+    approx(w.nextSprintTarget('t1', false).recommended, 50);
+  });
+  const fx = windowFixture();
+  fx.sprints[4].excluded = true;               // p1 S5, inside the window
+  fx.sprints[4].excludeReason = 'incident';
+  withState(fx, () => {
+    eq(w.rollingSprints('t1', false).map(s => s.committedCompleted), [20, 30, 40, 60, 70],
+       'still five sprints — it refills from older history rather than shrinking');
+    approx(w.nextSprintTarget('t1', false).recommended, 44);
+  });
+});
+t('the excluded sprint keeps all its own figures — only the forecast skips it', () => {
+  const fx = windowFixture();
+  fx.sprints[4].excluded = true;
+  fx.sprints[4].excludeReason = 'incident';
+  withState(fx, () => {
+    const s = w.teamSprints('t1').find(x => x.id === 'w4');
+    eq(w.metrics(s).committedCompleted, 50, 'the sprint view still shows it in full');
+    eq(w.sprintStatus(s), 'complete', 'and it is still a finished sprint, not a faked-planned one');
+  });
+});
+t('the Current PI view keeps an excluded sprint, which is why its help stays unconditional', () => {
+  /* The Dashboard-reconciliation claim is conditional on Comparison 2 and the
+     Rolling 5 pooled row, and NOT on the PI total row. That asymmetry is only
+     correct while the PI view keeps filtering on its own counted list rather than
+     through rollingSprints() — if that ever changes, the PI help is wrong too. */
+  const fx = windowFixture();
+  fx.sprints[6].excluded = true;
+  fx.sprints[6].excludeReason = 'incident';
+  withState(fx, () => {
+    const counted = w.teamSprints('t1').filter(w.__svTestHooks.isCounted);
+    eq(counted.some(x => x.id === 'w6'), true, 'still counted for the PI view');
+    eq(w.rollingSprints('t1', false).some(x => x.id === 'w6'), false, 'but out of the window');
+  });
+});
+t('excluding everything returns no target rather than throwing', () => {
+  const fx = windowFixture();
+  fx.sprints.forEach(s => { s.excluded = true; s.excludeReason = 'rebaseline'; });
+  withState(fx, () => {
+    eq(w.rollingSprints('t1', false), []);
+    eq(w.nextSprintTarget('t1', false), null);
+  });
+});
+t('excluding the OLDEST sprint in a short history is still named', () => {
+  /* The regression Charles caught: Sprint and Current PI showed the exclusion,
+     Rolling 5 and All teams said nothing, because both read excludedInRange() and
+     it anchored on the oldest KEPT sprint — making the oldest sprint the one it
+     could never name, however much the window shrank. */
+  const fx = windowFixture();
+  fx.sprints = fx.sprints.slice(0, 4);          // four counted sprints, window not full
+  fx.sprints[0].excluded = true;
+  fx.sprints[0].excludeReason = 'rebaseline';
+  withState(fx, () => {
+    eq(w.rollingSprints('t1', false).length, 3, 'the window really did shrink from four to three');
+    eq(w.excludedInRange('t1', false).map(s => s.id), ['w0'], 'so it has to be named');
+    ok(w.excludedLine('t1', false).includes('⚑'), 'and the line has to render');
+  });
+});
+t('a team whose whole window is excluded names every one of them', () => {
+  const fx = windowFixture();
+  fx.sprints.forEach(s => { s.excluded = true; s.excludeReason = 'rebaseline'; });
+  withState(fx, () => {
+    eq(w.rollingSprints('t1', false), []);
+    eq(w.excludedInRange('t1', false).length, 5,
+       'the empty Rolling 5 card must be able to say why it is empty');
+  });
+});
+t('the note names the excluded sprints the window reached over, and no others', () => {
+  const fx = windowFixture();
+  fx.sprints[0].excluded = true;               // p1 S1 — long out of reach
+  fx.sprints[0].excludeReason = 'rebaseline';
+  fx.sprints[4].excluded = true;               // p1 S5 — inside the window
+  fx.sprints[4].excludeReason = 'incident';
+  withState(fx, () => {
+    eq(w.excludedInRange('t1', false).map(s => s.id), ['w4'],
+       'an exclusion older than the window changes nothing today, so saying so would be noise');
+    const names = w.excludedNames('t1', false);
+    ok(names.includes('S5 left out'), 'the sprint is named: ' + names);
+    ok(names.includes(w.__svTestHooks.REASONS.incident.toLowerCase()), 'and so is the reason: ' + names);
+    eq(names.includes('S1 left out'), false);
+    /* The rendered line carries the badge, so the note can't quietly become a
+       clause on the end of a subtitle again. */
+    ok(w.excludedLine('t1', false).includes('⚑'), 'the line is badged');
+    eq(w.excludedLine('t2', false), '', 'a team with no exclusions renders nothing at all');
+  });
+});
+
+group('the capacity boundary — percentages and reason codes');
+t('a percentage is clamped to the range the form offers, not merely checked', () => {
+  const out = w.sanitizeIds(w.coerceShape({
+    teams: [{ id: 't1', name: 'A', availability: 1e9 }], arts: [], pis: [{ id: 'p1', name: 'P' }],
+    sprints: [],
+    plans: [{ id: 'x1', teamId: 't1', piId: 'p1', sprintNumber: 1, availability: -5, reason: 'leave' },
+            { id: 'x2', teamId: 't1', piId: 'p1', sprintNumber: 2, availability: 82.6, reason: 'leave' }],
+    settings: {}
+  }));
+  eq(out.teams[0].availability, 200, 'it MULTIPLIES the recommendation, so an unbounded one is nonsense');
+  eq(out.plans[0].availability, 0);
+  eq(out.plans[1].availability, 83, 'rounded, like every other stored figure');
+});
+t('an unknown reason code becomes other, and junk cannot ride in as a reason', () => {
+  const out = w.sanitizeIds(w.coerceShape({
+    teams: [{ id: 't1', name: 'A' }], arts: [], pis: [{ id: 'p1', name: 'P' }],
+    sprints: [{ id: 's1', teamId: 't1', piId: 'p1', sprintNumber: 1,
+                excluded: true, excludeReason: 'a sentence somebody typed' }],
+    plans: [{ id: 'x1', teamId: 't1', piId: 'p1', sprintNumber: 2, availability: 80, reason: 'toString' }],
+    settings: {}
+  }));
+  eq(out.sprints[0].excludeReason, 'other', 'the reason is a fixed code — never free text');
+  eq(out.sprints[0].excluded, true);
+  eq(out.plans[0].reason, 'other', 'and an inherited Object property is not a reason code either');
+});
+t('the new fields are optional, and an absent one is never created holding undefined', () => {
+  const out = w.sanitizeIds(w.coerceShape({
+    teams: [{ id: 't1', name: 'A' }], arts: [], pis: [{ id: 'p1', name: 'P' }],
+    sprints: [{ id: 's1', teamId: 't1', piId: 'p1', sprintNumber: 1 }],
+    plans: [], settings: {}
+  }));
+  /* By key, not by value: `x === undefined` passes either way, and it is the KEY
+     existing that makes Firestore reject the whole document with invalid-argument. */
+  ok(!('availability' in out.teams[0]), 'team availability');
+  ok(!('availabilityReason' in out.teams[0]), 'team availability reason');
+  ok(!('excluded' in out.sprints[0]), 'sprint exclusion');
+  ok(!('excludeReason' in out.sprints[0]), 'sprint exclusion reason');
+  eq(JSON.stringify(out).includes('undefined'), false);
+});
+t('a plan for a team or PI that is not in the payload is dropped, and counted', () => {
+  const out = w.sanitizeIds(w.coerceShape({
+    teams: [{ id: 't1', name: 'A' }], arts: [], pis: [{ id: 'p1', name: 'P' }], sprints: [],
+    plans: [{ id: 'x1', teamId: 't1', piId: 'p1', sprintNumber: 1, availability: 80, reason: 'leave' },
+            { id: 'x2', teamId: 'gone', piId: 'p1', sprintNumber: 1, availability: 80, reason: 'leave' },
+            { id: 'x3', teamId: 't1', piId: 'gone', sprintNumber: 1, availability: 80, reason: 'leave' }],
+    settings: {}
+  }));
+  eq(out.plans.map(p => p.id), ['x1'], 'it could never be reached, so it would scale nothing for ever');
+  eq(w.sanitizeIds.dropped, 2, 'counted alongside orphaned sprints, so orphanNote() reports it');
+});
+t('two adjustments for one slot cannot both survive the boundary', () => {
+  const out = w.sanitizeIds(w.coerceShape({
+    teams: [{ id: 't1', name: 'A' }], arts: [], pis: [{ id: 'p1', name: 'P' }], sprints: [],
+    plans: [{ id: 'x1', teamId: 't1', piId: 'p1', sprintNumber: 1, availability: 80, reason: 'leave' },
+            { id: 'x2', teamId: 't1', piId: 'p1', sprintNumber: 1, availability: 50, reason: 'holiday' }],
+    settings: {}
+  }));
+  eq(out.plans.length, 1, 'the second is invisible on screen and would outlive "Remove adjustment"');
+  eq(out.plans[0].availability, 80);
+});
+t('a hostile id on a plan is remapped with everything else that references it', () => {
+  const out = w.sanitizeIds(w.coerceShape({
+    teams: [{ id: '<img src=x>', name: 'A' }], arts: [], pis: [{ id: 'p1', name: 'P' }], sprints: [],
+    plans: [{ id: 'x1', teamId: '<img src=x>', piId: 'p1', sprintNumber: 1,
+              availability: 80, reason: 'leave' }],
+    settings: {}
+  }));
+  eq(out.plans.length, 1, 'remapped, so it is not an orphan');
+  eq(out.plans[0].teamId, out.teams[0].id);
+  ok(!/[<>]/.test(out.plans[0].teamId), 'and the id it now carries is a safe one');
 });
 
 /* ── Runner ───────────────────────────────────────────────────────────────── */

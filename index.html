@@ -283,6 +283,15 @@ select.ctl:hover { border-color: var(--text-muted); }
   border-radius: var(--radius); padding: 18px; margin-bottom: 18px; box-shadow: var(--shadow);
 }
 .card > h2 { margin: 0 0 4px; font-size: 16px; letter-spacing: -.01em; }
+/* A card whose heading shares its line with a control — Target Capacity and its
+   Adjust button. The heading then sits inside a flex row rather than directly in
+   the card, so `.card > h2` stops matching it and it falls back to the browser's
+   default h2: half again the size of every other card heading on the page. The
+   row carries the 4px the heading's own bottom margin used to contribute, so the
+   sub-heading below keeps its spacing and the heading still sits level with the
+   button beside it. */
+.card > .row.cardhead { margin: 0 0 4px; }
+.card > .row.cardhead > h2 { margin: 0; font-size: 16px; letter-spacing: -.01em; }
 .card > .sub { margin: 0 0 16px; color: var(--text-secondary); font-size: 13px; }
 /* Tiles share the parent's rows via subgrid, so the label, the number and the
    caption each line up straight across a row of tiles. Without it a label that
@@ -389,10 +398,33 @@ th .tile-help, td .tile-help { vertical-align: 1px; }
   font-size: 11px; font-weight: 600; letter-spacing: 0; vertical-align: 2px;
   border: 1px solid var(--border-strong); color: var(--text-secondary);
   background: var(--bg-card-alt); white-space: nowrap; }
+/* The reconciliation tag stops being a two-word label once it has to carry a
+   condition ("...when S1 is unselected there too"), and nowrap would push it off
+   the side of a phone. Only the conditional form gets this. */
+.tag.cond { white-space: normal; }
 .badge { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px;
   font-size: 12px;
   font-weight: 700; border: 1px solid var(--amber); color: var(--amber);
   background: var(--amber-bg); white-space: nowrap; }
+/* The 6px is for a badge that FOLLOWS text — after a sprint name in a table row,
+   after a card heading. A badge that opens its own line (the "left out" notes on
+   Rolling 5 and All teams) doesn't want it: it pushed the pill 6px right of the
+   heading and sub-heading stacked directly above it, so the one element meant to
+   catch the eye was the only thing on the card not lining up with the rest. */
+.badge:first-child { margin-left: 0; }
+/* The "left out" note sits between the sub-heading and the tiles it qualifies.
+   It carried `margin: 6px 0 0`, which collapsed to the sub-heading's own 16px
+   above and left NOTHING below — the badge ended up resting on the top edge of
+   the tile row. Equal margins either side, matching the sub-heading's rhythm, so
+   it reads as its own line rather than as a label stuck to the cards. */
+.exnote { margin: 16px 0; }
+
+/* The reason pickers hold sentences ("Training, conference or company event"),
+   not the one or two words the other fields in this grid take, so an equal split
+   cut the longest option off inside the closed control. The percentage box needs
+   room for three digits and no more; everything left over goes to the reason. */
+#adjustDialog .grid-fields { grid-template-columns: minmax(140px, 200px) minmax(0, 1fr); }
+@media (max-width: 520px) { #adjustDialog .grid-fields { grid-template-columns: 1fr; } }
 
 /* Fixed width so a column of pills reads as one stack, not a ragged edge. 6ch fits
    the longest value fmtPct() can produce ("100.0%") and 14px is the glyph slot below;
@@ -845,11 +877,30 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
       <p class="sub" id="carryHint" style="margin:10px 0 0" hidden></p>
     </fieldset>
 
+    <fieldset>
+      <legend>Rolling 5</legend>
+      <label class="row" style="gap:8px;cursor:pointer;font-size:14px">
+        <input type="checkbox" id="f_excluded">
+        Leave this sprint out of the rolling 5
+      </label>
+      <div class="grid-fields" style="margin-top:10px">
+        <div>
+          <label class="field" for="f_excludeReason">Why</label>
+          <select id="f_excludeReason" disabled></select>
+        </div>
+      </div>
+      <p class="sub" style="margin:10px 0 0">For a sprint that would mislead the forecast — a major
+        incident that took it over, a re-baselining of the points, or a sprint most of the team was
+        away for. The sprint's own figures are untouched and every other view still shows them; only
+        the rolling 5 and the capacity target skip it, and both say that they have.</p>
+    </fieldset>
+
     <!-- There is deliberately NO free-text notes field on this form. This app
          records Jira figures copied out of a work system, and a comment box is
          the one place sensitive detail could ride along into localStorage and
          the synced cloud copy — so only numbers and dates are ever saved. Don't
-         add one back. -->
+         add one back. The "Why" above is a fixed list of codes for exactly this
+         reason (see REASONS) — it must never become a text box. -->
 
     <p class="warn" id="sprintWarn" role="status"></p>
     <div class="row spread" style="margin-top:16px">
@@ -927,6 +978,60 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
 </dialog>
 
 <!-- ── What a tile means ─────────────────────────────────────────────────── -->
+<!-- ── Adjust the recommended commitment ─────────────────────────────────── -->
+<dialog id="adjustDialog" aria-labelledby="adjustTitle">
+  <form method="dialog" id="adjustForm">
+    <h3 id="adjustTitle">Adjust Capacity</h3>
+    <p class="sub" id="adjustSub"></p>
+
+    <div class="formpanel">
+      <div class="grid-fields">
+        <div>
+          <label class="field" for="a_pct">Team availability (%)</label>
+          <input type="number" id="a_pct" min="0" max="200" step="5" inputmode="numeric"
+                 aria-describedby="adjustPctHint">
+        </div>
+        <div>
+          <label class="field" for="a_reason">Why</label>
+          <select id="a_reason"></select>
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px;gap:6px;flex-wrap:wrap">
+        <span class="muted" style="font-size:13px">Quick set:</span>
+        <button type="button" class="btn small" data-pct="90">90%</button>
+        <button type="button" class="btn small" data-pct="80">80%</button>
+        <button type="button" class="btn small" data-pct="75">75%</button>
+        <button type="button" class="btn small" data-pct="50">50%</button>
+        <button type="button" class="btn small" data-pct="100">Back to 100%</button>
+      </div>
+      <p class="sub" id="adjustPctHint" style="margin:10px 0 0">100% is a normal sprint. As a rough
+        guide, one person in five away for the whole sprint is about 80%. Over 100% is allowed for
+        the rarer case of extra help or a longer sprint.</p>
+    </div>
+
+    <fieldset>
+      <legend>How Long For</legend>
+      <label class="row" style="gap:8px;cursor:pointer;font-size:14px">
+        <input type="checkbox" id="a_keep">
+        Keep this for later sprints too
+      </label>
+      <p class="sub" style="margin:10px 0 0">Leave this unticked for a one-off — leave, public
+        holidays, a shorter sprint — and it applies to this sprint only. Tick it for a lasting change
+        such as someone joining or leaving, where it should hold until you change it: the rolling
+        window needs five sprints to notice a change in team size on its own.</p>
+    </fieldset>
+
+    <p class="warn" id="adjustPreview" role="status"></p>
+    <div class="row spread" style="margin-top:16px">
+      <button type="button" class="btn" id="adjustRemoveBtn">Remove adjustment</button>
+      <span class="row">
+        <button type="button" class="btn" id="adjustCancelBtn">Cancel</button>
+        <button type="button" class="btn primary" id="adjustSaveBtn">Save adjustment</button>
+      </span>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="helpDialog" aria-labelledby="helpTitle">
   <h3 id="helpTitle"></h3>
   <p id="helpBody" style="margin:0;font-size:14px"></p>
@@ -1028,6 +1133,44 @@ const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(
    through untouched rather than swapping it for a fresh id. */
 const ART_NONE = '~none';
 
+/* ── Why a figure was adjusted: a FIXED LIST OF CODES, never free text ───────
+   Both capacity levers below record a reason, and both record it as one of these
+   codes chosen from a <select> — exactly the way `status` and `view` work. This
+   is not a stylistic choice. The figures in this app come out of a work Jira and
+   the saved copy lives in GitHub-hosted localStorage and a Google Firestore
+   document, so the rule is numbers and dates plus short labels, everywhere; the
+   per-sprint `notes` textareas were removed on purpose in 2026-08 for precisely
+   this reason. "Why did we drop that sprint?" is the obvious place for somebody
+   to reach for a text box later — DON'T. A code carries the meaning, renders in
+   plain English from the map below, and cannot smuggle a ticket key or a
+   colleague's name into the cloud. sanitizeIds() pins it to this list. */
+/* Kept SHORT on purpose. These are `<option>` text in a picker that has to fit a
+   phone: a 375px screen leaves about 210px inside the control, and the first draft
+   ran to 267px, so the longest reasons were cut off in the closed select — the one
+   place the chosen reason has to be readable. Widening the field fixes the desktop
+   and cannot fix the phone, so the labels themselves have to fit. They also read
+   as the tail of a sentence ("S1 left out (a major incident)"), which is the other
+   reason to keep them to a phrase rather than a clause. */
+const REASONS = {
+  leave:       'Annual leave or sickness',
+  holiday:     'Public holidays',
+  shortSprint: 'A shorter or longer sprint',
+  teamChange:  'Someone joined or left',
+  support:     'Team member(s) on call',
+  event:       'Training or an event',
+  incident:    'A major incident',
+  absence:     'Much of the team away',
+  rebaseline:  'Points were re-baselined',
+  partial:     'Only partly recorded',
+  other:       'Something else'
+};
+/* Which codes each picker offers. Forward-looking reasons explain a capacity dip
+   that hasn't happened yet; backward-looking ones explain why a recorded sprint
+   would mislead the forecast. `teamChange` and `other` sit on both. */
+const AVAILABILITY_REASONS = ['leave', 'holiday', 'shortSprint', 'teamChange', 'support', 'event', 'other'];
+const EXCLUDE_REASONS = ['incident', 'absence', 'rebaseline', 'teamChange', 'partial', 'other'];
+const reasonLabel = (code) => REASONS[code] || REASONS.other;
+
 function blankState() {
   return {
     version: 1,
@@ -1040,6 +1183,14 @@ function blankState() {
     arts: [],
     pis: [],
     sprints: [],
+    /* A planned capacity adjustment for one sprint SLOT — `{ id, teamId, piId,
+       sprintNumber, availability, reason }`, keyed by the same triple slotClash()
+       uses. It lives in its own list rather than on the sprint record because the
+       slot being planned usually has no record yet, and a placeholder `planned`
+       sprint would move targetSprintSlot()'s projection and put a row of zeros in
+       the PI table. Keyed to the slot, it also survives as the record of WHY that
+       sprint came in low once the real numbers land on top of it. */
+    plans: [],
     settings: { activeTeamId: null, activePiId: null, includeSprint6InRolling: false,
                 includeInProgress: false, view: 'sprint', artFilter: null }
   };
@@ -1094,7 +1245,7 @@ function orphanNote(n) {
    this can never turn an arbitrary JSON into a valid empty export. */
 function coerceShape(data) {
   const d = (data && typeof data === 'object') ? data : {};
-  for (const k of ['teams', 'arts', 'pis', 'sprints']) {
+  for (const k of ['teams', 'arts', 'pis', 'sprints', 'plans']) {
     d[k] = (Array.isArray(d[k]) ? d[k] : []).filter(x => x && typeof x === 'object');
   }
   if (!d.settings || typeof d.settings !== 'object') d.settings = {};
@@ -1139,6 +1290,11 @@ function sanitizeIds(data) {
        cold (see cleanKey above). Boot persists the scrub when this counted
        something, so the cleaned copy replaces the stored ones too. */
     if ('notes' in s) { delete s.notes; sanitizeIds.strippedNotes++; }
+  });
+  list(data.plans).forEach(p => {
+    cleanKey(p, 'id');
+    cleanKey(p, 'teamId');
+    cleanKey(p, 'piId');
   });
   if (data.settings && typeof data.settings === 'object') {
     cleanKey(data.settings, 'activeTeamId');
@@ -1190,6 +1346,17 @@ function sanitizeIds(data) {
         /* A slot on the sprint picker, so it's pinned to the picker's own range. */
         const n = Number(v);
         if (Number.isFinite(n)) out[k] = Math.min(SPRINTS_PER_PI, Math.max(1, Math.round(n)));
+      } else if (kind === 'pct') {
+        /* Team availability, as a percentage of a normal sprint. Clamped to the
+           same range the form offers rather than merely checked for finiteness:
+           it MULTIPLIES the recommended commitment, so a payload carrying 1e9
+           would otherwise put a nonsense figure on the planning card. */
+        const n = Number(v);
+        if (Number.isFinite(n)) out[k] = Math.min(200, Math.max(0, Math.round(n)));
+      } else if (kind === 'reason') {
+        /* One of the fixed codes — see REASONS. An unknown one becomes 'other'
+           rather than being dropped, so the adjustment keeps a reason to show. */
+        out[k] = Object.prototype.hasOwnProperty.call(REASONS, v) ? v : 'other';
       }
       if (!(k in out) || out[k] !== v) sanitizeIds.pruned++;
     }
@@ -1199,12 +1366,17 @@ function sanitizeIds(data) {
   ['sprintNumber', 'committed', 'committedCompleted', 'totalCompleted', 'added',
    'removed', 'carriedIn', 'carriedOut', 'addedThenRemoved'].forEach(k => { NUMS[k] = 'num'; });
   const objects = (v) => list(v).filter(x => x && typeof x === 'object');
-  data.teams = objects(data.teams).map(t => keepKnown(t, { id: 'id', name: 'label', artId: 'idOrNull' }));
+  data.teams = objects(data.teams).map(t => keepKnown(t, { id: 'id', name: 'label', artId: 'idOrNull',
+    availability: 'pct', availabilityReason: 'reason' }));
   data.arts = objects(data.arts).map(a => keepKnown(a, { id: 'id', name: 'label' }));
   data.pis = objects(data.pis).map(p => keepKnown(p, { id: 'id', name: 'label', sprintCount: 'num' }));
   data.sprints = objects(data.sprints).map(s => keepKnown(s, Object.assign({
     id: 'id', teamId: 'id', piId: 'id',
-    startDate: 'date', endDate: 'date', status: 'status' }, NUMS)));
+    startDate: 'date', endDate: 'date', status: 'status',
+    excluded: 'bool', excludeReason: 'reason' }, NUMS)));
+  data.plans = objects(data.plans).map(p => keepKnown(p, {
+    id: 'id', teamId: 'id', piId: 'id', sprintNumber: 'sprintNum',
+    availability: 'pct', reason: 'reason' }));
   if (data.settings && typeof data.settings === 'object') {
     data.settings = keepKnown(data.settings, {
       activeTeamId: 'idOrNull', activePiId: 'idOrNull', activeSprintNum: 'sprintNum',
@@ -1215,7 +1387,7 @@ function sanitizeIds(data) {
      share payload crosses this same boundary and the shared-view banner is
      built from them. They are never persisted: a shared view makes save() a
      no-op, so they exist only for the length of that visit. */
-  const TOP = ['version', 'teams', 'arts', 'pis', 'sprints', 'settings',
+  const TOP = ['version', 'teams', 'arts', 'pis', 'sprints', 'plans', 'settings',
                'v', 'sharedAt', 'label', 'allTeams', 'range'];
   for (const k of Object.keys(data)) {
     if (!TOP.includes(k)) { delete data[k]; sanitizeIds.pruned++; }
@@ -1245,12 +1417,32 @@ function sanitizeIds(data) {
   if (filter && filter !== ART_NONE && !artIds.has(filter)) data.settings.artFilter = null;
   /* After the remapping, never before it: a sprint whose team id was hostile has
      just been rewritten to the team's fresh id, and is not an orphan. */
+  const ids = (arr) => new Set(list(arr).map(r => (r ? r.id : null)).filter(Boolean));
+  const teamIds = ids(data.teams), piIds = ids(data.pis);
   if (Array.isArray(data.sprints)) {
-    const ids = (arr) => new Set(list(arr).map(r => (r ? r.id : null)).filter(Boolean));
-    const teamIds = ids(data.teams), piIds = ids(data.pis);
     const kept = data.sprints.filter(s => s && teamIds.has(s.teamId) && piIds.has(s.piId));
     sanitizeIds.dropped = data.sprints.length - kept.length;
     data.sprints = kept;
+  }
+  /* Planned adjustments hang off the same two ids and follow the same rule — a
+     plan for a deleted team or PI points at a slot that can never be reached, so
+     it would sit there for ever silently scaling nothing. It joins the same
+     count, so orphanNote() reports both together: what the user needs to know is
+     that the payload was damaged, not which of two lists took the hit. */
+  if (Array.isArray(data.plans)) {
+    const seen = new Set();
+    const kept = data.plans.filter(p => {
+      if (!p || !teamIds.has(p.teamId) || !piIds.has(p.piId)) return false;
+      /* One adjustment per slot. Duplicates only arrive from a damaged or
+         hand-edited payload — the write path upserts — but left in place the
+         second copy is invisible and "Remove adjustment" would appear to fail. */
+      const key = p.teamId + ' ' + p.piId + ' ' + p.sprintNumber;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    sanitizeIds.dropped += data.plans.length - kept.length;
+    data.plans = kept;
   }
   return data;
 }
@@ -1367,6 +1559,33 @@ function findSprint(teamId, piId, num) {
   return state.sprints.find(s => s.teamId === teamId && s.piId === piId && s.sprintNumber === num) || null;
 }
 
+/* ── Planned capacity adjustments ───────────────────────────────────────────
+   A `plans` entry is a one-off: it says this particular slot isn't a normal
+   sprint (leave, public holidays, a shorter sprint) and by how much. The team's
+   own `availability` is the standing figure for a lasting change — someone
+   joined or left — which applies to every slot until it's changed, because the
+   rolling window needs five sprints to catch up with a headcount change on its
+   own. The slot entry WINS OUTRIGHT over the standing figure rather than
+   multiplying with it: 80% of 90% is not a number anyone can hold in their head
+   at a planning session, and the card has to be able to say plainly which
+   figure is in force. */
+function planFor(teamId, piId, num) {
+  if (!piId) return null;
+  return state.plans.find(p => p.teamId === teamId && p.piId === piId && p.sprintNumber === num) || null;
+}
+
+/* The availability in force for a slot, and where it came from. `pct` is always
+   a number so callers can multiply without a guard; `source` is null when
+   nothing is set, which is what the UI keys off to stay quiet. */
+function availabilityFor(teamId, piId, num) {
+  const plan = planFor(teamId, piId, num);
+  if (plan) return { pct: plan.availability, reason: plan.reason, source: 'sprint' };
+  const team = teamById(teamId);
+  if (team && typeof team.availability === 'number' && team.availability !== 100)
+    return { pct: team.availability, reason: team.availabilityReason, source: 'team' };
+  return { pct: 100, reason: null, source: null };
+}
+
 /* The team's most recent recorded sprint. teamSprints() is already in program
    order, so it's simply the last one. Deliberately "has a record" rather than
    "is finished": a running sprint is still the one you'd want to land on. */
@@ -1470,7 +1689,13 @@ function sprintPickerNote(teamId, piId, n) {
   const s = findSprint(teamId, piId, n);
   if (!s) return ' — no data';
   const st = sprintStatus(s);
-  return st === 'complete' ? '' : ' — ' + STATUS_SHORT[st];
+  const notes = [];
+  if (st !== 'complete') notes.push(STATUS_SHORT[st]);
+  /* Both can be true — a running sprint can also be marked out of the average —
+     and the picker is the one place you see every sprint at once, so it names
+     both rather than letting one hide the other. */
+  if (s.excluded) notes.push('left out of the rolling ' + ROLLING_WINDOW);
+  return notes.length ? ' — ' + notes.join(', ') : '';
 }
 
 function openSprintsNote(teamId) {
@@ -1491,8 +1716,103 @@ function rollingSprints(teamId, includeSix) {
        three read from here — a sprint recorded mid-flight would otherwise count
        as a 0% result and take a slot from a real sprint. */
     .filter(isCounted)
-    .filter(s => includeSix || s.sprintNumber !== IP_SPRINT);
+    .filter(s => includeSix || s.sprintNumber !== IP_SPRINT)
+    /* A sprint the user has deliberately taken out of the forecast: a major
+       incident that ate the sprint, a re-baselining that put the points on a
+       different scale, or a sprint the team was largely away for. The figures
+       themselves are untouched and every other view still shows them — this is
+       the one place the exclusion bites, which is why it belongs here beside
+       the IP-sprint rule rather than in each caller. It replaces faking the
+       sprint's STATUS to planned, which used to be the only way to do this and
+       misrepresented the sprint everywhere else in the app. */
+    .filter(s => !s.excluded);
   return all.slice(-ROLLING_WINDOW);
+}
+
+/* One badge, wherever an excluded sprint appears beside its own figures — the
+   sprint card, the PI table row, the sprint picker. Glyph plus words, never
+   colour alone, and deliberately the same ⚑ the adjusted-capacity badge wears:
+   the two are one family of "somebody has told the app something the sprints
+   can't say for themselves". */
+function excludedBadge(s) {
+  /* Names the WINDOW, not "the average". On the Current PI table this badge sits
+     two rows above a summary line called "Average per sprint" that counts the
+     sprint in full, so "left out of the average" read as a flat contradiction of
+     the table it was in. "The rolling N" is the app's own name for the window —
+     the tab is called Rolling 5 and the in-flight banner already says it — and it
+     cannot be confused with a PI average. */
+  return (s && s.excluded)
+    ? ` <span class="badge">⚑ Left out of the rolling ${ROLLING_WINDOW}</span>` : '';
+}
+
+/* Exactly what an exclusion does, and — just as important — what it doesn't.
+   It moves the rolling average, the All teams comparison and the capacity target.
+   It moves NOTHING else: the sprint's own figures are untouched and the PI totals
+   still count it, because the PI view filters on its own `closed` list rather than
+   through rollingSprints(). That distinction is the whole difference between this
+   and the status-faking it replaced, so every place that mentions the exclusion
+   says it rather than leaving the reader to assume the figures moved too. */
+function excludedWhy(s) {
+  return `This sprint is <strong>left out of the rolling ${ROLLING_WINDOW}, the All teams
+    comparison and the capacity target</strong> — ${esc(reasonLabel(s.excludeReason).toLowerCase())}.
+    Its own figures below are unaffected, and it still counts towards the PI totals.
+    Change this under <strong>Rolling ${ROLLING_WINDOW}</strong> on the sprint form.`;
+}
+
+/* Which sprints the window stepped over, and why, as one escaped phrase.
+   Exclusions are never silent in this app — every view that drops a sprint says
+   which one and why — and this one is the user's own doing, so it especially has
+   to be visible: a figure quietly resting on three sprints when the page says
+   five is the bug the rule exists to prevent. */
+function excludedNames(teamId, includeSix) {
+  const ex = excludedInRange(teamId, includeSix);
+  if (!ex.length) return '';
+  /* Grouped by reason, not one phrase per sprint: a team that re-baselined its
+     points has every sprint in the window out for the same reason, and repeating
+     the sentence four times turned the note into a wall nobody reads — which is
+     the same failure as burying it. */
+  const byReason = new Map();
+  ex.forEach(s => {
+    const r = reasonLabel(s.excludeReason).toLowerCase();
+    if (!byReason.has(r)) byReason.set(r, []);
+    byReason.get(r).push('S' + s.sprintNumber);
+  });
+  return esc([...byReason].map(([r, nums]) =>
+    nums.join(', ') + ' left out (' + r + ')').join('; '));
+}
+
+/* A line of its own under the heading, not another clause on the end of the
+   subtitle. It WAS a clause, and in practice that made it silent: it landed
+   fifth in a run-on line after the sprint span, the IP-sprint note and the
+   still-running note, which is exactly where the eye stops. A rule that is
+   technically satisfied and never read isn't satisfied. */
+function excludedLine(teamId, includeSix) {
+  const names = excludedNames(teamId, includeSix);
+  if (!names) return '';
+  return `<p class="sub exnote"><span class="badge">⚑ ${names}</span>
+    <span class="muted">Still shown in full on the Sprint and Current PI views — only these
+    averages and the capacity target skip ${excludedInRange(teamId, includeSix).length === 1
+      ? 'it' : 'them'}.</span></p>`;
+}
+
+/* The excluded sprints a team's window skipped over, for the note that names
+   them. Only ones the window would otherwise have reached: an exclusion five
+   PIs back changes nothing today and saying so would be noise. */
+function excludedInRange(teamId, includeSix) {
+  const counted = teamSprints(teamId)
+    .filter(isCounted)
+    .filter(s => includeSix || s.sprintNumber !== IP_SPRINT);
+  /* The window as it WOULD have been with nothing excluded. Anything excluded
+     inside it is a sprint the window reached over; anything older than it was
+     never going to be counted anyway, so naming it would be noise.
+
+     This used to anchor on the oldest *kept* sprint and look forward from there,
+     which made the oldest sprint the one it could never name — exclude the first
+     of four and the window quietly went from four sprints to three with nothing
+     on Rolling 5 or All teams to say so. Both views read this one function, which
+     is why both went silent together while the Sprint and Current PI views (which
+     read `s.excluded` directly, per sprint) were fine. */
+  return counted.slice(-ROLLING_WINDOW).filter(s => s.excluded);
 }
 
 /* ── Metrics ────────────────────────────────────────────────────────────────
@@ -1592,6 +1912,16 @@ const METRIC_HELP = {
       throughput, not predictability — don't commit to this number, because the break-in
       capacity it counts won't be free next time.` },
 
+  /* Capacity adjustments */
+  availability: { title: 'Team availability', target: null,
+    body: `How much of a normal sprint the team will actually have, as a percentage — for leave,
+      public holidays, a change of team or someone on call. It scales the recommendation only; the
+      history behind it is untouched.` },
+  excludedSprint: { title: 'Sprint left out', target: null,
+    body: `A sprint deliberately kept out of the rolling window because it would mislead the
+      forecast — a major incident, a re-baselining of the points, or a sprint most of the team was
+      away for. Its own figures still show everywhere else.` },
+
   /* Sprint view — still running */
   doneSoFar: { title: 'Done so far', target: null,
     body: `Committed points finished so far, out of what the team signed up for. The sprint
@@ -1649,7 +1979,9 @@ const METRIC_HELP = {
     body: `Every point across the window is added into one total and the percentage taken
       once at the end — so <em>a bigger sprint pulls harder</em> than a small one. This is the
       better read on the body of work as a whole, and it's the method the Agile Operations
-      Dashboard uses, so these are the figures that reconcile with it. ${ROLLING_WINDOW_NOTE}` },
+      Dashboard uses, so these are the figures that reconcile with it — as long as any sprint
+      you've left out of the rolling average is unselected in the Dashboard too, or it will
+      still be in their total and not in this one. ${ROLLING_WINDOW_NOTE}` },
   actualComplete: { title: 'Actual complete', target: null,
     body: `Everything delivered — break-in work included — against what was committed at the
       start. It goes above 100% when a team finished more than it signed up for, which says
@@ -1686,7 +2018,8 @@ const METRIC_HELP = {
       <em>a bigger sprint pulls harder</em> than a small one. Its committed and velocity
       figures are totals, not means. This is the better read on the body of work as a whole,
       and it's the method the <strong>Agile Operations Dashboard</strong> uses — so this is
-      the row that reconciles with what the ART reports upward.` },
+      the row that reconciles with what the ART reports upward, as long as any sprint you've
+      left out of the rolling average is unselected in the Dashboard too.` },
 
   rollVelocity: { title: 'Avg velocity', target: null,
     body: `Mean points completed per sprint across the window, break-in included. The target
@@ -1712,7 +2045,12 @@ function avg(sprints, key) {
    by side and names the difference rather than picking a winner.
 
    This is also the method the Agile Operations Dashboard uses, so these are the
-   figures that reconcile with what the ART reports upward. */
+   figures that reconcile with what the ART reports upward — but only over the same
+   set of sprints. A sprint left out of the rolling average is still in the
+   Dashboard's total until it is unselected there too, so every surface that claims
+   the reconciliation has to carry that condition when an exclusion is in force.
+   The PI view's pooled figures are unaffected: they filter on their own `closed`
+   list rather than through rollingSprints(), so they never lose a sprint this way. */
 function pooled(sprints) {
   const committed = sum(sprints, 'committed');
   const pct = (key) => (committed > 0 ? (sum(sprints, key) / committed) * 100 : null);
@@ -1792,22 +2130,50 @@ function nextSprintTarget(teamId, includeSix) {
      is 0 and never null. The percentages are the only figures that can be null. */
   const done = rs.map(s => metrics(s).committedCompleted);
   if (!done.length) return null;
-  const recommended = done.reduce((a, b) => a + b, 0) / done.length;
+  const baseRecommended = done.reduce((a, b) => a + b, 0) / done.length;
   const low = Math.min(...done), high = Math.max(...done);
   const slot = targetSprintSlot(teamId);
   const carriedIn = slot && slot.last ? num(metrics(slot.last).carriedOut) : 0;
+
+  /* The one thing the rolling window cannot know: whether the sprint being
+     planned is a normal sprint. Leave, public holidays, someone joining or
+     leaving, someone on call — none of it is visible in the history, and all of
+     it changes what the team can finish. `availability` is a plain percentage of
+     a normal sprint, applied to the OUTPUT only: the method above is untouched,
+     still the mean of committed points completed, and `baseRecommended` is kept
+     so the card can show the adjustment rather than quietly handing over a
+     different number. */
+  const av = slot ? availabilityFor(teamId, slot.piId, slot.sprintNumber)
+                  : { pct: 100, reason: null, source: null };
+  const recommended = baseRecommended * av.pct / 100;
   /* When the target is for a sprint already under way, its commitment is known —
      that turns the recommendation from a forecast into a comparison. */
   const committedAlready = slot && slot.sprint ? metrics(slot.sprint).committed : null;
 
   /* Spread relative to the mean. A team whose delivery swings widely gets a
      recommendation worth much less, and should be told so rather than handed a
-     precise-looking number. */
-  const spread = recommended > 0 ? ((high - low) / recommended) * 100 : 0;
+     precise-looking number. Measured against the UNADJUSTED mean, because it
+     describes how consistent the history was — dividing a historical range by a
+     figure knocked down for next sprint's leave would report a steady team as
+     erratic, and flip the caveat on for a reason that has nothing to do with it. */
+  const spread = baseRecommended > 0 ? ((high - low) / baseRecommended) * 100 : 0;
 
   return {
     recommended,
+    baseRecommended,
+    availability: av.pct,
+    availabilityReason: av.reason,
+    /* 'sprint' = a one-off set against this slot, 'team' = the team's standing
+       figure, null = no adjustment. The card says which, because "why is this
+       number lower than the history?" must always have a visible answer. */
+    availabilitySource: av.source,
+    adjusted: av.source !== null,
     newWork: Math.max(0, recommended - carriedIn),
+    /* Carry-over does NOT shrink when the team is away — the work is already
+       committed and comes off the top of a smaller sprint. When it fills or
+       exceeds the adjusted figure there is no room for new work at all, which is
+       the most useful thing this whole feature can tell a planning session. */
+    carryoverFills: carriedIn > 0 && carriedIn >= recommended,
     carriedIn,
     low, high, spread,
     sprints: rs.length,
@@ -2699,8 +3065,13 @@ function renderSprintView() {
              : (s.endDate ? ' It starts counting on its own once the end date passes.' : '')}`}</p>
     </div>` : ''}
 
+    ${s.excluded ? `<div class="card banner">
+      <h2>⚑ Left Out of the Rolling ${ROLLING_WINDOW}</h2>
+      <p class="sub" style="margin:0">${excludedWhy(s)}</p>
+    </div>` : ''}
+
     <div class="card">
-      <h2>${esc(team.name)} — ${esc(sprintLabel(s))}</h2>
+      <h2>${esc(team.name)} — ${esc(sprintLabel(s))}${excludedBadge(s)}</h2>
       <p class="sub">${s.startDate || s.endDate
         ? esc([s.startDate, s.endDate].filter(Boolean).join(' → ')) : 'No dates set'}</p>
       <div class="tiles">
@@ -2899,7 +3270,17 @@ function renderPiView() {
         ${countedRunning.length
           ? `the sprints being counted, including <strong>${countedRunning.map(x => 'S' + x.sprintNumber).join(', ')}</strong>
              which ${countedRunning.length === 1 ? 'is' : 'are'} still running`
-          : 'finished sprints only'}.</p>
+          : 'finished sprints only'}${
+        /* Joined onto the sentence that says what the rows cover, rather than added
+           as a second sentence after it. A ⚑ row two lines above a total it is part
+           of is a contradiction on its face, and the correction has to arrive inside
+           the same breath as the claim — not trailing after a full stop. */
+        closed.some(x => x.excluded)
+          ? ` — <strong>${closed.filter(x => x.excluded).map(x => 'S' + x.sprintNumber).join(', ')}</strong>
+             included. The ⚑ means ${closed.filter(x => x.excluded).length === 1 ? 'it is' : 'they are'}
+             held out of the rolling ${ROLLING_WINDOW} and the capacity target, which are worked out
+             on the Rolling ${ROLLING_WINDOW} tab. This PI's own figures are untouched`
+          : ''}.</p>
       <div class="tablewrap">
       <table aria-label="Sprint by sprint figures for this PI">
         <thead><tr>
@@ -2924,7 +3305,8 @@ function renderPiView() {
           return `<tr class="clickable${open ? ' open' : ''}" data-num="${n}">
             <th scope="row"><button type="button" class="rowbtn"
               aria-label="Edit sprint ${n}">Sprint ${n}${n === IP_SPRINT ? ' (IP)' : ''}</button>${
-              open ? ` <span class="badge">${STATUS_BADGE[st]} ${STATUS_TEXT[st]}</span>` : ''}</th>
+              open ? ` <span class="badge">${STATUS_BADGE[st]} ${STATUS_TEXT[st]}</span>` : ''}${
+              excludedBadge(s)}</th>
             <td>${fmtNum(m.committed)}</td>
             <td>${fmtNum(m.committedCompleted)}</td>
             <td class="metric">${open && !isCounted(s)
@@ -3007,11 +3389,25 @@ function renderRollingView() {
   const team = activeTeam();
   const includeSix = !!state.settings.includeSprint6InRolling;
   const rs = rollingSprints(team.id, includeSix);
+  /* Finished sprints exist, but every one of them is excluded — so the reason the
+     window is empty is the user's own doing, not missing data. */
+  const allExcluded = !rs.length && teamSprints(team.id)
+    .filter(isCounted).filter(x => includeSix || x.sprintNumber !== IP_SPRINT).length > 0;
 
   if (!rs.length) {
     viewsEl.innerHTML = rollingToolbar(includeSix) + `<div class="card empty">
-      <h2>${teamSprints(team.id).length ? 'No Finished Sprints Yet' : 'No Sprints Recorded Yet'}</h2>
-      <p>${teamSprints(team.id).length
+      <h2>${allExcluded ? 'Every Sprint Is Left Out'
+        : teamSprints(team.id).length ? 'No Finished Sprints Yet' : 'No Sprints Recorded Yet'}</h2>
+      <p>${allExcluded
+        /* Without this the page said "nothing finished" about a team whose sprints
+           are all finished — the emptiest state of all, blaming the data for a
+           setting the user chose. */
+        ? `${esc(team.name)} has finished sprints, but every one in range is marked
+           <strong>left out of the rolling ${ROLLING_WINDOW}</strong> —
+           ${excludedNames(team.id, includeSix)}. There is nothing left to average, so the
+           trend and the capacity target have gone with it — turn one back on under
+           <strong>Rolling ${ROLLING_WINDOW}</strong> on the sprint form.`
+        : teamSprints(team.id).length
         ? `${esc(team.name)} has ${esc(openSprintsNote(team.id))} recorded, but nothing finished — the
            trend and the capacity target start once a sprint completes.`
         : `Add some sprint data for ${esc(team.name)} and the rolling trend will build itself.`}</p>
@@ -3044,6 +3440,7 @@ function renderRollingView() {
           ? ' · includes ' + esc(rs.filter(x => sprintStatus(x) !== 'complete')
               .map(x => 'S' + x.sprintNumber).join(', ')) + ', still running' : ''}${
         openSprintsNote(team.id) ? ' · ' + esc(openSprintsNote(team.id)) + ', not counted' : ''}</p>
+      ${excludedLine(team.id, includeSix)}
       <div class="tiles">
         ${tile('Avg commitment completion', fmtPct(aCommit, 'completion'), rag(aCommit, 'completion'),
           'target ≥85%', false, 'rollCompletion')}
@@ -3075,7 +3472,11 @@ function renderRollingView() {
 
     <div class="card">
       <h2>The Numbers</h2>
-      <p class="sub">Click any sprint to edit it.</p>
+      <p class="sub">Click any sprint to edit it.${
+        excludedNames(team.id, includeSix)
+          ? ` These are the sprints in the window — <strong>${excludedNames(team.id, includeSix)}</strong>,
+             so it isn't listed here. The gap in the sprint numbers is that, not missing data.`
+          : ''}</p>
       <div class="tablewrap">
       <table aria-label="Figures for each sprint in the rolling window">
         <thead><tr><th scope="col">Sprint</th><th scope="col">Committed</th><th scope="col">Cmt. done</th>
@@ -3117,6 +3518,7 @@ function renderRollingView() {
     </div>`;
 
   wireRollingToolbar();
+  wireTargetCard(team.id, includeSix);
   wireEditRows(tr => {
     const s = state.sprints.find(x => x.id === tr.dataset.id);
     openSprint(s.teamId, s.piId, s.sprintNumber);
@@ -3207,7 +3609,11 @@ function targetCapacityCard(team, includeSix) {
   const slotName = t.slot && t.slot.piId
     ? esc(piById(t.slot.piId).name) + ' · S' + t.slot.sprintNumber
     : 'the next sprint';
-  const overCommitting = t.avgCommitted !== null && t.avgCommitted - t.recommended >= 1;
+  /* Against the UNADJUSTED mean throughout this card's prose, wherever the
+     sentence is about what the team has been finishing. Only the recommendation
+     itself moves with availability; "they finish about X" is a fact about the
+     history and reading the adjusted figure there states it wrongly. */
+  const overCommitting = t.avgCommitted !== null && t.avgCommitted - t.baseRecommended >= 1;
 
   const caveats = [];
   if (t.thin)
@@ -3220,6 +3626,34 @@ function targetCapacityCard(team, includeSix) {
   if (t.isIpSprint)
     caveats.push(`Sprint ${IP_SPRINT} is the innovation &amp; planning sprint — this figure is a delivery
       estimate, so scale it down for whatever IP work is planned.`);
+  /* The carryover doesn't shrink when the team does, so a big adjustment can
+     leave no room at all for new work. Actionable at the planning session, and
+     invisible without saying it. */
+  if (t.carryoverFills)
+    caveats.push(`The ${fmtNum(t.carriedIn)} points already carried over fill this whole figure, so
+      there is no room to pull in new work — worth deciding deliberately what gives.`);
+
+  /* The adjustment is never allowed to be a silent change to the number. The
+     badge says one is in force, the tile foot says what it was before, and this
+     spells out which of the two levers set it. */
+  const adjustBadge = t.adjusted
+    ? ` <span class="badge">⚑ Adjusted to ${t.availability}%</span>` : '';
+  const adjustExplain = t.adjusted
+    ? `<p><strong>This figure has been adjusted.</strong> The last ${t.sprints} sprint${
+        t.sprints === 1 ? '' : 's'} point to <strong>${fmtNum(Math.round(t.baseRecommended))}</strong>
+       points, but ${esc(team.name)} is set to <strong>${t.availability}%</strong> availability${
+        t.availabilityReason ? ' — ' + esc(reasonLabel(t.availabilityReason).toLowerCase()) : ''}, which
+       brings it to <strong>${fmtNum(Math.round(t.recommended))}</strong>. ${
+        t.availabilitySource === 'team'
+          ? 'That is the team\u2019s standing figure, so it applies to every sprint until it is changed.'
+          : 'That applies to this sprint only.'} The history itself is untouched — only the
+       recommendation moves.</p>`
+    : '';
+  /* Worth asking even of someone who never opens the dialog: this is the
+     question the numbers structurally cannot answer for themselves. */
+  const adjustPrompt = (t.adjusted || viewOnly) ? '' :
+    `Known leave, public holidays or a change of team next sprint? The history can't see any of
+     that — record it with <strong>Adjust capacity</strong> so it isn't lost between now and planning.`;
 
   /* An over-commitment on a sprint already running is the one finding here that's
      still actionable — there's time to descope rather than carry it over. */
@@ -3227,13 +3661,19 @@ function targetCapacityCard(team, includeSix) {
   const under = t.overBy !== null && Math.round(t.overBy) <= -1;
 
   return `<div class="card">
-    <h2>Target Capacity for ${slotName}${t.inFlight ? ' <span class="badge">◐ In progress</span>' : ''}</h2>
+    <div class="row spread cardhead">
+      <h2>Target Capacity for ${slotName}${
+        t.inFlight ? ' <span class="badge">◐ In progress</span>' : ''}${adjustBadge}</h2>
+      ${t.slot && t.slot.piId && !viewOnly
+        ? '<button class="btn small" id="adjustBtn" type="button">Adjust capacity</button>' : ''}
+    </div>
     <p class="sub">What ${esc(team.name)} can realistically commit to, based on their last
       ${t.sprints} finished sprint${t.sprints === 1 ? '' : 's'}.${
       t.hasCommitment ? ' This sprint is already under way, so compare it with what they signed up for.' : ''}</p>
     <div class="tiles">
       ${tile('Recommended commitment', fmtNum(Math.round(t.recommended)), null,
-        'story points', true)}
+        t.adjusted ? `story points · ${t.availability}% of ${fmtNum(Math.round(t.baseRecommended))}`
+                   : 'story points', true)}
       ${t.hasCommitment ? tile('Actually committed', fmtNum(t.committedAlready),
         over ? 'red' : under ? 'yellow' : 'green',
         over ? `${fmtNum(Math.round(t.overBy))} more than the suggestion`
@@ -3249,10 +3689,11 @@ function targetCapacityCard(team, includeSix) {
     <details class="datatable" style="margin-top:16px">
       <summary>How This Is Worked Out</summary>
       <div class="explain">
+        ${adjustExplain}
         <p>Over the last ${t.sprints} sprint${t.sprints === 1 ? '' : 's'},
-          ${esc(team.name)} finished an average of <strong>${fmtNum(t.recommended)}</strong> of the points
+          ${esc(team.name)} finished an average of <strong>${fmtNum(t.baseRecommended)}</strong> of the points
           they committed to. That is the amount of commitment they have actually been able to deliver,
-          so that is the recommendation.</p>
+          so that is ${t.adjusted ? 'where the recommendation starts' : 'the recommendation'}.</p>
         <p>Their average <em>velocity</em> is higher —
           <strong>${fmtNum(t.avgVelocity)}</strong> points — but committing to that would over-commit them.
           Velocity counts the break-in work that turns up mid-sprint, and if that capacity is booked out in
@@ -3264,18 +3705,27 @@ function targetCapacityCard(team, includeSix) {
              <strong>${fmtNum(Math.round(t.newWork))}</strong> points of new work to pull off the backlog.`
           : 'Nothing was carried over from the last sprint, so the whole commitment is new work.'}</p>
         ${over ? `<p><strong>This sprint they committed to
-          ${fmtNum(t.committedAlready)}</strong>, about ${fmtNum(Math.round(t.overBy))} more than the
-          last ${t.sprints} sprint${t.sprints === 1 ? '' : 's'} suggest they finish. There is still time
+          ${fmtNum(t.committedAlready)}</strong>, about ${fmtNum(Math.round(t.overBy))} more than ${
+          t.adjusted ? 'this sprint\u2019s adjusted target' :
+          `the last ${t.sprints} sprint${t.sprints === 1 ? '' : 's'} suggest they finish`}. There is still time
           to pull something out deliberately, which is a better outcome than carrying it over
           unplanned at the end.</p>` : ''}
         ${overCommitting && !over ? `<p>For context, they have been committing to
           <strong>${fmtNum(t.avgCommitted)}</strong> points a sprint on average — about
-          <strong>${fmtNum(Math.round(t.avgCommitted - t.recommended))}</strong> more than they finish.
+          <strong>${fmtNum(Math.round(t.avgCommitted - t.baseRecommended))}</strong> more than they finish.
           Committing closer to the figure above is what moves commitment completion towards the 85% target.</p>` : ''}
       </div>
     </details>
     ${caveats.length ? `<p class="sub" style="margin:14px 0 0">⚠ ${caveats.join(' ')}</p>` : ''}
+    ${adjustPrompt ? `<p class="sub" style="margin:14px 0 0">${adjustPrompt}</p>` : ''}
   </div>`;
+}
+
+/* The card is rebuilt by innerHTML on every render, so its one button is wired
+   from the view that drew it, the same way the rolling toggles are. */
+function wireTargetCard(teamId, includeSix) {
+  const b = document.getElementById('adjustBtn');
+  if (b) b.onclick = () => openAdjust(teamId, includeSix);
 }
 
 function rollingToolbar(includeSix) {
@@ -3396,7 +3846,11 @@ function renderTeamsView() {
       /* Same sprints, the other average — so the two tables can only ever differ
          by method, never by which sprints they looked at. */
       pool: pooled(rs),
-      target: nextSprintTarget(t.id, includeSix)
+      target: nextSprintTarget(t.id, includeSix),
+      /* This view had no sign of an exclusion at all: a team's sprint count simply
+         came up short and nothing on the page said why. It is the view where that
+         matters most — it is the one people screenshot for a portfolio meeting. */
+      excluded: excludedInRange(t.id, includeSix)
     };
   });
   const withData = rowsData.filter(r => r.count > 0);
@@ -3443,11 +3897,51 @@ function renderTeamsView() {
      no labels is just an order nobody can account for. It goes once the picker has
      narrowed the page to a single ART — repeating the same name down every row is
      noise — and never appears at all until an ART exists. */
+  /* A glyph plus a spoken sentence, never a colour: a target reduced for leave
+     has to be distinguishable from one that came straight off the history, and
+     this table's numbers are the ones that get read out in a portfolio meeting. */
+  const adjustTag = (t) => t && t.adjusted
+    ? ` <span aria-hidden="true">⚑</span><span class="sr-only">, adjusted to ${t.availability}% availability</span>`
+    : '';
+
+  /* On the sprint COUNT, because that is the figure the exclusion moved. Glyph
+     plus a spoken sentence, the same treatment as the adjusted-target marker. */
+  const excludedTag = (r) => r.excluded.length
+    ? ` <span aria-hidden="true">⚑</span><span class="sr-only">, ${r.excluded.length} sprint${
+        r.excluded.length === 1 ? '' : 's'} left out of the rolling ${ROLLING_WINDOW}</span>`
+    : '';
+
+  /* The reconciliation claim on Comparison 2 is unconditional wherever nothing is
+     excluded, and stops being true the moment something is: a sprint left out here
+     is still in the Dashboard's total unless it is unselected there too, so the two
+     no longer meet. Naming the sprint rather than hedging, because the reader has to
+     go and do something about it in another tool. */
+  const dashboardCondition = (rows) => {
+    const nums = [...new Set(rows.flatMap(r => r.excluded.map(x => x.sprintNumber)))].sort((a, b) => a - b);
+    if (!nums.length) return null;
+    const what = nums.length <= 3 ? nums.map(n => 'S' + n).join(', ') : 'those sprints';
+    return { what, isAre: nums.length === 1 ? 'is' : 'are' };
+  };
+
+  /* Named per team under the heading, because the chart on this card is drawn
+     from these same windows: a bar sitting lower than the reader expects, with
+     nothing anywhere on the page to say a sprint was taken out of it, is exactly
+     the silent exclusion the rule forbids. */
+  const excludedTeamsLine = (rows) => {
+    const hit = rows.filter(r => r.excluded.length);
+    if (!hit.length) return '';
+    return `<p class="sub exnote"><span class="badge">⚑ Sprints left out</span>
+      <span class="muted">${hit.map(r => `${esc(r.team.name)} — ${excludedNames(r.team.id, includeSix)}`)
+        .join('; ')}. They still count on the Sprint and Current PI views.</span></p>`;
+  };
+
   const artTag = (team) => {
     if (!state.arts.length || filtered) return '';
     const on = team.artId ? artById(team.artId) : null;
     return `<span class="artname">${on ? esc(on.name) : 'No ART'}</span>`;
   };
+
+  const dashCond = dashboardCondition(rowsData);
 
   viewsEl.innerHTML = artToolbar(shown.length, hiddenCount) + rollingToolbar(includeSix) + `
     <div class="card">
@@ -3460,6 +3954,7 @@ function renderTeamsView() {
         ${anyOpen === 1 ? 'is' : 'are'} not counted` : ''}.
         ${withData.length ? 'The chart plots the average-of-sprints figure from Comparison 1 below.'
           : 'No team has a finished sprint yet.'}</p>
+      ${excludedTeamsLine(rowsData)}
       ${withData.length ? `<div class="chartbox"><canvas id="teamsChart" role="img"
         aria-label="Average commitment completion percentage by team, averaged across sprints, against the 85 percent target. Figures in the Comparison 1 table below."></canvas></div>` : ''}
     </div>
@@ -3470,7 +3965,10 @@ function renderTeamsView() {
         <strong>every sprint counts equally</strong> whatever its size. This is the read on how a
         typical sprint goes for the team. Click a team to switch to it. <strong>Next sprint
         target</strong> is the commitment each team can realistically take on — see the Rolling 5
-        view for the working.</p>
+        view for the working. A ⚑ on <strong>Sprints</strong> means a sprint was left out of the
+        average — named under the heading above; a ⚑ on <strong>Next sprint target</strong> means
+        that figure was adjusted for known availability, and the total below includes those
+        adjustments.</p>
       <div class="tablewrap">
       <table aria-label="Comparison 1 — each team averaged across its sprints">
         <thead><tr><th scope="col">Team</th><th scope="col">Sprints</th><th scope="col" class="metric">Commitment completion</th>
@@ -3480,13 +3978,13 @@ function renderTeamsView() {
         <tbody>${rowsData.map(r => `<tr class="clickable" data-id="${esc(r.team.id)}">
           <th scope="row"><button type="button" class="rowbtn"
             aria-label="Switch to ${esc(r.team.name)}">${esc(r.team.name)}</button>${artTag(r.team)}</th>
-          <td>${r.count}</td>
+          <td>${r.count}${excludedTag(r)}</td>
           <td class="metric">${pill(r.commit, 'completion')}</td>
           <td class="metric">${pill(r.breakIn, 'churn')}</td>
           <td class="metric">${pill(r.removed, 'churn')}</td>
           <td class="metric">${pill(r.carry, 'churn')}</td>
           <td>${fmtNum(r.vel)}</td>
-          <td>${r.target ? '<strong>' + fmtNum(Math.round(r.target.recommended)) + '</strong>' : '—'}</td></tr>`).join('')}</tbody>
+          <td>${r.target ? '<strong>' + fmtNum(Math.round(r.target.recommended)) + '</strong>' + adjustTag(r.target) : '—'}</td></tr>`).join('')}</tbody>
         <tfoot><tr>
           <th scope="row">${scopeLabel}</th><td>${allMean.count}</td>
           <td class="metric">${pill(allMean.commit, 'completion')}</td>
@@ -3501,12 +3999,16 @@ function renderTeamsView() {
 
     <div class="card">
       <h2>Comparison 2 — Pooled Totals${helpBtn('teamsPooled', 'the pooled-totals method')}
-        <span class="tag">matches the Agile Operations Dashboard</span></h2>
+        <span class="tag${dashCond ? ' cond' : ''}">matches the Agile Operations Dashboard${
+          dashCond ? ` when ${dashCond.what} ${dashCond.isAre} unselected there too` : ''}</span></h2>
       <p class="sub">Every point added into one total first, then the percentage taken once, so
         <strong>a bigger sprint pulls harder</strong> than a small one. This is the read on how the
         body of work as a whole went — and it's the method the <strong>Agile Operations
         Dashboard</strong> uses, so these are the figures that reconcile with what the ART reports
-        upward. Same sprints as the table above; only the arithmetic differs.</p>
+        upward. Same sprints as the table above; only the arithmetic differs.${
+        dashCond ? ` Because <strong>${dashCond.what}</strong> ${dashCond.isAre} left out here, the two
+          only line up if ${dashCond.isAre === 'is' ? 'it is' : 'they are'} unselected in the Dashboard
+          as well — otherwise it is still in their total and not in this one.` : ''}</p>
       <div class="tablewrap">
       <table aria-label="Comparison 2 — each team's points pooled into one total">
         <thead><tr><th scope="col">Team</th><th scope="col">Sprints</th><th scope="col">Committed</th><th scope="col">Cmt. done</th>
@@ -3517,7 +4019,7 @@ function renderTeamsView() {
         <tbody>${rowsData.map(r => `<tr class="clickable" data-id="${esc(r.team.id)}">
           <th scope="row"><button type="button" class="rowbtn"
             aria-label="Switch to ${esc(r.team.name)}">${esc(r.team.name)}</button>${artTag(r.team)}</th>
-          <td>${r.count}</td>
+          <td>${r.count}${excludedTag(r)}</td>
           <td>${fmtNum(r.pool.committed)}</td>
           <td>${fmtNum(r.pool.committedCompleted)}</td>
           <td class="metric">${pill(r.pool.commitCompletePct, 'completion')}</td>
@@ -3552,8 +4054,10 @@ function renderTeamsView() {
         <p><strong>Which to use.</strong> Comparison 1 for coaching a team — it describes the
           habit, and one outsized sprint can't drown out the rest. Comparison 2 for reporting
           upward — it describes the actual body of work, and it's what the Agile Operations
-          Dashboard shows, so it's the one that will reconcile. Neither is a correction of the
-          other.</p>
+          Dashboard shows, so it's the one that will reconcile${
+          dashCond ? `, provided <strong>${dashCond.what}</strong> ${dashCond.isAre} unselected there
+          the way ${dashCond.isAre === 'is' ? 'it is' : 'they are'} left out here` : ''}.
+          Neither is a correction of the other.</p>
         <p>Each table's <strong>${scopeLabel}</strong> row applies that table's own method across
           ${filtered ? 'every team the ART filter leaves' : 'every team'} at once, rather than
           averaging the rows above it — which is why neither
@@ -3646,7 +4150,21 @@ function closeOnBackdropClick(dlg) {
 
 /* Every dialog except the sync reconciliation one, which deliberately refuses to
    be dismissed — picking which copy of your data to keep has to be a choice. */
-['sprintDialog', 'manageDialog', 'dataDialog', 'clearDialog', 'helpDialog'].forEach(id => closeOnBackdropClick(F(id)));
+['sprintDialog', 'manageDialog', 'dataDialog', 'clearDialog', 'helpDialog', 'adjustDialog'].forEach(id => closeOnBackdropClick(F(id)));
+
+/* Fill a reason <select> from the fixed code list. The label comes from REASONS
+   and never from the stored value, so a code that arrived in a share link can
+   only ever render as one of the sentences written in this file. */
+function fillReasons(sel, codes, chosen) {
+  sel.innerHTML = codes.map(c =>
+    `<option value="${esc(c)}"${c === chosen ? ' selected' : ''}>${esc(REASONS[c])}</option>`).join('');
+  if (!codes.includes(chosen)) sel.value = codes[0];
+}
+
+/* The reason only means anything while the exclusion is on. */
+function syncExcludeReason() {
+  F('f_excludeReason').disabled = !F('f_excluded').checked;
+}
 
 function openSprint(teamId, piId, sprintNumber) {
   const existing = findSprint(teamId, piId, sprintNumber);
@@ -3675,6 +4193,10 @@ function openSprint(teamId, piId, sprintNumber) {
   F('f_totalCompleted').dataset.touched = existing && existing.totalCompleted != null ? '1' : '';
 
   F('f_status').value = s.status || 'auto';
+
+  F('f_excluded').checked = !!s.excluded;
+  fillReasons(F('f_excludeReason'), EXCLUDE_REASONS, s.excludeReason);
+  syncExcludeReason();
 
   maybePrefillCarriedIn();
   maybePrefillDates();
@@ -3716,7 +4238,12 @@ function updateStatusHint() {
   } else {
     el.textContent = `Set by hand to ${STATUS_TEXT[st].toLowerCase()}`
       + (st === 'complete' ? ' — counted in your averages.'
-                           : ' — not counted in your averages until you change this.');
+                           : ' — not counted in your averages until you change this.')
+      /* Setting a finished sprint back to planned was the only way to keep a bad
+         one out of the forecast, and it misrepresents the sprint in every other
+         view. Point at the control that does the job properly. */
+      + (st !== 'complete' ? ' To keep a finished sprint out of the forecast only,'
+                           + ' use Rolling 5 below instead.' : '');
   }
 }
 
@@ -4079,7 +4606,14 @@ function buildSprintRecord() {
     removed: val('f_removed'),
     carriedIn: val('f_carriedIn'),
     carriedOut: val('f_carriedOut'),
-    addedThenRemoved: val('f_addedThenRemoved')
+    addedThenRemoved: val('f_addedThenRemoved'),
+    /* Written here, not just read in openSprint(), because this function rebuilds
+       the WHOLE record — a stored field without a line of its own is dropped the
+       next time the sprint is edited or a Jira paste is applied. That is exactly
+       what `addedThenRemoved` needed its own input for. The reason rides along
+       only while the exclusion is on, so turning it off leaves nothing behind. */
+    excluded: F('f_excluded').checked,
+    excludeReason: F('f_excluded').checked ? F('f_excludeReason').value : 'other'
   };
 }
 
@@ -4184,6 +4718,111 @@ F('sprintCancelBtn').onclick = () => {
   sprintDialog.close();
 };
 
+F('f_excluded').onchange = syncExcludeReason;
+
+/* ── The Adjust Capacity dialog ─────────────────────────────────────────────
+   Opened from the Target Capacity card, and aimed at whichever slot that card is
+   already talking about — there is no slot picker, because the card and the
+   dialog must never be able to disagree about which sprint is being planned. */
+let adjusting = null;     // { teamId, piId, sprintNumber, base }
+
+function openAdjust(teamId, includeSix) {
+  const t = nextSprintTarget(teamId, includeSix);
+  if (!t || !t.slot || !t.slot.piId) return;
+  const { piId, sprintNumber } = t.slot;
+  adjusting = { teamId, piId, sprintNumber, base: t.baseRecommended };
+
+  F('adjustTitle').textContent =
+    `Adjust Capacity — ${piById(piId).name} · Sprint ${sprintNumber}`;
+  F('adjustSub').textContent = `${teamById(teamId).name} would normally be recommended ` +
+    `${fmtNum(Math.round(t.baseRecommended))} story points. Say how available the team will be and ` +
+    `the recommendation moves with it.`;
+
+  F('a_pct').value = t.availability;
+  fillReasons(F('a_reason'), AVAILABILITY_REASONS, t.availabilityReason);
+  F('a_keep').checked = t.availabilitySource === 'team';
+  F('adjustRemoveBtn').hidden = !t.adjusted;
+  updateAdjustPreview();
+  adjustDialog.showModal();
+}
+
+/* Reads the box the same way the whitelist will, so the preview can't promise a
+   figure the boundary would then clamp to something else. */
+function adjustPct() {
+  const n = Math.round(parseFloat(F('a_pct').value) || 0);
+  return Math.min(200, Math.max(0, n));
+}
+
+function updateAdjustPreview() {
+  if (!adjusting) return;
+  const pct = adjustPct();
+  const base = Math.round(adjusting.base);
+  const now = Math.round(adjusting.base * pct / 100);
+  F('adjustPreview').textContent = pct === 100
+    ? `No adjustment — the recommendation stays at ${fmtNum(base)} story points.`
+    : `Recommended commitment ${fmtNum(base)} → ${fmtNum(now)} story points.`;
+}
+
+F('a_pct').oninput = updateAdjustPreview;
+adjustDialog.querySelectorAll('[data-pct]').forEach(b => b.onclick = () => {
+  F('a_pct').value = b.dataset.pct;
+  updateAdjustPreview();
+});
+
+F('adjustCancelBtn').onclick = () => adjustDialog.close();
+
+/* Every write goes through here so the two homes can never both hold a figure
+   for the same slot: a standing change clears the one-off, and a one-off clears
+   the standing figure only when it is being turned off altogether. */
+F('adjustSaveBtn').onclick = () => {
+  if (!adjusting) return;
+  const { teamId, piId, sprintNumber } = adjusting;
+  const pct = adjustPct();
+  const reason = F('a_reason').value;
+  const team = teamById(teamId);
+  const drop = () => {
+    state.plans = state.plans.filter(pl =>
+      !(pl.teamId === teamId && pl.piId === piId && pl.sprintNumber === sprintNumber));
+  };
+
+  if (F('a_keep').checked) {
+    drop();                       // a standing figure supersedes the one-off
+    if (pct === 100) { delete team.availability; delete team.availabilityReason; }
+    else { team.availability = pct; team.availabilityReason = reason; }
+  } else if (pct === 100) {
+    /* Back to normal for this sprint only. If a standing figure is what was
+       making it abnormal, saying "100% this sprint" has to be recorded as a
+       one-off or the standing figure would simply reapply on the next render. */
+    const standing = team && typeof team.availability === 'number' && team.availability !== 100;
+    drop();
+    if (standing) state.plans.push({ id: uid(), teamId, piId, sprintNumber, availability: 100, reason });
+  } else {
+    drop();
+    state.plans.push({ id: uid(), teamId, piId, sprintNumber, availability: pct, reason });
+  }
+
+  save();
+  adjustDialog.close();
+  render();
+  toast(pct === 100 && !F('a_keep').checked ? 'Adjustment removed' : 'Capacity adjusted');
+};
+
+F('adjustRemoveBtn').onclick = () => {
+  if (!adjusting) return;
+  const { teamId, piId, sprintNumber } = adjusting;
+  const team = teamById(teamId);
+  state.plans = state.plans.filter(pl =>
+    !(pl.teamId === teamId && pl.piId === piId && pl.sprintNumber === sprintNumber));
+  /* Remove means remove — a one-off sitting on top of a standing figure would
+     otherwise "remove" back to the standing figure, which reads as the button
+     not working. Both go. */
+  if (team) { delete team.availability; delete team.availabilityReason; }
+  save();
+  adjustDialog.close();
+  render();
+  toast('Adjustment removed');
+};
+
 F('sprintSaveBtn').onclick = () => {
   const record = buildSprintRecord();
   if (slotClash(record)) {
@@ -4278,6 +4917,7 @@ function renderManage() {
     if (!confirm(`Delete ${t.name}${n ? ` and its ${n} sprint${n === 1 ? '' : 's'} of data` : ''}? This can’t be undone.`)) return;
     state.teams = state.teams.filter(x => x.id !== t.id);
     state.sprints = state.sprints.filter(s => s.teamId !== t.id);
+    state.plans = state.plans.filter(p => p.teamId !== t.id);
     if (state.settings.activeTeamId === t.id)
       state.settings.activeTeamId = state.teams[0] ? state.teams[0].id : null;
     save(); renderManage(); render();
@@ -4318,6 +4958,7 @@ function renderManage() {
     if (!confirm(`Delete ${p.name}${n ? ` and its ${n} sprint${n === 1 ? '' : 's'} of data (all teams)` : ''}? This can’t be undone.`)) return;
     state.pis = state.pis.filter(x => x.id !== p.id);
     state.sprints = state.sprints.filter(s => s.piId !== p.id);
+    state.plans = state.plans.filter(pl => pl.piId !== p.id);
     if (state.settings.activePiId === p.id) state.settings.activePiId = null;
     save(); renderManage(); render();
   });
@@ -4607,6 +5248,13 @@ function buildSharePayload({ teamIds, includeAllTeams, scope }) {
     arts: state.arts.filter(a => usedArts.has(a.id)),
     pis: state.pis.filter(p => usedPis.has(p.id)),
     sprints,
+    /* The planned adjustments for the teams and PIs that made it through, so the
+       recipient's Target Capacity card shows the same figure the sender is looking
+       at — without them a shared link would quietly disagree with the screen it
+       came from. Nothing identifying travels: a plan is two ids, two numbers and
+       one of the fixed reason codes. Teams carry their standing figure in the
+       `teams` list above for the same reason. */
+    plans: state.plans.filter(pl => teams.some(t => t.id === pl.teamId) && usedPis.has(pl.piId)),
     /* Numbers only, and undefined on a full history so JSON.stringify drops the key
        entirely. The recipient's banner is built from these two figures rather than
        from a sentence the sender wrote, so a hand-edited link has no text to inject. */
@@ -5149,7 +5797,7 @@ if (viewOnly) {
    calls the pure functions). Function declarations are already reachable as
    window properties; this exposes the consts the tests need. Nothing in the
    app reads it. */
-window.__svTestHooks = { fmtPct, ART_NONE, b64urlEncode };
+window.__svTestHooks = { fmtPct, ART_NONE, b64urlEncode, REASONS, AVAILABILITY_REASONS, EXCLUDE_REASONS, isCounted };
 </script>
 
 <script type="module">

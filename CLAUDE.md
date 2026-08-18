@@ -88,6 +88,21 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   other. Rolling 5 deliberately keeps its **tiles on `avg()` only** — a fuller pooled
   treatment there (extra tile cards, a worked-example note) was built and rejected as too
   much for the view, so don't rebuild it.
+- **The `REASONS` labels are short because they are `<option>` text on a phone.** A 375px
+  screen leaves about 210px inside the control; the first draft ran to 267px ("Training,
+  conference or company event"), so the longest reasons were cut off in the CLOSED select —
+  the one place the chosen reason has to be readable. Widening the field fixed the desktop
+  and could not fix the phone, so the labels themselves had to fit; `#adjustDialog
+  .grid-fields` also gives the reason the room the percentage box doesn't need. They double
+  as the tail of a sentence ("S1 left out (a major incident)"), so keep any new one a phrase,
+  not a clause, and re-measure against ~210px.
+- **`.badge`'s `margin-left: 6px` is for a badge that FOLLOWS text, and `.badge:first-child`
+  zeroes it.** Four of the six badge sites sit after something — a sprint name in a table row,
+  a card heading — and want the gap. The two "left out" notes on Rolling 5 and All teams open
+  their own line, where the same 6px pushed the pill out of line with the heading and
+  sub-heading stacked directly above it: the one element on the card meant to catch the eye
+  was the only thing not aligned. Same trap as the `.tile-help` spacing rule below — a margin
+  written for one position is wrong in the other.
 - **Help buttons (`helpBtn`) need breathing room**: `.tile-help` carries `margin-left: 7px`,
   zeroed inside `.tile .label` (a flex row that already pins it right). `td:has(.tile-help)`
   is `nowrap` so a wrapping label can't orphan the circle onto a line of its own. This is a
@@ -156,6 +171,84 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   deliberately *not* mean velocity — velocity includes break-in, so committing to it
   over-commits the team. Don't "improve" it into a velocity-based figure; the reasoning is
   in the comment above the function and in the card's "How this is worked out".
+- **Availability scales the OUTPUT and never the method.** The window still averages
+  committed points completed; `baseRecommended` is that mean and `recommended` is it times
+  the percentage. Two levers, deliberately not one: a `plans` entry is a one-off against a
+  slot, `team.availability` is the standing figure for a lasting change like someone joining
+  or leaving. **The slot entry wins outright — they never multiply.** 80% of 90% is not a
+  figure anyone can hold in their head at planning, and the card has to be able to say
+  plainly which one is in force. Don't model headcount, working days or per-person
+  availability: that is people data on a shared origin, it breaks the numbers-and-dates rule
+  below, and points-per-head is a bad model anyway. One dimensionless figure is the whole
+  design.
+- **Everything on the capacity card that describes the PAST reads `baseRecommended`.**
+  "They finished an average of X", `overCommitting`, the average-velocity comparison —
+  those are facts about the history and the adjusted figure states them wrongly. Only the
+  recommendation, `newWork` and `overBy` move with availability, and `spread`/`steady` stay
+  on the base too or a team knocked down for leave reads as erratic for no reason. This was
+  a real bug in the first cut: the card said the team "finished an average of 19.2" when the
+  sprints said 24.
+- **Carry-over does not shrink with the team.** `carryoverFills` exists because work already
+  carried in comes off the top of a smaller sprint, so a big adjustment can leave no room for
+  new work at all. It's the most actionable thing the feature surfaces — keep it visible.
+- **`plans` is the second collection with orphan handling**, and it follows `sprints`
+  exactly: id remapping first, orphan drop after (never before), the count joining
+  `sanitizeIds.dropped` so `orphanNote()` reports both together. It also **de-duplicates by
+  slot** — a second entry for one slot is invisible on screen and would outlive "Remove
+  adjustment", which reads as the button not working. Delete Team and Delete PI filter it
+  alongside `state.sprints`.
+- **A sprint is excluded from the forecast with `excluded`, not by faking its status.**
+  Setting a finished sprint to `planned` was the only way to do this before and it
+  misrepresents the sprint in every other view; `updateStatusHint()` now points at the real
+  control. The filter lives in `rollingSprints()` beside the IP-sprint rule so all three
+  callers agree. **The never-silent rule applies to the user's own exclusions most of all,
+  and it means every page the sprint appears on, not one of them**: the first cut only put a
+  clause on the end of the Rolling 5 subtitle — fifth in a run-on line, after the sprint
+  span, the IP note and the still-running note — and Charles's verdict was that it wasn't
+  clear anywhere. A rule technically satisfied and never read is not satisfied. The five
+  sites are the Sprint view (its own banner via `excludedWhy()`, plus `excludedBadge()` on
+  the heading), the sprint picker (`sprintPickerNote()`), the Current PI row and caption,
+  the Rolling 5 heading (`excludedLine()`) and its numbers-table caption, and both All teams
+  comparison tables (`excludedTag()`) plus `excludedTeamsLine()` above the chart drawn from
+  those same windows. **Say what it does NOT touch too** — the PI totals still count an
+  excluded sprint, and a reader who sees a ⚑ will otherwise assume they don't.
+  **`excludedInRange()` is `counted.slice(-ROLLING_WINDOW).filter(excluded)` — the window as
+  it WOULD have been with nothing excluded — and it must stay that shape.** It first anchored
+  on the oldest *kept* sprint and looked forward from there, which by construction made the
+  oldest sprint the one it could never name: exclude the first of four and the window went
+  from four sprints to three with nothing on Rolling 5 or All teams to say so, while Sprint
+  and Current PI (which read `s.excluded` per sprint) were fine. Both window-based views read
+  this one function, so both went silent together — if a report says "it shows in some views
+  and not others", this is the seam. Pinned by the oldest-sprint test in tests.html.
+  **The Agile Operations Dashboard reconciliation claim is now CONDITIONAL wherever an
+  exclusion can reach it.** A sprint left out here is still in the Dashboard's total until it
+  is unselected there too, so "matches the Agile Operations Dashboard" becomes "…when S1 is
+  unselected there too" — the tag on Comparison 2 (which gains `.tag.cond` so a sentence can
+  wrap where a two-word label never had to), its `.sub`, the `methodnote`, and the
+  `teamsPooled` / `rollPooledRow` help. **The PI view's claims stay unconditional and must**:
+  it filters on its own `closed` list rather than through `rollingSprints()`, so it never
+  loses a sprint this way. That asymmetry is pinned by a test — if the PI view ever starts
+  reading the window, `piTotalRow` and `piCommitCompletion` become wrong too.
+  **Never call the window "the average" in an exclusion label — name it "the rolling N".**
+  The badge first read "⚑ Left out of the average", which on the Current PI table sits two
+  rows above a summary line literally called **Average per sprint** that counts the sprint in
+  full. Charles's reaction was "is it left out or not on the PI tab?" — the badge and the
+  table it was in read as a flat contradiction. "The rolling N" is the app's own name for the
+  window (the tab is Rolling 5, the in-flight banner already used it) and can't collide with
+  a PI average; the sprint form's fieldset is named the same, so the pointer and the control
+  match. Where a correction is needed it goes INSIDE the sentence making the claim ("finished
+  sprints only — S1 included"), never as a second sentence after the full stop; trailing
+  corrections arrive after the reader has already believed the badge.
+  **⚑ now means two things in the All teams table** — sprints left out on the Sprints
+  column, capacity adjusted on the Next sprint target column — so the caption spells out
+  which is which; don't add a third use without doing the same. `excluded` and
+  `excludeReason` are written by `buildSprintRecord()`, not merely read by `openSprint()`:
+  that function rebuilds the whole record, so a field without a form input is dropped on the
+  next edit (the `addedThenRemoved` lesson).
+- **A card heading that shares its line with a control needs `.row.cardhead`.** `.card > h2`
+  stops matching once the heading sits inside a flex row, and it silently falls back to the
+  browser's default h2 — half again the size of every other heading on the page. The class
+  restores the treatment and carries the 4px the heading's own margin contributed.
 - RAG state must never be conveyed by colour alone — tiles and pills carry a glyph and an
   `sr-only` status. Every theme is WCAG AA on the figures; keep them that way.
 - **A RAG surface is a tint fill plus a status-colour edge, everywhere** — `.tile`, `.pill` and
@@ -349,7 +442,14 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   `undefined` — the Firestore rule below. **A new stored field must be added to the
   `keepKnown` spec or it will be silently stripped** — that's the point, and the same-named
   test in tests.html pins it. The only free-text left is the short team/ART/PI names. The
-  sprint form's one disclosure is `#jiraBlock`, closed on every `openSprint()`. Sibling
+  sprint form's one disclosure is `#jiraBlock`, closed on every `openSprint()`.
+  **The capacity levers' reason codes are a fixed enum (`REASONS`) and must never become a
+  text box.** "Why did we drop that sprint?" is the obvious place for someone to reach for
+  free text later, and it is exactly where a ticket key or a colleague's name would ride into
+  the cloud. The `'reason'` kind in `keepKnown()` pins the value to the list and an unknown
+  code becomes `'other'`; labels render from the map, never from the stored value. The
+  `'pct'` kind clamps 0–200 rather than merely checking finiteness, because the figure
+  MULTIPLIES the recommendation and an unbounded one would put nonsense on the planning card. Sibling
   rule in Flow Metrics: `cleanWorkType()` + `normalizeSettings`' whitelist.
 - **Paste from Jira:** `parseJiraSprintReport()` / `deriveFromJira()` are pure functions on
   text — no DOM, no network, nothing saved (the saving happens in `applyJiraNumbers()`, further
