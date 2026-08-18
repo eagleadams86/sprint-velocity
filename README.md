@@ -469,7 +469,34 @@ Two kinds of change, and the tick box is the difference:
 
 A one-off set against a particular sprint always wins over the standing figure — they
 never multiply, so the number on the card is always one you can reason about. **Remove
-adjustment** clears both.
+adjustment** clears both, along with any sprint scaling (below).
+
+### Scaling a Sprint the Team Has Outgrown
+
+Sometimes the problem isn't next sprint — it's that one sprint in the window was produced
+by a different team. Say sprint 1 ran with three people and a fourth has since joined
+permanently: S1's result now drags the recommendation down for as long as it stays in the
+window, but excluding it would throw a real data point away.
+
+The same **Adjust capacity** dialog lists the sprints behind the figure, each with a
+percentage. Scale S1 to 133% and its result counts at four-people strength in the
+average — there's a team-size helper ("3 then, 4 now") that works the percentage out for
+you. The card shows a **⚖ scaled** badge and explains the working; the All teams target
+carries the same ⚑ as an availability adjustment.
+
+**Only the recommendation changes.** The sprint's own recorded figures are untouched in
+every chart and table — the Sprint view, the Current PI totals, the Rolling 5 tiles and
+both comparison tables all still show exactly what the team delivered. A scale needs no
+expiry: it sits on its sprint and retires by itself when that sprint drops out of the
+rolling window.
+
+How the three levers differ:
+
+| | Scale a past sprint | Availability | Leave a sprint out |
+|---|---|---|---|
+| Fixes | History from a smaller/bigger team | The coming sprint being abnormal | History that would mislead |
+| Keeps the data point | Yes, re-weighted | — | No, window reaches further back |
+| Expires | When the sprint leaves the window | One-off, or standing until changed | When you untick it |
 
 One thing the adjustment surfaces that's easy to miss: **carry-over doesn't shrink when the
 team does.** Work already carried in is still carried in, and it comes off the top of a
