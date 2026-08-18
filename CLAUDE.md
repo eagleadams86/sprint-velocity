@@ -453,7 +453,7 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
 - **The chrome is shared with Team Dashboard** (the `claude-team-dashboard` repo; the app
   itself is titled **Flow Metrics** on screen — display-only rename, every identifier still
   says team-dashboard) — sticky header, brand mark, button tabs, tiles, ⓘ help,
-  footer, changelog box. The two apps are meant to read as one family; if a chrome rule
+  footer. The two apps are meant to read as one family; if a chrome rule
   changes here, change it there too (and vice versa). **Each app's header carries an
   `.applink` to the other** — a plain `<a class="btn small applink">`, no script, mirrored
   in Team Dashboard — sitting with the title rather than in the control cluster: it is
@@ -665,11 +665,7 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   hand it `fmtPct` (a `const`, invisible on `window`); function declarations it reaches
   directly. When a rule in this file changes, change the matching test in the same
   commit.
-- Write commit subject lines in plain English a non-developer can read. **They are now
-  user-facing**: the "Recent changes" box at the foot of the page fetches the last 10
-  commits touching `index.html` from the GitHub API and lists the subject lines verbatim,
-  each linking to its commit. Write them for a reader, not for a diff.
-- The changelog fetches **on first expand, not on load**, so it costs nothing for the
-  common case, and it only renders an `<a>` when the API's `html_url` is a real
-  `https://github.com/` link (a `<span>` otherwise) — the same guard the lottery calculator
-  uses, so a hostile URL from the API can't become a `javascript:` href.
+- Write commit subject lines in plain English a non-developer can read. The in-app
+  "Recent changes" box that made them user-facing was removed on 2026-08-18 (in every app
+  in the family, with the GitHub API dropped from each page's CSP), but the habit stands:
+  the commit history is still the only record of what changed.

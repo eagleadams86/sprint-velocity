@@ -656,16 +656,6 @@ runbook for doing it: how to map an email address to the right Firestore documen
 document ID is the Firebase Auth UID, and nothing inside the document identifies anyone),
 what order to delete in, and which copies are genuinely beyond reach.
 
-## Recent Changes
-
-At the foot of the page there's a collapsed **Recent changes** box. Expand it and it fetches
-the last 10 commits to `index.html` from the GitHub API and lists them newest first, each
-one a link to the commit itself. Nothing is fetched until you open it, and if you're offline
-it just says so.
-
-Commit subject lines are written in plain English for this reason — the box is the app's
-changelog, so the commit history *is* the release notes.
-
 ## Sharing a Read-Only Link
 
 The *Share* button builds a link that shows someone your figures without them signing in —
@@ -881,9 +871,8 @@ GitHub Pages (static hosting, this repo, main branch)
             ├── signed in ──► Firestore doc sprintvelocity/{uid} (optional;
             │                 newer-wins by updatedAt with the empty-never-beats-data
             │                 guard; live onSnapshot updates)
-            ├── shared    ──► the URL fragment itself (#share=…), read-only, never
-            │                 uploaded and never written back to localStorage
-            └── changelog ──► GitHub commits API, read-only, fetched on first expand
+            └── shared    ──► the URL fragment itself (#share=…), read-only, never
+                              uploaded and never written back to localStorage
 ```
 
 No server of our own. No build, no dependencies to install, no npm.
