@@ -406,6 +406,12 @@ th .tile-help, td .tile-help { vertical-align: 1px; }
   font-size: 12px;
   font-weight: 700; border: 1px solid var(--amber); color: var(--amber);
   background: var(--amber-bg); white-space: nowrap; }
+/* The 6px is for a badge that FOLLOWS text — after a sprint name in a table row,
+   after a card heading. A badge that opens its own line (the "left out" notes on
+   Rolling 5 and All teams) doesn't want it: it pushed the pill 6px right of the
+   heading and sub-heading stacked directly above it, so the one element meant to
+   catch the eye was the only thing on the card not lining up with the rest. */
+.badge:first-child { margin-left: 0; }
 
 /* Fixed width so a column of pills reads as one stack, not a ragged edge. 6ch fits
    the longest value fmtPct() can produce ("100.0%") and 14px is the glyph slot below;

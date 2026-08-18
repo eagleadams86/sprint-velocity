@@ -88,6 +88,13 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   other. Rolling 5 deliberately keeps its **tiles on `avg()` only** — a fuller pooled
   treatment there (extra tile cards, a worked-example note) was built and rejected as too
   much for the view, so don't rebuild it.
+- **`.badge`'s `margin-left: 6px` is for a badge that FOLLOWS text, and `.badge:first-child`
+  zeroes it.** Four of the six badge sites sit after something — a sprint name in a table row,
+  a card heading — and want the gap. The two "left out" notes on Rolling 5 and All teams open
+  their own line, where the same 6px pushed the pill out of line with the heading and
+  sub-heading stacked directly above it: the one element on the card meant to catch the eye
+  was the only thing not aligned. Same trap as the `.tile-help` spacing rule below — a margin
+  written for one position is wrong in the other.
 - **Help buttons (`helpBtn`) need breathing room**: `.tile-help` carries `margin-left: 7px`,
   zeroed inside `.tile .label` (a flex row that already pins it right). `td:has(.tile-help)`
   is `nowrap` so a wrapping label can't orphan the circle onto a line of its own. This is a
