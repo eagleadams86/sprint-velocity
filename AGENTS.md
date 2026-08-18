@@ -88,6 +88,14 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   other. Rolling 5 deliberately keeps its **tiles on `avg()` only** — a fuller pooled
   treatment there (extra tile cards, a worked-example note) was built and rejected as too
   much for the view, so don't rebuild it.
+- **The `REASONS` labels are short because they are `<option>` text on a phone.** A 375px
+  screen leaves about 210px inside the control; the first draft ran to 267px ("Training,
+  conference or company event"), so the longest reasons were cut off in the CLOSED select —
+  the one place the chosen reason has to be readable. Widening the field fixed the desktop
+  and could not fix the phone, so the labels themselves had to fit; `#adjustDialog
+  .grid-fields` also gives the reason the room the percentage box doesn't need. They double
+  as the tail of a sentence ("S1 left out (a major incident)"), so keep any new one a phrase,
+  not a clause, and re-measure against ~210px.
 - **`.badge`'s `margin-left: 6px` is for a badge that FOLLOWS text, and `.badge:first-child`
   zeroes it.** Four of the six badge sites sit after something — a sprint name in a table row,
   a card heading — and want the gap. The two "left out" notes on Rolling 5 and All teams open

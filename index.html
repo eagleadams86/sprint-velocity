@@ -412,6 +412,19 @@ th .tile-help, td .tile-help { vertical-align: 1px; }
    heading and sub-heading stacked directly above it, so the one element meant to
    catch the eye was the only thing on the card not lining up with the rest. */
 .badge:first-child { margin-left: 0; }
+/* The "left out" note sits between the sub-heading and the tiles it qualifies.
+   It carried `margin: 6px 0 0`, which collapsed to the sub-heading's own 16px
+   above and left NOTHING below — the badge ended up resting on the top edge of
+   the tile row. Equal margins either side, matching the sub-heading's rhythm, so
+   it reads as its own line rather than as a label stuck to the cards. */
+.exnote { margin: 16px 0; }
+
+/* The reason pickers hold sentences ("Training, conference or company event"),
+   not the one or two words the other fields in this grid take, so an equal split
+   cut the longest option off inside the closed control. The percentage box needs
+   room for three digits and no more; everything left over goes to the reason. */
+#adjustDialog .grid-fields { grid-template-columns: minmax(140px, 200px) minmax(0, 1fr); }
+@media (max-width: 520px) { #adjustDialog .grid-fields { grid-template-columns: 1fr; } }
 
 /* Fixed width so a column of pills reads as one stack, not a ragged edge. 6ch fits
    the longest value fmtPct() can produce ("100.0%") and 14px is the glyph slot below;
@@ -1131,17 +1144,24 @@ const ART_NONE = '~none';
    to reach for a text box later — DON'T. A code carries the meaning, renders in
    plain English from the map below, and cannot smuggle a ticket key or a
    colleague's name into the cloud. sanitizeIds() pins it to this list. */
+/* Kept SHORT on purpose. These are `<option>` text in a picker that has to fit a
+   phone: a 375px screen leaves about 210px inside the control, and the first draft
+   ran to 267px, so the longest reasons were cut off in the closed select — the one
+   place the chosen reason has to be readable. Widening the field fixes the desktop
+   and cannot fix the phone, so the labels themselves have to fit. They also read
+   as the tail of a sentence ("S1 left out (a major incident)"), which is the other
+   reason to keep them to a phrase rather than a clause. */
 const REASONS = {
   leave:       'Annual leave or sickness',
-  holiday:     'Public holidays in the sprint',
-  shortSprint: 'Shorter or longer sprint than usual',
-  teamChange:  'Someone joined or left the team',
-  support:     'Team is on the support rota',
-  event:       'Training, conference or company event',
-  incident:    'A major incident took over the sprint',
-  absence:     'Much of the team was away',
-  rebaseline:  'Story points were re-baselined',
-  partial:     'Only part of the sprint was recorded',
+  holiday:     'Public holidays',
+  shortSprint: 'A shorter or longer sprint',
+  teamChange:  'Someone joined or left',
+  support:     'On the support rota',
+  event:       'Training or an event',
+  incident:    'A major incident',
+  absence:     'Much of the team away',
+  rebaseline:  'Points were re-baselined',
+  partial:     'Only partly recorded',
   other:       'Something else'
 };
 /* Which codes each picker offers. Forward-looking reasons explain a capacity dip
@@ -1769,7 +1789,7 @@ function excludedNames(teamId, includeSix) {
 function excludedLine(teamId, includeSix) {
   const names = excludedNames(teamId, includeSix);
   if (!names) return '';
-  return `<p class="sub" style="margin:6px 0 0"><span class="badge">⚑ ${names}</span>
+  return `<p class="sub exnote"><span class="badge">⚑ ${names}</span>
     <span class="muted">Still shown in full on the Sprint and Current PI views — only these
     averages and the capacity target skip ${excludedInRange(teamId, includeSix).length === 1
       ? 'it' : 'them'}.</span></p>`;
@@ -3910,7 +3930,7 @@ function renderTeamsView() {
   const excludedTeamsLine = (rows) => {
     const hit = rows.filter(r => r.excluded.length);
     if (!hit.length) return '';
-    return `<p class="sub" style="margin:6px 0 0"><span class="badge">⚑ Sprints left out</span>
+    return `<p class="sub exnote"><span class="badge">⚑ Sprints left out</span>
       <span class="muted">${hit.map(r => `${esc(r.team.name)} — ${excludedNames(r.team.id, includeSix)}`)
         .join('; ')}. They still count on the Sprint and Current PI views.</span></p>`;
   };
