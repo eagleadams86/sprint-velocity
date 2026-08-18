@@ -847,6 +847,118 @@ t('the spread caveat stays on the history, so an adjustment cannot fake an errat
   });
 });
 
+group('capacityScale — scaling a sprint the team has outgrown');
+t('a scaled sprint moves planningBase and the recommendation, never the history', () => {
+  const fx = capacityFixture();
+  fx.sprints[0].capacityScale = 200;                 // done values are [10,20,30,40]
+  withState(fx, () => {
+    const t1 = w.nextSprintTarget('t1', false);
+    approx(t1.planningBase, 27.5, 'mean of [20,20,30,40]');
+    approx(t1.recommended, 27.5);
+    approx(t1.baseRecommended, 25, 'the raw mean is what happened, and stays');
+    eq(t1.low, 10, 'range describes the history');
+    eq(t1.high, 40);
+    approx(t1.avgVelocity, 25, 'velocity is untouched');
+    eq(t1.scaled, true);
+    eq(t1.scales, [{ sprintNumber: 1, piId: 'p1', scale: 200 }]);
+  });
+});
+t('an absent scale means 100, and metrics() never sees the field at all', () => {
+  const fx = capacityFixture();
+  fx.sprints[1].capacityScale = 50;
+  withState(fx, () => {
+    const sp = w.teamSprints('t1').find(x => x.id === 's2');
+    eq(w.metrics(sp).committedCompleted, 20, 'the sprint itself reads at full value everywhere');
+    approx(w.nextSprintTarget('t1', false).planningBase, 22.5, 'mean of [10,10,30,40]');
+  });
+  withState(capacityFixture(), () => {
+    const t1 = w.nextSprintTarget('t1', false);
+    approx(t1.planningBase, t1.baseRecommended, 'no scales — the two means agree');
+    eq(t1.scaled, false);
+    eq(t1.scales, []);
+  });
+});
+t('scale and availability compose — input history times output capacity', () => {
+  const fx = capacityFixture({
+    plans: [{ id: 'pl1', teamId: 't1', piId: 'p1', sprintNumber: 5, availability: 80, reason: 'leave' }]
+  });
+  fx.sprints[0].capacityScale = 200;
+  withState(fx, () => {
+    const t1 = w.nextSprintTarget('t1', false);
+    approx(t1.recommended, 22, '27.5 scaled mean × 80%');
+    approx(t1.planningBase, 27.5);
+    eq(t1.availability, 80);
+  });
+});
+t('a scale on an excluded sprint is inert — the window filter wins', () => {
+  const fx = capacityFixture();
+  fx.sprints[0].excluded = true;
+  fx.sprints[0].excludeReason = 'incident';
+  fx.sprints[0].capacityScale = 200;
+  withState(fx, () => {
+    const t1 = w.nextSprintTarget('t1', false);
+    approx(t1.planningBase, 30, 'mean of [20,30,40] — the scaled sprint is not in the window');
+    eq(t1.scaled, false, 'so the card must not claim a scale is in force');
+  });
+});
+t('the boundary pins capacityScale like every other percentage', () => {
+  const out = w.sanitizeIds(w.coerceShape({
+    teams: [{ id: 't1', name: 'A' }], arts: [], pis: [{ id: 'p1', name: 'P' }],
+    sprints: [
+      { id: 's1', teamId: 't1', piId: 'p1', sprintNumber: 1, capacityScale: 1e9 },
+      { id: 's2', teamId: 't1', piId: 'p1', sprintNumber: 2, capacityScale: 132.6 },
+      { id: 's3', teamId: 't1', piId: 'p1', sprintNumber: 3, capacityScale: 'four people' },
+      { id: 's4', teamId: 't1', piId: 'p1', sprintNumber: 4 }],
+    plans: [], settings: {}
+  }));
+  eq(out.sprints[0].capacityScale, 200, 'clamped — it multiplies the recommendation');
+  eq(out.sprints[1].capacityScale, 133, 'rounded like every stored figure');
+  ok(!('capacityScale' in out.sprints[2]), 'junk is dropped, not kept');
+  ok(!('capacityScale' in out.sprints[3]), 'and an absent key is never invented');
+});
+/* commitSprint() is NOT a pure function — it writes state and calls save(). The
+   iframe shares this origin's localStorage with the real app, and the page header
+   promises the suite saves nothing, so save() is stubbed out and the two settings
+   commitSprint touches are put back. Everything else stays inside withState. */
+function withCommitSprint(fx, fn) {
+  const realSave = w.save;
+  const st = w.svGet();
+  const activePiId = st.settings.activePiId, activeSprintNum = st.settings.activeSprintNum;
+  w.save = () => {};
+  try { withState(fx, fn); }
+  finally {
+    w.save = realSave;
+    st.settings.activePiId = activePiId;
+    st.settings.activeSprintNum = activeSprintNum;
+  }
+}
+t('commitSprint preserves the scale a form save cannot know about', () => {
+  /* capacityScale is the one stored sprint field with NO input on the sprint form,
+     because it belongs to capacity planning and is edited from Adjust Capacity.
+     buildSprintRecord() rebuilds the whole record, so without this preservation a
+     Save sprint or Jira re-paste would silently strip the scale. */
+  const fx = capacityFixture();
+  fx.sprints[0].capacityScale = 133;
+  withCommitSprint(fx, () => {
+    const edited = Object.assign({}, w.svGet().sprints.find(x => x.id === 's1'));
+    delete edited.capacityScale;              // what buildSprintRecord() would hand over
+    edited.committedCompleted = 12;
+    ok(w.commitSprint(edited), 'the save itself succeeds');
+    const after = w.svGet().sprints.find(x => x.id === 's1');
+    eq(after.capacityScale, 133, 'the scale survives the edit');
+    eq(after.committedCompleted, 12, 'and the edit itself lands');
+  });
+});
+t('commitSprint never invents the key on a sprint that has no scale', () => {
+  withCommitSprint(capacityFixture(), () => {
+    const edited = Object.assign({}, w.svGet().sprints.find(x => x.id === 's1'));
+    edited.committedCompleted = 12;
+    w.commitSprint(edited);
+    ok(!('capacityScale' in w.svGet().sprints.find(x => x.id === 's1')),
+       'absent stays absent — a key holding undefined stops the Firestore push');
+  });
+});
+
 group('rollingSprints — a sprint deliberately left out');
 /* Seven counted sprints across two PIs, so the window has somewhere older to
    reach when one is dropped. Values ascend so which sprints are in the window

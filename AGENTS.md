@@ -181,6 +181,21 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   availability: that is people data on a shared origin, it breaks the numbers-and-dates rule
   below, and points-per-head is a bad model anyway. One dimensionless figure is the whole
   design.
+- **`capacityScale` re-weights ONE sprint's result inside `nextSprintTarget()` and is read
+  nowhere else** — not `metrics()`, not a chart, not a table, and deliberately not the
+  Dashboard-reconciliation condition (`dashCond`), because the pooled comparisons read
+  `metrics()` and genuinely don't move. `planningBase` is the mean of the scaled results and
+  is what availability multiplies; `baseRecommended` stays the raw mean. Scale corrects the
+  INPUT history, availability scales the OUTPUT sprint — different dimensions, so unlike the
+  two availability homes they DO compose by multiplication. It is **the one stored sprint
+  field with no input on the sprint form** (it belongs to capacity planning, edited from
+  Adjust Capacity), so `commitSprint()` preserves an existing numeric scale when the incoming
+  record lacks one — remove that and every Save sprint or Jira re-paste silently strips it.
+  Absent means 100: set back to 100 the key is DELETED, never written as 100 or undefined.
+  Its badge is **⚖, deliberately not a third meaning for ⚑** (the All teams target ⚑ covers
+  both levers, with sr-only text saying which); a scale on an excluded sprint is inert and
+  the card must not claim it (`scales` is built from the window, which is what makes that
+  true). A scale needs no expiry — it retires when its sprint leaves the window.
 - **Everything on the capacity card that describes the PAST reads `baseRecommended`.**
   "They finished an average of X", `overCommitting`, the average-velocity comparison —
   those are facts about the history and the adjusted figure states them wrongly. Only the

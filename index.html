@@ -1010,15 +1010,40 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
     </div>
 
     <fieldset>
+      <legend>The Sprints Behind the Figure</legend>
+      <p class="sub" style="margin:0 0 10px">The recommendation is the average of these sprints.
+        If one of them was produced by a different team — three people then, four now — scale it
+        up or down and the average moves with it. <strong>Only this recommendation changes</strong>:
+        the sprint's own recorded figures stay exactly as they are everywhere else in the app.</p>
+      <div id="a_scaleRows"></div>
+      <div class="row" style="margin-top:12px;gap:8px;flex-wrap:wrap;align-items:center">
+        <span class="muted" style="font-size:13px">Team size:</span>
+        <label class="sr-only" for="a_peopleThen">People on the team during that sprint</label>
+        <input type="number" id="a_peopleThen" min="1" max="99" step="1" inputmode="numeric"
+               style="width:64px" placeholder="then">
+        <span class="muted" style="font-size:13px">then,</span>
+        <label class="sr-only" for="a_peopleNow">People on the team now</label>
+        <input type="number" id="a_peopleNow" min="1" max="99" step="1" inputmode="numeric"
+               style="width:64px" placeholder="now">
+        <span class="muted" style="font-size:13px">now, for</span>
+        <label class="sr-only" for="a_peopleSprint">Which sprint to scale</label>
+        <select id="a_peopleSprint" style="width:auto"></select>
+        <button type="button" class="btn small" id="a_peopleApply">Set %</button>
+        <span class="muted" id="a_peopleOut" style="font-size:13px"></span>
+      </div>
+    </fieldset>
+
+    <fieldset>
       <legend>How Long For</legend>
       <label class="row" style="gap:8px;cursor:pointer;font-size:14px">
         <input type="checkbox" id="a_keep">
         Keep this for later sprints too
       </label>
-      <p class="sub" style="margin:10px 0 0">Leave this unticked for a one-off — leave, public
-        holidays, a shorter sprint — and it applies to this sprint only. Tick it for a lasting change
-        such as someone joining or leaving, where it should hold until you change it: the rolling
-        window needs five sprints to notice a change in team size on its own.</p>
+      <p class="sub" style="margin:10px 0 0">This governs the availability figure at the top.
+        Leave it unticked for a one-off — leave, public holidays, a shorter sprint — and it applies
+        to this sprint only. Tick it for a lasting change that should hold until you change it.
+        Sprint scaling needs no such choice: a scale stays on its sprint until you change it, and
+        retires naturally when that sprint drops out of the window.</p>
     </fieldset>
 
     <p class="warn" id="adjustPreview" role="status"></p>
@@ -1373,7 +1398,7 @@ function sanitizeIds(data) {
   data.sprints = objects(data.sprints).map(s => keepKnown(s, Object.assign({
     id: 'id', teamId: 'id', piId: 'id',
     startDate: 'date', endDate: 'date', status: 'status',
-    excluded: 'bool', excludeReason: 'reason' }, NUMS)));
+    excluded: 'bool', excludeReason: 'reason', capacityScale: 'pct' }, NUMS)));
   data.plans = objects(data.plans).map(p => keepKnown(p, {
     id: 'id', teamId: 'id', piId: 'id', sprintNumber: 'sprintNum',
     availability: 'pct', reason: 'reason' }));
@@ -2132,6 +2157,20 @@ function nextSprintTarget(teamId, includeSix) {
   if (!done.length) return null;
   const baseRecommended = done.reduce((a, b) => a + b, 0) / done.length;
   const low = Math.min(...done), high = Math.max(...done);
+
+  /* A sprint the team has outgrown can be SCALED for planning instead of thrown
+     away: sprint 1 ran with three people, a fourth is now permanent, so its result
+     is multiplied by 133% before the mean is taken. `capacityScale` lives on the
+     sprint record but is read NOWHERE except this function — not metrics(), not a
+     chart, not a table — because it is a planning correction, not a fact about
+     what happened. `planningBase` is the mean of the scaled results; the raw
+     `baseRecommended`, low/high and spread above stay on what the team actually
+     did, which is what every history sentence on the card quotes. */
+  const scaleOf = (sp) => (typeof sp.capacityScale === 'number' ? sp.capacityScale : 100);
+  const scales = rs.filter(sp => scaleOf(sp) !== 100)
+    .map(sp => ({ sprintNumber: sp.sprintNumber, piId: sp.piId, scale: scaleOf(sp) }));
+  const planningBase = rs.reduce((a, sp) =>
+    a + metrics(sp).committedCompleted * scaleOf(sp) / 100, 0) / rs.length;
   const slot = targetSprintSlot(teamId);
   const carriedIn = slot && slot.last ? num(metrics(slot.last).carriedOut) : 0;
 
@@ -2145,7 +2184,10 @@ function nextSprintTarget(teamId, includeSix) {
      different number. */
   const av = slot ? availabilityFor(teamId, slot.piId, slot.sprintNumber)
                   : { pct: 100, reason: null, source: null };
-  const recommended = baseRecommended * av.pct / 100;
+  /* Scale corrects the INPUT history, availability scales the OUTPUT sprint —
+     different dimensions, so unlike the two availability homes they compose by
+     plain multiplication. */
+  const recommended = planningBase * av.pct / 100;
   /* When the target is for a sprint already under way, its commitment is known —
      that turns the recommendation from a forecast into a comparison. */
   const committedAlready = slot && slot.sprint ? metrics(slot.sprint).committed : null;
@@ -2161,6 +2203,9 @@ function nextSprintTarget(teamId, includeSix) {
   return {
     recommended,
     baseRecommended,
+    planningBase,
+    scaled: scales.length > 0,
+    scales,
     availability: av.pct,
     availabilityReason: av.reason,
     /* 'sprint' = a one-off set against this slot, 'team' = the team's standing
@@ -3638,9 +3683,23 @@ function targetCapacityCard(team, includeSix) {
      spells out which of the two levers set it. */
   const adjustBadge = t.adjusted
     ? ` <span class="badge">⚑ Adjusted to ${t.availability}%</span>` : '';
+  /* ⚖, deliberately not another ⚑ — the flag already means two things on the All
+     teams table, and the scale is a third, different lever. */
+  const scaleBadge = t.scaled
+    ? ` <span class="badge">⚖ ${esc(t.scales.map(sc => 'S' + sc.sprintNumber).join(', '))} scaled</span>` : '';
+  const scaleExplain = t.scaled
+    ? `<p><strong>Part of the history is scaled for planning.</strong> ${
+        esc(t.scales.map(sc => 'S' + sc.sprintNumber + ' counts at ' + sc.scale + '%').join(', '))} —
+       for a sprint produced by a different team than today's, such as before someone joined. That
+       moves the starting figure from <strong>${fmtNum(Math.round(t.baseRecommended))}</strong> to
+       <strong>${fmtNum(Math.round(t.planningBase))}</strong>. Only this recommendation is affected:
+       the sprint${t.scales.length === 1 ? "'s" : "s'"} own recorded figures are unchanged in every
+       chart and table, here and on every other view.</p>`
+    : '';
   const adjustExplain = t.adjusted
-    ? `<p><strong>This figure has been adjusted.</strong> The last ${t.sprints} sprint${
-        t.sprints === 1 ? '' : 's'} point to <strong>${fmtNum(Math.round(t.baseRecommended))}</strong>
+    ? `<p><strong>This figure has been adjusted.</strong> The ${t.scaled ? 'planning figure of' : `last ${
+        t.sprints} sprint${t.sprints === 1 ? '' : 's'} point to`}
+       <strong>${fmtNum(Math.round(t.planningBase))}</strong>
        points, but ${esc(team.name)} is set to <strong>${t.availability}%</strong> availability${
         t.availabilityReason ? ' — ' + esc(reasonLabel(t.availabilityReason).toLowerCase()) : ''}, which
        brings it to <strong>${fmtNum(Math.round(t.recommended))}</strong>. ${
@@ -3651,9 +3710,10 @@ function targetCapacityCard(team, includeSix) {
     : '';
   /* Worth asking even of someone who never opens the dialog: this is the
      question the numbers structurally cannot answer for themselves. */
-  const adjustPrompt = (t.adjusted || viewOnly) ? '' :
+  const adjustPrompt = (t.adjusted || t.scaled || viewOnly) ? '' :
     `Known leave, public holidays or a change of team next sprint? The history can't see any of
-     that — record it with <strong>Adjust capacity</strong> so it isn't lost between now and planning.`;
+     that — record it with <strong>Adjust capacity</strong>, which can also scale a past sprint
+     the team has outgrown.`;
 
   /* An over-commitment on a sprint already running is the one finding here that's
      still actionable — there's time to descope rather than carry it over. */
@@ -3663,7 +3723,7 @@ function targetCapacityCard(team, includeSix) {
   return `<div class="card">
     <div class="row spread cardhead">
       <h2>Target Capacity for ${slotName}${
-        t.inFlight ? ' <span class="badge">◐ In progress</span>' : ''}${adjustBadge}</h2>
+        t.inFlight ? ' <span class="badge">◐ In progress</span>' : ''}${adjustBadge}${scaleBadge}</h2>
       ${t.slot && t.slot.piId && !viewOnly
         ? '<button class="btn small" id="adjustBtn" type="button">Adjust capacity</button>' : ''}
     </div>
@@ -3672,7 +3732,9 @@ function targetCapacityCard(team, includeSix) {
       t.hasCommitment ? ' This sprint is already under way, so compare it with what they signed up for.' : ''}</p>
     <div class="tiles">
       ${tile('Recommended commitment', fmtNum(Math.round(t.recommended)), null,
-        t.adjusted ? `story points · ${t.availability}% of ${fmtNum(Math.round(t.baseRecommended))}`
+        t.adjusted ? `story points · ${t.availability}% of ${fmtNum(Math.round(t.planningBase))}${
+                        t.scaled ? ' (scaled)' : ''}`
+                   : t.scaled ? 'story points · history scaled for planning'
                    : 'story points', true)}
       ${t.hasCommitment ? tile('Actually committed', fmtNum(t.committedAlready),
         over ? 'red' : under ? 'yellow' : 'green',
@@ -3689,11 +3751,12 @@ function targetCapacityCard(team, includeSix) {
     <details class="datatable" style="margin-top:16px">
       <summary>How This Is Worked Out</summary>
       <div class="explain">
+        ${scaleExplain}
         ${adjustExplain}
         <p>Over the last ${t.sprints} sprint${t.sprints === 1 ? '' : 's'},
           ${esc(team.name)} finished an average of <strong>${fmtNum(t.baseRecommended)}</strong> of the points
           they committed to. That is the amount of commitment they have actually been able to deliver,
-          so that is ${t.adjusted ? 'where the recommendation starts' : 'the recommendation'}.</p>
+          so that is ${t.adjusted || t.scaled ? 'where the recommendation starts' : 'the recommendation'}.</p>
         <p>Their average <em>velocity</em> is higher —
           <strong>${fmtNum(t.avgVelocity)}</strong> points — but committing to that would over-commit them.
           Velocity counts the break-in work that turns up mid-sprint, and if that capacity is booked out in
@@ -3900,9 +3963,15 @@ function renderTeamsView() {
   /* A glyph plus a spoken sentence, never a colour: a target reduced for leave
      has to be distinguishable from one that came straight off the history, and
      this table's numbers are the ones that get read out in a portfolio meeting. */
-  const adjustTag = (t) => t && t.adjusted
-    ? ` <span aria-hidden="true">⚑</span><span class="sr-only">, adjusted to ${t.availability}% availability</span>`
-    : '';
+  const adjustTag = (t) => {
+    if (!t || (!t.adjusted && !t.scaled)) return '';
+    /* Both levers move this figure away from the raw history, so both earn the
+       flag; the spoken text says which. */
+    const parts = [];
+    if (t.adjusted) parts.push(`adjusted to ${t.availability}% availability`);
+    if (t.scaled) parts.push(t.scales.map(sc => `S${sc.sprintNumber} scaled to ${sc.scale}%`).join(', '));
+    return ` <span aria-hidden="true">⚑</span><span class="sr-only">, ${parts.join('; ')}</span>`;
+  };
 
   /* On the sprint COUNT, because that is the figure the exclusion moved. Glyph
      plus a spoken sentence, the same treatment as the adjusted-target marker. */
@@ -3967,8 +4036,8 @@ function renderTeamsView() {
         target</strong> is the commitment each team can realistically take on — see the Rolling 5
         view for the working. A ⚑ on <strong>Sprints</strong> means a sprint was left out of the
         average — named under the heading above; a ⚑ on <strong>Next sprint target</strong> means
-        that figure was adjusted for known availability, and the total below includes those
-        adjustments.</p>
+        that figure was adjusted — for known availability, or by scaling a sprint the team has
+        outgrown — and the total below includes those adjustments.</p>
       <div class="tablewrap">
       <table aria-label="Comparison 1 — each team averaged across its sprints">
         <thead><tr><th scope="col">Team</th><th scope="col">Sprints</th><th scope="col" class="metric">Commitment completion</th>
@@ -4627,6 +4696,16 @@ function slotClash(record) {
 function commitSprint(record) {
   if (slotClash(record)) return false;
   const i = state.sprints.findIndex(s => s.id === record.id);
+  /* `capacityScale` is the ONE stored sprint field with no input on the sprint
+     form — it belongs to capacity planning and is edited from the Adjust Capacity
+     dialog. buildSprintRecord() rebuilds the whole record from the form, so
+     without this every Save sprint or Jira re-paste would silently strip the
+     scale (the addedThenRemoved lesson, inverted: no input, so preserve it here
+     instead). Both save paths funnel through this function. Copied only when the
+     stored record actually has one — an absent key must stay absent, never be
+     created holding undefined, or the Firestore push rejects the document. */
+  if (i >= 0 && typeof state.sprints[i].capacityScale === 'number' && !('capacityScale' in record))
+    record.capacityScale = state.sprints[i].capacityScale;
   if (i >= 0) state.sprints[i] = record; else state.sprints.push(record);
   state.settings.activePiId = record.piId;
   state.settings.activeSprintNum = record.sprintNumber;
@@ -4724,43 +4803,87 @@ F('f_excluded').onchange = syncExcludeReason;
    Opened from the Target Capacity card, and aimed at whichever slot that card is
    already talking about — there is no slot picker, because the card and the
    dialog must never be able to disagree about which sprint is being planned. */
-let adjusting = null;     // { teamId, piId, sprintNumber, base }
+let adjusting = null;     // { teamId, piId, sprintNumber, window: [{id, label, done, scale}] }
 
 function openAdjust(teamId, includeSix) {
   const t = nextSprintTarget(teamId, includeSix);
   if (!t || !t.slot || !t.slot.piId) return;
   const { piId, sprintNumber } = t.slot;
-  adjusting = { teamId, piId, sprintNumber, base: t.baseRecommended };
+  /* The window is snapshotted so the live preview can recompute the mean from the
+     scale boxes without re-reading state — the boxes ARE the draft state until Save. */
+  adjusting = { teamId, piId, sprintNumber,
+    window: rollingSprints(teamId, includeSix).map(sp => ({
+      id: sp.id, label: sprintLabel(sp), done: metrics(sp).committedCompleted,
+      scale: typeof sp.capacityScale === 'number' ? sp.capacityScale : 100 })) };
 
   F('adjustTitle').textContent =
     `Adjust Capacity — ${piById(piId).name} · Sprint ${sprintNumber}`;
   F('adjustSub').textContent = `${teamById(teamId).name} would normally be recommended ` +
-    `${fmtNum(Math.round(t.baseRecommended))} story points. Say how available the team will be and ` +
-    `the recommendation moves with it.`;
+    `${fmtNum(Math.round(t.baseRecommended))} story points. Say how available the team will be, or
+    scale a sprint the team has outgrown, and the recommendation moves with it.`.replace(/\s+/g, ' ');
 
   F('a_pct').value = t.availability;
   fillReasons(F('a_reason'), AVAILABILITY_REASONS, t.availabilityReason);
   F('a_keep').checked = t.availabilitySource === 'team';
-  F('adjustRemoveBtn').hidden = !t.adjusted;
+  F('adjustRemoveBtn').hidden = !(t.adjusted || t.scaled);
+  renderScaleRows();
+  F('a_peopleThen').value = '';
+  F('a_peopleNow').value = '';
+  F('a_peopleOut').textContent = '';
   updateAdjustPreview();
   adjustDialog.showModal();
 }
 
-/* Reads the box the same way the whitelist will, so the preview can't promise a
+/* One row per sprint in the window: its label and result, a percentage box, and
+   that sprint's scaled contribution. Rebuilt on every open — the window can have
+   moved since last time. */
+function renderScaleRows() {
+  F('a_scaleRows').innerHTML = adjusting.window.map((w, i) => `
+    <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center;margin-top:${i ? 6 : 0}px">
+      <span style="font-size:14px;min-width:11ch">${esc(w.label)}</span>
+      <span class="muted" style="font-size:13px;min-width:9ch">finished ${fmtNum(w.done)}</span>
+      <label class="sr-only" for="a_scale_${i}">Scale ${esc(w.label)} (%)</label>
+      <input type="number" id="a_scale_${i}" data-scale-id="${esc(w.id)}" value="${w.scale}"
+             min="0" max="200" step="1" inputmode="numeric" style="width:76px">
+      <span class="muted" style="font-size:13px">%</span>
+      <span class="muted" id="a_scaled_${i}" style="font-size:13px"></span>
+    </div>`).join('');
+  F('a_peopleSprint').innerHTML = adjusting.window.map((w, i) =>
+    `<option value="${i}">${esc(w.label)}</option>`).join('');
+  adjusting.window.forEach((w, i) => {
+    F('a_scale_' + i).oninput = updateAdjustPreview;
+  });
+}
+
+/* Reads a box the same way the whitelist will, so the preview can't promise a
    figure the boundary would then clamp to something else. */
-function adjustPct() {
-  const n = Math.round(parseFloat(F('a_pct').value) || 0);
+function clampPct(v) {
+  const n = Math.round(parseFloat(v) || 0);
   return Math.min(200, Math.max(0, n));
+}
+function adjustPct() { return clampPct(F('a_pct').value); }
+function scaleBoxes() {
+  return adjusting.window.map((w, i) => ({ id: w.id, pct: clampPct(F('a_scale_' + i).value) }));
 }
 
 function updateAdjustPreview() {
   if (!adjusting) return;
   const pct = adjustPct();
-  const base = Math.round(adjusting.base);
-  const now = Math.round(adjusting.base * pct / 100);
-  F('adjustPreview').textContent = pct === 100
-    ? `No adjustment — the recommendation stays at ${fmtNum(base)} story points.`
-    : `Recommended commitment ${fmtNum(base)} → ${fmtNum(now)} story points.`;
+  const boxes = scaleBoxes();
+  /* Recomputed the way nextSprintTarget() will compute it after Save, so the
+     preview and the card can never disagree. */
+  const rawMean = adjusting.window.reduce((a, w) => a + w.done, 0) / adjusting.window.length;
+  const scaledMean = adjusting.window.reduce((a, w, i) => a + w.done * boxes[i].pct / 100, 0)
+    / adjusting.window.length;
+  adjusting.window.forEach((w, i) => {
+    const el = F('a_scaled_' + i);
+    if (el) el.textContent = boxes[i].pct === 100 ? '' : `→ counts as ${fmtNum(Math.round(w.done * boxes[i].pct / 100))}`;
+  });
+  const now = Math.round(scaledMean * pct / 100);
+  const untouched = pct === 100 && boxes.every(b => b.pct === 100);
+  F('adjustPreview').textContent = untouched
+    ? `No adjustment — the recommendation stays at ${fmtNum(Math.round(rawMean))} story points.`
+    : `Recommended commitment ${fmtNum(Math.round(rawMean))} → ${fmtNum(now)} story points.`;
 }
 
 F('a_pct').oninput = updateAdjustPreview;
@@ -4768,6 +4891,22 @@ adjustDialog.querySelectorAll('[data-pct]').forEach(b => b.onclick = () => {
   F('a_pct').value = b.dataset.pct;
   updateAdjustPreview();
 });
+
+/* The people helper: the team-change case is counted in heads, not percentages,
+   and nobody should be doing 4÷3 in their head mid-planning. Derives the figure,
+   writes it into the chosen sprint's box, stores nothing itself. */
+F('a_peopleApply').onclick = () => {
+  const then = parseFloat(F('a_peopleThen').value), now = parseFloat(F('a_peopleNow').value);
+  const i = Number(F('a_peopleSprint').value);
+  if (!(then > 0) || !(now > 0) || !adjusting.window[i]) {
+    F('a_peopleOut').textContent = 'Enter both team sizes first.';
+    return;
+  }
+  const pct = clampPct(now / then * 100);
+  F('a_scale_' + i).value = pct;
+  F('a_peopleOut').textContent = `= ${pct}%`;
+  updateAdjustPreview();
+};
 
 F('adjustCancelBtn').onclick = () => adjustDialog.close();
 
@@ -4801,10 +4940,24 @@ F('adjustSaveBtn').onclick = () => {
     state.plans.push({ id: uid(), teamId, piId, sprintNumber, availability: pct, reason });
   }
 
+  /* The sprint scales. Written straight onto the sprint records — the scale is
+     per sprint, permanent until changed, and retires on its own when the sprint
+     drops out of the window. 100 means no scale, stored as NO KEY: deleting
+     rather than writing 100 keeps every unscaled record byte-identical to what
+     it was, and an absent key can never reach Firestore as undefined. */
+  const boxes = scaleBoxes();
+  boxes.forEach(b => {
+    const sp = state.sprints.find(x => x.id === b.id);
+    if (!sp) return;
+    if (b.pct === 100) delete sp.capacityScale;
+    else sp.capacityScale = b.pct;
+  });
+
+  const untouched = pct === 100 && !F('a_keep').checked && boxes.every(b => b.pct === 100);
   save();
   adjustDialog.close();
   render();
-  toast(pct === 100 && !F('a_keep').checked ? 'Adjustment removed' : 'Capacity adjusted');
+  toast(untouched ? 'Adjustment removed' : 'Capacity adjusted');
 };
 
 F('adjustRemoveBtn').onclick = () => {
@@ -4815,8 +4968,13 @@ F('adjustRemoveBtn').onclick = () => {
     !(pl.teamId === teamId && pl.piId === piId && pl.sprintNumber === sprintNumber));
   /* Remove means remove — a one-off sitting on top of a standing figure would
      otherwise "remove" back to the standing figure, which reads as the button
-     not working. Both go. */
+     not working. Both go, and so do the sprint scales shown in the same dialog:
+     a button that clears half of what is on screen reads as broken. */
   if (team) { delete team.availability; delete team.availabilityReason; }
+  adjusting.window.forEach(w => {
+    const sp = state.sprints.find(x => x.id === w.id);
+    if (sp) delete sp.capacityScale;
+  });
   save();
   adjustDialog.close();
   render();
