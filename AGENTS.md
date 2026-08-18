@@ -156,6 +156,45 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   deliberately *not* mean velocity — velocity includes break-in, so committing to it
   over-commits the team. Don't "improve" it into a velocity-based figure; the reasoning is
   in the comment above the function and in the card's "How this is worked out".
+- **Availability scales the OUTPUT and never the method.** The window still averages
+  committed points completed; `baseRecommended` is that mean and `recommended` is it times
+  the percentage. Two levers, deliberately not one: a `plans` entry is a one-off against a
+  slot, `team.availability` is the standing figure for a lasting change like someone joining
+  or leaving. **The slot entry wins outright — they never multiply.** 80% of 90% is not a
+  figure anyone can hold in their head at planning, and the card has to be able to say
+  plainly which one is in force. Don't model headcount, working days or per-person
+  availability: that is people data on a shared origin, it breaks the numbers-and-dates rule
+  below, and points-per-head is a bad model anyway. One dimensionless figure is the whole
+  design.
+- **Everything on the capacity card that describes the PAST reads `baseRecommended`.**
+  "They finished an average of X", `overCommitting`, the average-velocity comparison —
+  those are facts about the history and the adjusted figure states them wrongly. Only the
+  recommendation, `newWork` and `overBy` move with availability, and `spread`/`steady` stay
+  on the base too or a team knocked down for leave reads as erratic for no reason. This was
+  a real bug in the first cut: the card said the team "finished an average of 19.2" when the
+  sprints said 24.
+- **Carry-over does not shrink with the team.** `carryoverFills` exists because work already
+  carried in comes off the top of a smaller sprint, so a big adjustment can leave no room for
+  new work at all. It's the most actionable thing the feature surfaces — keep it visible.
+- **`plans` is the second collection with orphan handling**, and it follows `sprints`
+  exactly: id remapping first, orphan drop after (never before), the count joining
+  `sanitizeIds.dropped` so `orphanNote()` reports both together. It also **de-duplicates by
+  slot** — a second entry for one slot is invisible on screen and would outlive "Remove
+  adjustment", which reads as the button not working. Delete Team and Delete PI filter it
+  alongside `state.sprints`.
+- **A sprint is excluded from the forecast with `excluded`, not by faking its status.**
+  Setting a finished sprint to `planned` was the only way to do this before and it
+  misrepresents the sprint in every other view; `updateStatusHint()` now points at the real
+  control. The filter lives in `rollingSprints()` beside the IP-sprint rule so all three
+  callers agree, and `excludedNote()` names every excluded sprint the window reached over —
+  the never-silent rule applies to the user's own exclusions most of all. `excluded` and
+  `excludeReason` are written by `buildSprintRecord()`, not merely read by `openSprint()`:
+  that function rebuilds the whole record, so a field without a form input is dropped on the
+  next edit (the `addedThenRemoved` lesson).
+- **A card heading that shares its line with a control needs `.row.cardhead`.** `.card > h2`
+  stops matching once the heading sits inside a flex row, and it silently falls back to the
+  browser's default h2 — half again the size of every other heading on the page. The class
+  restores the treatment and carries the 4px the heading's own margin contributed.
 - RAG state must never be conveyed by colour alone — tiles and pills carry a glyph and an
   `sr-only` status. Every theme is WCAG AA on the figures; keep them that way.
 - **A RAG surface is a tint fill plus a status-colour edge, everywhere** — `.tile`, `.pill` and
@@ -349,7 +388,14 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   `undefined` — the Firestore rule below. **A new stored field must be added to the
   `keepKnown` spec or it will be silently stripped** — that's the point, and the same-named
   test in tests.html pins it. The only free-text left is the short team/ART/PI names. The
-  sprint form's one disclosure is `#jiraBlock`, closed on every `openSprint()`. Sibling
+  sprint form's one disclosure is `#jiraBlock`, closed on every `openSprint()`.
+  **The capacity levers' reason codes are a fixed enum (`REASONS`) and must never become a
+  text box.** "Why did we drop that sprint?" is the obvious place for someone to reach for
+  free text later, and it is exactly where a ticket key or a colleague's name would ride into
+  the cloud. The `'reason'` kind in `keepKnown()` pins the value to the list and an unknown
+  code becomes `'other'`; labels render from the map, never from the stored value. The
+  `'pct'` kind clamps 0–200 rather than merely checking finiteness, because the figure
+  MULTIPLIES the recommendation and an unbounded one would put nonsense on the planning card. Sibling
   rule in Flow Metrics: `cleanWorkType()` + `normalizeSettings`' whitelist.
 - **Paste from Jira:** `parseJiraSprintReport()` / `deriveFromJira()` are pure functions on
   text — no DOM, no network, nothing saved (the saving happens in `applyJiraNumbers()`, further
