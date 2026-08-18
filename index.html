@@ -138,9 +138,13 @@
    Since 2026-08-03 that gate also checks the RAG colours against EACH OTHER
    under deuteranopia and protanopia, not just against their backgrounds — sepia
    used to render "watch" and "off target" in two colours that simulate to the
-   identical hex, so the glyph was carrying the meaning alone. `--green` is now a
-   teal in every theme, because red-green deficiency flattens the red-green axis
-   and only the blue-yellow one survives. Don't "restore" it to a green. */
+   identical hex, so the glyph was carrying the meaning alone. `--green` (the
+   pack's --ok) is deliberately a GREEN, hue ~150: teal and blue were both tried
+   and reverted, because the audience reads these tiles as RAG and a "good"
+   that isn't green stopped saying so. Charles himself can't use the red-green
+   axis — the glyph, the sr-only status and the tint-plus-edge surfaces are what
+   carry the distinction for him; the hue is for everyone else. Don't "fix" the
+   palette to a teal on the strength of an older version of this comment. */
 
 * { box-sizing: border-box; }
 body {
@@ -678,7 +682,7 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
          shared view — it's navigation, not an edit control. Mirrored in Team
          Dashboard, which links back here. -->
     <a class="btn small applink" href="https://eagleadams86.github.io/team-dashboard/"
-      title="Flow Metrics — the sibling app: Quality, Responsiveness, Productivity and Predictability, by week">↗ Flow&nbsp;Metrics</a>
+      title="Flow Metrics — the sibling app: throughput, cycle time, WIP and work item age by week, grouped into Flow, Delivery and Health">↗ Flow&nbsp;Metrics</a>
     <!-- Everything in this row is written out at its final size, because the header
          is painted long before the script at the foot of the page runs. Filling
          these from JS meant an empty 40px-wide select widening to 120px once it had
@@ -1159,6 +1163,7 @@ function sanitizeIds(data) {
      sanitizeIds.pruned so boot can persist the scrub. */
   const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
   const STATUSES = ['auto', 'planned', 'active', 'complete'];
+  const VIEWS = ['sprint', 'pi', 'rolling', 'teams'];   // renderTabs() owns this list
   const keepKnown = (src, spec) => {
     const out = {};
     for (const k of Object.keys(src)) {
@@ -1176,6 +1181,15 @@ function sanitizeIds(data) {
         out[k] = !!v;
       } else if (kind === 'status') {
         out[k] = STATUSES.includes(v) ? v : 'auto';
+      } else if (kind === 'view') {
+        /* One of the four real view names, or the default — a stored view was
+           typed 'label' once, which let any 120-char string sit in settings
+           until the next render corrected it. */
+        out[k] = VIEWS.includes(v) ? v : 'sprint';
+      } else if (kind === 'sprintNum') {
+        /* A slot on the sprint picker, so it's pinned to the picker's own range. */
+        const n = Number(v);
+        if (Number.isFinite(n)) out[k] = Math.min(SPRINTS_PER_PI, Math.max(1, Math.round(n)));
       }
       if (!(k in out) || out[k] !== v) sanitizeIds.pruned++;
     }
@@ -1193,9 +1207,9 @@ function sanitizeIds(data) {
     startDate: 'date', endDate: 'date', status: 'status' }, NUMS)));
   if (data.settings && typeof data.settings === 'object') {
     data.settings = keepKnown(data.settings, {
-      activeTeamId: 'idOrNull', activePiId: 'idOrNull', activeSprintNum: 'num',
+      activeTeamId: 'idOrNull', activePiId: 'idOrNull', activeSprintNum: 'sprintNum',
       artFilter: 'idOrNull', includeSprint6InRolling: 'bool',
-      includeInProgress: 'bool', view: 'label' });
+      includeInProgress: 'bool', view: 'view' });
   }
   /* The top level too — with the share-meta keys allowed through, because a
      share payload crosses this same boundary and the shared-view banner is
@@ -1205,6 +1219,19 @@ function sanitizeIds(data) {
                'v', 'sharedAt', 'label', 'allTeams', 'range'];
   for (const k of Object.keys(data)) {
     if (!TOP.includes(k)) { delete data[k]; sanitizeIds.pruned++; }
+  }
+  /* Allowed through is not the same as trusted: the shared-view banner prints
+     these two, so they're pinned to their types the way keepKnown pins every
+     other value — or a crafted link rides an unbounded string in on `label`,
+     and a non-numeric `sharedAt` puts "Invalid Date" in the banner. */
+  if ('label' in data) {
+    const l = String(data.label).slice(0, 120);
+    if (l !== data.label) { data.label = l; sanitizeIds.pruned++; }
+  }
+  if ('sharedAt' in data) {
+    const n = Number(data.sharedAt);
+    if (!Number.isFinite(n)) { delete data.sharedAt; sanitizeIds.pruned++; }
+    else if (n !== data.sharedAt) { data.sharedAt = n; sanitizeIds.pruned++; }
   }
 
   /* A team pointing at an ART that isn't in the same payload is un-grouped rather
@@ -4237,10 +4264,13 @@ function renderManage() {
         <button class="btn small" data-del-pi="${esc(p.id)}">Delete</button></td></tr>`).join('')
     : '<tr><td class="muted">No PIs yet.</td></tr>';
 
+  /* Every name entered at a prompt gets the same 120-char cap keepKnown enforces
+     at the boundary — without it a pasted paragraph persists (and syncs) at full
+     length until the next boot scrubs it. Same at the three add* sites below. */
   manageDialog.querySelectorAll('[data-rename-team]').forEach(b => b.onclick = () => {
     const t = teamById(b.dataset.renameTeam);
     const name = prompt('Team name', t.name);
-    if (name && name.trim()) { t.name = name.trim(); save(); renderManage(); render(); }
+    if (name && name.trim()) { t.name = name.trim().slice(0, 120); save(); renderManage(); render(); }
   });
   manageDialog.querySelectorAll('[data-del-team]').forEach(b => b.onclick = () => {
     const t = teamById(b.dataset.delTeam);
@@ -4263,7 +4293,7 @@ function renderManage() {
   manageDialog.querySelectorAll('[data-rename-art]').forEach(b => b.onclick = () => {
     const a = artById(b.dataset.renameArt);
     const name = prompt('ART name', a.name);
-    if (name && name.trim()) { a.name = name.trim(); save(); renderManage(); render(); }
+    if (name && name.trim()) { a.name = name.trim().slice(0, 120); save(); renderManage(); render(); }
   });
   /* Deleting an ART is deliberately the cheapest delete in this dialog: it takes no
      sprint and no team with it, because an ART owns neither — its teams simply go
@@ -4280,7 +4310,7 @@ function renderManage() {
   manageDialog.querySelectorAll('[data-rename-pi]').forEach(b => b.onclick = () => {
     const p = piById(b.dataset.renamePi);
     const name = prompt('PI name', p.name);
-    if (name && name.trim()) { p.name = name.trim(); save(); renderManage(); render(); }
+    if (name && name.trim()) { p.name = name.trim().slice(0, 120); save(); renderManage(); render(); }
   });
   manageDialog.querySelectorAll('[data-del-pi]').forEach(b => b.onclick = () => {
     const p = piById(b.dataset.delPi);
@@ -4309,7 +4339,7 @@ function movePi(id, delta) {
 function addTeam() {
   const name = prompt('Team name', '');
   if (!name || !name.trim()) return;
-  const t = { id: uid(), name: name.trim() };
+  const t = { id: uid(), name: name.trim().slice(0, 120) };
   state.teams.push(t);
   if (!state.settings.activeTeamId) state.settings.activeTeamId = t.id;
   save(); renderManage(); render();
@@ -4318,7 +4348,7 @@ function addTeam() {
 function addArt() {
   const name = prompt('ART name (e.g. "Payments ART")', '');
   if (!name || !name.trim()) return;
-  state.arts.push({ id: uid(), name: name.trim() });
+  state.arts.push({ id: uid(), name: name.trim().slice(0, 120) });
   save(); renderManage(); render();
 }
 
@@ -4326,7 +4356,7 @@ function addPi() {
   const suggestion = state.pis.length ? '' : 'PI 1';
   const name = prompt('PI name (e.g. "PI 2026.3")', suggestion);
   if (!name || !name.trim()) return;
-  state.pis.push({ id: uid(), name: name.trim(), sprintCount: SPRINTS_PER_PI });
+  state.pis.push({ id: uid(), name: name.trim().slice(0, 120), sprintCount: SPRINTS_PER_PI });
   save(); renderManage(); render();
 }
 
@@ -4844,13 +4874,18 @@ async function refreshShareLink() {
     F('shareCopyBtn').disabled = on;
     F('shareOpenBtn').disabled = on;
   };
+  /* Busy from the first line, not just on the zero-team branch: until the new
+     encode lands, the box still holds the PREVIOUS link — possibly with the
+     team that was just unticked — and Copy must not hand that out. A stale
+     trial that loses the shareSeq race returns with the buttons still off,
+     which is right too: the fresher call re-enables them when it finishes. */
+  setBusy(true);
 
   if (!teamIds.length) {
     link.value = '';
     meta.textContent = 'Pick at least one team.';
     note.textContent = '';
     warn.textContent = '';
-    setBusy(true);
     return;
   }
 
@@ -4963,6 +4998,21 @@ function loadSample() {
 
 /* ═════════════════════════════ Theme & chrome ═════════════════════════════ */
 
+/* Guarded storage for the small ancillary keys — theme, timestamps, the sync-uid
+   marker. With storage blocked outright (cookies disabled; some private modes)
+   even getItem throws, and an unguarded read in applyTheme() at boot would kill
+   this script before render() ever ran: a blank page over a preference. The boot
+   script in <head> already guards this same theme read; these cover everything
+   after it, the sync module's touches included (function declarations here are
+   globals the module can see). save()/load()/svAdopt() keep their own richer
+   guards — losing DATA deserves a toast, losing a preference doesn't. */
+function lsGet(key) {
+  try { return localStorage.getItem(key); } catch (e) { return null; }
+}
+function lsSet(key, value) {
+  try { localStorage.setItem(key, value); } catch (e) { console.warn('Could not write ' + key, e); }
+}
+
 /* The picker's options are in the markup, so the list is read back off them rather
    than kept a second time here — a theme added to one and not the other would be
    selectable but unrecognised, or recognised but unreachable. The palettes
@@ -4972,7 +5022,7 @@ function loadSample() {
 const THEMES = [...F('themeSel').options].map(o => o.value);
 
 function themeId() {
-  const t = localStorage.getItem('sv-theme');
+  const t = lsGet('sv-theme');
   return THEMES.includes(t) ? t : 'midnight';
 }
 
@@ -4983,7 +5033,7 @@ function applyTheme() {
 }
 
 F('themeSel').onchange = (e) => {
-  localStorage.setItem('sv-theme', e.target.value);
+  lsSet('sv-theme', e.target.value);
   applyTheme();
   render();   // charts resolve their colours at construction, so rebuild them
 };
@@ -5027,8 +5077,16 @@ window.svAdopt = (incoming, ts) => {
   const orphans = sanitizeIds.dropped;
   state = Object.assign(blankState(), incoming,
     { settings: Object.assign(blankState().settings, (incoming && incoming.settings) || {}) });
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  localStorage.setItem('sv-updated', String(ts || Date.now()));
+  /* Guarded like save(): this runs inside the sync module's onSnapshot callback,
+     where a quota or private-mode throw would otherwise be uncaught and skip the
+     render below. The in-memory copy is already adopted, so warn and paint it. */
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem('sv-updated', String(ts || Date.now()));
+  } catch (e) {
+    console.warn('Could not write saved data', e);
+    toast('⚠️ This browser is blocking storage (full, or private mode?) — changes may be lost when the tab closes');
+  }
   render();
   if (orphans) toast(orphanNote(orphans));
 };
@@ -5091,7 +5149,7 @@ if (viewOnly) {
    calls the pure functions). Function declarations are already reachable as
    window properties; this exposes the consts the tests need. Nothing in the
    app reads it. */
-window.__svTestHooks = { fmtPct, ART_NONE };
+window.__svTestHooks = { fmtPct, ART_NONE, b64urlEncode };
 </script>
 
 <script type="module">
@@ -5148,7 +5206,7 @@ const SDK = 'https://www.gstatic.com/firebasejs/12.16.0/';
 const GIS = 'https://accounts.google.com/gsi/client';
 const btn = document.getElementById('syncBtn');
 const privacyNote = document.getElementById('privacyNote');
-const localTs = () => Number(localStorage.getItem('sv-updated') || 0);
+const localTs = () => Number(lsGet('sv-updated') || 0);
 
 /* A shared view must not start sync at all. If the visitor happens to be signed
    in, onAuthStateChanged would fire startSync() and svAdopt() would replace the
@@ -5367,9 +5425,12 @@ async function onClick() {
 
 const docRef = () => Fs.doc(db, 'sprintvelocity', user.uid);
 
-/* Resolves true to keep Google's copy, false to keep this device's. Escape or a
-   backdrop dismiss resolves false — the non-destructive choice, since it just
-   re-pushes what's already here instead of overwriting anything. */
+/* Resolves true to keep Google's copy, false to keep this device's. The dialog
+   refuses dismissal: Escape is cancelled (preventCancel below) and it is the one
+   dialog deliberately exempt from the backdrop-click-closes-it rule, so only the
+   two buttons ever resolve. Either answer overwrites somebody's copy — there is
+   no neutral exit to hang a default on, and a guessed default is how the sibling
+   app once wiped a browser's data. */
 function chooseSyncSource(local, remote, remoteUpdatedAt) {
   return new Promise((resolve) => {
     const dlg = document.getElementById('syncChoiceDialog');
@@ -5406,7 +5467,7 @@ const hasData = (d) => !!(d && ((d.teams && d.teams.length) || (d.sprints && d.s
    actually win everywhere, and pushNow() sends the timestamp the local copy
    already carries — which, when the cloud is what looked newer, is the older of
    the two. Without this the choice sticks here and nowhere else. */
-const touchLocal = () => localStorage.setItem('sv-updated', String(Date.now()));
+const touchLocal = () => lsSet('sv-updated', String(Date.now()));
 
 /* Reconciling the two copies at sign-in.
 
@@ -5430,7 +5491,7 @@ async function startSync() {
   const local = window.svGet();
   const remoteHas = !!(remote && hasData(remote.data));
   const localHas = hasData(local);
-  const firstSyncForAccount = localStorage.getItem('sv-sync-uid') !== user.uid;
+  const firstSyncForAccount = lsGet('sv-sync-uid') !== user.uid;
 
   if (remoteHas && localHas && firstSyncForAccount) {
     const keepGoogle = await chooseSyncSource(local, remote.data, remote.updatedAt);
@@ -5456,7 +5517,7 @@ async function startSync() {
   } else {
     await pushNow();
   }
-  localStorage.setItem('sv-sync-uid', user.uid);
+  lsSet('sv-sync-uid', user.uid);
 
   unsub = Fs.onSnapshot(docRef(), (s) => {
     if (s.metadata.hasPendingWrites || !s.exists()) return;

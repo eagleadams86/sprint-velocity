@@ -630,6 +630,75 @@ t('junk text parses to an empty result, not a throw', () => {
   eq(d.checks.length, 0);
 });
 
+group('encodeShare / decodeShare — the share-link round trip');
+/* The same shape buildSharePayload() emits: nothing but ids, numbers, dates and
+   the short labels — a share link must never need more. */
+const SHARE_PAYLOAD = {
+  v: 1, sharedAt: 1755000000000, label: 'Kestrel',
+  teams: [{ id: 't1', name: 'Kestrel', artId: null }],
+  arts: [], pis: [{ id: 'p1', name: 'PI 1', sprintCount: 6 }],
+  sprints: [{ id: 's1', teamId: 't1', piId: 'p1', sprintNumber: 1,
+    startDate: '2026-06-01', endDate: '2026-06-12', status: 'auto',
+    committed: 30, committedCompleted: 28, totalCompleted: 31, added: 3,
+    removed: 0, carriedIn: 2, carriedOut: 2, addedThenRemoved: 0 }],
+  settings: { activeTeamId: 't1', activePiId: null, artFilter: null,
+    includeSprint6InRolling: false, includeInProgress: false, view: 'sprint' },
+};
+t('a payload round-trips through encode and decode intact', async () => {
+  const token = await w.encodeShare(SHARE_PAYLOAD);
+  ok(/^[01]\./.test(token), 'the token leads with its format marker, 1 or 0');
+  const out = await w.decodeShare(token);
+  eq(out.teams[0].name, 'Kestrel');
+  eq(out.sprints.length, 1);
+  eq(out.sprints[0].committed, 30, 'the figures survive the trip untouched');
+  eq(out.sharedAt, 1755000000000, 'so does the banner metadata');
+});
+t('the plain-JSON 0. marker (no CompressionStream) decodes the same', async () => {
+  const raw = new TextEncoder().encode(JSON.stringify(SHARE_PAYLOAD));
+  const out = await w.decodeShare('0.' + w.__svTestHooks.b64urlEncode(raw));
+  eq(out.teams.length, 1);
+  eq(out.sprints[0].totalCompleted, 31);
+});
+t('a teamless payload is refused outright, never opened as an empty view', async () => {
+  const token = await w.encodeShare(Object.assign({}, SHARE_PAYLOAD, { teams: [] }));
+  let threw = false;
+  try { await w.decodeShare(token); } catch (e) { threw = true; }
+  ok(threw, 'decodeShare throws — the recipient gets the error card, not a blank app');
+});
+t('a token with no format marker is refused, not guessed at', async () => {
+  let threw = false;
+  try { await w.decodeShare('nodothere'); } catch (e) { threw = true; }
+  ok(threw);
+});
+
+group('keepKnown — the 120-character label cap');
+t('a pasted paragraph in a name is capped at 120 characters at the boundary', () => {
+  const long = 'x'.repeat(400);
+  const out = w.sanitizeIds(w.coerceShape({
+    teams: [{ id: 't1', name: long }], arts: [{ id: 'a1', name: long }],
+    pis: [{ id: 'p1', name: long }], sprints: [], settings: {},
+  }));
+  eq(out.teams[0].name.length, 120);
+  eq(out.arts[0].name.length, 120);
+  eq(out.pis[0].name.length, 120);
+  ok(w.sanitizeIds.pruned > 0, 'the trim is counted so boot persists the scrub');
+});
+t('a name of exactly 120 characters passes untouched', () => {
+  const exact = 'y'.repeat(120);
+  const out = w.sanitizeIds(w.coerceShape({
+    teams: [{ id: 't1', name: exact }], arts: [], pis: [], sprints: [], settings: {},
+  }));
+  eq(out.teams[0].name, exact);
+});
+t('the share-meta label and timestamp are pinned too, not just allowed through', () => {
+  const out = w.sanitizeIds(w.coerceShape({
+    v: 1, sharedAt: 'not a time', label: 'z'.repeat(400),
+    teams: [{ id: 't1', name: 'A' }], arts: [], pis: [], sprints: [], settings: {},
+  }));
+  eq(out.label.length, 120, 'an unbounded label is capped like every other label');
+  ok(!('sharedAt' in out), 'a sharedAt that is not a number is dropped, so the banner never says "Invalid Date"');
+});
+
 /* ── Runner ───────────────────────────────────────────────────────────────── */
 
 /* The localhost gate. Booting the app is itself the side effect worth guarding:
@@ -638,9 +707,10 @@ t('junk text parses to an empty result, not a throw', () => {
    device cleared its data" dialog — inside a frame nobody can see. So the check
    comes before the iframe exists, not inside its load handler.
 
-   '' covers file://, which has no host: the suite can't run there either way
-   (file:// iframes are blocked) and its storage is a throwaway opaque origin, so
-   it falls through to the ordinary "serve it over localhost" advice. */
+   file:// has no hostname, so it fails this check on its own and lands on the
+   file:// advice below. '' is deliberately NOT in this list — it used to be, and
+   sent file:// down the iframe branch, where the frame silently never loads and
+   the suite blamed the app (see CLAUDE.md). */
 const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]'];
 
 if (LOCAL_HOSTS.includes(location.hostname)) {
@@ -684,8 +754,11 @@ if (LOCAL_HOSTS.includes(location.hostname)) {
   if (!onDisk) td.querySelector('strong').textContent = location.hostname;
   tr.appendChild(td);
   document.getElementById('out').appendChild(tr);
-}
+  /* Only where the suite itself can't run. On localhost this row would land
+     above the live results — and CI's scraper counts every tr.fail on the page,
+     so a red PREVIOUS run rendered here could fail a suite that just passed. */
   showLatestRun();
+}
 
 
 /* ── The scorecard, where the suite itself can't run ─────────────────────────
@@ -730,7 +803,7 @@ function showLatestRun() {
     .catch(() => { td.textContent = 'Could not reach GitHub to check the latest CI run.'; });
 }
 
-function run() {
+async function run() {
   w = document.getElementById('app').contentWindow;
   /* A frame that never got the app is a SETUP problem — the folder isn't being
      served, so index.html came back 404 — and without this every test throws
@@ -762,7 +835,10 @@ function run() {
     const name = document.createElement('td'); name.textContent = item.name;
     const msg = document.createElement('td'); msg.className = 'msg';
     try {
-      item.fn();
+      /* Awaited, so a test may be async — the share round-trip group is, because
+         encodeShare/decodeShare are. A sync test resolves immediately, and
+         running one at a time keeps the rows in declaration order either way. */
+      await item.fn();
       tr.className = 'pass'; st.textContent = '✓'; pass++;
     } catch (e) {
       tr.className = 'fail'; st.textContent = '✕'; msg.textContent = e.message; fail++;
