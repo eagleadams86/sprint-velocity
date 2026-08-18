@@ -512,9 +512,11 @@ tr.clickable { cursor: pointer; }
 .artname { display: block; font-size: 12px; font-weight: 400; color: var(--text-secondary); }
 tfoot td, tfoot th { font-weight: 700; border-top: 2px solid var(--border-strong);
   border-bottom: none; }
-/* Rolling 5 has two summary rows — the per-sprint average and the pooled total. The
-   second takes a light rule rather than a second heavy one, so the pair reads as one
-   block under the sprints instead of two competing totals. */
+/* A tfoot carrying more than one row: the second and any after it take a light rule
+   rather than a second heavy one, so they read as one block under the sprints instead
+   of competing totals. Current PI and Rolling 5 are down to a single summary row each
+   (2026-08-18), so nothing uses this today — it is kept because the heavy top border
+   above is what makes a second row need it, and the two rules belong together. */
 tfoot tr + tr td, tfoot tr + tr th { border-top: 1px solid var(--border); }
 td.muted, .muted { color: var(--text-muted); }
 
@@ -2060,39 +2062,28 @@ const METRIC_HELP = {
       start. It goes above 100% when a team finished more than it signed up for, which says
       throughput was high, not that the plan held.` },
 
-  /* The two summary rows under the PI table. Same job as the pair on Rolling 5: say which
-     of the two averages you're looking at, and name the other, so the gap between them
-     reads as a difference in method rather than an error. */
-  piAvgRow: { title: 'Average per sprint', target: null,
-    body: `What a typical sprint in this PI looked like: each sprint's own figures averaged, so
-      <em>every sprint counts equally</em> whatever its size. Its committed and delivered
-      figures are per-sprint means rather than totals. This is the better read on the team's
-      habit — one unusually big sprint can't drown out the rest — and its percentage is the
-      same figure as the <em>average per sprint</em> tile at the top of this view.` },
+  /* ONE summary row per view now, each in the method that view's own tiles use —
+     pooled on Current PI, average-of-sprints on Rolling 5 (asked for 2026-08-18).
+     The pair used to sit here together so the gap between them read as a
+     difference in method rather than an error; with only one row that job falls
+     to its help, which still has to name the method OUTRIGHT (the standing rule:
+     no figure picks a method silently) and say where the other one lives. The
+     entries for the removed rows are gone rather than left unreferenced. */
   piTotalRow: { title: 'PI total', target: null,
     body: `Every point across this PI's counted sprints added into one total, with each
       percentage taken once at the end — so <em>a bigger sprint pulls harder</em> than a small
       one. This is the method the <strong>Agile Operations Dashboard</strong> uses, so it's the
-      row that reconciles with what the ART reports upward. The <em>average per sprint</em> row
-      above is the other method, giving every sprint equal weight — a wide gap between the two
-      means one sprint is skewing the total.` },
+      row that reconciles with what the ART reports upward. For the other method — every sprint
+      counting equally, whatever its size — see the <em>average per sprint</em> tile at the top
+      of this view, or the Rolling ${ROLLING_WINDOW} table.` },
 
-  /* The two summary rows under the sprint table. They're the same sprints through two
-     different averages, which nobody guesses from looking — and the only question either
-     row raises is why it doesn't match the other, so each one answers it. */
   rollAvgRow: { title: 'Average per sprint', target: null,
     body: `Each sprint's own percentage is worked out first, then those percentages are
       averaged, so <em>every sprint counts equally</em> whatever its size. Its committed and
       velocity figures are per-sprint means. This is the better read on a team's habit — one
       unusually big sprint can't drown out the rest — and it's what the tiles at the top of
-      this view show.` },
-  rollPooledRow: { title: 'Pooled total', target: null,
-    body: `Every point is added into one total and the percentage taken once at the end, so
-      <em>a bigger sprint pulls harder</em> than a small one. Its committed and velocity
-      figures are totals, not means. This is the better read on the body of work as a whole,
-      and it's the method the <strong>Agile Operations Dashboard</strong> uses — so this is
-      the row that reconciles with what the ART reports upward, as long as any sprint you've
-      left out of the rolling average is unselected in the Dashboard too.` },
+      this view show. For the pooled method, which weights a sprint by how much was committed
+      to it, see the <em>PI total</em> row on Current PI or Comparison 2 on All teams.` },
 
   rollVelocity: { title: 'Avg velocity', target: null,
     body: `Mean points completed per sprint across the window, break-in included. The target
@@ -3359,7 +3350,7 @@ function renderPiView() {
 
     <div class="card">
       <h2>The Numbers</h2>
-      <p class="sub">Click any sprint to add or edit its data. Both summary rows cover
+      <p class="sub">Click any sprint to add or edit its data. The summary row covers
         ${countedRunning.length
           ? `the sprints being counted, including <strong>${countedRunning.map(x => 'S' + x.sprintNumber).join(', ')}</strong>
              which ${countedRunning.length === 1 ? 'is' : 'are'} still running`
@@ -3412,14 +3403,6 @@ function renderPiView() {
             <td>${fmtNum(m.velocity)}</td></tr>`;
         }).join('')}</tbody>
         <tfoot>
-          <tr>
-            <th scope="row">Average per sprint${helpBtn('piAvgRow', 'Average per sprint')}</th>
-            <td>${fmtNum(avg(closed, 'committed'))}</td><td>${fmtNum(avg(closed, 'committedCompleted'))}</td>
-            <td class="metric">${pill(avgCommitPct, 'completion')}</td>
-            <td>${fmtNum(avg(closed, 'added'))}</td><td>${fmtNum(avg(closed, 'removed'))}</td>
-            <td>${fmtNum(avg(closed, 'carriedIn'))}</td><td>${fmtNum(avg(closed, 'carriedOut'))}</td>
-            <td>${fmtNum(avg(closed, 'velocity'))}</td>
-          </tr>
           <tr>
             <th scope="row">PI total${helpBtn('piTotalRow', 'PI total')}</th>
             <td>${fmtNum(piCommitted)}</td><td>${fmtNum(piCompleted)}</td>
@@ -3515,15 +3498,6 @@ function renderRollingView() {
   const aCarry  = avg(rs, 'carryoverPct');
   const aVel    = avg(rs, 'velocity');
   const labels  = rs.map(sprintLabel);
-  /* The table's second summary row. The tiles and the row above them average each
-     sprint's own percentage, so every sprint counts equally; this pools the points
-     and divides once, so a bigger sprint pulls harder. Both are honest and they
-     disagree whenever the sprints differ in size — which is worth being able to see
-     rather than having to take on trust. Pooling is also what the Agile Operations
-     Dashboard does, so this row is the one that reconciles with it. */
-  const pCommitted = sum(rs, 'committed');
-  const pooledPct = (key) => (pCommitted > 0 ? (sum(rs, key) / pCommitted) * 100 : null);
-
   viewsEl.innerHTML = rollingToolbar(includeSix) + `
     <div class="card">
       <h2>${esc(team.name)} — Last ${rs.length} Sprint${rs.length === 1 ? '' : 's'}</h2>
@@ -3598,14 +3572,6 @@ function renderRollingView() {
             <td class="metric">${pill(aRemove, 'churn')}</td>
             <td class="metric">${pill(aCarry, 'churn')}</td>
             <td>${fmtNum(aVel)}</td></tr>
-          <tr><th scope="row">Pooled total${helpBtn('rollPooledRow', 'Pooled total')}</th>
-            <td>${fmtNum(pCommitted)}</td>
-            <td>${fmtNum(sum(rs, 'committedCompleted'))}</td>
-            <td class="metric">${pill(pooledPct('committedCompleted'), 'completion')}</td>
-            <td class="metric">${pill(pooledPct('added'), 'churn')}</td>
-            <td class="metric">${pill(pooledPct('removed'), 'churn')}</td>
-            <td class="metric">${pill(pooledPct('carriedOut'), 'churn')}</td>
-            <td>${fmtNum(sum(rs, 'velocity'))}</td></tr>
         </tfoot>
       </table></div>
     </div>`;

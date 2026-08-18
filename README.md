@@ -366,17 +366,22 @@ a team with six of them pulls six times as hard as a team with one; Comparison 2
 point, exactly as the dashboard's Total does. The single exception is Comparison 1's
 **next sprint target**: that's points rather than a rate, so the team targets simply add up.
 
-**Current PI** and **Rolling 5** both put the two methods side by side at the foot of
-their *The numbers* table, as a pair of summary rows:
+**Current PI** and **Rolling 5** each end their *The numbers* table with **one** summary
+row, in whichever method that view's own figures already use:
 
-| View | Average-of-sprints row | Pooled row (matches the dashboard) |
+| View | Summary row | Method |
 |---|---|---|
-| Current PI | **Average per sprint** | **PI total** |
-| Rolling 5 | **Average per sprint** | **Pooled total** |
+| Current PI | **PI total** | Pooled — matches the dashboard, and its headline commitment-completion tile |
+| Rolling 5 | **Average per sprint** | Average of sprints — matches every tile on the view |
 
-On both, the pooled row's committed and delivered figures are **totals**, while the
-average row's are **per-sprint means** — which is what makes the arithmetic visible.
-Every summary row carries an ⓘ explaining its own method and naming the other.
+Its committed and delivered figures follow the method: **totals** on the pooled row,
+**per-sprint means** on the average row. The row carries an ⓘ explaining its own method and
+pointing at where the other one lives — which is **All teams**, above, where the two sit
+side by side over the same sprints and can actually be compared.
+
+(Both views used to show the two methods as a pair of rows. That made every table answer a
+question most readers weren't asking, so each view now shows the one that matches the
+figures above it.)
 
 The tiles at the top of Rolling 5 are all averages of sprints. Current PI's tiles are a
 mix: *PI commitment completion* is pooled, *Average per sprint* is the average-of-sprints

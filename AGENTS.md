@@ -74,18 +74,25 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   weigh more). The All teams view shows both — Comparison 1 uses `avg()`, Comparison 2 uses
   `pooled()` — over the *same* sprint set, so they can only ever differ by method. **Comparison
   2 is the method the Agile Operations Dashboard uses**, as is the PI view's "PI total" row
-  and commitment-completion tile, and Rolling 5's "Pooled total" row; the PI "Average per
-  sprint" tile/row and every Rolling 5 tile are `avg()`. Don't "fix" one to agree with the
-  other, and don't let a new figure pick a method silently — say which it is in the UI.
+  and commitment-completion tile; the PI "Average per sprint" tile and every Rolling 5 figure
+  are `avg()`. Don't "fix" one to agree with the other, and don't let a new figure pick a
+  method silently — say which it is in the UI.
 - **Both comparison tables end in an `All teams` row, each in its own table's method**
   (`allMean` on `avg()`, `allPooled` on `pooled()`), taken across every counted sprint from
   every team — **never** the mean of the rows above, so neither equals the mean of its own
   column and a six-sprint team pulls six times as hard as a one-sprint team. The lone plain
   sum is Comparison 1's next-sprint target: points, not a rate, so the column adds up. The
   `methodnote` under Comparison 2 explains both rows; keep it in step if either changes.
-- Current PI and Rolling 5 each show the two methods as **a pair of footer rows** on their
-  numbers table, average first then pooled, each with a `helpBtn` naming its method and the
-  other. Rolling 5 deliberately keeps its **tiles on `avg()` only** — a fuller pooled
+- **Current PI and Rolling 5 carry ONE summary row each, in the method that view's own
+  figures already use** (asked for 2026-08-18): Current PI keeps **PI total** (pooled, matching
+  its headline commitment-completion tile), Rolling 5 keeps **Average per sprint** (matching
+  every tile on the view). They used to show both methods as a pair of rows so the gap between
+  them read as a difference in method rather than an error; with one row that job falls to its
+  `helpBtn`, which must still name its method outright AND say where the other one lives —
+  don't let either help drift into describing a row that isn't there, which is what the
+  removed `piAvgRow`/`rollPooledRow` entries did before they were deleted. **All teams still
+  shows both methods side by side** (Comparison 1 and 2), which is where to send anyone who
+  wants to compare them. Rolling 5 also keeps its **tiles on `avg()` only** — a fuller pooled
   treatment there (extra tile cards, a worked-example note) was built and rejected as too
   much for the view, so don't rebuild it.
 - **The `REASONS` labels are short because they are `<option>` text on a phone.** A 375px
