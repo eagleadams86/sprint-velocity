@@ -398,6 +398,10 @@ th .tile-help, td .tile-help { vertical-align: 1px; }
   font-size: 11px; font-weight: 600; letter-spacing: 0; vertical-align: 2px;
   border: 1px solid var(--border-strong); color: var(--text-secondary);
   background: var(--bg-card-alt); white-space: nowrap; }
+/* The reconciliation tag stops being a two-word label once it has to carry a
+   condition ("...when S1 is unselected there too"), and nowrap would push it off
+   the side of a phone. Only the conditional form gets this. */
+.tag.cond { white-space: normal; }
 .badge { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px;
   font-size: 12px;
   font-weight: 700; border: 1px solid var(--amber); color: var(--amber);
@@ -1942,7 +1946,9 @@ const METRIC_HELP = {
     body: `Every point across the window is added into one total and the percentage taken
       once at the end — so <em>a bigger sprint pulls harder</em> than a small one. This is the
       better read on the body of work as a whole, and it's the method the Agile Operations
-      Dashboard uses, so these are the figures that reconcile with it. ${ROLLING_WINDOW_NOTE}` },
+      Dashboard uses, so these are the figures that reconcile with it — as long as any sprint
+      you've left out of the rolling average is unselected in the Dashboard too, or it will
+      still be in their total and not in this one. ${ROLLING_WINDOW_NOTE}` },
   actualComplete: { title: 'Actual complete', target: null,
     body: `Everything delivered — break-in work included — against what was committed at the
       start. It goes above 100% when a team finished more than it signed up for, which says
@@ -1979,7 +1985,8 @@ const METRIC_HELP = {
       <em>a bigger sprint pulls harder</em> than a small one. Its committed and velocity
       figures are totals, not means. This is the better read on the body of work as a whole,
       and it's the method the <strong>Agile Operations Dashboard</strong> uses — so this is
-      the row that reconciles with what the ART reports upward.` },
+      the row that reconciles with what the ART reports upward, as long as any sprint you've
+      left out of the rolling average is unselected in the Dashboard too.` },
 
   rollVelocity: { title: 'Avg velocity', target: null,
     body: `Mean points completed per sprint across the window, break-in included. The target
@@ -2005,7 +2012,12 @@ function avg(sprints, key) {
    by side and names the difference rather than picking a winner.
 
    This is also the method the Agile Operations Dashboard uses, so these are the
-   figures that reconcile with what the ART reports upward. */
+   figures that reconcile with what the ART reports upward — but only over the same
+   set of sprints. A sprint left out of the rolling average is still in the
+   Dashboard's total until it is unselected there too, so every surface that claims
+   the reconciliation has to carry that condition when an exclusion is in force.
+   The PI view's pooled figures are unaffected: they filter on their own `closed`
+   list rather than through rollingSprints(), so they never lose a sprint this way. */
 function pooled(sprints) {
   const committed = sum(sprints, 'committed');
   const pct = (key) => (committed > 0 ? (sum(sprints, key) / committed) * 100 : null);
@@ -3864,6 +3876,18 @@ function renderTeamsView() {
         r.excluded.length === 1 ? '' : 's'} left out of the average</span>`
     : '';
 
+  /* The reconciliation claim on Comparison 2 is unconditional wherever nothing is
+     excluded, and stops being true the moment something is: a sprint left out here
+     is still in the Dashboard's total unless it is unselected there too, so the two
+     no longer meet. Naming the sprint rather than hedging, because the reader has to
+     go and do something about it in another tool. */
+  const dashboardCondition = (rows) => {
+    const nums = [...new Set(rows.flatMap(r => r.excluded.map(x => x.sprintNumber)))].sort((a, b) => a - b);
+    if (!nums.length) return null;
+    const what = nums.length <= 3 ? nums.map(n => 'S' + n).join(', ') : 'those sprints';
+    return { what, isAre: nums.length === 1 ? 'is' : 'are' };
+  };
+
   /* Named per team under the heading, because the chart on this card is drawn
      from these same windows: a bar sitting lower than the reader expects, with
      nothing anywhere on the page to say a sprint was taken out of it, is exactly
@@ -3881,6 +3905,8 @@ function renderTeamsView() {
     const on = team.artId ? artById(team.artId) : null;
     return `<span class="artname">${on ? esc(on.name) : 'No ART'}</span>`;
   };
+
+  const dashCond = dashboardCondition(rowsData);
 
   viewsEl.innerHTML = artToolbar(shown.length, hiddenCount) + rollingToolbar(includeSix) + `
     <div class="card">
@@ -3938,12 +3964,16 @@ function renderTeamsView() {
 
     <div class="card">
       <h2>Comparison 2 — Pooled Totals${helpBtn('teamsPooled', 'the pooled-totals method')}
-        <span class="tag">matches the Agile Operations Dashboard</span></h2>
+        <span class="tag${dashCond ? ' cond' : ''}">matches the Agile Operations Dashboard${
+          dashCond ? ` when ${dashCond.what} ${dashCond.isAre} unselected there too` : ''}</span></h2>
       <p class="sub">Every point added into one total first, then the percentage taken once, so
         <strong>a bigger sprint pulls harder</strong> than a small one. This is the read on how the
         body of work as a whole went — and it's the method the <strong>Agile Operations
         Dashboard</strong> uses, so these are the figures that reconcile with what the ART reports
-        upward. Same sprints as the table above; only the arithmetic differs.</p>
+        upward. Same sprints as the table above; only the arithmetic differs.${
+        dashCond ? ` Because <strong>${dashCond.what}</strong> ${dashCond.isAre} left out here, the two
+          only line up if ${dashCond.isAre === 'is' ? 'it is' : 'they are'} unselected in the Dashboard
+          as well — otherwise it is still in their total and not in this one.` : ''}</p>
       <div class="tablewrap">
       <table aria-label="Comparison 2 — each team's points pooled into one total">
         <thead><tr><th scope="col">Team</th><th scope="col">Sprints</th><th scope="col">Committed</th><th scope="col">Cmt. done</th>
@@ -3989,8 +4019,10 @@ function renderTeamsView() {
         <p><strong>Which to use.</strong> Comparison 1 for coaching a team — it describes the
           habit, and one outsized sprint can't drown out the rest. Comparison 2 for reporting
           upward — it describes the actual body of work, and it's what the Agile Operations
-          Dashboard shows, so it's the one that will reconcile. Neither is a correction of the
-          other.</p>
+          Dashboard shows, so it's the one that will reconcile${
+          dashCond ? `, provided <strong>${dashCond.what}</strong> ${dashCond.isAre} unselected there
+          the way ${dashCond.isAre === 'is' ? 'it is' : 'they are'} left out here` : ''}.
+          Neither is a correction of the other.</p>
         <p>Each table's <strong>${scopeLabel}</strong> row applies that table's own method across
           ${filtered ? 'every team the ART filter leaves' : 'every team'} at once, rather than
           averaging the rows above it — which is why neither
@@ -5730,7 +5762,7 @@ if (viewOnly) {
    calls the pure functions). Function declarations are already reachable as
    window properties; this exposes the consts the tests need. Nothing in the
    app reads it. */
-window.__svTestHooks = { fmtPct, ART_NONE, b64urlEncode, REASONS, AVAILABILITY_REASONS, EXCLUDE_REASONS };
+window.__svTestHooks = { fmtPct, ART_NONE, b64urlEncode, REASONS, AVAILABILITY_REASONS, EXCLUDE_REASONS, isCounted };
 </script>
 
 <script type="module">

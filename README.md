@@ -503,6 +503,14 @@ on:**
 | Rolling 5 | A badged line under the heading naming it and the reason, and a note on the numbers table explaining the gap in the sprint numbers |
 | All teams | A ⚑ on the team's sprint count in both comparison tables, and a line under the heading naming which team lost which sprint |
 
+Leaving a sprint out also breaks the promise that Comparison 2 reconciles with the Agile
+Operations Dashboard, because the sprint is still in the Dashboard's total until it's
+unselected there too. So that badge becomes conditional and names the sprint —
+*"matches the Agile Operations Dashboard when S1 is unselected there too"* — as do the
+method note beneath it and the ⓘ help on both pooled figures. The **Current PI** total
+keeps the unconditional promise, because that view never drops the sprint in the first
+place.
+
 The Current PI wording matters: an exclusion reaches the rolling average, the All teams
 comparison and the capacity target, and **nothing else**. The sprint's own figures and the
 PI totals are untouched — that's the whole difference between this and setting the sprint

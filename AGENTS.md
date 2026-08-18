@@ -205,6 +205,15 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   and Current PI (which read `s.excluded` per sprint) were fine. Both window-based views read
   this one function, so both went silent together — if a report says "it shows in some views
   and not others", this is the seam. Pinned by the oldest-sprint test in tests.html.
+  **The Agile Operations Dashboard reconciliation claim is now CONDITIONAL wherever an
+  exclusion can reach it.** A sprint left out here is still in the Dashboard's total until it
+  is unselected there too, so "matches the Agile Operations Dashboard" becomes "…when S1 is
+  unselected there too" — the tag on Comparison 2 (which gains `.tag.cond` so a sentence can
+  wrap where a two-word label never had to), its `.sub`, the `methodnote`, and the
+  `teamsPooled` / `rollPooledRow` help. **The PI view's claims stay unconditional and must**:
+  it filters on its own `closed` list rather than through `rollingSprints()`, so it never
+  loses a sprint this way. That asymmetry is pinned by a test — if the PI view ever starts
+  reading the window, `piTotalRow` and `piCommitCompletion` become wrong too.
   **⚑ now means two things in the All teams table** — sprints left out on the Sprints
   column, capacity adjusted on the Next sprint target column — so the caption spells out
   which is which; don't add a third use without doing the same. `excluded` and

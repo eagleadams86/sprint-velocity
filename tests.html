@@ -892,6 +892,20 @@ t('the excluded sprint keeps all its own figures — only the forecast skips it'
     eq(w.sprintStatus(s), 'complete', 'and it is still a finished sprint, not a faked-planned one');
   });
 });
+t('the Current PI view keeps an excluded sprint, which is why its help stays unconditional', () => {
+  /* The Dashboard-reconciliation claim is conditional on Comparison 2 and the
+     Rolling 5 pooled row, and NOT on the PI total row. That asymmetry is only
+     correct while the PI view keeps filtering on its own counted list rather than
+     through rollingSprints() — if that ever changes, the PI help is wrong too. */
+  const fx = windowFixture();
+  fx.sprints[6].excluded = true;
+  fx.sprints[6].excludeReason = 'incident';
+  withState(fx, () => {
+    const counted = w.teamSprints('t1').filter(w.__svTestHooks.isCounted);
+    eq(counted.some(x => x.id === 'w6'), true, 'still counted for the PI view');
+    eq(w.rollingSprints('t1', false).some(x => x.id === 'w6'), false, 'but out of the window');
+  });
+});
 t('excluding everything returns no target rather than throwing', () => {
   const fx = windowFixture();
   fx.sprints.forEach(s => { s.excluded = true; s.excludeReason = 'rebaseline'; });
