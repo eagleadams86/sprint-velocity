@@ -900,6 +900,30 @@ t('excluding everything returns no target rather than throwing', () => {
     eq(w.nextSprintTarget('t1', false), null);
   });
 });
+t('excluding the OLDEST sprint in a short history is still named', () => {
+  /* The regression Charles caught: Sprint and Current PI showed the exclusion,
+     Rolling 5 and All teams said nothing, because both read excludedInRange() and
+     it anchored on the oldest KEPT sprint — making the oldest sprint the one it
+     could never name, however much the window shrank. */
+  const fx = windowFixture();
+  fx.sprints = fx.sprints.slice(0, 4);          // four counted sprints, window not full
+  fx.sprints[0].excluded = true;
+  fx.sprints[0].excludeReason = 'rebaseline';
+  withState(fx, () => {
+    eq(w.rollingSprints('t1', false).length, 3, 'the window really did shrink from four to three');
+    eq(w.excludedInRange('t1', false).map(s => s.id), ['w0'], 'so it has to be named');
+    ok(w.excludedLine('t1', false).includes('⚑'), 'and the line has to render');
+  });
+});
+t('a team whose whole window is excluded names every one of them', () => {
+  const fx = windowFixture();
+  fx.sprints.forEach(s => { s.excluded = true; s.excludeReason = 'rebaseline'; });
+  withState(fx, () => {
+    eq(w.rollingSprints('t1', false), []);
+    eq(w.excludedInRange('t1', false).length, 5,
+       'the empty Rolling 5 card must be able to say why it is empty');
+  });
+});
 t('the note names the excluded sprints the window reached over, and no others', () => {
   const fx = windowFixture();
   fx.sprints[0].excluded = true;               // p1 S1 — long out of reach

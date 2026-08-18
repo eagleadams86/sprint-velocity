@@ -197,6 +197,14 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   comparison tables (`excludedTag()`) plus `excludedTeamsLine()` above the chart drawn from
   those same windows. **Say what it does NOT touch too** — the PI totals still count an
   excluded sprint, and a reader who sees a ⚑ will otherwise assume they don't.
+  **`excludedInRange()` is `counted.slice(-ROLLING_WINDOW).filter(excluded)` — the window as
+  it WOULD have been with nothing excluded — and it must stay that shape.** It first anchored
+  on the oldest *kept* sprint and looked forward from there, which by construction made the
+  oldest sprint the one it could never name: exclude the first of four and the window went
+  from four sprints to three with nothing on Rolling 5 or All teams to say so, while Sprint
+  and Current PI (which read `s.excluded` per sprint) were fine. Both window-based views read
+  this one function, so both went silent together — if a report says "it shows in some views
+  and not others", this is the seam. Pinned by the oldest-sprint test in tests.html.
   **⚑ now means two things in the All teams table** — sprints left out on the Sprints
   column, capacity adjusted on the Next sprint target column — so the caption spells out
   which is which; don't add a third use without doing the same. `excluded` and

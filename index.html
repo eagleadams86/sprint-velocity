@@ -1730,8 +1730,18 @@ function excludedWhy(s) {
 function excludedNames(teamId, includeSix) {
   const ex = excludedInRange(teamId, includeSix);
   if (!ex.length) return '';
-  return esc(ex.map(s =>
-    'S' + s.sprintNumber + ' left out (' + reasonLabel(s.excludeReason).toLowerCase() + ')').join(', '));
+  /* Grouped by reason, not one phrase per sprint: a team that re-baselined its
+     points has every sprint in the window out for the same reason, and repeating
+     the sentence four times turned the note into a wall nobody reads — which is
+     the same failure as burying it. */
+  const byReason = new Map();
+  ex.forEach(s => {
+    const r = reasonLabel(s.excludeReason).toLowerCase();
+    if (!byReason.has(r)) byReason.set(r, []);
+    byReason.get(r).push('S' + s.sprintNumber);
+  });
+  return esc([...byReason].map(([r, nums]) =>
+    nums.join(', ') + ' left out (' + r + ')').join('; '));
 }
 
 /* A line of its own under the heading, not another clause on the end of the
@@ -1755,10 +1765,17 @@ function excludedInRange(teamId, includeSix) {
   const counted = teamSprints(teamId)
     .filter(isCounted)
     .filter(s => includeSix || s.sprintNumber !== IP_SPRINT);
-  const kept = counted.filter(s => !s.excluded);
-  const oldest = kept.slice(-ROLLING_WINDOW)[0];
-  const from = oldest ? counted.indexOf(oldest) : 0;
-  return counted.slice(from).filter(s => s.excluded);
+  /* The window as it WOULD have been with nothing excluded. Anything excluded
+     inside it is a sprint the window reached over; anything older than it was
+     never going to be counted anyway, so naming it would be noise.
+
+     This used to anchor on the oldest *kept* sprint and look forward from there,
+     which made the oldest sprint the one it could never name — exclude the first
+     of four and the window quietly went from four sprints to three with nothing
+     on Rolling 5 or All teams to say so. Both views read this one function, which
+     is why both went silent together while the Sprint and Current PI views (which
+     read `s.excluded` directly, per sprint) were fine. */
+  return counted.slice(-ROLLING_WINDOW).filter(s => s.excluded);
 }
 
 /* ── Metrics ────────────────────────────────────────────────────────────────
@@ -3325,11 +3342,25 @@ function renderRollingView() {
   const team = activeTeam();
   const includeSix = !!state.settings.includeSprint6InRolling;
   const rs = rollingSprints(team.id, includeSix);
+  /* Finished sprints exist, but every one of them is excluded — so the reason the
+     window is empty is the user's own doing, not missing data. */
+  const allExcluded = !rs.length && teamSprints(team.id)
+    .filter(isCounted).filter(x => includeSix || x.sprintNumber !== IP_SPRINT).length > 0;
 
   if (!rs.length) {
     viewsEl.innerHTML = rollingToolbar(includeSix) + `<div class="card empty">
-      <h2>${teamSprints(team.id).length ? 'No Finished Sprints Yet' : 'No Sprints Recorded Yet'}</h2>
-      <p>${teamSprints(team.id).length
+      <h2>${allExcluded ? 'Every Sprint Is Left Out'
+        : teamSprints(team.id).length ? 'No Finished Sprints Yet' : 'No Sprints Recorded Yet'}</h2>
+      <p>${allExcluded
+        /* Without this the page said "nothing finished" about a team whose sprints
+           are all finished — the emptiest state of all, blaming the data for a
+           setting the user chose. */
+        ? `${esc(team.name)} has finished sprints, but every one in range is marked
+           <strong>left out of the rolling average</strong> —
+           ${excludedNames(team.id, includeSix)}. There is nothing left to average, so the
+           trend and the capacity target have gone with it — turn one back on under
+           <strong>Rolling average</strong> on the sprint form.`
+        : teamSprints(team.id).length
         ? `${esc(team.name)} has ${esc(openSprintsNote(team.id))} recorded, but nothing finished — the
            trend and the capacity target start once a sprint completes.`
         : `Add some sprint data for ${esc(team.name)} and the rolling trend will build itself.`}</p>
