@@ -292,7 +292,16 @@ select.ctl:hover { border-color: var(--text-muted); }
    button beside it. */
 .card > .row.cardhead { margin: 0 0 4px; }
 .card > .row.cardhead > h2 { margin: 0; font-size: 16px; letter-spacing: -.01em; }
-.card > .sub { margin: 0 0 16px; color: var(--text-secondary); font-size: 13px; }
+/* `.sub` is the app's secondary-text class, and its look must not depend on where
+   it sits. The size and colour were scoped to `.card > .sub` — a DIRECT child of a
+   card — so all 21 of the `.sub` paragraphs inside dialogs matched nothing and fell
+   back to the body's 15px at full text brightness: bigger and louder than the same
+   class two inches away on the page behind. Seven dialogs shared the bug; it only
+   became obvious once Adjust Capacity grew enough prose to notice. The MARGIN stays
+   card-scoped — dialogs set their own spacing inline, and hoisting it would move
+   every one of them. */
+.sub { color: var(--text-secondary); font-size: 13px; }
+.card > .sub { margin: 0 0 16px; }
 /* Tiles share the parent's rows via subgrid, so the label, the number and the
    caption each line up straight across a row of tiles. Without it a label that
    wraps to two lines ("Avg commitment completion") shunts its own number and

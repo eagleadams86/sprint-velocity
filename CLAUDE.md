@@ -96,6 +96,14 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   .grid-fields` also gives the reason the room the percentage box doesn't need. They double
   as the tail of a sentence ("S1 left out (a major incident)"), so keep any new one a phrase,
   not a clause, and re-measure against ~210px.
+- **A shared text class must not be scoped to where it happens to be used first.**
+  `.sub` had its size and colour on `.card > .sub` — a DIRECT card child — so all 21 `.sub`
+  paragraphs inside the seven dialogs matched nothing and rendered at the body's 15px at
+  full text brightness: bigger and louder than the identical class on the page behind.
+  Reported as "the text in this pop-up is much larger than the rest of the app". The size
+  and colour now live on plain `.sub`; only the MARGIN stays card-scoped, because dialogs
+  set their own spacing inline and hoisting it would move every one of them. Check a new
+  shared class renders the same in a card, a dialog and a table before shipping it.
 - **`.badge`'s `margin-left: 6px` is for a badge that FOLLOWS text, and `.badge:first-child`
   zeroes it.** Four of the six badge sites sit after something — a sprint name in a table row,
   a card heading — and want the gap. The two "left out" notes on Rolling 5 and All teams open
