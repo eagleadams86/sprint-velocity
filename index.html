@@ -859,10 +859,10 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
     </fieldset>
 
     <fieldset>
-      <legend>Rolling Average</legend>
+      <legend>Rolling 5</legend>
       <label class="row" style="gap:8px;cursor:pointer;font-size:14px">
         <input type="checkbox" id="f_excluded">
-        Leave this sprint out of the rolling average
+        Leave this sprint out of the rolling 5
       </label>
       <div class="grid-fields" style="margin-top:10px">
         <div>
@@ -873,7 +873,7 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
       <p class="sub" style="margin:10px 0 0">For a sprint that would mislead the forecast — a major
         incident that took it over, a re-baselining of the points, or a sprint most of the team was
         away for. The sprint's own figures are untouched and every other view still shows them; only
-        the rolling average and the capacity target skip it, and both say that they have.</p>
+        the rolling 5 and the capacity target skip it, and both say that they have.</p>
     </fieldset>
 
     <!-- There is deliberately NO free-text notes field on this form. This app
@@ -1668,7 +1668,7 @@ function sprintPickerNote(teamId, piId, n) {
   /* Both can be true — a running sprint can also be marked out of the average —
      and the picker is the one place you see every sprint at once, so it names
      both rather than letting one hide the other. */
-  if (s.excluded) notes.push('left out of the average');
+  if (s.excluded) notes.push('left out of the rolling ' + ROLLING_WINDOW);
   return notes.length ? ' — ' + notes.join(', ') : '';
 }
 
@@ -1709,7 +1709,14 @@ function rollingSprints(teamId, includeSix) {
    the two are one family of "somebody has told the app something the sprints
    can't say for themselves". */
 function excludedBadge(s) {
-  return (s && s.excluded) ? ' <span class="badge">⚑ Left out of the average</span>' : '';
+  /* Names the WINDOW, not "the average". On the Current PI table this badge sits
+     two rows above a summary line called "Average per sprint" that counts the
+     sprint in full, so "left out of the average" read as a flat contradiction of
+     the table it was in. "The rolling N" is the app's own name for the window —
+     the tab is called Rolling 5 and the in-flight banner already says it — and it
+     cannot be confused with a PI average. */
+  return (s && s.excluded)
+    ? ` <span class="badge">⚑ Left out of the rolling ${ROLLING_WINDOW}</span>` : '';
 }
 
 /* Exactly what an exclusion does, and — just as important — what it doesn't.
@@ -1720,10 +1727,10 @@ function excludedBadge(s) {
    and the status-faking it replaced, so every place that mentions the exclusion
    says it rather than leaving the reader to assume the figures moved too. */
 function excludedWhy(s) {
-  return `This sprint is <strong>left out of the rolling ${ROLLING_WINDOW} average, the
-    All teams comparison and the capacity target</strong> — ${esc(reasonLabel(s.excludeReason).toLowerCase())}.
+  return `This sprint is <strong>left out of the rolling ${ROLLING_WINDOW}, the All teams
+    comparison and the capacity target</strong> — ${esc(reasonLabel(s.excludeReason).toLowerCase())}.
     Its own figures below are unaffected, and it still counts towards the PI totals.
-    Change this under <strong>Rolling average</strong> on the sprint form.`;
+    Change this under <strong>Rolling ${ROLLING_WINDOW}</strong> on the sprint form.`;
 }
 
 /* Which sprints the window stepped over, and why, as one escaped phrase.
@@ -1885,7 +1892,7 @@ const METRIC_HELP = {
       public holidays, a change of team or a support rota. It scales the recommendation only; the
       history behind it is untouched.` },
   excludedSprint: { title: 'Sprint left out', target: null,
-    body: `A sprint deliberately kept out of the rolling average because it would mislead the
+    body: `A sprint deliberately kept out of the rolling window because it would mislead the
       forecast — a major incident, a re-baselining of the points, or a sprint most of the team was
       away for. Its own figures still show everywhere else.` },
 
@@ -3033,7 +3040,7 @@ function renderSprintView() {
     </div>` : ''}
 
     ${s.excluded ? `<div class="card banner">
-      <h2>⚑ Left Out of the Rolling Average</h2>
+      <h2>⚑ Left Out of the Rolling ${ROLLING_WINDOW}</h2>
       <p class="sub" style="margin:0">${excludedWhy(s)}</p>
     </div>` : ''}
 
@@ -3237,15 +3244,17 @@ function renderPiView() {
         ${countedRunning.length
           ? `the sprints being counted, including <strong>${countedRunning.map(x => 'S' + x.sprintNumber).join(', ')}</strong>
              which ${countedRunning.length === 1 ? 'is' : 'are'} still running`
-          : 'finished sprints only'}.${
-        /* Said here because it would otherwise be a fair assumption that a ⚑ row is
-           out of these totals too. It isn't — the exclusion only reaches the rolling
-           average and the capacity target. */
+          : 'finished sprints only'}${
+        /* Joined onto the sentence that says what the rows cover, rather than added
+           as a second sentence after it. A ⚑ row two lines above a total it is part
+           of is a contradiction on its face, and the correction has to arrive inside
+           the same breath as the claim — not trailing after a full stop. */
         closed.some(x => x.excluded)
-          ? ` <strong>${closed.filter(x => x.excluded).map(x => 'S' + x.sprintNumber).join(', ')}</strong>
-             ${closed.filter(x => x.excluded).length === 1 ? 'is' : 'are'} still counted here —
-             being left out of the rolling average doesn't change this PI's totals.`
-          : ''}</p>
+          ? ` — <strong>${closed.filter(x => x.excluded).map(x => 'S' + x.sprintNumber).join(', ')}</strong>
+             included. The ⚑ means ${closed.filter(x => x.excluded).length === 1 ? 'it is' : 'they are'}
+             held out of the rolling ${ROLLING_WINDOW} and the capacity target, which are worked out
+             on the Rolling ${ROLLING_WINDOW} tab. This PI's own figures are untouched`
+          : ''}.</p>
       <div class="tablewrap">
       <table aria-label="Sprint by sprint figures for this PI">
         <thead><tr>
@@ -3368,10 +3377,10 @@ function renderRollingView() {
            are all finished — the emptiest state of all, blaming the data for a
            setting the user chose. */
         ? `${esc(team.name)} has finished sprints, but every one in range is marked
-           <strong>left out of the rolling average</strong> —
+           <strong>left out of the rolling ${ROLLING_WINDOW}</strong> —
            ${excludedNames(team.id, includeSix)}. There is nothing left to average, so the
            trend and the capacity target have gone with it — turn one back on under
-           <strong>Rolling average</strong> on the sprint form.`
+           <strong>Rolling ${ROLLING_WINDOW}</strong> on the sprint form.`
         : teamSprints(team.id).length
         ? `${esc(team.name)} has ${esc(openSprintsNote(team.id))} recorded, but nothing finished — the
            trend and the capacity target start once a sprint completes.`
@@ -3873,7 +3882,7 @@ function renderTeamsView() {
      plus a spoken sentence, the same treatment as the adjusted-target marker. */
   const excludedTag = (r) => r.excluded.length
     ? ` <span aria-hidden="true">⚑</span><span class="sr-only">, ${r.excluded.length} sprint${
-        r.excluded.length === 1 ? '' : 's'} left out of the average</span>`
+        r.excluded.length === 1 ? '' : 's'} left out of the rolling ${ROLLING_WINDOW}</span>`
     : '';
 
   /* The reconciliation claim on Comparison 2 is unconditional wherever nothing is
@@ -4208,7 +4217,7 @@ function updateStatusHint() {
          one out of the forecast, and it misrepresents the sprint in every other
          view. Point at the control that does the job properly. */
       + (st !== 'complete' ? ' To keep a finished sprint out of the forecast only,'
-                           + ' use Rolling Average below instead.' : '');
+                           + ' use Rolling 5 below instead.' : '');
   }
 }
 

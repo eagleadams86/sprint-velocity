@@ -483,7 +483,7 @@ Sometimes the problem is the history rather than the sprint ahead: a major incid
 a sprint over, the points were re-baselined onto a different scale, the team was largely
 away, or a team merged and the sprints before it belong to a different team.
 
-The sprint form's **Rolling Average** section takes a sprint out of the rolling average
+The sprint form's **Rolling 5** section takes a sprint out of the rolling average
 and the capacity target, with a reason from the same kind of fixed list. Everything else
 about the sprint is untouched — its own figures still show in the Sprint view, the Current
 PI view and both comparison tables, and it's still a finished sprint rather than one faked
@@ -499,7 +499,7 @@ on:**
 |---|---|
 | Sprint view | A **⚑ Left out of the rolling average** banner spelling out what it does and doesn't change, and the badge on the sprint's own heading |
 | Sprint picker | `Sprint 2 — left out of the average`, before you even open it |
-| Current PI | A ⚑ badge on the sprint's row, and a caption saying it is **still counted** in this PI's totals |
+| Current PI | A **⚑ Left out of the rolling 5** badge on the sprint's row, and a caption naming it as **included** in this PI's totals |
 | Rolling 5 | A badged line under the heading naming it and the reason, and a note on the numbers table explaining the gap in the sprint numbers |
 | All teams | A ⚑ on the team's sprint count in both comparison tables, and a line under the heading naming which team lost which sprint |
 

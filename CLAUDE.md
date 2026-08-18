@@ -214,6 +214,16 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   it filters on its own `closed` list rather than through `rollingSprints()`, so it never
   loses a sprint this way. That asymmetry is pinned by a test — if the PI view ever starts
   reading the window, `piTotalRow` and `piCommitCompletion` become wrong too.
+  **Never call the window "the average" in an exclusion label — name it "the rolling N".**
+  The badge first read "⚑ Left out of the average", which on the Current PI table sits two
+  rows above a summary line literally called **Average per sprint** that counts the sprint in
+  full. Charles's reaction was "is it left out or not on the PI tab?" — the badge and the
+  table it was in read as a flat contradiction. "The rolling N" is the app's own name for the
+  window (the tab is Rolling 5, the in-flight banner already used it) and can't collide with
+  a PI average; the sprint form's fieldset is named the same, so the pointer and the control
+  match. Where a correction is needed it goes INSIDE the sentence making the claim ("finished
+  sprints only — S1 included"), never as a second sentence after the full stop; trailing
+  corrections arrive after the reader has already believed the badge.
   **⚑ now means two things in the All teams table** — sprints left out on the Sprints
   column, capacity adjusted on the Next sprint target column — so the caption spells out
   which is which; don't add a third use without doing the same. `excluded` and
