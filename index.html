@@ -601,6 +601,21 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
    same dialog in Flow Metrics and Golf Handicap. 560px is what those two use, and
    this app shares its chrome with Flow Metrics. */
 #dataDialog, #clearDialog { max-width: 560px; }
+/* Narrower than the sprint form for the same reason Back up is: this dialog's
+   widest row is a sprint label, a small number box and a percent sign. At 880px
+   the two panels below ran the full width one under the other and the window was
+   mostly empty. 700px fits them SIDE BY SIDE — availability on the left, the
+   sprints it applies to on the right — which is also the order the sentence at
+   the top reads in. */
+#adjustDialog { max-width: 700px; }
+@media (min-width: 760px) {
+  .adjustcols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+  .adjustcols > .formpanel, .adjustcols > fieldset { margin: 0; }
+  /* Each column is only ~320px, so the availability field pair stacks: the Why
+     picker holds sentences and would otherwise cut them off, which is exactly the
+     bug the widened column was added to fix. */
+  #adjustDialog .grid-fields { grid-template-columns: 1fr; }
+}
 dialog h3 { margin: 0 0 12px; font-size: 17px; }
 /* Every block in the sprint form is a raised panel a shade lighter than the dialog,
    with the input boxes inside it a shade darker again. That two-tone is what makes
@@ -993,6 +1008,7 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
     <h3 id="adjustTitle">Adjust Capacity</h3>
     <p class="sub" id="adjustSub"></p>
 
+    <div class="adjustcols">
     <div class="formpanel">
       <div class="grid-fields">
         <div>
@@ -1030,17 +1046,18 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
         <label class="sr-only" for="a_peopleThen">People on the team during that sprint</label>
         <input type="number" id="a_peopleThen" min="1" max="99" step="1" inputmode="numeric"
                style="width:64px" placeholder="then">
-        <span class="muted" style="font-size:13px">then,</span>
+        <span class="muted" style="font-size:13px" aria-hidden="true">→</span>
         <label class="sr-only" for="a_peopleNow">People on the team now</label>
         <input type="number" id="a_peopleNow" min="1" max="99" step="1" inputmode="numeric"
                style="width:64px" placeholder="now">
-        <span class="muted" style="font-size:13px">now, for</span>
+        <span class="muted" style="font-size:13px">for</span>
         <label class="sr-only" for="a_peopleSprint">Which sprint to scale</label>
         <select id="a_peopleSprint" style="width:auto"></select>
         <button type="button" class="btn small" id="a_peopleApply">Set %</button>
         <span class="muted" id="a_peopleOut" style="font-size:13px"></span>
       </div>
     </fieldset>
+    </div>
 
     <fieldset>
       <legend>How Long For</legend>

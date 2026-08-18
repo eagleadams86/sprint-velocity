@@ -96,6 +96,14 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   .grid-fields` also gives the reason the room the percentage box doesn't need. They double
   as the tail of a sentence ("S1 left out (a major incident)"), so keep any new one a phrase,
   not a clause, and re-measure against ~210px.
+- **`#adjustDialog` is 700px, and its two panels sit SIDE BY SIDE above 760px** (`.adjustcols`).
+  880px is the sprint form's width and buys nothing here — the widest row is a sprint label, a
+  small number box and a percent sign, so at 880px the panels ran full width one under the
+  other in a mostly empty window. Inside a ~320px column the availability `.grid-fields` must
+  STACK (same media query): the Why picker holds sentences and would otherwise cut them off,
+  which is the bug the widened column existed to fix. Three regimes to check when touching
+  this dialog — side-by-side ≥760px, stacked sections with two-column fields in between, and
+  single-column on a phone.
 - **A shared text class must not be scoped to where it happens to be used first.**
   `.sub` had its size and colour on `.card > .sub` — a DIRECT card child — so all 21 `.sub`
   paragraphs inside the seven dialogs matched nothing and rendered at the body's 15px at
