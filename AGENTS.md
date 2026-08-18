@@ -96,14 +96,14 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   .grid-fields` also gives the reason the room the percentage box doesn't need. They double
   as the tail of a sentence ("S1 left out (a major incident)"), so keep any new one a phrase,
   not a clause, and re-measure against ~210px.
-- **`#adjustDialog` is 700px, and its two panels sit SIDE BY SIDE above 760px** (`.adjustcols`).
-  880px is the sprint form's width and buys nothing here — the widest row is a sprint label, a
-  small number box and a percent sign, so at 880px the panels ran full width one under the
-  other in a mostly empty window. Inside a ~320px column the availability `.grid-fields` must
-  STACK (same media query): the Why picker holds sentences and would otherwise cut them off,
-  which is the bug the widened column existed to fix. Three regimes to check when touching
-  this dialog — side-by-side ≥760px, stacked sections with two-column fields in between, and
-  single-column on a phone. **Both panels are `<fieldset>` + `<legend>`, and that is what makes
+- **`#adjustDialog` is 1100px — Money Map's Preferences width (`--dialog-w-wide` there), asked
+  for 2026-08-18 so the two apps' two-up dialogs match.** Its panels sit SIDE BY SIDE above
+  1140px (`.adjustcols`), and that breakpoint is chosen so each column lands at ~520px, wide
+  enough for the availability `.grid-fields` to keep its own two columns with the Why picker
+  (which holds sentences) uncut. Don't lower it: at a ~340px column the picker clips, which is
+  the bug the widened column existed to fix. Below it the sections stack at full width. Three
+  regimes to check when touching this dialog — side-by-side ≥1140px, stacked in between, and
+  single-column fields on a phone. **Both panels are `<fieldset>` + `<legend>`, and that is what makes
   them line up**: a legend sits on the box's top border and pushes its contents down, so the
   left panel as a plain `.formpanel` started half a line higher than the fieldset beside it.
   Equal heights come from the grid's default `align-items: stretch` — don't reinstate

@@ -607,11 +607,21 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
    mostly empty. 700px fits them SIDE BY SIDE — availability on the left, the
    sprints it applies to on the right — which is also the order the sentence at
    the top reads in. */
-#adjustDialog { max-width: 700px; }
+/* Matched to the Preferences window in Money Map (financial-plan), which is that
+   app's `--dialog-w-wide`. Asked for 2026-08-18: the two apps share their chrome
+   and a dialog laid out two-up should be the same window in both. It is wider
+   than this app's sprint form (880px) on purpose — the two panels below sit side
+   by side, so the width buys a real second column rather than a longer line. */
+#adjustDialog { max-width: 1100px; }
 /* Stacked, the first panel sits directly under the intro line — `.formpanel:first-of-type`
    used to zero this and the left panel is a fieldset now. */
 .adjustcols > *:first-child { margin-top: 0; }
-@media (min-width: 760px) {
+/* Side by side only once the dialog is at its full width, which is what makes each
+   column ~520px — wide enough that the availability field pair keeps its own two
+   columns and the Why picker (which holds sentences) has room for the longest of
+   them. Below this the sections stack at full width, which reads fine and never
+   squeezes the picker. */
+@media (min-width: 1140px) {
   /* No align-items: the default `stretch` is what makes the two boxes the same
      height. Both are fieldsets with a legend, so their contents start on the same
      line too — a legend sits on the box's top border and pushes what follows down,
@@ -619,10 +629,6 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
      right when it was a plain div. */
   .adjustcols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .adjustcols > fieldset { margin: 0; }
-  /* Each column is only ~320px, so the availability field pair stacks: the Why
-     picker holds sentences and would otherwise cut them off, which is exactly the
-     bug the widened column was added to fix. */
-  #adjustDialog .grid-fields { grid-template-columns: 1fr; }
 }
 dialog h3 { margin: 0 0 12px; font-size: 17px; }
 /* Every block in the sprint form is a raised panel a shade lighter than the dialog,
