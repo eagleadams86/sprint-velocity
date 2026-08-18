@@ -489,9 +489,24 @@ about the sprint is untouched — its own figures still show in the Sprint view,
 PI view and both comparison tables, and it's still a finished sprint rather than one faked
 back to "planned" to hide it, which is how this used to have to be done.
 
-Exclusions are never silent: the Rolling 5 subtitle names every excluded sprint the window
-reached over, with its reason. And the window still fills to five, reaching further back
-into the history the same way it does for the IP sprint.
+The window still fills to five, reaching further back into the history the same way it does
+for the IP sprint.
+
+**Exclusions are never silent, and they say so on every page an excluded sprint appears
+on:**
+
+| Where | What you see |
+|---|---|
+| Sprint view | A **⚑ Left out of the rolling average** banner spelling out what it does and doesn't change, and the badge on the sprint's own heading |
+| Sprint picker | `Sprint 2 — left out of the average`, before you even open it |
+| Current PI | A ⚑ badge on the sprint's row, and a caption saying it is **still counted** in this PI's totals |
+| Rolling 5 | A badged line under the heading naming it and the reason, and a note on the numbers table explaining the gap in the sprint numbers |
+| All teams | A ⚑ on the team's sprint count in both comparison tables, and a line under the heading naming which team lost which sprint |
+
+The Current PI wording matters: an exclusion reaches the rolling average, the All teams
+comparison and the capacity target, and **nothing else**. The sprint's own figures and the
+PI totals are untouched — that's the whole difference between this and setting the sprint
+back to "planned" to hide it.
 
 ### Sprint 6 and the Rolling Average
 

@@ -1659,7 +1659,13 @@ function sprintPickerNote(teamId, piId, n) {
   const s = findSprint(teamId, piId, n);
   if (!s) return ' — no data';
   const st = sprintStatus(s);
-  return st === 'complete' ? '' : ' — ' + STATUS_SHORT[st];
+  const notes = [];
+  if (st !== 'complete') notes.push(STATUS_SHORT[st]);
+  /* Both can be true — a running sprint can also be marked out of the average —
+     and the picker is the one place you see every sprint at once, so it names
+     both rather than letting one hide the other. */
+  if (s.excluded) notes.push('left out of the average');
+  return notes.length ? ' — ' + notes.join(', ') : '';
 }
 
 function openSprintsNote(teamId) {
@@ -1693,17 +1699,53 @@ function rollingSprints(teamId, includeSix) {
   return all.slice(-ROLLING_WINDOW);
 }
 
-/* The note that names them, ready to sit on the end of a subtitle. Exclusions
-   are never silent in this app — every view that drops a sprint says which one
-   and why — and this one is the user's own doing, so it especially has to be
-   visible: a figure quietly resting on four sprints when the page says five is
-   the bug the rule exists to prevent. Returns escaped HTML because the reason
-   labels come from REASONS and the sprint numbers from the data. */
-function excludedNote(teamId, includeSix) {
+/* One badge, wherever an excluded sprint appears beside its own figures — the
+   sprint card, the PI table row, the sprint picker. Glyph plus words, never
+   colour alone, and deliberately the same ⚑ the adjusted-capacity badge wears:
+   the two are one family of "somebody has told the app something the sprints
+   can't say for themselves". */
+function excludedBadge(s) {
+  return (s && s.excluded) ? ' <span class="badge">⚑ Left out of the average</span>' : '';
+}
+
+/* Exactly what an exclusion does, and — just as important — what it doesn't.
+   It moves the rolling average, the All teams comparison and the capacity target.
+   It moves NOTHING else: the sprint's own figures are untouched and the PI totals
+   still count it, because the PI view filters on its own `closed` list rather than
+   through rollingSprints(). That distinction is the whole difference between this
+   and the status-faking it replaced, so every place that mentions the exclusion
+   says it rather than leaving the reader to assume the figures moved too. */
+function excludedWhy(s) {
+  return `This sprint is <strong>left out of the rolling ${ROLLING_WINDOW} average, the
+    All teams comparison and the capacity target</strong> — ${esc(reasonLabel(s.excludeReason).toLowerCase())}.
+    Its own figures below are unaffected, and it still counts towards the PI totals.
+    Change this under <strong>Rolling average</strong> on the sprint form.`;
+}
+
+/* Which sprints the window stepped over, and why, as one escaped phrase.
+   Exclusions are never silent in this app — every view that drops a sprint says
+   which one and why — and this one is the user's own doing, so it especially has
+   to be visible: a figure quietly resting on three sprints when the page says
+   five is the bug the rule exists to prevent. */
+function excludedNames(teamId, includeSix) {
   const ex = excludedInRange(teamId, includeSix);
   if (!ex.length) return '';
-  return ' · ' + esc(ex.map(s =>
+  return esc(ex.map(s =>
     'S' + s.sprintNumber + ' left out (' + reasonLabel(s.excludeReason).toLowerCase() + ')').join(', '));
+}
+
+/* A line of its own under the heading, not another clause on the end of the
+   subtitle. It WAS a clause, and in practice that made it silent: it landed
+   fifth in a run-on line after the sprint span, the IP-sprint note and the
+   still-running note, which is exactly where the eye stops. A rule that is
+   technically satisfied and never read isn't satisfied. */
+function excludedLine(teamId, includeSix) {
+  const names = excludedNames(teamId, includeSix);
+  if (!names) return '';
+  return `<p class="sub" style="margin:6px 0 0"><span class="badge">⚑ ${names}</span>
+    <span class="muted">Still shown in full on the Sprint and Current PI views — only these
+    averages and the capacity target skip ${excludedInRange(teamId, includeSix).length === 1
+      ? 'it' : 'them'}.</span></p>`;
 }
 
 /* The excluded sprints a team's window skipped over, for the note that names
@@ -2961,8 +3003,13 @@ function renderSprintView() {
              : (s.endDate ? ' It starts counting on its own once the end date passes.' : '')}`}</p>
     </div>` : ''}
 
+    ${s.excluded ? `<div class="card banner">
+      <h2>⚑ Left Out of the Rolling Average</h2>
+      <p class="sub" style="margin:0">${excludedWhy(s)}</p>
+    </div>` : ''}
+
     <div class="card">
-      <h2>${esc(team.name)} — ${esc(sprintLabel(s))}</h2>
+      <h2>${esc(team.name)} — ${esc(sprintLabel(s))}${excludedBadge(s)}</h2>
       <p class="sub">${s.startDate || s.endDate
         ? esc([s.startDate, s.endDate].filter(Boolean).join(' → ')) : 'No dates set'}</p>
       <div class="tiles">
@@ -3161,7 +3208,15 @@ function renderPiView() {
         ${countedRunning.length
           ? `the sprints being counted, including <strong>${countedRunning.map(x => 'S' + x.sprintNumber).join(', ')}</strong>
              which ${countedRunning.length === 1 ? 'is' : 'are'} still running`
-          : 'finished sprints only'}.</p>
+          : 'finished sprints only'}.${
+        /* Said here because it would otherwise be a fair assumption that a ⚑ row is
+           out of these totals too. It isn't — the exclusion only reaches the rolling
+           average and the capacity target. */
+        closed.some(x => x.excluded)
+          ? ` <strong>${closed.filter(x => x.excluded).map(x => 'S' + x.sprintNumber).join(', ')}</strong>
+             ${closed.filter(x => x.excluded).length === 1 ? 'is' : 'are'} still counted here —
+             being left out of the rolling average doesn't change this PI's totals.`
+          : ''}</p>
       <div class="tablewrap">
       <table aria-label="Sprint by sprint figures for this PI">
         <thead><tr>
@@ -3186,7 +3241,8 @@ function renderPiView() {
           return `<tr class="clickable${open ? ' open' : ''}" data-num="${n}">
             <th scope="row"><button type="button" class="rowbtn"
               aria-label="Edit sprint ${n}">Sprint ${n}${n === IP_SPRINT ? ' (IP)' : ''}</button>${
-              open ? ` <span class="badge">${STATUS_BADGE[st]} ${STATUS_TEXT[st]}</span>` : ''}</th>
+              open ? ` <span class="badge">${STATUS_BADGE[st]} ${STATUS_TEXT[st]}</span>` : ''}${
+              excludedBadge(s)}</th>
             <td>${fmtNum(m.committed)}</td>
             <td>${fmtNum(m.committedCompleted)}</td>
             <td class="metric">${open && !isCounted(s)
@@ -3305,8 +3361,8 @@ function renderRollingView() {
         rs.some(x => sprintStatus(x) !== 'complete')
           ? ' · includes ' + esc(rs.filter(x => sprintStatus(x) !== 'complete')
               .map(x => 'S' + x.sprintNumber).join(', ')) + ', still running' : ''}${
-        openSprintsNote(team.id) ? ' · ' + esc(openSprintsNote(team.id)) + ', not counted' : ''}${
-        excludedNote(team.id, includeSix)}</p>
+        openSprintsNote(team.id) ? ' · ' + esc(openSprintsNote(team.id)) + ', not counted' : ''}</p>
+      ${excludedLine(team.id, includeSix)}
       <div class="tiles">
         ${tile('Avg commitment completion', fmtPct(aCommit, 'completion'), rag(aCommit, 'completion'),
           'target ≥85%', false, 'rollCompletion')}
@@ -3338,7 +3394,11 @@ function renderRollingView() {
 
     <div class="card">
       <h2>The Numbers</h2>
-      <p class="sub">Click any sprint to edit it.</p>
+      <p class="sub">Click any sprint to edit it.${
+        excludedNames(team.id, includeSix)
+          ? ` These are the sprints in the window — <strong>${excludedNames(team.id, includeSix)}</strong>,
+             so it isn't listed here. The gap in the sprint numbers is that, not missing data.`
+          : ''}</p>
       <div class="tablewrap">
       <table aria-label="Figures for each sprint in the rolling window">
         <thead><tr><th scope="col">Sprint</th><th scope="col">Committed</th><th scope="col">Cmt. done</th>
@@ -3708,7 +3768,11 @@ function renderTeamsView() {
       /* Same sprints, the other average — so the two tables can only ever differ
          by method, never by which sprints they looked at. */
       pool: pooled(rs),
-      target: nextSprintTarget(t.id, includeSix)
+      target: nextSprintTarget(t.id, includeSix),
+      /* This view had no sign of an exclusion at all: a team's sprint count simply
+         came up short and nothing on the page said why. It is the view where that
+         matters most — it is the one people screenshot for a portfolio meeting. */
+      excluded: excludedInRange(t.id, includeSix)
     };
   });
   const withData = rowsData.filter(r => r.count > 0);
@@ -3762,6 +3826,25 @@ function renderTeamsView() {
     ? ` <span aria-hidden="true">⚑</span><span class="sr-only">, adjusted to ${t.availability}% availability</span>`
     : '';
 
+  /* On the sprint COUNT, because that is the figure the exclusion moved. Glyph
+     plus a spoken sentence, the same treatment as the adjusted-target marker. */
+  const excludedTag = (r) => r.excluded.length
+    ? ` <span aria-hidden="true">⚑</span><span class="sr-only">, ${r.excluded.length} sprint${
+        r.excluded.length === 1 ? '' : 's'} left out of the average</span>`
+    : '';
+
+  /* Named per team under the heading, because the chart on this card is drawn
+     from these same windows: a bar sitting lower than the reader expects, with
+     nothing anywhere on the page to say a sprint was taken out of it, is exactly
+     the silent exclusion the rule forbids. */
+  const excludedTeamsLine = (rows) => {
+    const hit = rows.filter(r => r.excluded.length);
+    if (!hit.length) return '';
+    return `<p class="sub" style="margin:6px 0 0"><span class="badge">⚑ Sprints left out</span>
+      <span class="muted">${hit.map(r => `${esc(r.team.name)} — ${excludedNames(r.team.id, includeSix)}`)
+        .join('; ')}. They still count on the Sprint and Current PI views.</span></p>`;
+  };
+
   const artTag = (team) => {
     if (!state.arts.length || filtered) return '';
     const on = team.artId ? artById(team.artId) : null;
@@ -3779,6 +3862,7 @@ function renderTeamsView() {
         ${anyOpen === 1 ? 'is' : 'are'} not counted` : ''}.
         ${withData.length ? 'The chart plots the average-of-sprints figure from Comparison 1 below.'
           : 'No team has a finished sprint yet.'}</p>
+      ${excludedTeamsLine(rowsData)}
       ${withData.length ? `<div class="chartbox"><canvas id="teamsChart" role="img"
         aria-label="Average commitment completion percentage by team, averaged across sprints, against the 85 percent target. Figures in the Comparison 1 table below."></canvas></div>` : ''}
     </div>
@@ -3789,8 +3873,10 @@ function renderTeamsView() {
         <strong>every sprint counts equally</strong> whatever its size. This is the read on how a
         typical sprint goes for the team. Click a team to switch to it. <strong>Next sprint
         target</strong> is the commitment each team can realistically take on — see the Rolling 5
-        view for the working. A ⚑ marks a team whose target has been adjusted for known
-        availability, and the total below includes those adjustments.</p>
+        view for the working. A ⚑ on <strong>Sprints</strong> means a sprint was left out of the
+        average — named under the heading above; a ⚑ on <strong>Next sprint target</strong> means
+        that figure was adjusted for known availability, and the total below includes those
+        adjustments.</p>
       <div class="tablewrap">
       <table aria-label="Comparison 1 — each team averaged across its sprints">
         <thead><tr><th scope="col">Team</th><th scope="col">Sprints</th><th scope="col" class="metric">Commitment completion</th>
@@ -3800,7 +3886,7 @@ function renderTeamsView() {
         <tbody>${rowsData.map(r => `<tr class="clickable" data-id="${esc(r.team.id)}">
           <th scope="row"><button type="button" class="rowbtn"
             aria-label="Switch to ${esc(r.team.name)}">${esc(r.team.name)}</button>${artTag(r.team)}</th>
-          <td>${r.count}</td>
+          <td>${r.count}${excludedTag(r)}</td>
           <td class="metric">${pill(r.commit, 'completion')}</td>
           <td class="metric">${pill(r.breakIn, 'churn')}</td>
           <td class="metric">${pill(r.removed, 'churn')}</td>
@@ -3837,7 +3923,7 @@ function renderTeamsView() {
         <tbody>${rowsData.map(r => `<tr class="clickable" data-id="${esc(r.team.id)}">
           <th scope="row"><button type="button" class="rowbtn"
             aria-label="Switch to ${esc(r.team.name)}">${esc(r.team.name)}</button>${artTag(r.team)}</th>
-          <td>${r.count}</td>
+          <td>${r.count}${excludedTag(r)}</td>
           <td>${fmtNum(r.pool.committed)}</td>
           <td>${fmtNum(r.pool.committedCompleted)}</td>
           <td class="metric">${pill(r.pool.commitCompletePct, 'completion')}</td>

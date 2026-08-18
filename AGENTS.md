@@ -186,8 +186,20 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   Setting a finished sprint to `planned` was the only way to do this before and it
   misrepresents the sprint in every other view; `updateStatusHint()` now points at the real
   control. The filter lives in `rollingSprints()` beside the IP-sprint rule so all three
-  callers agree, and `excludedNote()` names every excluded sprint the window reached over —
-  the never-silent rule applies to the user's own exclusions most of all. `excluded` and
+  callers agree. **The never-silent rule applies to the user's own exclusions most of all,
+  and it means every page the sprint appears on, not one of them**: the first cut only put a
+  clause on the end of the Rolling 5 subtitle — fifth in a run-on line, after the sprint
+  span, the IP note and the still-running note — and Charles's verdict was that it wasn't
+  clear anywhere. A rule technically satisfied and never read is not satisfied. The five
+  sites are the Sprint view (its own banner via `excludedWhy()`, plus `excludedBadge()` on
+  the heading), the sprint picker (`sprintPickerNote()`), the Current PI row and caption,
+  the Rolling 5 heading (`excludedLine()`) and its numbers-table caption, and both All teams
+  comparison tables (`excludedTag()`) plus `excludedTeamsLine()` above the chart drawn from
+  those same windows. **Say what it does NOT touch too** — the PI totals still count an
+  excluded sprint, and a reader who sees a ⚑ will otherwise assume they don't.
+  **⚑ now means two things in the All teams table** — sprints left out on the Sprints
+  column, capacity adjusted on the Next sprint target column — so the caption spells out
+  which is which; don't add a third use without doing the same. `excluded` and
   `excludeReason` are written by `buildSprintRecord()`, not merely read by `openSprint()`:
   that function rebuilds the whole record, so a field without a form input is dropped on the
   next edit (the `addedThenRemoved` lesson).

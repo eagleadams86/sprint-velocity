@@ -909,10 +909,14 @@ t('the note names the excluded sprints the window reached over, and no others', 
   withState(fx, () => {
     eq(w.excludedInRange('t1', false).map(s => s.id), ['w4'],
        'an exclusion older than the window changes nothing today, so saying so would be noise');
-    const note = w.excludedNote('t1', false);
-    ok(note.includes('S5 left out'), 'the sprint is named: ' + note);
-    ok(note.includes(w.__svTestHooks.REASONS.incident.toLowerCase()), 'and so is the reason: ' + note);
-    eq(w.excludedNote('t1', false).includes('S1 left out'), false);
+    const names = w.excludedNames('t1', false);
+    ok(names.includes('S5 left out'), 'the sprint is named: ' + names);
+    ok(names.includes(w.__svTestHooks.REASONS.incident.toLowerCase()), 'and so is the reason: ' + names);
+    eq(names.includes('S1 left out'), false);
+    /* The rendered line carries the badge, so the note can't quietly become a
+       clause on the end of a subtitle again. */
+    ok(w.excludedLine('t1', false).includes('⚑'), 'the line is badged');
+    eq(w.excludedLine('t2', false), '', 'a team with no exclusions renders nothing at all');
   });
 });
 
