@@ -608,9 +608,17 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
    sprints it applies to on the right — which is also the order the sentence at
    the top reads in. */
 #adjustDialog { max-width: 700px; }
+/* Stacked, the first panel sits directly under the intro line — `.formpanel:first-of-type`
+   used to zero this and the left panel is a fieldset now. */
+.adjustcols > *:first-child { margin-top: 0; }
 @media (min-width: 760px) {
-  .adjustcols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
-  .adjustcols > .formpanel, .adjustcols > fieldset { margin: 0; }
+  /* No align-items: the default `stretch` is what makes the two boxes the same
+     height. Both are fieldsets with a legend, so their contents start on the same
+     line too — a legend sits on the box's top border and pushes what follows down,
+     which is exactly how the left panel came to be half a line higher than the
+     right when it was a plain div. */
+  .adjustcols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .adjustcols > fieldset { margin: 0; }
   /* Each column is only ~320px, so the availability field pair stacks: the Why
      picker holds sentences and would otherwise cut them off, which is exactly the
      bug the widened column was added to fix. */
@@ -1009,7 +1017,8 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
     <p class="sub" id="adjustSub"></p>
 
     <div class="adjustcols">
-    <div class="formpanel">
+    <fieldset>
+      <legend>The Sprint You're Planning</legend>
       <div class="grid-fields">
         <div>
           <label class="field" for="a_pct">Team availability (%)</label>
@@ -1032,7 +1041,7 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
       <p class="sub" id="adjustPctHint" style="margin:10px 0 0">100% is a normal sprint. As a rough
         guide, one person in five away for the whole sprint is about 80%. Over 100% is allowed for
         the rarer case of extra help or a longer sprint.</p>
-    </div>
+    </fieldset>
 
     <fieldset>
       <legend>The Sprints Behind the Figure</legend>

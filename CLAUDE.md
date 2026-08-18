@@ -103,7 +103,11 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   STACK (same media query): the Why picker holds sentences and would otherwise cut them off,
   which is the bug the widened column existed to fix. Three regimes to check when touching
   this dialog — side-by-side ≥760px, stacked sections with two-column fields in between, and
-  single-column on a phone.
+  single-column on a phone. **Both panels are `<fieldset>` + `<legend>`, and that is what makes
+  them line up**: a legend sits on the box's top border and pushes its contents down, so the
+  left panel as a plain `.formpanel` started half a line higher than the fieldset beside it.
+  Equal heights come from the grid's default `align-items: stretch` — don't reinstate
+  `align-items: start`. Two side-by-side panels in this app should be the same element.
 - **A shared text class must not be scoped to where it happens to be used first.**
   `.sub` had its size and colour on `.card > .sub` — a DIRECT card child — so all 21 `.sub`
   paragraphs inside the seven dialogs matched nothing and rendered at the body's 15px at
