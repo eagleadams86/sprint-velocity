@@ -698,6 +698,8 @@ const SHARE_PAYLOAD = {
     startDate: '2026-06-01', endDate: '2026-06-12', status: 'auto',
     committed: 30, committedCompleted: 28, totalCompleted: 31, added: 3,
     removed: 0, carriedIn: 2, carriedOut: 2, addedThenRemoved: 0 }],
+  plans: [{ id: 'pl1', teamId: 't1', piId: 'p1', sprintNumber: 2,
+    availability: 60, reason: 'leave' }],
   settings: { activeTeamId: 't1', activePiId: null, artFilter: null,
     includeSprint6InRolling: false, includeInProgress: false, view: 'sprint' },
 };
@@ -726,6 +728,17 @@ t('a token with no format marker is refused, not guessed at', async () => {
   let threw = false;
   try { await w.decodeShare('nodothere'); } catch (e) { threw = true; }
   ok(threw);
+});
+/* buildSharePayload() puts the capacity adjustments in the link precisely so the
+   recipient's Target Capacity card shows the sender's figure — and the shared
+   view once dropped them on arrival, showing the unadjusted number with no ⚑.
+   The boundary half is pinned here; the openSharedView() assembly itself is
+   boot-and-DOM-bound, so it can't be reached from this harness. */
+t('the capacity adjustments survive the trip, for the recipient’s target card', async () => {
+  const out = await w.decodeShare(await w.encodeShare(SHARE_PAYLOAD));
+  eq(out.plans.length, 1, 'the plan is still in the decoded payload');
+  eq(out.plans[0].availability, 60);
+  eq(out.plans[0].reason, 'leave', 'still one of the fixed codes, never free text');
 });
 
 group('keepKnown — the 120-character label cap');

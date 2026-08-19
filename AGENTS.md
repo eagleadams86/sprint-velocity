@@ -375,6 +375,33 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   places and weren't, so a crafted share link could run script — which `viewOnly` does
   nothing about, since injected code doesn't go through `save()`. Render sites escape too.
   Don't add a render site that interpolates an id raw, and don't drop the boundary check.
+- **`SCHEMA` is what makes that boundary safe against OLDER code, and it exists because
+  of the service worker.** The allowlists above DELETE any key they don't know, which is
+  exactly right for a hostile payload and exactly wrong for a copy written by a NEWER
+  build: an older tab would strip the fields it has never heard of, render what's left,
+  and push the stripped copy back to Firestore on the next edit — another device's work
+  gone silently. So `version` (`SCHEMA`, currently 1) rides into localStorage, the cloud
+  document and every backup file, and four boundaries compare it:
+  - `load()` and `svAdopt()` call **`haltForNewerData()`** — a full-screen card, no
+    render, and a `throw` that aborts the rest of the script block so nothing can save
+    over the newer copy. It reuses `viewOnly` (and `window.svViewOnly`) rather than
+    inventing a second flag, so `save()` is already a no-op and the sync module already
+    refuses to start. `svAdopt()` writes the newer document to localStorage **verbatim**
+    before halting — that copy is the newest one there is, and the fresh build will read
+    it on the next load.
+  - `load()`'s check is deliberately OUTSIDE the `try` whose `catch` returns
+    `blankState()`: that catch is right for corrupt JSON and catastrophic here, because a
+    blank state the app then saves overwrites the good copy with nothing.
+  - The **Restore** path refuses the file with a toast and does NOT halt — nothing has
+    arrived yet and what's on screen is still good.
+  - Share links carry their own `SHARE_PAYLOAD_V` (a different thing from `SHARE_FORMAT`,
+    which is only how the bytes are packed). `decodeShare()` marks the error
+    `newerVersion` so the card can say the link is fine and this copy is behind, rather
+    than sending the reader off to chase a fresh link.
+  **Bump `SCHEMA` in the same commit that adds or repurposes a saved field, and widen the
+  allowlists in that same commit** — a bump without the allowlist change protects a field
+  the boundary then strips anyway. UI-only state (theme, active tab) needs no bump.
+  All four boundaries are pinned in tests.html.
 - **`sanitizeIds()` must never invent a key, and `cleanKey()` is why.** `x.id = clean(x.id)`
   on an **absent** key looks harmless and isn't: `clean()` returns what it was given, and
   the assignment creates the key holding `undefined`. `JSON.stringify` drops that, so
@@ -669,3 +696,63 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   "Recent changes" box that made them user-facing was removed on 2026-08-18 (in every app
   in the family, with the GitHub API dropped from each page's CSP), but the habit stands:
   the commit history is still the only record of what changed.
+- **There IS a service worker, and it was refused for a long time.** The three
+  objections were right to be made; two turned out to be answerable by design
+  rather than by abstention, and the third is what the whole thing is built
+  around. Recorded because the next person to touch this needs the reasoning:
+  - *"A resident process on the shared origin."* Bounded. A worker's scope
+    cannot exceed its own directory without the `Service-Worker-Allowed` header,
+    and GitHub Pages cannot send headers — so this one structurally cannot see
+    Flow Metrics or financial-plan. Locally, where the app is served from the
+    root, it does control `tests.html`; the allowlist is what makes that
+    harmless, not the scope.
+  - *"Caches are ORIGIN-wide, not per app."* True, and it does not go away — any
+    page on the origin can read this cache, and the sibling workers share the
+    store. The answer is the rule in `sw.js`: **only files already public in
+    this repo are ever cached** (`./`, `chart.min.js`, `theme.css`,
+    `privacy.html`, `favicon.ico`). Nothing in there is anything an attacker
+    could not read straight off GitHub, and the data stays in localStorage,
+    which every page on the origin could already reach. It cuts the other way
+    too — `activate` must only ever delete caches with this app's `sv-shell-`
+    prefix, or it wipes a sibling's.
+  - *"A caching bug serves stale code to an app whose data shape moves."* Still
+    the real risk. **The worker is network-first for everything**: you can only
+    be served cached code on a visit where the network did not answer. The
+    braces to that belt is `SCHEMA` / `haltForNewerData()` above — a saved copy
+    from a newer build is refused rather than run through sanitizeIds(), which
+    would strip the fields that build added.
+- **The page's CSP does not apply to the worker.** It takes its policy from its
+  own script's HTTP response headers, and Pages cannot set headers, so `sw.js`
+  runs with **no CSP at all**, permanently installed. Hence: tiny, no `eval`, no
+  `importScripts`, no dynamic import, no cross-origin URL anywhere in it — and
+  hence `worker-src 'self'` spelled out in the page CSP rather than left to the
+  `worker-src → child-src → script-src` fallback chain, which would inherit
+  script-src's gstatic and accounts.google.com hosts.
+- **`sw-kill.js` is the escape hatch, and it exists BEFORE it is needed.** A bad
+  page is fixed by pushing a new one; a bad worker is resident and can keep
+  serving itself. `cp sw-kill.js sw.js`, commit, push — every installed copy
+  then clears this app's caches, unregisters itself and reloads its windows.
+- **Two traps, both of which fail silently:** `cache.addAll` is all-or-nothing
+  (one 404 rejects the whole precache, install fails, and there is no offline at
+  all while the app looks perfectly healthy online); and **`install` fires once
+  per script version**, so if the cache is later evicted nothing rebuilds it and
+  offline decays to "whatever the last online visit happened to request". Hence
+  `topUp()`, fetching entries one by one, pinged by the page on every load via a
+  `shell-check` message — the repair must be able to run without a new worker
+  version to hang it on.
+- **`shellKey()` matches on the PATH, not the URL**, because the markup asks for
+  `favicon.ico?v=1`: keyed on the full URL, the precached favicon would never be
+  the entry that answers. `index.html` folds onto `./` for the same reason.
+- Registration is guarded three ways, all load-bearing: **not in a frame** (or a
+  `tests.html` run would install a worker and then test whatever it had cached),
+  **not under `window.svViewOnly`** — which covers both a shared view and a page
+  stopped by `haltForNewerData()`, since the halt's `throw` cannot reach a
+  separate script block — and **on `load`**.
+- **Testing it locally will mislead you.** The browser holds its own copy of
+  `sw.js`, and a byte-identical script fires no `install`, so edits appear to do
+  nothing and an emptied cache appears not to refill. `await reg.update()`
+  before judging any of it. Related: a suite run against a registered dev worker
+  is testing the cache, not the disk — unregister it on localhost before
+  trusting a green run.
+- The scope is `./`, never absolute: on the local server the app is at the root,
+  not under `/sprint-velocity/`, and an absolute scope is simply invalid there.

@@ -196,6 +196,10 @@ button, select, input, textarea { font: inherit; color: inherit; }
 }
 .btn:hover { border-color: var(--text-muted); }
 .btn.primary { background: var(--btn-bg); color: var(--btn-text); border-color: var(--btn-bg); }
+/* A filled button can't show the shared border-darken hover, so it dims instead —
+   opacity, not a new colour, the same reasoning as :disabled below. Mirrored from
+   Team Dashboard (Flow Metrics), where this hover landed first. */
+.btn.primary:hover { opacity: .88; }
 /* Opacity rather than a greyed colour, so nothing here invents a palette value.
    The share dialog's copy and preview buttons are disabled while a link builds,
    and until now looked identical to live ones. Mirrored from Team Dashboard. */
@@ -211,6 +215,9 @@ button, select, input, textarea { font: inherit; color: inherit; }
    Mirrored in Flow Metrics, Money Map, PAPTrack and Golf Handicap. */
 .btn.danger { color: var(--err); border-color: var(--err); background: transparent; }
 .btn.danger:hover { background: var(--err-bg); }
+/* A disabled danger button must not light up on hover — same rule as the primary
+   one above it, mirrored from Team Dashboard. */
+.btn.danger:disabled:hover { background: transparent; border-color: var(--err); }
 select, input[type=text], input[type=number], input[type=date], textarea {
   background: var(--bg-card); border: 1px solid var(--input-border);
   border-radius: var(--radius-sm); padding: 7px 9px;
@@ -244,6 +251,9 @@ select.ctl:hover { border-color: var(--text-muted); }
    first name, which is shorter — without this the button shrinks, and the whole
    header slides, the moment Firebase reports who you are. */
 #syncBtn { min-width: 125px; }
+/* Set by updateUI() while sync is failing, so the button reads as the warning it
+   is even before anyone hovers for the title. Mirrored from Team Dashboard. */
+#syncBtn[data-state="error"] { color: var(--warn); border-color: var(--warn); }
 
 /* The gap matches the header chrome's, so a row of tabs is spaced like every other
    run of buttons and pickers on the page. It was 20px to echo the space above and
@@ -756,7 +766,7 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
          on a narrow window. Starting hidden costs nothing; growing does. -->
     <label class="sr-only" for="teamSel">Team</label>
     <select id="teamSel" title="Which team you're looking at" hidden></select>
-    <button class="btn small" id="manageBtn" title="Add or rename teams, group them into ARTs, and manage PIs">Teams &amp; PIs</button>
+    <button class="btn small" id="manageBtn" type="button" title="Add or rename teams, group them into ARTs, and manage PIs">Teams &amp; PIs</button>
     <label class="sr-only" for="themeSel">Theme</label>
     <!-- The four unified themes, listed alphabetically (matches the other apps).
          Midnight is pre-selected to match the theme the boot script in <head> has
@@ -768,9 +778,9 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
       <option value="midnight" selected>✦ Midnight</option>
       <option value="sepia">📜 Sepia</option>
     </select>
-    <button class="btn small" id="dataBtn" title="Back up, restore or clear your data">Back up</button>
-    <button class="btn small" id="shareBtn" title="Create a read-only link to show someone your figures">Share</button>
-    <button class="btn small" id="syncBtn"
+    <button class="btn small" id="dataBtn" type="button" title="Back up, restore or clear your data">Back up</button>
+    <button class="btn small" id="shareBtn" type="button" title="Create a read-only link to show someone your figures">Share</button>
+    <button class="btn small" id="syncBtn" type="button"
       title="Sign in with Google to see the same data on all your devices">☁️ Sign in to sync</button>
   </div>
 </header>
@@ -5621,6 +5631,10 @@ async function openSharedView() {
     shareMeta = { sharedAt: p.sharedAt, label: p.label, allTeams: !!p.allTeams, range: p.range };
     state = Object.assign(blankState(), {
       teams: p.teams, arts: p.arts || [], pis: p.pis || [], sprints: p.sprints,
+      /* The capacity adjustments travel in the payload precisely so the
+         recipient's Target Capacity card shows the sender's figure — leaving
+         them out here silently showed the unadjusted number with no ⚑. */
+      plans: p.plans || [],
       settings: Object.assign(blankState().settings, p.settings || {})
     });
     /* Land on the most recent sprint that has data rather than the payload's own
@@ -6384,15 +6398,18 @@ function clearSyncError() {
 function updateUI() {
   if (user && syncError) {
     btn.textContent = '⚠️ Not syncing';
+    btn.dataset.state = 'error';
     btn.title = syncError.reason + ' ' + syncError.fix;
     privacyNote.textContent = `⚠️ Not syncing — ${syncError.reason} Everything is still saved in `
       + `this browser, but your other devices aren’t getting it. ${syncError.fix}`;
   } else if (user) {
     btn.textContent = `☁️ ${user.displayName ? user.displayName.split(' ')[0] : user.email}`;
+    delete btn.dataset.state;
     btn.title = 'Syncing across your devices — click to sign out';
     privacyNote.textContent = `☁️ Signed in as ${user.email} — your sprint data syncs privately to your own account and still works offline.`;
   } else {
     btn.textContent = '☁️ Sign in to sync';
+    delete btn.dataset.state;
     btn.title = 'Sign in with Google to see the same data on all your devices';
     privacyNote.textContent = '🔒 Private — your data is stored in this browser only. No account needed. Sign in with Google if you want the same data on your other devices.';
   }
