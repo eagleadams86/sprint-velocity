@@ -650,6 +650,14 @@ you when you're signed in that the copy in your Google account goes too — your
 ask before clearing themselves — and offers the same JSON export as a last chance to keep any
 of it. Your theme survives; it lives under its own key rather than with the data.
 
+**If one device is behind** — every saved copy carries the data format the app that wrote
+it understood. A copy written by a *newer* version than the one you're running won't be
+opened: you get a card saying so, nothing is changed or deleted, and reloading picks up the
+current version. That matters most on a device that's been offline for a while, where the
+browser can still be running an older cached copy of the app while another device has moved
+on. A backup file from a newer version is refused the same way, and a share link from one
+tells the reader the link is fine and their copy of the app is behind.
+
 **Deletion requests** — [privacy.html](privacy.html) promises that emailing the address
 there gets a user's synced copy deleted. [`DATA_DELETION.md`](DATA_DELETION.md) is the
 runbook for doing it: how to map an email address to the right Firestore document (the

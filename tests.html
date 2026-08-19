@@ -2,7 +2,15 @@
 <html lang="en" data-theme="midnight">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self'; connect-src https://api.github.com; frame-src 'self'; base-uri 'none'; form-action 'none'">
+<!-- Every page on the shared origin ships a CSP (the family security rule) —
+     this one is published on GitHub Pages beside the app, so it is as much a
+     page on the origin as index.html is. It needs: its own inline script and
+     styles, the same-origin stylesheet, connect-src 'self' to read index.html
+     as text (the halt can't be run live — see the newer-build group), plus
+     api.github.com for the CI-scorecard line, and frame-src 'self' for the
+     harness iframe (whose content is then governed by index.html's own CSP,
+     not this one). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self'; connect-src 'self' https://api.github.com; frame-src 'self'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sprint Velocity — Tests</title>
 <link rel="stylesheet" href="theme.css">
@@ -1140,6 +1148,116 @@ t('a hostile id on a plan is remapped with everything else that references it', 
   eq(out.plans.length, 1, 'remapped, so it is not an orphan');
   eq(out.plans[0].teamId, out.teams[0].id);
   ok(!/[<>]/.test(out.plans[0].teamId), 'and the id it now carries is a safe one');
+});
+
+/* ── A copy from a newer build ──────────────────────────────────────────────
+   The braces to the service worker's belt. Cached code can be a build behind,
+   and sync — or a restore, or a link — can hand that build data a newer one
+   wrote. sanitizeIds() would strip the fields it has never heard of and the
+   next edit would push the stripped copy back, so the app refuses instead.
+
+   The halt itself is pinned as SOURCE rather than run: it draws a card over the
+   whole frame and THROWS, which would take the rest of the suite down with it.
+   What is asserted is that the guard exists, that it sits before the code that
+   would strip or swallow it, and that it reuses the one write chokepoint. */
+group('A copy from a newer build');
+
+let APP_SRC = null;
+
+t('index.html can be read as text, which the pins below need', async () => {
+  const r = await fetch('index.html');
+  ok(r.ok, 'index.html is missing');
+  APP_SRC = await r.text();
+});
+
+t('a blank state is stamped with the format this build understands', () => {
+  eq(w.blankState().version, w.__svTestHooks.SCHEMA);
+});
+
+t('the halt fires above the current version and not at or below it', () => {
+  /* The comparison the guard makes, asserted directly — an off-by-one here
+     would either halt on every ordinary load or never halt at all. */
+  const S = w.__svTestHooks.SCHEMA;
+  const halts = (v) => Number(v || 1) > S;
+  ok(!halts(S), 'must not halt on data this build wrote');
+  ok(!halts(S - 1), 'must not halt on older data — the boundary already handles that');
+  ok(!halts(undefined), 'data with no version at all is old, not new');
+  ok(halts(S + 1), 'must halt on data from a newer build');
+});
+
+t('the halt refuses to write and takes the sync module down with it', () => {
+  /* It reuses viewOnly rather than inventing a second flag, so the promise is
+     only as good as that flag still being the write chokepoint. */
+  ok(/viewOnly = true;\n  window\.svViewOnly = true;/.test(APP_SRC),
+    'haltForNewerData must set viewOnly and its window mirror, the existing no-write guards');
+  ok(/if \(viewOnly\) return;/.test(APP_SRC), 'save\(\) must still be a no-op under viewOnly');
+  ok(/!window\.svViewOnly && !inTestHarness/.test(APP_SRC),
+    'the sync module must still refuse to start under svViewOnly');
+});
+
+t('load() checks before the try whose catch would hand back a blank state', () => {
+  /* That catch returns blankState(), which is right for corrupt JSON and
+     catastrophic here: a blank state the app then SAVES would overwrite the
+     good copy with nothing. Anchored on the catch's own try rather than on the
+     first `try {`, because the guard's one-line try for the peek precedes it. */
+  const guardAt = APP_SRC.indexOf('haltForNewerData(peek.version)');
+  const tryAt = APP_SRC.indexOf('try {\n    const raw = localStorage.getItem(STORAGE_KEY);');
+  ok(guardAt > -1, 'load() must call haltForNewerData');
+  ok(tryAt > -1, "load()'s main try block has moved — recheck this test");
+  ok(guardAt < tryAt, 'the guard must run BEFORE the try whose catch returns a blank state');
+  /* Read raw, or sanitizeIds strips the very fields that make it newer. */
+  const coerceAt = APP_SRC.indexOf('sanitizeIds(coerceShape(JSON.parse(raw)))');
+  ok(coerceAt > -1 && guardAt < coerceAt, 'the guard must run before coerceShape/sanitizeIds');
+});
+
+t('svAdopt stores the newer copy verbatim, then halts instead of adopting', () => {
+  /* Not exercised live: the real svAdopt writes this browser's sv-data and the
+     halt throws with its card over the frame. Pinned as source instead — the
+     guard, the verbatim store, then the halt, all before sanitizeIds. */
+  const at = APP_SRC.indexOf('window.svAdopt =');
+  ok(at > -1, 'svAdopt has moved — recheck this test');
+  const body = APP_SRC.slice(at, APP_SRC.indexOf('window.svCounts'));
+  const guard = body.search(/\(\(incoming && incoming\.version\) \|\| 1\) > SCHEMA/);
+  const store = body.indexOf('JSON.stringify(incoming)');
+  const halt = body.indexOf('haltForNewerData(incoming.version)');
+  const coerce = body.indexOf('sanitizeIds(coerceShape(incoming))');
+  ok(guard > -1, 'svAdopt must refuse a version newer than this build');
+  ok(store > guard && halt > store,
+    'the newer copy must be stored VERBATIM before the halt — sanitizing would lose its fields');
+  ok(coerce > -1 && halt < coerce, 'the halt must fire before sanitizeIds ever sees it');
+});
+
+t('the Restore path refuses a backup from a newer build, without halting', () => {
+  /* The handler is FileReader UI all the way down, so pin the source. Nothing
+     has arrived yet and what is on screen is still good, so this one refuses
+     the file rather than stopping the app. */
+  const at = APP_SRC.indexOf('JSON.parse(reader.result)');
+  ok(at > -1, 'the restore handler has moved — recheck this test');
+  const body = APP_SRC.slice(at, at + 2000);
+  const guard = body.search(/Number\(rawParsed\.version \|\| 1\) > SCHEMA/);
+  const coerce = body.indexOf('sanitizeIds(coerceShape(rawParsed))');
+  ok(guard > -1, 'the restore handler must refuse a version newer than this build');
+  ok(coerce > -1, 'the restore handler must still coerce the raw parse — has it moved?');
+  ok(guard < coerce, 'the refusal must come before coerceShape sees the file');
+  ok(!/haltForNewerData/.test(body), 'a refused file must not stop the app the user is using');
+});
+
+t('a share link from a newer build is refused, and says so', async () => {
+  /* This one CAN run live: decodeShare touches no storage. */
+  const future = Object.assign({}, SHARE_PAYLOAD, { v: 99 });
+  const raw = new TextEncoder().encode(JSON.stringify(future));
+  let err = null;
+  try { await w.decodeShare('0.' + w.__svTestHooks.b64urlEncode(raw)); }
+  catch (e) { err = e; }
+  ok(err, 'decodeShare must refuse a payload version it does not know');
+  ok(err.newerVersion, 'and mark it, so the error card can say the link is fine and the app is behind');
+});
+
+t('a share link of the current version still opens', async () => {
+  const out = await w.decodeShare(await w.encodeShare(SHARE_PAYLOAD));
+  eq(out.teams.length, 1, 'the guard must not catch ordinary links');
+  eq(SHARE_PAYLOAD.v, w.__svTestHooks.SHARE_PAYLOAD_V,
+    'the fixture and the app must agree on the current payload version');
 });
 
 /* ── Runner ───────────────────────────────────────────────────────────────── */

@@ -1187,6 +1187,30 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const STORAGE_KEY = 'sv-data';
+
+/* ── The data format number, and what makes stale code safe ─────────────────
+   It rides into localStorage, the cloud document and a backup file as
+   `version`, and every boundary below refuses a copy carrying a HIGHER one —
+   see haltForNewerData().
+
+   The reason is sanitizeIds(): its allowlists DELETE any key they don't know.
+   So an older build handed a newer document silently strips the fields it has
+   never heard of, renders what's left, and pushes the stripped copy back to the
+   cloud on the next edit — the other device's work gone, with nothing on screen
+   to say so. There is nothing to migrate towards, so refusing to open it is the
+   only safe answer.
+
+   This was `version: 1`, written and never read, until the service worker
+   landed: offline you can be running yesterday's cached code while sync hands
+   you a document today's build wrote on another device. Network-first caching
+   makes that narrow; this makes it safe.
+
+   BUMP IT whenever a saved field is added, renamed, or given a new meaning —
+   and widen sanitizeIds()'s allowlists in the SAME commit, or the boundary will
+   strip the very field the bump exists to protect. Nothing that stays on this
+   page (theme, which tab is open) needs a bump. */
+const SCHEMA = 1;
+
 const SPRINTS_PER_PI = 6;
 const IP_SPRINT = 6;          // sprint 6 is the innovation & planning sprint
 const ROLLING_WINDOW = 5;
@@ -1239,7 +1263,9 @@ const reasonLabel = (code) => REASONS[code] || REASONS.other;
 
 function blankState() {
   return {
-    version: 1,
+    /* Stamped on every saved copy so a newer build knows what wrote it — and so
+       an older one can refuse it rather than quietly strip it. See SCHEMA. */
+    version: SCHEMA,
     teams: [],
     /* An ART (Agile Release Train) is a grouping of teams, and nothing more: a
        team carries an optional `artId` and every figure in the app is still
@@ -1544,6 +1570,20 @@ let bootPruned = 0;          // stray keys or wrong-typed values found in it
 let state = load();
 
 function load() {
+  /* The data-from-the-future check, before a single field is read or written.
+     Deliberately OUTSIDE the try below: that catch returns blankState(), which
+     is the right answer for corrupt JSON and a catastrophic one here — a blank
+     state the app then SAVES would overwrite the good copy with nothing.
+
+     Read RAW, before coerceShape() and sanitizeIds(), because sanitizeIds is
+     precisely what would throw the newer fields away before they could be
+     noticed. */
+  let peek = null;
+  try { peek = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); }
+  catch (e) { peek = null; }   // unparseable is the try's problem, not this one
+  if (peek && typeof peek === 'object' && Number(peek.version || 1) > SCHEMA)
+    haltForNewerData(peek.version);
+
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return blankState();
@@ -1573,6 +1613,86 @@ function save() {
     toast('⚠️ This browser is blocking storage (full, or private mode?) — changes may be lost when the tab closes');
   }
   if (window.cloudPush) window.cloudPush();
+}
+
+/* Stop the app dead, with the saved data untouched, and say why.
+   Called only for a copy written by a NEWER build — from load() at boot, and
+   from svAdopt() when sync hands one over mid-session. It does three things,
+   in a deliberate order:
+
+   1. Sets viewOnly (and its window mirror), which is the EXISTING, tested
+      chokepoint: save() is already a no-op under it and the sync module already
+      refuses to start. Reusing the share-view guard beats inventing a second
+      halt flag that every future write path would have to remember to check.
+   2. Draws the message with textContent, never innerHTML. The number comes out
+      of localStorage or a cloud document, and data is data, not markup.
+   3. THROWS, which aborts the rest of this script block, so nothing after
+      `let state = load()` ever initialises. Silence is the point: a half-booted
+      app with its handlers attached is one stray click away from a save. */
+function haltForNewerData(found) {
+  viewOnly = true;
+  window.svViewOnly = true;
+  const wrap = document.createElement('div');
+  wrap.setAttribute('style', 'position:fixed;inset:0;z-index:99999;display:flex;'
+    + 'align-items:center;justify-content:center;padding:24px;'
+    + 'background:var(--bg,#0a0e1a);color:var(--text-primary,#e7eaf6);'
+    + 'font:16px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif');
+  const card = document.createElement('div');
+  card.setAttribute('style', 'max-width:34em;border:1px solid var(--border,#262f4a);'
+    + 'border-radius:12px;padding:24px 26px;background:var(--surface,#121829)');
+  const h = document.createElement('h1');
+  h.setAttribute('style', 'margin:0 0 12px;font-size:20px');
+  h.textContent = 'This Data Was Saved by a Newer Version';
+  const p1 = document.createElement('p');
+  p1.setAttribute('style', 'margin:0 0 12px');
+  p1.textContent = 'Your saved data uses format ' + String(found)
+    + ', and the copy of the app running here only understands ' + String(SCHEMA)
+    + '. Opening it with this older code would quietly drop the parts it doesn\u2019t '
+    + 'know about, so it has stopped instead.';
+  const p2 = document.createElement('p');
+  p2.setAttribute('style', 'margin:0 0 12px');
+  p2.textContent = 'Nothing has been changed or deleted \u2014 your teams and sprints '
+    + 'are exactly as you left them. This usually means another device saved '
+    + 'after an update, and this one is still running the older version from '
+    + 'its offline cache.';
+  const p3 = document.createElement('p');
+  p3.setAttribute('style', 'margin:0 0 18px;color:var(--text-secondary,#aab2d0)');
+  p3.textContent = 'Connect to the internet and reload to get the current version.';
+  const btn = document.createElement('button');
+  btn.setAttribute('style', 'font:inherit;font-weight:600;padding:9px 18px;'
+    + 'border:0;border-radius:8px;cursor:pointer;'
+    + 'background:var(--btn-bg,#e7eaf6);color:var(--btn-text,#0a0e1a)');
+  btn.textContent = 'Reload';
+  /* A plain reload can be answered by the service worker out of its cache — the
+     same stale code that got us here — and `location.reload(true)` does NOT fix
+     that: the force-reload argument is non-standard and today's browsers ignore
+     it. So take the worker out of the loop first, then reload. Uninstalling it
+     needs no undoing: the page registers a fresh one on the next successful
+     load, which by then is the current build. Only `sv-shell-` caches are
+     deleted — the origin is shared, and a sibling app's cache is not ours to
+     touch, the same rule sw.js itself follows. */
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    btn.textContent = 'Reloading\u2026';
+    try {
+      if (navigator.serviceWorker) {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg) await reg.unregister();
+      }
+      if (window.caches) {
+        const keys = await caches.keys();
+        await Promise.all(keys.filter((k) => k.startsWith('sv-shell-'))
+          .map((k) => caches.delete(k)));
+      }
+    } catch (e) { /* nothing to clear, or storage refused — reload anyway */ }
+    location.reload();
+  });
+  card.append(h, p1, p2, p3, btn);
+  wrap.appendChild(card);
+  const attach = () => document.body.appendChild(wrap);
+  if (document.body) attach();
+  else document.addEventListener('DOMContentLoaded', attach, { once: true });
+  throw new Error('sv: saved data version ' + found + ' is newer than this build (' + SCHEMA + ')');
 }
 
 /* ── Domain helpers ─────────────────────────────────────────────────────── */
@@ -5212,6 +5332,14 @@ F('importFile').onchange = (e) => {
       if (!rawParsed || typeof rawParsed !== 'object'
           || !Array.isArray(rawParsed.teams) || !Array.isArray(rawParsed.sprints))
         throw new Error('not a Sprint Velocity export');
+      /* A backup written by a newer build, same check as load() and svAdopt().
+         This one does NOT halt the app: unlike those two, nothing has arrived
+         yet and the data on screen is still perfectly good — the file is simply
+         refused, and the toast says what to do about it. */
+      if (Number(rawParsed.version || 1) > SCHEMA) {
+        toast('This backup was saved by a newer version of the app \u2014 reload to update, then restore it');
+        return;
+      }
       const parsed = sanitizeIds(coerceShape(rawParsed));
       const orphans = sanitizeIds.dropped;
       /* The counts quoted here are the ones that will actually arrive, so any
@@ -5295,6 +5423,14 @@ F('clearConfirm').onclick = () => {
    Nothing identifying goes in — no email, no display name, no sync uid. */
 
 const SHARE_FORMAT = 1;
+
+/* The PAYLOAD version, and a different thing from SHARE_FORMAT above: that
+   marker says how the bytes are packed, this says what shape is inside them.
+   It travels as `v`, and decodeShare() refuses a higher one — a colleague on a
+   newer build should get "ask for a fresh link" rather than a view silently
+   missing whatever their build added. Unlike SCHEMA there is no cloud copy at
+   stake, so nothing is written and nothing halts. */
+const SHARE_PAYLOAD_V = 1;
 
 const b64urlEncode = (bytes) => {
   let s = '';
@@ -5403,7 +5539,7 @@ function buildSharePayload({ teamIds, includeAllTeams, scope }) {
      which is why this filters from the final `teams` list rather than from `picked`. */
   const usedArts = new Set(teams.map(t => t.artId).filter(Boolean));
   return {
-    v: 1,
+    v: SHARE_PAYLOAD_V,
     sharedAt: Date.now(),
     label: teams.map(t => t.name).join(', '),
     allTeams: !!includeAllTeams && teams.length > 1,
@@ -5459,6 +5595,14 @@ async function decodeShare(token) {
   const p = JSON.parse(json);
   if (!p || !Array.isArray(p.teams) || !Array.isArray(p.sprints) || !p.teams.length)
     throw new Error('not a share payload');
+  /* Made by a newer build than this one. Thrown with a marked reason so the
+     error screen can say something true — "it looks incomplete" would send the
+     recipient chasing a link that arrived perfectly intact. */
+  if (Number(p.v || 1) > SHARE_PAYLOAD_V) {
+    const err = new Error('share payload v' + p.v + ' is newer than this build');
+    err.newerVersion = true;
+    throw err;
+  }
   /* A link is the least trusted input the app has — it arrives from someone else
      by definition, which is the whole point of the feature. The shape check
      above has already refused a non-share payload, so coercing here can only
@@ -5493,14 +5637,26 @@ async function openSharedView() {
     if (orphans) toast(orphanNote(orphans));
   } catch (e) {
     console.warn('share link could not be read', e);
-    renderShareError();
+    renderShareError(e && e.newerVersion ? 'newer' : 'broken');
   }
 }
 
-function renderShareError() {
+/* `reason` is 'broken' (the usual case: a link cut in half by a mail client) or
+   'newer' (the link is intact, this copy of the app is behind). Telling them
+   apart matters — the advice is opposite, and sending someone to chase a fresh
+   copy of a link that arrived perfectly intact wastes both their time. */
+function renderShareError(reason) {
   document.querySelector('.tabs').hidden = true;
   document.getElementById('teamSel').hidden = true;
-  viewsEl.innerHTML = `
+  viewsEl.innerHTML = reason === 'newer' ? `
+    <div class="card empty">
+      <h2>This Link Was Made by a Newer Version</h2>
+      <p>The link is fine — this copy of the app is behind, so it can’t read everything
+         in it. Reload the page to pick up the current version, then open the link again.</p>
+      <div class="row" style="justify-content:center;margin-top:18px">
+        <a class="btn primary" href="${esc(location.pathname)}">Open my own data</a>
+      </div>
+    </div>` : `
     <div class="card empty">
       <h2>This Shared Link Couldn’t Be Opened</h2>
       <p>It looks incomplete — links are long, and mail apps sometimes cut them in half or
@@ -5884,6 +6040,22 @@ document.querySelectorAll('.tab').forEach(tab => {
 /* ── Hooks the sync module calls ────────────────────────────────────────── */
 window.svGet = () => state;
 window.svAdopt = (incoming, ts) => {
+  /* The data-from-the-future check, live edition. load() only guards BOOT, but
+     onSnapshot can hand a page running yesterday's cached code a document
+     today's build wrote on another device, mid-session — which is the case the
+     offline cache actually makes likely.
+
+     Stored VERBATIM first, before sanitizeIds() can strip what makes it newer:
+     localStorage is the source of truth the fresh build will read on the next
+     load, and the newest copy belongs in it. Then the same halt as boot — it
+     sets viewOnly and THROWS, so nothing below ever adopts. */
+  if (Number((incoming && incoming.version) || 1) > SCHEMA) {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(incoming));
+      localStorage.setItem('sv-updated', String(ts || Date.now()));
+    } catch (e) { console.warn('Could not write saved data', e); }
+    haltForNewerData(incoming.version);
+  }
   incoming = sanitizeIds(coerceShape(incoming));
   const orphans = sanitizeIds.dropped;
   state = Object.assign(blankState(), incoming,
@@ -5960,7 +6132,11 @@ if (viewOnly) {
    calls the pure functions). Function declarations are already reachable as
    window properties; this exposes the consts the tests need. Nothing in the
    app reads it. */
-window.__svTestHooks = { fmtPct, ART_NONE, b64urlEncode, REASONS, AVAILABILITY_REASONS, EXCLUDE_REASONS, isCounted };
+window.__svTestHooks = { fmtPct, ART_NONE, b64urlEncode, REASONS, AVAILABILITY_REASONS, EXCLUDE_REASONS, isCounted,
+  /* `const` at the top level of a classic script is not a property of window,
+     so the two version numbers have to be handed over deliberately or the
+     suite would compare against `undefined` and pass on nothing. */
+  SCHEMA, SHARE_PAYLOAD_V };
 </script>
 
 <script type="module">

@@ -375,6 +375,33 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   places and weren't, so a crafted share link could run script — which `viewOnly` does
   nothing about, since injected code doesn't go through `save()`. Render sites escape too.
   Don't add a render site that interpolates an id raw, and don't drop the boundary check.
+- **`SCHEMA` is what makes that boundary safe against OLDER code, and it exists because
+  of the service worker.** The allowlists above DELETE any key they don't know, which is
+  exactly right for a hostile payload and exactly wrong for a copy written by a NEWER
+  build: an older tab would strip the fields it has never heard of, render what's left,
+  and push the stripped copy back to Firestore on the next edit — another device's work
+  gone silently. So `version` (`SCHEMA`, currently 1) rides into localStorage, the cloud
+  document and every backup file, and four boundaries compare it:
+  - `load()` and `svAdopt()` call **`haltForNewerData()`** — a full-screen card, no
+    render, and a `throw` that aborts the rest of the script block so nothing can save
+    over the newer copy. It reuses `viewOnly` (and `window.svViewOnly`) rather than
+    inventing a second flag, so `save()` is already a no-op and the sync module already
+    refuses to start. `svAdopt()` writes the newer document to localStorage **verbatim**
+    before halting — that copy is the newest one there is, and the fresh build will read
+    it on the next load.
+  - `load()`'s check is deliberately OUTSIDE the `try` whose `catch` returns
+    `blankState()`: that catch is right for corrupt JSON and catastrophic here, because a
+    blank state the app then saves overwrites the good copy with nothing.
+  - The **Restore** path refuses the file with a toast and does NOT halt — nothing has
+    arrived yet and what's on screen is still good.
+  - Share links carry their own `SHARE_PAYLOAD_V` (a different thing from `SHARE_FORMAT`,
+    which is only how the bytes are packed). `decodeShare()` marks the error
+    `newerVersion` so the card can say the link is fine and this copy is behind, rather
+    than sending the reader off to chase a fresh link.
+  **Bump `SCHEMA` in the same commit that adds or repurposes a saved field, and widen the
+  allowlists in that same commit** — a bump without the allowlist change protects a field
+  the boundary then strips anyway. UI-only state (theme, active tab) needs no bump.
+  All four boundaries are pinned in tests.html.
 - **`sanitizeIds()` must never invent a key, and `cleanKey()` is why.** `x.id = clean(x.id)`
   on an **absent** key looks harmless and isn't: `clean()` returns what it was given, and
   the assignment creates the key holding `undefined`. `JSON.stringify` drops that, so
