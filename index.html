@@ -3916,16 +3916,25 @@ function targetCapacityCard(team, includeSix) {
 
   /* Not a caveat, so not in the ⚠ list: nothing here is wrong with the data or
      shaky about the figure. It's a finding ABOUT the team, and the one thing this
-     card cannot say by changing its number. Kept to prose and marked with ↗ — no
-     colour, because a finding that is neither good nor bad news has no business
-     claiming a RAG band. */
+     card cannot say by changing its number — so it takes the badge-led line the
+     "sprints left out" notes use, and sits under the sub-heading ABOVE the tiles
+     rather than under them. Same lesson as excludedLine(): this started life last
+     on the card, after the fold-out and next to the caveats, which is exactly
+     where the eye stops.
+
+     The amber is the ⚑ / ◐ amber — "there is something here you should read", the
+     same as an adjusted figure or a sprint in flight. It is NOT a RAG band and
+     must never be wired to rag(): the finding is neither good news nor bad, and
+     the tiles beside it are where the colour-coded verdicts live. The ↗ carries
+     the meaning on its own, so the colour is never the only signal. */
   const headroomNote = t.hasHeadroom
-    ? `↗ <strong>There may be room for more.</strong> In ${t.headroomSprints} of the last ${
-        t.sprints} sprints ${esc(team.name)} finished what they committed to and took on further
-       work as well — about <strong>${fmtNum(Math.round(t.headroomExtra))}</strong> points a sprint
-       on top. The figure above can't show that: it's the average of committed points finished, so
-       it can never rise higher than what the team commits to. Worth asking at planning whether the
-       commitment itself is being set too low.`
+    ? `<p class="sub exnote"><span class="badge">↗ Room for more</span>
+       <span class="muted">In ${t.headroomSprints} of the last ${t.sprints} sprints
+       ${esc(team.name)} finished what they committed to and took on further work as well — about
+       <strong>${fmtNum(Math.round(t.headroomExtra))}</strong> points a sprint on top. The figure
+       below can't show that: it's the average of committed points finished, so it can never rise
+       higher than what the team commits to. Worth asking at planning whether the commitment itself
+       is being set too low.</span></p>`
     : '';
 
   return `<div class="card">
@@ -3938,6 +3947,7 @@ function targetCapacityCard(team, includeSix) {
     <p class="sub">What ${esc(team.name)} can realistically commit to, based on their last
       ${t.sprints} finished sprint${t.sprints === 1 ? '' : 's'}.${
       t.hasCommitment ? ' This sprint is already under way, so compare it with what they signed up for.' : ''}</p>
+    ${headroomNote}
     <div class="tiles">
       ${tile('Recommended commitment', fmtNum(Math.round(t.recommended)), null,
         t.adjusted ? `story points · ${t.availability}% of ${fmtNum(Math.round(t.planningBase))}${
@@ -4002,7 +4012,6 @@ function targetCapacityCard(team, includeSix) {
           Committing closer to the figure above is what moves commitment completion towards the 85% target.</p>` : ''}
       </div>
     </details>
-    ${headroomNote ? `<p class="sub" style="margin:14px 0 0">${headroomNote}</p>` : ''}
     ${caveats.length ? `<p class="sub" style="margin:14px 0 0">⚠ ${caveats.join(' ')}</p>` : ''}
     ${adjustPrompt ? `<p class="sub" style="margin:14px 0 0">${adjustPrompt}</p>` : ''}
   </div>`;

@@ -488,10 +488,15 @@ back the figure the team already commits to, with the spare capacity they've jus
 demonstrated nowhere in the number.
 
 So the card says it in words instead. When a clear majority of the window shows a sprint
-whose commitment was finished *and* extra work completed on top, a **↗ There may be room
-for more** note appears under the figure, with how many sprints showed the pattern and
-roughly how many extra points a sprint they took on. "How this is worked out" spells out
-what's behind it.
+whose commitment was finished *and* extra work completed on top, an amber **↗ Room for
+more** badge appears above the tiles — the same badge-led line the *sprints left out*
+notes use — saying how many sprints showed the pattern and roughly how many extra points
+a sprint they took on. "How this is worked out" spells out what's behind it.
+
+The amber is the same "there's something here to read" amber as *⚑ Adjusted* and *◐ In
+progress*, not a RAG band: the finding is neither good news nor bad, and the tiles beside
+it are where the colour-coded verdicts live. The ↗ carries the meaning on its own, so the
+colour is never the only signal.
 
 Three deliberate limits:
 

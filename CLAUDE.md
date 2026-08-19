@@ -250,8 +250,15 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   team committed to, so that spare capacity is structurally invisible to it. **Do not fold
   `headroomExtra` into `recommended`, and do not add a "stretch" tile.** The extra is
   unplanned break-in; adding it on is committing to velocity by another name, which is the
-  one mistake this whole card exists to prevent. It also carries no RAG colour — a finding
-  that is neither good news nor bad has no business claiming a band.
+  one mistake this whole card exists to prevent.
+- **The headroom note is a `.badge` line, and its amber is NOT a RAG band.** It takes the
+  same badge-led `.sub.exnote` shape as the "sprints left out" notes, for the same reason
+  `excludedLine()` gives: it started life last on the card, after the fold-out and beside
+  the caveats, which is where the eye stops. It now sits under the sub-heading, above the
+  tiles. The amber is the ⚑ / ◐ amber — "there is something here to read", like an adjusted
+  figure or a sprint in flight — so **never wire it to `rag()`**: the finding is neither
+  good news nor bad, and the tiles beside it are where the colour-coded verdicts live. The
+  ↗ carries the meaning without the colour, per the never-colour-alone rule.
 - **`overCommitting` and `hasHeadroom` are computed in `nextSprintTarget`, not the card**,
   and headroom is suppressed when `overCommitting` is on. The card used to work the first one
   out again for its own prose; one home is what makes the two mutually exclusive by
