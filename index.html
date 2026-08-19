@@ -6035,68 +6035,154 @@ F('shareOpenBtn').onclick = () => {
 
 /* ═══════════════════════════════ Sample data ══════════════════════════════ */
 
+/* ── The sample data is the app's DEMO, not just something to fill the screen ──
+   It is what a person who has been sent a share link explores, and what Charles
+   shows the app with. So the standing rule is: EVERY feature must be reachable
+   from it, and a new feature is not finished until the sample exercises it. When
+   you add one, add the data that shows it off here and name it in the roster
+   below, the confirm text, the README table and the sample-data tests.
+
+   The roster, and the one thing each team is here to show:
+
+     Kestrel  Payments  the ordinary team — green, lands about 90% · ⚖ a scaled
+                        sprint · ↩ work brought in then removed again
+     Merlin   Payments  a sprint RUNNING RIGHT NOW (the only dated team, so the
+                        lifecycle, pace and the "actually committed" comparison
+                        have something behind them) · ⚑ a standing availability
+     Otter    Platform  the team the targets exist to catch — red, and swinging ·
+                        ⚑ a sprint left out · the IP-sprint caveat
+     Curlew   Platform  room for more — clears its commitment then pulls extra in,
+                        so it reads 98% complete beside RED break-in
+     Wren     no ART    a brand-new team — thin history · ⚑ a one-off availability
+                        whose carryover then fills the whole figure · the "no ART"
+                        group on All teams
+
+   Two ARTs of two, plus one team in neither, is the arrangement where the All
+   teams filter and its "no ART" group both do something. Every figure below is
+   load-bearing; the sample-data tests pin each finding so tidying the numbers
+   can't quietly leave a first run with nothing to look at. */
 function loadSample() {
-  if (!confirm('Load three sample teams on two ARTs, with a PI and a bit of history? You can delete them later.')) return;
+  if (!confirm(
+      'Load the demo? Five sample teams on two ARTs, two PIs of history, and one sprint '
+    + 'running right now.\n\n'
+    + 'Each team shows something different — a live sprint, a target adjusted for leave, '
+    + 'a sprint left out of the averages, and a team with room to commit to more.\n\n'
+    + 'It is added alongside anything you already have, and you can delete it later.')) return;
+
   const piA = { id: uid(), name: 'PI 2026.2', sprintCount: 6 };
   const piB = { id: uid(), name: 'PI 2026.3', sprintCount: 6 };
-  /* Two ARTs rather than one holding everything: it's the arrangement where the
-     All teams filter actually does something, so the sample shows what the
-     grouping is for instead of just proving it exists. Uneven on purpose too —
-     an ART of two teams is the only one whose average is an average of anything.
-  
-     THE THREE TEAMS ARE THREE DIFFERENT READINGS, and that is the whole point of
-     the numbers below. Kestrel is the ordinary case: green on completion, landing
-     about 90% of what it signs up for. Otter misses badly and reads red, the team
-     the targets exist to catch. Curlew is the case the figures state wrongly
-     without help — it clears its commitment and then pulls more work in, so it
-     shows RED break-in beside 98% commitment completion, which is exactly what
-     the headroom note on the capacity card is there to explain. Change these
-     figures and one of the three stops being demonstrable on a first run; the
-     sample-data tests pin all three. */
   const a1 = { id: uid(), name: 'Payments ART' };
   const a2 = { id: uid(), name: 'Platform ART' };
   const t1 = { id: uid(), name: 'Team Kestrel', artId: a1.id };
-  const t2 = { id: uid(), name: 'Team Otter', artId: a2.id };
-  const t3 = { id: uid(), name: 'Team Curlew', artId: a2.id };
+  /* Merlin's standing availability is the TEAM lever; Wren's below is the one-off
+     SLOT lever. One team each, because the capacity card names which of the two
+     set the figure and that sentence is only demonstrable if both exist. */
+  const t2 = { id: uid(), name: 'Team Merlin', artId: a1.id,
+               availability: 90, availabilityReason: 'support' };
+  const t3 = { id: uid(), name: 'Team Otter', artId: a2.id };
+  const t4 = { id: uid(), name: 'Team Curlew', artId: a2.id };
+  const t5 = { id: uid(), name: 'Team Wren' };
   state.pis.push(piA, piB);
   state.arts.push(a1, a2);
-  state.teams.push(t1, t2, t3);
+  state.teams.push(t1, t2, t3, t4, t5);
 
-  const mk = (teamId, piId, n, committed, done, added, removed, carriedIn, total) => ({
-    id: uid(), teamId, piId, sprintNumber: n, startDate: '', endDate: '',
-    committed, committedCompleted: done, totalCompleted: total,
-    added, removed, carriedIn, carriedOut: Math.max(0, committed - done)
-  });
+  /* Everything is dateless unless a sprint asks for dates, because a sprint with
+     no dates resolves COMPLETE — which is what keeps four of the five teams fully
+     in the averages. Merlin is the exception and has to be: an in-flight sprint is
+     the one state you cannot fake without real dates, and they are counted from
+     today so the demo is still live whenever it is opened, not stale from the day
+     this was written. */
+  const day = 86400000;
+  const iso = (offset) => {
+    const d = new Date(Date.now() + offset * day);
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  };
+  const dated = (startsIn) => ({ startDate: iso(startsIn), endDate: iso(startsIn + 13) });
+
+  /* `extra` carries the fields only one or two sprints need — a scale, an
+     exclusion, dates — so the common call stays the row of figures it reads as. */
+  const mk = (teamId, piId, n, committed, done, added, removed, carriedIn, total, extra) =>
+    Object.assign({
+      id: uid(), teamId, piId, sprintNumber: n, startDate: '', endDate: '',
+      committed, committedCompleted: done, totalCompleted: total,
+      added, removed, carriedIn, carriedOut: Math.max(0, committed - done)
+    }, extra || {});
 
   state.sprints.push(
-    mk(t1.id, piA.id, 4, 34, 30, 3, 0, 4, 33),
+    /* Kestrel — the ordinary team. Around 90% of the commitment lands every
+       sprint: green, unremarkable, and the baseline the other four read against.
+       S4 is scaled to 133% for planning (a fourth person joined after it) and sits
+       INSIDE the rolling window on purpose — a scale outside it is inert, so
+       putting it further back would show nothing. S2 carries work that came in
+       mid-sprint and went straight back out, for the ↩ note on the Sprint view. */
+    mk(t1.id, piA.id, 4, 34, 30, 3, 0, 4, 33, { capacityScale: 133 }),
     mk(t1.id, piA.id, 5, 36, 33, 5, 2, 4, 36),
     mk(t1.id, piA.id, 6, 20, 18, 0, 0, 3, 18),
     mk(t1.id, piB.id, 1, 38, 35, 4, 0, 2, 38),
-    mk(t1.id, piB.id, 2, 40, 36, 6, 3, 3, 40),
+    mk(t1.id, piB.id, 2, 40, 36, 6, 3, 3, 40, { addedThenRemoved: 3 }),
     mk(t1.id, piB.id, 3, 38, 34, 3, 0, 4, 36),
-    mk(t2.id, piB.id, 1, 30, 21, 9, 4, 6, 26),
-    mk(t2.id, piB.id, 2, 28, 19, 8, 2, 9, 24),
-    mk(t2.id, piB.id, 3, 26, 22, 4, 1, 8, 25),
-    /* Curlew: commitment cleared nearly every sprint, and 5-9 points of work
-       pulled in on top of it each time. Four of the five sprints in the window
-       show the pattern, and the mean commitment sits close enough to the mean
-       delivered that the over-commitment finding stays off — both conditions the
-       headroom note needs. S2 deliberately lands at 92%, so the note has to say
-       "4 of the last 5" rather than a suspiciously clean five. */
-    mk(t3.id, piA.id, 4, 22, 22, 8, 0, 2, 29),
-    mk(t3.id, piA.id, 5, 24, 23, 6, 0, 0, 28),
-    mk(t3.id, piA.id, 6, 12, 11, 0, 0, 1, 11),
-    mk(t3.id, piB.id, 1, 24, 24, 9, 0, 1, 31),
-    mk(t3.id, piB.id, 2, 26, 24, 5, 0, 0, 27),
-    mk(t3.id, piB.id, 3, 24, 24, 7, 0, 2, 30)
+
+    /* Merlin — the live one. S4 started five days ago and has eight to run, so it
+       is ◐ In progress: the Sprint view shows done-so-far, pace (day 6 of 14,
+       slightly behind) and carried-in, none of which any other team can show. Its
+       32-point commitment is well over the suggestion, which is the one finding
+       on the capacity card that is still actionable — there is time to descope. */
+    mk(t2.id, piB.id, 1, 26, 24, 4, 0, 2, 27, dated(-47)),
+    mk(t2.id, piB.id, 2, 28, 26, 3, 1, 2, 28, dated(-33)),
+    mk(t2.id, piB.id, 3, 26, 25, 5, 0, 2, 29, dated(-19)),
+    mk(t2.id, piB.id, 4, 32, 11, 2, 0, 1, 13, dated(-5)),
+
+    /* Otter — the team the targets exist to catch. Around 70% completion, and
+       swinging from 14 to 26 points delivered, which trips the "delivery swings a
+       fair bit" caveat. S4 was a major incident and is left OUT of the averages,
+       so the ⚑ sprints-left-out notice has something to name. Ending at S5 puts
+       the next slot on the IP sprint, which is the third caveat on this one card
+       and the only place that one shows. */
+    mk(t3.id, piB.id, 1, 30, 26, 9, 4, 6, 30),
+    mk(t3.id, piB.id, 2, 28, 14, 8, 2, 4, 20),
+    mk(t3.id, piB.id, 3, 26, 22, 4, 1, 8, 25),
+    mk(t3.id, piB.id, 4, 30, 12, 3, 6, 4, 18, { excluded: true, excludeReason: 'incident' }),
+    mk(t3.id, piB.id, 5, 28, 17, 6, 2, 9, 22),
+
+    /* Curlew — room for more. The commitment is cleared nearly every sprint and
+       5-9 points of work are pulled in on top of it each time, so it reads 98%
+       commitment completion beside a RED 29% break-in: the contradiction the
+       headroom note exists to resolve. The mean commitment sits close enough to
+       the mean delivered that the over-commitment finding stays off, which the
+       note needs. S2 lands at 92% on purpose, so it reads "4 of the last 5"
+       rather than a suspiciously clean five. */
+    mk(t4.id, piA.id, 4, 22, 22, 8, 0, 2, 29),
+    mk(t4.id, piA.id, 5, 24, 23, 6, 0, 0, 28),
+    mk(t4.id, piA.id, 6, 12, 11, 0, 0, 1, 11),
+    mk(t4.id, piB.id, 1, 24, 24, 9, 0, 1, 31),
+    mk(t4.id, piB.id, 2, 26, 24, 5, 0, 0, 27),
+    mk(t4.id, piB.id, 3, 24, 24, 7, 0, 2, 30),
+
+    /* Wren — brand new, and two sprints is not a history: it trips the thin-data
+       caveat. Nine points carry out of S2, and with the team only half available
+       next sprint that carryover FILLS the whole adjusted figure — there is no
+       room for new work at all, which is the most actionable thing the capacity
+       card can say and needs both levers pointing the same way to produce. */
+    mk(t5.id, piB.id, 1, 20, 14, 2, 0, 0, 15),
+    mk(t5.id, piB.id, 2, 20, 11, 3, 2, 6, 13)
   );
 
-  state.settings.activeTeamId = t1.id;
+  /* The one-off lever, against the slot Wren is about to plan. */
+  state.plans.push({ id: uid(), teamId: t5.id, piId: piB.id, sprintNumber: 3,
+                     availability: 50, reason: 'leave' });
+
+  /* Land on the running sprint. It is the only screen in the app that cannot
+     exist without dates, it is the view the app opens on anyway, and a live
+     sprint with a pace reading is a better first impression than a finished one.
+     The confirm text above is what points at the other four teams — a first run
+     that lands somewhere good but says nothing about the rest is how the headroom
+     note went unnoticed the first time round. */
+  state.settings.activeTeamId = t2.id;
   state.settings.activePiId = piB.id;
-  state.settings.activeSprintNum = 3;
+  state.settings.activeSprintNum = 4;
+  state.settings.view = 'sprint';
   save(); render();
-  toast('Sample data loaded');
+  toast('Demo loaded — five teams, each showing something different');
 }
 
 /* ═════════════════════════════ Theme & chrome ═════════════════════════════ */

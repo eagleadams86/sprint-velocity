@@ -251,6 +251,18 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   `headroomExtra` into `recommended`, and do not add a "stretch" tile.** The extra is
   unplanned break-in; adding it on is committing to velocity by another name, which is the
   one mistake this whole card exists to prevent.
+- **THE SAMPLE DATA IS THE DEMO, and a feature isn't finished until it reaches it.**
+  `loadSample()` is what a person sent a share link explores and what the app is shown
+  with, so every feature must be visible from it. Adding one means adding the data that
+  demonstrates it, a line in the roster comment above `loadSample()`, a row in the README's
+  demo table, and a test in the sample-data group — that group exists precisely because
+  these are ordinary-looking figures a later edit would tidy, and tidying them leaves a
+  first run with nothing to look at. Every number in there is load-bearing: Kestrel's scale
+  sits inside the rolling window (outside it a scale is inert), Otter ends at S5 so the
+  next slot is the IP sprint, Curlew's S2 lands at 92% so the note reads "4 of the last 5",
+  Wren's carryover exceeds its halved figure. Merlin is the ONLY dated team, and its dates
+  are counted from `Date.now()` so the running sprint is still running whenever the demo is
+  opened; everything else is dateless because a dateless sprint resolves complete.
 - **The headroom note is a `.badge` line, and its amber is NOT a RAG band.** It takes the
   same badge-led `.sub.exnote` shape as the "sprints left out" notes, for the same reason
   `excludedLine()` gives: it started life last on the card, after the fold-out and beside

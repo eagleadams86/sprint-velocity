@@ -335,28 +335,37 @@ sprint, and step aside again if you switch to a team you haven't recorded anythi
 no teams at all there are no tabs — just the welcome card. If the view you were on goes away,
 you land back on **Sprint**.
 
-### Trying It Without Typing Anything In
+### The Demo — Trying It Without Typing Anything In
 
-The welcome card offers **Load sample data** beside *Add your first team*: three teams on
-two ARTs, fifteen recorded sprints across two PIs, and no dates — so every view, both
-comparison tables, the capacity target and the ART filter all have something behind them
-on a first run. Two ARTs rather than one is deliberate: it's the arrangement where the
-**All teams** ART filter actually does something, and the uneven split means one ART
-average is an average of more than a single team.
+The welcome card offers **Load sample data** beside *Add your first team*. It isn't
+filler: it's the app's demo, and the rule is that **every feature has to be reachable
+from it**. Five teams across two ARTs, twenty-two sprints over two PIs, and one sprint
+running right now — so nothing in the app is a screen you have to imagine.
 
-The three teams are three different readings, which is what the figures are chosen for:
+It lands you on that running sprint, because it's the one state the app can't show
+without real dates. The other four teams are one click away in the team picker, and each
+is there to show something different:
 
-- **Kestrel** is the ordinary case — green on completion, landing about 90% of what it
-  signs up for.
-- **Otter** misses badly and reads red, the team the targets exist to catch.
-- **Curlew** is the one the numbers state wrongly without help. It clears its commitment
-  and then pulls more work in, so it shows **red break-in beside 98% commitment
-  completion** — the reading the [headroom note](#when-a-team-has-room-for-more) on its
-  capacity card exists to explain. It's the quickest way to see that note without waiting
-  for one of your own teams to show the pattern.
+| Team | ART | What it's there to show |
+|---|---|---|
+| **Merlin** | Payments | A sprint **running right now** — done-so-far, pace ("day 6 of 14, slightly behind") and carried-in. Its commitment is well over the suggestion, which is the one finding still actionable mid-sprint. Also a **⚑ standing team availability**. |
+| **Kestrel** | Payments | The ordinary team: green, landing about 90% of what it signs up for. Carries a **⚖ scaled sprint** (someone joined after it) and a sprint with work **↩ brought in then removed again**. |
+| **Otter** | Platform | The team the targets exist to catch — around 70% completion and swinging from 14 to 26 points. Has a **⚑ sprint left out** for a major incident, and its next slot is the **IP sprint**, so it carries that caveat too. |
+| **Curlew** | Platform | **↗ Room for more** — it clears its commitment then pulls extra work in, so it reads 98% commitment completion beside a **red 29% break-in**. The contradiction the [headroom note](#when-a-team-has-room-for-more) exists to resolve. |
+| **Wren** | *none* | A brand-new team: **thin history**, a **⚑ one-off availability** for leave, and a carryover that then **fills the whole figure** — no room for new work at all. Being in no ART, it's also the **No ART** group on *All teams*. |
 
-The sample-data tests pin all three, so tidying the numbers can't quietly leave a first
-run with nothing to look at.
+Two ARTs of two plus one team in neither is the arrangement where the *All teams* ART
+filter and its *No ART* group both actually do something.
+
+The running sprint's dates are counted from the day you load it, not baked in, so the
+demo is still live whenever it's opened rather than stale from the day it was written.
+Everything else is dateless on purpose — a sprint with no dates resolves as complete,
+which is what keeps the other four teams fully in the averages.
+
+The sample-data tests pin every finding in that table, so tidying the numbers can't
+quietly leave a first run with nothing to look at. **Adding a feature means adding the
+data that demonstrates it here, a row in this table, and a test** — a feature the demo
+can't reach is a feature nobody you share this with will find.
 
 It asks before it loads, and everything it adds is ordinary data you can edit or delete —
 *Teams, ARTs & PIs* removes the teams and PIs, or *Start again* in the Back up dialog
