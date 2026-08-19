@@ -118,6 +118,24 @@ function capacityFixture(extra) {
   }, extra || {});
 }
 
+/* Sprints described by exactly what the headroom signal reads: what was committed,
+   how much of the commitment landed, and how much extra work came in on top of it
+   and finished. Dateless like capacityFixture, and for the same reason. */
+function headroomFixture(rows) {
+  return {
+    teams: [{ id: 't1', name: 'Team One' }],
+    arts: [],
+    pis: [{ id: 'p1', name: 'PI 1' }],
+    sprints: rows.map((r, i) => ({
+      id: 's' + (i + 1), teamId: 't1', piId: 'p1', sprintNumber: i + 1,
+      committed: r.committed, committedCompleted: r.done,
+      totalCompleted: r.done + (r.extra || 0), added: r.extra || 0,
+      removed: 0, carriedIn: 0, carriedOut: 0, addedThenRemoved: 0
+    })),
+    plans: []
+  };
+}
+
 /* ── Fixtures ─────────────────────────────────────────────────────────────── */
 
 /* An ordinary tab-separated Sprint Report paste: three sections, one starred
@@ -865,6 +883,123 @@ t('the spread caveat stays on the history, so an adjustment cannot fake an errat
     const plain = withState(capacityFixture(), () => w.nextSprintTarget('t1', false));
     approx(adjusted.spread, plain.spread, 'measured against the unadjusted mean either way');
     eq(adjusted.steady, plain.steady);
+  });
+});
+
+group('the headroom signal — a team committing to less than it finishes');
+t('clearing the commitment and taking more on every sprint is flagged', () => {
+  withState(headroomFixture([
+    { committed: 20, done: 20, extra: 8 }, { committed: 20, done: 20, extra: 8 },
+    { committed: 20, done: 20, extra: 8 }, { committed: 20, done: 20, extra: 8 }
+  ]), () => {
+    const t1 = w.nextSprintTarget('t1', false);
+    eq(t1.hasHeadroom, true);
+    eq(t1.headroomSprints, 4);
+    approx(t1.headroomExtra, 8);
+    eq(t1.overCommitting, false, 'the two findings can never both be on');
+  });
+});
+t('the recommendation itself does not move — the signal is prose, not arithmetic', () => {
+  withState(headroomFixture([
+    { committed: 20, done: 20, extra: 8 }, { committed: 20, done: 20, extra: 8 },
+    { committed: 20, done: 20, extra: 8 }, { committed: 20, done: 20, extra: 8 }
+  ]), () => {
+    const t1 = w.nextSprintTarget('t1', false);
+    approx(t1.recommended, 20, 'still the mean of committed points finished');
+    approx(t1.baseRecommended, 20);
+    approx(t1.avgVelocity, 28, 'the extra work is visible in velocity, and only there');
+  });
+});
+t('finishing the commitment with nothing extra is not headroom', () => {
+  withState(capacityFixture(), () => {
+    eq(w.nextSprintTarget('t1', false).hasHeadroom, false,
+      'every sprint at 100% complete, but no evidence of spare capacity');
+  });
+});
+t('a team that misses its commitment is never flagged, extra work or not', () => {
+  withState(headroomFixture([
+    { committed: 20, done: 15, extra: 8 }, { committed: 20, done: 15, extra: 8 },
+    { committed: 20, done: 15, extra: 8 }, { committed: 20, done: 15, extra: 8 }
+  ]), () => {
+    const t1 = w.nextSprintTarget('t1', false);
+    eq(t1.hasHeadroom, false);
+    eq(t1.headroomSprints, 0, '75% complete is not a cleared commitment');
+    eq(t1.overCommitting, true);
+  });
+});
+t('95% of the commitment counts as cleared, 94% does not', () => {
+  const rows = (done) => [
+    { committed: 100, done, extra: 10 }, { committed: 100, done, extra: 10 },
+    { committed: 100, done, extra: 10 }, { committed: 100, done, extra: 10 }
+  ];
+  withState(headroomFixture(rows(95)), () => {
+    eq(w.nextSprintTarget('t1', false).headroomSprints, 4,
+      'a couple of points left over is a sprint that landed');
+  });
+  withState(headroomFixture(rows(94)), () => {
+    eq(w.nextSprintTarget('t1', false).headroomSprints, 0);
+  });
+});
+t('extra work below a point is rounding, not spare capacity', () => {
+  withState(headroomFixture([
+    { committed: 20, done: 20, extra: 0.5 }, { committed: 20, done: 20, extra: 0.5 },
+    { committed: 20, done: 20, extra: 0.5 }, { committed: 20, done: 20, extra: 0.5 }
+  ]), () => {
+    eq(w.nextSprintTarget('t1', false).hasHeadroom, false);
+  });
+});
+t('one sprint out of five is not a pattern', () => {
+  withState(headroomFixture([
+    { committed: 20, done: 20, extra: 8 }, { committed: 20, done: 20 },
+    { committed: 20, done: 20 }, { committed: 20, done: 20 }, { committed: 20, done: 20 }
+  ]), () => {
+    const t1 = w.nextSprintTarget('t1', false);
+    eq(t1.headroomSprints, 1);
+    eq(t1.hasHeadroom, false, 'three of five is the bar');
+  });
+});
+t('three sprints out of five clears the bar', () => {
+  withState(headroomFixture([
+    { committed: 20, done: 20, extra: 6 }, { committed: 20, done: 20, extra: 8 },
+    { committed: 20, done: 20, extra: 10 }, { committed: 20, done: 20 }, { committed: 20, done: 20 }
+  ]), () => {
+    const t1 = w.nextSprintTarget('t1', false);
+    eq(t1.hasHeadroom, true);
+    approx(t1.headroomExtra, 8, 'averaged over the sprints that showed the pattern, not the window');
+  });
+});
+t('two sprints of history are an anecdote, however clear', () => {
+  withState(headroomFixture([
+    { committed: 20, done: 20, extra: 8 }, { committed: 20, done: 20, extra: 8 }
+  ]), () => {
+    const t1 = w.nextSprintTarget('t1', false);
+    eq(t1.headroomSprints, 2);
+    eq(t1.hasHeadroom, false, 'this one talks a team into signing up for more work');
+  });
+});
+t('an over-committing team is told that instead — the two are mutually exclusive', () => {
+  withState(headroomFixture([
+    { committed: 10, done: 10, extra: 8 }, { committed: 10, done: 10, extra: 8 },
+    { committed: 10, done: 10, extra: 8 }, { committed: 60, done: 20 }
+  ]), () => {
+    const t1 = w.nextSprintTarget('t1', false);
+    eq(t1.headroomSprints, 3, 'the pattern is there in three of the four');
+    eq(t1.overCommitting, true, 'but on average they sign up for more than they finish');
+    eq(t1.hasHeadroom, false);
+  });
+});
+t('a sprint left out of the window is left out of the signal too', () => {
+  const fx = headroomFixture([
+    { committed: 20, done: 20, extra: 8 }, { committed: 20, done: 20, extra: 8 },
+    { committed: 20, done: 20, extra: 8 }, { committed: 20, done: 20, extra: 8 }
+  ]);
+  fx.sprints[0].excluded = true;
+  fx.sprints[0].excludeReason = 'incident';
+  withState(fx, () => {
+    const t1 = w.nextSprintTarget('t1', false);
+    eq(t1.sprints, 3);
+    eq(t1.headroomSprints, 3);
+    eq(t1.hasHeadroom, true, 'three of three still clears the bar');
   });
 });
 

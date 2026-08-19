@@ -1225,6 +1225,18 @@ const SPRINTS_PER_PI = 6;
 const IP_SPRINT = 6;          // sprint 6 is the innovation & planning sprint
 const ROLLING_WINDOW = 5;
 
+/* ── The headroom signal's thresholds (see nextSprintTarget) ────────────────
+   A sprint "cleared" its commitment when the team finished essentially all of
+   it. Not 100%: a single unfinished point out of forty is a sprint that landed,
+   and holding out for the round number would silence the signal for exactly the
+   teams it is about. HEADROOM_MIN_EXTRA is the smallest amount of extra work
+   that counts as having taken more on — below a point it's rounding, not spare
+   capacity. HEADROOM_SHARE is how much of the window has to show the pattern
+   before it's a pattern: a clear majority, so one quiet sprint can't raise it. */
+const CLEARED_PCT       = 95;
+const HEADROOM_MIN_EXTRA = 1;
+const HEADROOM_SHARE     = 0.6;
+
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
 /* The All teams view's ART filter uses this for "teams in no ART at all". It is
@@ -2360,6 +2372,43 @@ function nextSprintTarget(teamId, includeSix) {
      erratic, and flip the caveat on for a reason that has nothing to do with it. */
   const spread = baseRecommended > 0 ? ((high - low) / baseRecommended) * 100 : 0;
 
+  /* ── The blind spot in the method above, and the one case it can spot itself ──
+     The recommendation is the mean of committed points COMPLETED, so it can never
+     rise above what the team committed to. That is the right answer for a team
+     that misses its commitment, and a trap for one that clears it: work pulled in
+     late — because the commitment is finished, nearly finished, or blocked and
+     there is nothing else to pick up — lands in `added`, counts towards velocity,
+     and is invisible to `committedCompleted`. Do that every sprint and the app
+     keeps handing back the figure the team already commits to, with the spare
+     capacity it has just demonstrated nowhere in the number.
+
+     From the sprint's point of view that late work IS break-in, and it is counted
+     as break-in everywhere else in the app, because the figures genuinely cannot
+     tell a deliberate top-up from a production incident. What they CAN show is the
+     company it keeps: work arriving mid-sprint in a sprint whose commitment was
+     finished anyway is evidence of headroom, not instability.
+
+     So this flags the pattern and leaves the number ALONE — deliberately, and the
+     card says so. Adding the extra on would turn a figure the team has proven it
+     can finish into a forecast that assumes late work keeps arriving, which is the
+     same mistake as committing to velocity. "Commit more?" is a decision for a
+     planning session with the team in the room. */
+  const clearedSprints = rs.filter(sp => {
+    const m = metrics(sp);
+    return m.commitCompletePct !== null && m.commitCompletePct >= CLEARED_PCT
+        && m.velocity - m.committedCompleted >= HEADROOM_MIN_EXTRA;
+  });
+  const headroomExtra = clearedSprints.length
+    ? clearedSprints.reduce((a, sp) =>
+        a + (metrics(sp).velocity - metrics(sp).committedCompleted), 0) / clearedSprints.length
+    : 0;
+  /* One place, two readers: the card used to work this out again for its prose.
+     A team committing to more than it finishes is not short of work to sign up
+     for, whatever two sprints in the window look like, so the two findings are
+     mutually exclusive by construction rather than by luck of the wording. */
+  const avgCommitted = avg(rs, 'committed');
+  const overCommitting = avgCommitted !== null && avgCommitted - baseRecommended >= 1;
+
   return {
     recommended,
     baseRecommended,
@@ -2383,7 +2432,15 @@ function nextSprintTarget(teamId, includeSix) {
     low, high, spread,
     sprints: rs.length,
     avgVelocity: avg(rs, 'velocity'),
-    avgCommitted: avg(rs, 'committed'),
+    avgCommitted,
+    avgBreakIn: avg(rs, 'breakInPct'),
+    overCommitting,
+    /* Needs three sprints for the same reason `thin` exists — two sprints are an
+       anecdote, and this one talks the team into signing up for more work. */
+    hasHeadroom: !overCommitting && rs.length >= 3
+      && clearedSprints.length >= Math.max(2, Math.ceil(rs.length * HEADROOM_SHARE)),
+    headroomSprints: clearedSprints.length,
+    headroomExtra,
     steady: spread <= 30,
     thin: rs.length < 3,
     slot,
@@ -3792,8 +3849,10 @@ function targetCapacityCard(team, includeSix) {
   /* Against the UNADJUSTED mean throughout this card's prose, wherever the
      sentence is about what the team has been finishing. Only the recommendation
      itself moves with availability; "they finish about X" is a fact about the
-     history and reading the adjusted figure there states it wrongly. */
-  const overCommitting = t.avgCommitted !== null && t.avgCommitted - t.baseRecommended >= 1;
+     history and reading the adjusted figure there states it wrongly. That is why
+     `overCommitting` and the headroom findings are worked out in nextSprintTarget
+     against `baseRecommended` and simply read here. */
+  const overCommitting = t.overCommitting;
 
   const caveats = [];
   if (t.thin)
@@ -3855,6 +3914,20 @@ function targetCapacityCard(team, includeSix) {
   const over = t.overBy !== null && Math.round(t.overBy) >= 1;
   const under = t.overBy !== null && Math.round(t.overBy) <= -1;
 
+  /* Not a caveat, so not in the ⚠ list: nothing here is wrong with the data or
+     shaky about the figure. It's a finding ABOUT the team, and the one thing this
+     card cannot say by changing its number. Kept to prose and marked with ↗ — no
+     colour, because a finding that is neither good nor bad news has no business
+     claiming a RAG band. */
+  const headroomNote = t.hasHeadroom
+    ? `↗ <strong>There may be room for more.</strong> In ${t.headroomSprints} of the last ${
+        t.sprints} sprints ${esc(team.name)} finished what they committed to and took on further
+       work as well — about <strong>${fmtNum(Math.round(t.headroomExtra))}</strong> points a sprint
+       on top. The figure above can't show that: it's the average of committed points finished, so
+       it can never rise higher than what the team commits to. Worth asking at planning whether the
+       commitment itself is being set too low.`
+    : '';
+
   return `<div class="card">
     <div class="row spread cardhead">
       <h2>Target Capacity for ${slotName}${
@@ -3897,6 +3970,21 @@ function targetCapacityCard(team, includeSix) {
           Velocity counts the break-in work that turns up mid-sprint, and if that capacity is booked out in
           advance there is nothing left to absorb it. That gap is how a fast team still misses its
           commitment every sprint.</p>
+        ${t.hasHeadroom ? `<p><strong>${esc(team.name)} may be committing to less than they can
+          finish.</strong> In ${t.headroomSprints} of the last ${t.sprints} sprints they finished
+          essentially the whole commitment and completed about
+          <strong>${fmtNum(Math.round(t.headroomExtra))}</strong> points a sprint beyond it — the
+          pattern you get when the committed work is done, close to done or blocked, and more is
+          brought in to keep people busy. That extra counts as break-in, because from the sprint's
+          point of view it is: these figures can't tell work a team went looking for from work that
+          landed on them${rag(t.avgBreakIn, 'churn') !== 'green'
+            ? `, which is worth holding in mind next to their ${fmtPct(t.avgBreakIn, 'churn')}
+               break-in figure` : ''}.</p>
+        <p>The recommendation above is deliberately <em>not</em> raised to match. Adding the extra on
+          would assume late work keeps turning up, which is the same mistake as committing to
+          velocity — and none of it was planned, so none of it is capacity you can count on. The
+          move this points at is the other one: commit to more at the next planning session and
+          watch whether commitment completion holds.</p>` : ''}
         <p>${t.carriedIn > 0
           ? `<strong>${fmtNum(t.carriedIn)}</strong> point${t.carriedIn === 1 ? ' is' : 's are'} already
              carried over from the last sprint and count towards the total, leaving about
@@ -3914,6 +4002,7 @@ function targetCapacityCard(team, includeSix) {
           Committing closer to the figure above is what moves commitment completion towards the 85% target.</p>` : ''}
       </div>
     </details>
+    ${headroomNote ? `<p class="sub" style="margin:14px 0 0">${headroomNote}</p>` : ''}
     ${caveats.length ? `<p class="sub" style="margin:14px 0 0">⚠ ${caveats.join(' ')}</p>` : ''}
     ${adjustPrompt ? `<p class="sub" style="margin:14px 0 0">${adjustPrompt}</p>` : ''}
   </div>`;

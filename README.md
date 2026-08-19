@@ -456,8 +456,44 @@ column and its total use the adjusted figures, and mark an adjusted team with a 
 three sprints of history, when the team's delivery swings by more than 30%, and when the
 next sprint up is the IP sprint.
 
-It's a starting point for the planning conversation, not a quota. The two sections below
+It's a starting point for the planning conversation, not a quota. The three sections below
 are for the things the history structurally cannot see.
+
+### When a Team Has Room for More
+
+The method has one blind spot, and it's the only one the app can spot for itself. The
+recommendation is the average of committed points *completed*, so it can never rise above
+what the team has been committing to. That's the right answer for a team that misses its
+commitment, and a trap for one that clears it.
+
+Work brought in late — because the commitment is finished, nearly finished, or blocked and
+there's nothing else to pick up — lands in **break-in**, counts towards velocity, and is
+invisible to committed-points-completed. Do that every sprint and the app keeps handing
+back the figure the team already commits to, with the spare capacity they've just
+demonstrated nowhere in the number.
+
+So the card says it in words instead. When a clear majority of the window shows a sprint
+whose commitment was finished *and* extra work completed on top, a **↗ There may be room
+for more** note appears under the figure, with how many sprints showed the pattern and
+roughly how many extra points a sprint they took on. "How this is worked out" spells out
+what's behind it.
+
+Three deliberate limits:
+
+- **The recommendation itself doesn't move.** Adding the extra on would assume late work
+  keeps turning up, which is the same mistake as committing to velocity — and unlike the
+  commitment, none of it was planned. The note is a prompt for the planning session; the
+  number stays a figure the team has proven it can finish.
+- **It needs three sprints and a clear majority of them.** Two sprints are an anecdote, and
+  this finding talks a team into signing up for more work.
+- **It never fires for a team that over-commits on average.** That team already has the
+  opposite problem, and the card tells them so instead — the two findings are worked out in
+  one place so they can't both be on.
+
+It also explains a reading that looks contradictory on the tiles above: a team can sit at
+100% commitment completion and a red break-in figure at the same time. These figures can't
+tell work a team went looking for from work that landed on them, so when the note is
+showing and break-in is off target, the card says to read the two together.
 
 ### Adjusting for a Sprint That Isn't Normal
 

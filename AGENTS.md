@@ -243,6 +243,20 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
 - **Carry-over does not shrink with the team.** `carryoverFills` exists because work already
   carried in comes off the top of a smaller sprint, so a big adjustment can leave no room for
   new work at all. It's the most actionable thing the feature surfaces — keep it visible.
+- **The headroom signal is PROSE, and must stay prose.** `hasHeadroom` fires when a clear
+  majority of the window finished essentially the whole commitment (`CLEARED_PCT`) *and*
+  completed extra work on top — the shape you get when work is pulled in late because the
+  commitment is done, close to done or blocked. The recommendation can never exceed what the
+  team committed to, so that spare capacity is structurally invisible to it. **Do not fold
+  `headroomExtra` into `recommended`, and do not add a "stretch" tile.** The extra is
+  unplanned break-in; adding it on is committing to velocity by another name, which is the
+  one mistake this whole card exists to prevent. It also carries no RAG colour — a finding
+  that is neither good news nor bad has no business claiming a band.
+- **`overCommitting` and `hasHeadroom` are computed in `nextSprintTarget`, not the card**,
+  and headroom is suppressed when `overCommitting` is on. The card used to work the first one
+  out again for its own prose; one home is what makes the two mutually exclusive by
+  construction rather than by luck of the wording. Three sprints minimum, same reason `thin`
+  exists — this one talks a team into signing up for more work.
 - **`plans` is the second collection with orphan handling**, and it follows `sprints`
   exactly: id remapping first, orphan drop after (never before), the count joining
   `sanitizeIds.dropped` so `orphanNote()` reports both together. It also **de-duplicates by
