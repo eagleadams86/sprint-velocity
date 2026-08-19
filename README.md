@@ -664,6 +664,28 @@ runbook for doing it: how to map an email address to the right Firestore documen
 document ID is the Firebase Auth UID, and nothing inside the document identifies anyone),
 what order to delete in, and which copies are genuinely beyond reach.
 
+## Working Offline
+
+The app keeps a copy of itself on your device, so it opens with no network at all — on a
+train, on hotel wifi, or when the work VPN is being difficult. Your teams and sprints were
+always local, so once the page itself loads everything works: adding sprints, the charts,
+the targets, export. Sync is the one thing that can't — it needs the network by definition,
+and picks up again on its own when you're back.
+
+What's kept is only the app's own public files — the page, the stylesheet, the chart
+library and the icon, the same files anyone can read on GitHub. **Nothing of yours is ever
+put there**, which matters more than it sounds: every one of these apps shares a single
+browser origin, so that cache is not private to this app.
+
+The network is always tried **first**, and the stored copy is used only when it genuinely
+doesn't answer (or takes more than five seconds). So you can't be left running an old
+version while you're online — and if a device does end up behind, the version check
+described under [Your Data](#your-data) stops it misreading anything.
+
+`sw-kill.js` sits in the repo unused, as an escape hatch: copying it over `sw.js` and
+pushing makes every installed copy uninstall itself and go back to being an ordinary
+online-only page.
+
 ## Sharing a Read-Only Link
 
 The *Share* button builds a link that shows someone your figures without them signing in —
@@ -874,7 +896,9 @@ GitHub Pages (static hosting, this repo, main branch)
     ├── index.html    the whole app — markup, styles, logic, no build step
     ├── theme.css     shared design tokens (generated in the claude-theme-pack repo)
     ├── favicon.ico   the tab icon's fallback, drawn by make_favicon.py
-    └── chart.min.js  vendored Chart.js UMD build — no CDN, no network needed
+    ├── chart.min.js  vendored Chart.js UMD build — no CDN, no network needed
+    ├── sw.js         service worker: keeps the files above on your device
+    └── sw-kill.js    the escape hatch, if sw.js ever needs uninstalling
             ├── all state ──► browser localStorage (source of truth, works offline)
             ├── signed in ──► Firestore doc sprintvelocity/{uid} (optional;
             │                 newer-wins by updatedAt with the empty-never-beats-data
@@ -896,7 +920,8 @@ links upload nothing, and how to have a synced copy deleted.
 A Content Security Policy `<meta>` tag in `index.html` pins the page down as defence in
 depth: scripts only from this origin, Firebase's CDN (`www.gstatic.com`) and Google's
 sign-in client (`accounts.google.com`); network calls only to the Firebase endpoints sync
-uses, `accounts.google.com` and the GitHub commits API; and the only frame allowed is
+uses and `accounts.google.com`; workers only from this origin (`worker-src 'self'`, for
+`sw.js`); and the only frame allowed is
 `accounts.google.com`, the Google Identity Services popup. **`apis.google.com` and
 `<project>.firebaseapp.com` are deliberately absent** — the Firebase auth helper frame went
 when sign-in moved to Google Identity Services, and the sync module uses `initializeAuth`

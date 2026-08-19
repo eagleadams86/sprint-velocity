@@ -1150,6 +1150,151 @@ t('a hostile id on a plan is remapped with everything else that references it', 
   ok(!/[<>]/.test(out.plans[0].teamId), 'and the id it now carries is a safe one');
 });
 
+/* ── Offline: the service worker ────────────────────────────────────────────
+   These read sw.js as TEXT rather than exercising a live worker, and that is
+   the point rather than a shortcut. The suite runs the app in a hidden iframe
+   and the registration is frame-guarded, so there is no worker here to poke —
+   deliberately, because a suite that installed one would start testing whatever
+   code that worker had cached instead of the files on disk.
+
+   What is worth asserting is therefore the SHAPE of the thing: that its cache
+   list is only ever public files, and that it stays small and same-origin.
+   Cache Storage is origin-wide, shared with Flow Metrics and financial-plan, so
+   "nothing private is ever cached" is the single promise holding that up. */
+group('Offline — the service worker');
+
+/* Read once, here, because this is the first group that needs them and the
+   runner walks the tests in declaration order. The newer-build group below
+   pins index.html too and reuses APP_SRC rather than fetching it again. */
+let SW_SRC = null, KILL_SRC = null, APP_SRC = null;
+const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+t('sw.js, its kill switch and the app all read back as text', async () => {
+  const [a, b, c] = await Promise.all([fetch('sw.js'), fetch('sw-kill.js'), fetch('index.html')]);
+  ok(a.ok, 'sw.js is missing');
+  ok(b.ok, 'sw-kill.js is missing — the escape hatch has to exist BEFORE it is needed');
+  ok(c.ok, 'index.html is missing');
+  SW_SRC = await a.text(); KILL_SRC = await b.text(); APP_SRC = await c.text();
+});
+
+t('the cache list holds only files that are already public', () => {
+  const m = SW_SRC.match(/const SHELL = \[([\s\S]*?)\]/);
+  ok(m, 'could not find the SHELL list in sw.js');
+  const shell = [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]);
+  /* Exact equality, not "contains". A new entry has to be added here too, which
+     is the moment to ask whether the file is genuinely public. */
+  eq(shell.slice().sort(), ['./', 'chart.min.js', 'favicon.ico', 'privacy.html', 'theme.css'],
+    'the offline shell list changed');
+});
+
+t('nothing private can reach the cache', () => {
+  const m = SW_SRC.match(/const SHELL = \[([\s\S]*?)\]/);
+  const shell = [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]);
+  /* The specific things that must never be cached: the suite itself (which
+     boots the app), the repo's own notes, and anything holding figures. */
+  const banned = [/\.json$/, /^tests\.html$/, /\.py$/, /CLAUDE/i, /README/i, /NOTICE/i, /data/i];
+  for (const entry of shell)
+    for (const pat of banned)
+      ok(!pat.test(entry), `"${entry}" is on the shell list but must never be cached`);
+});
+
+t('the worker touches nothing cross-origin', () => {
+  const code = stripComments(SW_SRC);
+  ok(!/https?:\/\//.test(code),
+    'sw.js names an off-origin URL in executable code — it must only ever see this origin');
+  /* No CSP applies to a worker on Pages, so these are not merely untidy here. */
+  for (const bad of ['eval(', 'importScripts(', 'new Function('])
+    ok(!code.includes(bad), `sw.js uses ${bad} — it runs with no CSP, so it must not`);
+});
+
+t('the worker deletes only its own caches', () => {
+  const code = stripComments(SW_SRC);
+  /* Cache Storage is origin-wide: an unguarded "delete every cache that is not
+     mine" on activate would wipe Flow Metrics' or financial-plan's. */
+  ok(/startsWith\(PREFIX\)/.test(code), "the activate handler must guard caches.delete with this app's prefix");
+  ok(/const PREFIX = 'sv-shell-';/.test(SW_SRC), 'the prefix must be this app’s, not a sibling’s');
+});
+
+t('the worker is network-first, so cached code needs a failed network', () => {
+  const code = stripComments(SW_SRC);
+  ok(/Promise\.race/.test(code) && /cache\.match/.test(code),
+    'expected the network-first race with a cache fallback');
+  /* The tell for cache-first is answering from the cache before the network is
+     tried at all. If that ever appears, the staleness argument has to be had
+     again — see the reasoning at the top of sw.js. */
+  ok(!/caches\.match\(req\)\s*\.then\(\s*\(?r\)?\s*=>\s*r\s*\|\|/.test(code),
+    'this looks cache-first — the whole design rests on network-first');
+  /* An answered-but-failed network is the third case: a transient 404/500 from
+     Pages inside the race window must not beat a good cached shell. */
+  ok(/!res\.ok && cached/.test(code),
+    'a same-origin error reply with a cached copy in hand must serve the cache');
+});
+
+t('a missing shell file can be repaired without a new worker version', () => {
+  const code = stripComments(SW_SRC);
+  /* install fires ONCE per script version, so a cache evicted later would never
+     be rebuilt if install were the only thing that filled it. */
+  ok(/addEventListener\(\s*'message'/.test(code) && /'shell-check'/.test(code),
+    'the worker must accept a shell-check message so the page can repair the cache');
+  ok(/if \(reg\.active\) reg\.active\.postMessage\(\{ type: 'shell-check' \}\)/.test(APP_SRC),
+    'the page must ask for a shell check on load');
+  /* addAll is all-or-nothing: one 404 and there is no offline at all, silently. */
+  ok(!/addAll/.test(code),
+    'addAll rejects the whole precache on a single 404 — fetch entries one by one');
+  ok(/e\.waitUntil\(topUp\(\)/.test(code), 'install must fill the cache via topUp');
+});
+
+t('the message handler accepts only its own signal', () => {
+  const code = stripComments(SW_SRC);
+  /* The worker has no CSP and postMessage is reachable from any page on the
+     shared origin, so the handler must ignore everything but the one type and
+     must never take a URL or a cache name out of the message. */
+  ok(/e\.data\.type !== 'shell-check'\) return;/.test(code),
+    'the message handler must reject anything but shell-check');
+  ok(!/e\.data\.(url|urls|path|cache|key)/.test(code),
+    'the worker must never read a URL or cache name out of a message');
+});
+
+t('the shell key strips the query string, which the favicon needs', () => {
+  /* The markup asks for favicon.ico?v=1 in two places. Without the strip the
+     precached favicon.ico would never be the entry that answers it. */
+  ok(/favicon\.ico\?v=1/.test(APP_SRC), 'the cache-buster has gone — recheck this test');
+  ok(/let p = url\.pathname;/.test(SW_SRC) && /SHELL_PATHS\.has\(p\)/.test(SW_SRC),
+    'shellKey must match on the path alone, never on the full URL');
+});
+
+t('the kill switch stays a pure uninstaller', () => {
+  const code = stripComments(KILL_SRC);
+  ok(/unregister\(\)/.test(code), 'sw-kill.js must unregister itself');
+  ok(!/addEventListener\(\s*'fetch'/.test(code),
+    'sw-kill.js must not intercept requests — inert is the entire point');
+  ok(!/cache\.put|addAll/.test(code), 'sw-kill.js must never cache anything');
+  ok(/startsWith\('sv-shell-'\)/.test(code),
+    "sw-kill.js must clear only this app's caches, never a sibling's");
+});
+
+t('the page declares worker-src and registration is guarded three ways', () => {
+  const csp = APP_SRC.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/);
+  ok(csp, 'no CSP meta tag found');
+  ok(/worker-src 'self'/.test(csp[1]),
+    "CSP must spell out worker-src 'self' rather than lean on the fallback chain");
+  ok(!/worker-src[^;]*https?:/.test(csp[1]), 'worker-src must not admit any off-origin host');
+  ok(/window\.top !== window\.self/.test(APP_SRC),
+    'the registration must skip frames, or this suite would install a worker on itself');
+  ok(/if \(window\.svViewOnly\) return;/.test(APP_SRC),
+    "a shared view — or a page halted on newer data — must not install a worker");
+  ok(/window\.addEventListener\('load', function \(\) \{/.test(APP_SRC),
+    'registration must wait for load rather than compete with first paint');
+});
+
+t('the halt clears this app’s caches before reloading, and only this app’s', () => {
+  /* A plain reload can be answered by the worker out of the same stale cache
+     that caused the halt, so the Reload button takes the worker out first. */
+  ok(/reg\.unregister\(\)/.test(APP_SRC), 'the halt’s Reload must unregister the worker first');
+  ok(/k\.startsWith\('sv-shell-'\)/.test(APP_SRC),
+    'and clear only this app’s caches — the origin is shared');
+});
+
 /* ── A copy from a newer build ──────────────────────────────────────────────
    The braces to the service worker's belt. Cached code can be a build behind,
    and sync — or a restore, or a link — can hand that build data a newer one
@@ -1161,14 +1306,6 @@ t('a hostile id on a plan is remapped with everything else that references it', 
    What is asserted is that the guard exists, that it sits before the code that
    would strip or swallow it, and that it reuses the one write chokepoint. */
 group('A copy from a newer build');
-
-let APP_SRC = null;
-
-t('index.html can be read as text, which the pins below need', async () => {
-  const r = await fetch('index.html');
-  ok(r.ok, 'index.html is missing');
-  APP_SRC = await r.text();
-});
 
 t('a blank state is stamped with the format this build understands', () => {
   eq(w.blankState().version, w.__svTestHooks.SCHEMA);
