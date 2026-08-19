@@ -1003,6 +1003,71 @@ t('a sprint left out of the window is left out of the signal too', () => {
   });
 });
 
+group('the sample data — three teams, three different readings');
+/* loadSample() confirms, saves, renders and toasts. The suite is read-only, so all
+   four are stubbed for the length of the call and put back in a finally. The point
+   of these tests is the FIGURES: they are ordinary-looking numbers a later edit
+   could tidy, and tidying them would leave a first run with nothing to look at for
+   one of the three readings the sample exists to show. */
+function withSample(fn) {
+  const real = { confirm: w.confirm, save: w.save, render: w.render, toast: w.toast };
+  const st = w.svGet();
+  const settings = { team: st.settings.activeTeamId, pi: st.settings.activePiId,
+                     sprint: st.settings.activeSprintNum };
+  w.confirm = () => true; w.save = () => {}; w.render = () => {}; w.toast = () => {};
+  try {
+    return withState({ teams: [], arts: [], pis: [], sprints: [], plans: [] }, () => {
+      w.loadSample();
+      return fn(name => st.teams.find(t => t.name === name).id);
+    });
+  } finally {
+    Object.assign(w, real);
+    st.settings.activeTeamId = settings.team;
+    st.settings.activePiId = settings.pi;
+    st.settings.activeSprintNum = settings.sprint;
+  }
+}
+t('Curlew is the headroom case, and shows it on a first run', () => {
+  withSample(id => {
+    const t = w.nextSprintTarget(id('Team Curlew'), false);
+    eq(t.sprints, 5, 'a full window, with the IP sprint left out of it');
+    eq(t.hasHeadroom, true);
+    eq(t.headroomSprints, 4, 'four of the five — not a suspiciously clean five');
+    approx(t.headroomExtra, 6.25);
+    eq(t.overCommitting, false, 'or the headroom finding would be suppressed');
+  });
+});
+t('Curlew is the reading that needs the note: red break-in beside a cleared commitment', () => {
+  withSample(id => {
+    const rs = w.rollingSprints(id('Team Curlew'), false);
+    eq(w.rag(w.avg(rs, 'breakInPct'), 'churn'), 'red');
+    eq(w.rag(w.avg(rs, 'commitCompletePct'), 'completion'), 'green');
+  });
+});
+t('Kestrel is the ordinary team — no headroom finding', () => {
+  withSample(id => {
+    const t = w.nextSprintTarget(id('Team Kestrel'), false);
+    eq(t.headroomSprints, 0, 'it lands about 90% of the commitment, so nothing is cleared');
+    eq(t.hasHeadroom, false);
+  });
+});
+t('Otter misses its commitment, so it is told that instead', () => {
+  withSample(id => {
+    const t = w.nextSprintTarget(id('Team Otter'), false);
+    eq(t.hasHeadroom, false);
+    eq(t.overCommitting, true);
+  });
+});
+t('the sample loads three teams across two ARTs, one of which holds two', () => {
+  withSample(() => {
+    const st = w.svGet();
+    eq(st.teams.length, 3);
+    eq(st.arts.length, 2);
+    eq(st.arts.map(a => w.teamsInArt(st.teams, a.id).length), [1, 2],
+      'an ART of two teams is the only one whose average is an average of anything');
+  });
+});
+
 group('capacityScale — scaling a sprint the team has outgrown');
 t('a scaled sprint moves planningBase and the recommendation, never the history', () => {
   const fx = capacityFixture();

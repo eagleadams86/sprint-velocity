@@ -6027,19 +6027,31 @@ F('shareOpenBtn').onclick = () => {
 /* ═══════════════════════════════ Sample data ══════════════════════════════ */
 
 function loadSample() {
-  if (!confirm('Load two sample teams on two ARTs, with a PI and a bit of history? You can delete them later.')) return;
+  if (!confirm('Load three sample teams on two ARTs, with a PI and a bit of history? You can delete them later.')) return;
   const piA = { id: uid(), name: 'PI 2026.2', sprintCount: 6 };
   const piB = { id: uid(), name: 'PI 2026.3', sprintCount: 6 };
-  /* Two ARTs of one team each rather than one holding both: it's the arrangement
-     where the All teams filter actually does something, so the sample shows what
-     the grouping is for instead of just proving it exists. */
+  /* Two ARTs rather than one holding everything: it's the arrangement where the
+     All teams filter actually does something, so the sample shows what the
+     grouping is for instead of just proving it exists. Uneven on purpose too —
+     an ART of two teams is the only one whose average is an average of anything.
+  
+     THE THREE TEAMS ARE THREE DIFFERENT READINGS, and that is the whole point of
+     the numbers below. Kestrel is the ordinary case: green on completion, landing
+     about 90% of what it signs up for. Otter misses badly and reads red, the team
+     the targets exist to catch. Curlew is the case the figures state wrongly
+     without help — it clears its commitment and then pulls more work in, so it
+     shows RED break-in beside 98% commitment completion, which is exactly what
+     the headroom note on the capacity card is there to explain. Change these
+     figures and one of the three stops being demonstrable on a first run; the
+     sample-data tests pin all three. */
   const a1 = { id: uid(), name: 'Payments ART' };
   const a2 = { id: uid(), name: 'Platform ART' };
   const t1 = { id: uid(), name: 'Team Kestrel', artId: a1.id };
   const t2 = { id: uid(), name: 'Team Otter', artId: a2.id };
+  const t3 = { id: uid(), name: 'Team Curlew', artId: a2.id };
   state.pis.push(piA, piB);
   state.arts.push(a1, a2);
-  state.teams.push(t1, t2);
+  state.teams.push(t1, t2, t3);
 
   const mk = (teamId, piId, n, committed, done, added, removed, carriedIn, total) => ({
     id: uid(), teamId, piId, sprintNumber: n, startDate: '', endDate: '',
@@ -6056,7 +6068,19 @@ function loadSample() {
     mk(t1.id, piB.id, 3, 38, 34, 3, 0, 4, 36),
     mk(t2.id, piB.id, 1, 30, 21, 9, 4, 6, 26),
     mk(t2.id, piB.id, 2, 28, 19, 8, 2, 9, 24),
-    mk(t2.id, piB.id, 3, 26, 22, 4, 1, 8, 25)
+    mk(t2.id, piB.id, 3, 26, 22, 4, 1, 8, 25),
+    /* Curlew: commitment cleared nearly every sprint, and 5-9 points of work
+       pulled in on top of it each time. Four of the five sprints in the window
+       show the pattern, and the mean commitment sits close enough to the mean
+       delivered that the over-commitment finding stays off — both conditions the
+       headroom note needs. S2 deliberately lands at 92%, so the note has to say
+       "4 of the last 5" rather than a suspiciously clean five. */
+    mk(t3.id, piA.id, 4, 22, 22, 8, 0, 2, 29),
+    mk(t3.id, piA.id, 5, 24, 23, 6, 0, 0, 28),
+    mk(t3.id, piA.id, 6, 12, 11, 0, 0, 1, 11),
+    mk(t3.id, piB.id, 1, 24, 24, 9, 0, 1, 31),
+    mk(t3.id, piB.id, 2, 26, 24, 5, 0, 0, 27),
+    mk(t3.id, piB.id, 3, 24, 24, 7, 0, 2, 30)
   );
 
   state.settings.activeTeamId = t1.id;

@@ -337,11 +337,26 @@ you land back on **Sprint**.
 
 ### Trying It Without Typing Anything In
 
-The welcome card offers **Load sample data** beside *Add your first team*: two teams
-(Kestrel and Otter) on two ARTs, nine recorded sprints across two PIs, and no dates — so
-every view, both comparison tables, the capacity target and the ART filter all have
-something behind them on a first run. Two ARTs of one team each is deliberate: it's the
-arrangement where the **All teams** ART filter actually does something.
+The welcome card offers **Load sample data** beside *Add your first team*: three teams on
+two ARTs, fifteen recorded sprints across two PIs, and no dates — so every view, both
+comparison tables, the capacity target and the ART filter all have something behind them
+on a first run. Two ARTs rather than one is deliberate: it's the arrangement where the
+**All teams** ART filter actually does something, and the uneven split means one ART
+average is an average of more than a single team.
+
+The three teams are three different readings, which is what the figures are chosen for:
+
+- **Kestrel** is the ordinary case — green on completion, landing about 90% of what it
+  signs up for.
+- **Otter** misses badly and reads red, the team the targets exist to catch.
+- **Curlew** is the one the numbers state wrongly without help. It clears its commitment
+  and then pulls more work in, so it shows **red break-in beside 98% commitment
+  completion** — the reading the [headroom note](#when-a-team-has-room-for-more) on its
+  capacity card exists to explain. It's the quickest way to see that note without waiting
+  for one of your own teams to show the pattern.
+
+The sample-data tests pin all three, so tidying the numbers can't quietly leave a first
+run with nothing to look at.
 
 It asks before it loads, and everything it adds is ordinary data you can edit or delete —
 *Teams, ARTs & PIs* removes the teams and PIs, or *Start again* in the Back up dialog
