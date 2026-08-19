@@ -243,6 +243,27 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
 - **Carry-over does not shrink with the team.** `carryoverFills` exists because work already
   carried in comes off the top of a smaller sprint, so a big adjustment can leave no room for
   new work at all. It's the most actionable thing the feature surfaces — keep it visible.
+- **The headroom signal is PROSE, and must stay prose.** `hasHeadroom` fires when a clear
+  majority of the window finished essentially the whole commitment (`CLEARED_PCT`) *and*
+  completed extra work on top — the shape you get when work is pulled in late because the
+  commitment is done, close to done or blocked. The recommendation can never exceed what the
+  team committed to, so that spare capacity is structurally invisible to it. **Do not fold
+  `headroomExtra` into `recommended`, and do not add a "stretch" tile.** The extra is
+  unplanned break-in; adding it on is committing to velocity by another name, which is the
+  one mistake this whole card exists to prevent.
+- **The headroom note is a `.badge` line, and its amber is NOT a RAG band.** It takes the
+  same badge-led `.sub.exnote` shape as the "sprints left out" notes, for the same reason
+  `excludedLine()` gives: it started life last on the card, after the fold-out and beside
+  the caveats, which is where the eye stops. It now sits under the sub-heading, above the
+  tiles. The amber is the ⚑ / ◐ amber — "there is something here to read", like an adjusted
+  figure or a sprint in flight — so **never wire it to `rag()`**: the finding is neither
+  good news nor bad, and the tiles beside it are where the colour-coded verdicts live. The
+  ↗ carries the meaning without the colour, per the never-colour-alone rule.
+- **`overCommitting` and `hasHeadroom` are computed in `nextSprintTarget`, not the card**,
+  and headroom is suppressed when `overCommitting` is on. The card used to work the first one
+  out again for its own prose; one home is what makes the two mutually exclusive by
+  construction rather than by luck of the wording. Three sprints minimum, same reason `thin`
+  exists — this one talks a team into signing up for more work.
 - **`plans` is the second collection with orphan handling**, and it follows `sprints`
   exactly: id remapping first, orphan drop after (never before), the count joining
   `sanitizeIds.dropped` so `orphanNote()` reports both together. It also **de-duplicates by
