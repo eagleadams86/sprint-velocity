@@ -7,7 +7,9 @@ completion, break-in, carryover and velocity, and flags each one against your ta
 **Live:** https://eagleadams86.github.io/sprint-velocity/
 
 Built for Scrum Masters running several teams on a SAFe-style cadence: six sprints to a
-Program Increment, with sprint 6 reserved for innovation and planning.
+Program Increment, with sprint 6 reserved for innovation and planning — though
+[**PIs are entirely optional**](#pis-are-optional), and a team running plain Scrum with
+continuous sprint numbers works just as well.
 
 One of a pair: [Flow Metrics](https://eagleadams86.github.io/team-dashboard/) (the
 `team-dashboard` repo — the app was renamed on screen only) is the
@@ -55,6 +57,60 @@ average](#leaving-a-sprint-out-of-the-average) — record *why* as a pick from a
 rather than in a box you type into. "Why did we drop that sprint?" is the obvious place to
 want free text, and it's exactly where a ticket key or a colleague's name would end up in
 the cloud. A code from the list carries the meaning and can't carry anything else.
+
+## PIs Are Optional
+
+Sprints used to have to live inside a Program Increment: with a team recorded but no
+PI, the app showed one card — *"Add a Program Increment First"* — and nothing else worked.
+That's gone. **A PI is never required.**
+
+Add a team, record sprints, and use the app indefinitely without one. Sprints numbered
+1, 2, 3 … 47, a rolling average, a capacity target, a forecast, sprint goals, the All
+teams comparison — none of it needs a PI. Only the two views that are *about* PIs do, and
+they simply aren't there until you make one:
+
+| | With no PI | Once a PI exists |
+|---|---|---|
+| Sprint, Rolling 5, All teams | ✅ | ✅ |
+| **Current PI** | hidden | appears once the team has a sprint in one |
+| **ART PI** | hidden | appears once an ART has a team on it |
+| PI business value / predictability | — | per team, per PI |
+
+### Starting without one, adding one later
+
+Every sprint carries a **PI** picker, which now offers **No PI** alongside your PIs. That's
+how a sprint moves into a PI after the fact — and back out again. Create the PI in *Teams,
+ARTs & PIs* whenever it becomes useful, then set it on the sprints that belong to it.
+
+**Sprints with no PI count as a team's oldest history.** That's the case this is built for:
+you record sprints, later decide to run PIs, and everything from before the first PI is the
+history that came before it. The consequence to know is the reverse — putting a *new* sprint
+on "No PI" while PIs exist files it before all of them, so the form says so before you save.
+
+**There's no IP sprint outside a PI.** Sprint 6 is the innovation-and-planning sprint
+*because of where it sits inside a PI*; without one it's just the sixth sprint, so it counts
+in the rolling window like any other and the "include sprint 6 (IP)" toggle doesn't appear
+for a team that isn't running PIs.
+
+### Deleting a PI no longer deletes its sprints
+
+It used to destroy every sprint in that PI across every team, because a sprint couldn't
+exist without one. Now it asks:
+
+```
+Delete PI 2026.3?
+17 sprints across 5 teams are in this PI. You can keep them — the figures
+are untouched, they simply stop being in a PI…
+
+Either way, this PI's 4 business value records and 1 capacity adjustment
+are deleted — both are defined by the PI and have nowhere to go without it.
+
+[ Cancel ]              [ Delete the sprints too ]  [ Keep the sprints ]
+```
+
+Kept sprints are renumbered onto the end of the team's unassigned run, so no two sprints
+end up sharing a slot. Business value and capacity adjustments go either way — both are
+defined by the PI — and the dialog says so rather than letting them go quietly.
 
 ## The Sprint Goal
 
@@ -412,8 +468,9 @@ you land back on **Sprint**.
 
 The welcome card offers **Load sample data** beside *Add your first team*. It isn't
 filler: it's the app's demo, and the rule is that **every feature has to be reachable
-from it**. Five teams across two ARTs, twenty-two sprints over two PIs, and one sprint
-running right now — so nothing in the app is a screen you have to imagine.
+from it**. Six teams — five across two ARTs with twenty-two sprints over two PIs and one
+running right now, plus one team that doesn't use PIs at all — so nothing in the app is a
+screen you have to imagine.
 
 It lands you on that running sprint, because it's the one state the app can't show
 without real dates. The other four teams are one click away in the team picker, and each
@@ -426,6 +483,7 @@ is there to show something different:
 | **Otter** | Platform | The team the targets exist to catch — around 70% completion and swinging from 14 to 26 points. Has a **⚑ sprint left out** for a major incident, and its next slot is the **IP sprint**, so it carries that caveat too. 59% predictability — **under the band**. It's also the team where the [**reliable commitment**](#two-figures-not-one) differs from the average enough to matter: 20 or 17 — and where **◎ the goals land and the points don't**. |
 | **Curlew** | Platform | **↗ Room for more** — it clears its commitment then pulls extra work in, so it reads 98% commitment completion beside a **red 29% break-in**. The contradiction the [headroom note](#when-a-team-has-room-for-more) exists to resolve. It under-commits its objectives too: 113%, **over the band**, with the value coming partly from **stretch**. Steady enough that it gets **one** capacity figure rather than two — and it's the team where **◎ the points land and the goals don't**, at 2 of 5. |
 | **Wren** | *none* | A brand-new team: **thin history**, a **⚑ one-off availability** for leave, and a carryover that then **fills the whole figure** — no room for new work at all. Being in no ART, it's also the **No ART** group on *All teams* and *ART PI*. |
+| **Pipit** | *none* | The team that [**doesn't run PIs**](#pis-are-optional) — sprints numbered **12–16**, continuous, past the six a PI holds. No IP sprint, no Current PI tab, and it's named on *ART PI* as not being in that PI at all. Deliberately carries nothing else: every other finding already belongs to a team above. |
 
 Two ARTs of two plus one team in neither is the arrangement where the *All teams* ART
 filter and its *No ART* group both actually do something.
@@ -651,7 +709,9 @@ at:
   carries its ART under its name. The header team picker groups the same way.
 
 Deleting an ART is the cheapest delete in the app: it takes no team, no sprint and no
-business value with it — the teams that were on it simply go back to having none. The ART PI
+business value with it — the teams that were on it simply go back to having none.
+(Deleting a **PI** is no longer expensive either — it
+[offers to keep its sprints](#deleting-a-pi-no-longer-deletes-its-sprints).) The ART PI
 tab goes away with the last ART, and the figures it showed are all still on each team's own
 Current PI page.
 

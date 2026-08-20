@@ -1290,6 +1290,21 @@ main:focus { outline: none; }
   </form>
 </dialog>
 
+<!-- Deleting a PI no longer has to destroy its sprints, so it asks. Narrow like
+     the other short dialogs (Back up, Delete) — it is a few lines and a choice. -->
+<dialog id="delPiDialog" aria-labelledby="delPiTitle">
+  <h3 id="delPiTitle"></h3>
+  <p class="sub" id="delPiBody" style="margin:0"></p>
+  <p class="sub muted" id="delPiAlso" style="margin:12px 0 0"></p>
+  <div class="row spread" style="margin-top:18px">
+    <button type="button" class="btn" id="delPiCancelBtn">Cancel</button>
+    <span class="row">
+      <button type="button" class="btn danger" id="delPiDropBtn">Delete the sprints too</button>
+      <button type="button" class="btn primary" id="delPiKeepBtn">Keep the sprints</button>
+    </span>
+  </div>
+</dialog>
+
 <dialog id="helpDialog" aria-labelledby="helpTitle">
   <h3 id="helpTitle"></h3>
   <p id="helpBody" style="margin:0;font-size:14px"></p>
@@ -1403,10 +1418,18 @@ const STORAGE_KEY = 'sv-data';
    page (theme, which tab is open) needs a bump.
 
    2 — the `objectives` list (PI business value) arrived.
-   3 — sprints gained `goalMet`. */
-const SCHEMA = 3;
+   3 — sprints gained `goalMet`.
+   4 — `piId` on a sprint (and on a plan) became OPTIONAL: null means the sprint
+       is not in a PI at all. An older build would strip the null and then delete
+       the sprint as an orphan, which is the loss this halt exists to prevent. */
+const SCHEMA = 4;
 
 const SPRINTS_PER_PI = 6;
+/* The upper bound on a sprint NUMBER, and deliberately not SPRINTS_PER_PI. Six to
+   a PI is a property of a PI; a team that isn't running PIs numbers its sprints
+   straight up and reaches 47 in a couple of years. This is a bound against a
+   crafted payload, not a claim about anybody's cadence. */
+const MAX_SPRINT_NO = 999;
 const IP_SPRINT = 6;          // sprint 6 is the innovation & planning sprint
 const ROLLING_WINDOW = 5;
 
@@ -1573,8 +1596,19 @@ function blankState() {
 const ID_OK = /^[A-Za-z0-9_-]{1,64}$/;
 
 /* Plain English for however many sprints the boundary just dropped. */
+/* Its own sentence, and not orphanNote()'s: nothing was lost, so the wording must
+   not imply it was — and the reader can act on this one. */
+function unassignedNote(n) {
+  return `${n} sprint${n === 1 ? '' : 's'} kept but no longer in a PI — the PI `
+    + `${n === 1 ? 'it pointed' : 'they pointed'} at isn’t in this data. `
+    + `Put ${n === 1 ? 'it' : 'them'} in one from the sprint form whenever you like.`;
+}
+
 function orphanNote(n) {
-  return `${n} sprint${n === 1 ? '' : 's'} left out — the team or PI `
+  /* Teams only. A sprint whose PI is missing is no longer dropped — it is
+     un-assigned and stays on screen (see the boundary), so the only thing that
+     can still cost a sprint its place is a team that isn't in the payload. */
+  return `${n} sprint${n === 1 ? '' : 's'} left out — the team `
     + `${n === 1 ? 'it points' : 'they point'} at isn’t in this data.`;
 }
 
@@ -1600,6 +1634,7 @@ function sanitizeIds(data) {
   sanitizeIds.dropped = 0;   // reset first: a caller must never read a stale count
   sanitizeIds.strippedNotes = 0;
   sanitizeIds.pruned = 0;    // stray keys dropped or wrong-typed values repaired
+  sanitizeIds.unassigned = 0;  // sprints whose PI was missing, kept but un-grouped
   if (!data || typeof data !== 'object') return data;
   const remap = new Map();
   const clean = (id) => {
@@ -1674,7 +1709,13 @@ function sanitizeIds(data) {
     for (const k of Object.keys(src)) {
       const kind = spec[k], v = src[k];
       if (kind === 'id' || kind === 'idOrNull') {
-        if (typeof v === 'string' || (kind === 'idOrNull' && v === null)) out[k] = v;
+        /* An `idOrNull` collapses the empty string to null. A `<select>`'s "none"
+           option carries `value=""`, so an empty string is what the form hands
+           back for "No PI" — and an empty-string id is the orphan case this whole
+           pass exists to close, not a value to store. One rule here beats four
+           call sites remembering to normalise. */
+        if (kind === 'idOrNull' && (v === null || v === '')) out[k] = null;
+        else if (typeof v === 'string') out[k] = v;
       } else if (kind === 'label') {
         if (typeof v === 'string') out[k] = v.slice(0, 120);
       } else if (kind === 'num') {
@@ -1692,9 +1733,16 @@ function sanitizeIds(data) {
            until the next render corrected it. */
         out[k] = VIEWS.includes(v) ? v : 'sprint';
       } else if (kind === 'sprintNum') {
-        /* A slot on the sprint picker, so it's pinned to the picker's own range. */
+        /* A sprint number. Bounded, but NOT to 1..SPRINTS_PER_PI: six-to-a-PI is a
+           property of a PI, and a team that isn't running PIs numbers its sprints
+           straight up (1, 2, 3 … 47). The picker still offers six slots when the
+           sprint is in a PI — that constraint belongs to the control, not to the
+           boundary. `sprints.sprintNumber` has always been unclamped (it is typed
+           'num'); this widening is what lets `plans.sprintNumber` and
+           `settings.activeSprintNum` follow a PI-less sprint, while still bounding
+           all three against a crafted payload. */
         const n = Number(v);
-        if (Number.isFinite(n)) out[k] = Math.min(SPRINTS_PER_PI, Math.max(1, Math.round(n)));
+        if (Number.isFinite(n)) out[k] = Math.min(MAX_SPRINT_NO, Math.max(1, Math.round(n)));
       } else if (kind === 'pct') {
         /* Team availability, as a percentage of a normal sprint. Clamped to the
            same range the form offers rather than merely checked for finiteness:
@@ -1737,12 +1785,13 @@ function sanitizeIds(data) {
   data.arts = objects(data.arts).map(a => keepKnown(a, { id: 'id', name: 'label' }));
   data.pis = objects(data.pis).map(p => keepKnown(p, { id: 'id', name: 'label', sprintCount: 'num' }));
   data.sprints = objects(data.sprints).map(s => keepKnown(s, Object.assign({
-    id: 'id', teamId: 'id', piId: 'id',
+    /* `idOrNull`: null is a real answer here — the sprint is not in a PI. */
+    id: 'id', teamId: 'id', piId: 'idOrNull',
     startDate: 'date', endDate: 'date', status: 'status',
     excluded: 'bool', excludeReason: 'reason', capacityScale: 'pct',
     goalMet: 'tribool' }, NUMS)));
   data.plans = objects(data.plans).map(p => keepKnown(p, {
-    id: 'id', teamId: 'id', piId: 'id', sprintNumber: 'sprintNum',
+    id: 'id', teamId: 'id', piId: 'idOrNull', sprintNumber: 'sprintNum',
     availability: 'pct', reason: 'reason' }));
   data.objectives = objects(data.objectives).map(o => keepKnown(o, {
     id: 'id', teamId: 'id', piId: 'id',
@@ -1789,8 +1838,29 @@ function sanitizeIds(data) {
      just been rewritten to the team's fresh id, and is not an orphan. */
   const ids = (arr) => new Set(list(arr).map(r => (r ? r.id : null)).filter(Boolean));
   const teamIds = ids(data.teams), piIds = ids(data.pis);
+  /* ── A missing PI UN-ASSIGNS the sprint; a missing team still drops it ──────
+     This used to delete the sprint outright, and the reasoning was sound while a
+     PI was compulsory: an orphan still reached teamSprints() and moved a rolling
+     average with nothing on screen behind it, because no PI-based view could show
+     it. That is no longer true. A sprint with no PI is now a first-class, visible
+     thing, so a broken PI reference costs the grouping and nothing else — exactly
+     the rule this file already applies one block up to a team whose ART has gone
+     ("un-grouped rather than dropped"), and for the same reason: don't throw away
+     real data over a broken label.
+
+     A missing TEAM is still fatal, because a sprint belongs to a team the way it
+     never belonged to a PI — there is no view that could show it and no figure it
+     could join. That half keeps the drop and the toast. */
   if (Array.isArray(data.sprints)) {
-    const kept = data.sprints.filter(s => s && teamIds.has(s.teamId) && piIds.has(s.piId));
+    data.sprints.forEach(s => {
+      if (s && s.piId && !piIds.has(s.piId)) { s.piId = null; sanitizeIds.unassigned++; }
+    });
+    /* Counted twice, deliberately: `pruned` is what makes boot persist the repair,
+       and `unassigned` is what lets the user be TOLD. A sprint losing its PI is a
+       change to what is on screen, unlike a stray key being scrubbed, so it earns a
+       sentence — the same split `strippedNotes` already makes. */
+    sanitizeIds.pruned += sanitizeIds.unassigned;
+    const kept = data.sprints.filter(s => s && teamIds.has(s.teamId));
     sanitizeIds.dropped = data.sprints.length - kept.length;
     data.sprints = kept;
   }
@@ -1867,6 +1937,7 @@ window.svViewOnly = viewOnly;
    itself — one shown before there's anything to look at is gone by the time
    there is. Boot says it after the first paint instead. */
 let bootOrphans = 0;
+let bootUnassigned = 0;   // sprints the boundary un-grouped rather than dropped
 let bootStrippedNotes = 0;   // legacy free-text notes found in the saved copy
 let bootPruned = 0;          // stray keys or wrong-typed values found in it
 
@@ -1913,6 +1984,7 @@ function load() {
     if (!raw) return blankState();
     const parsed = sanitizeIds(coerceShape(JSON.parse(raw)));
     bootOrphans = sanitizeIds.dropped;
+    bootUnassigned = sanitizeIds.unassigned;
     bootStrippedNotes = sanitizeIds.strippedNotes;
     bootPruned = sanitizeIds.pruned;
     return adoptState(parsed);
@@ -2025,6 +2097,29 @@ const artById  = (id) => state.arts.find(a => a.id === id) || null;
 const piById   = (id) => state.pis.find(p => p.id === id) || null;
 const piIndex  = (id) => state.pis.findIndex(p => p.id === id);
 
+/* ── Where a sprint sits in the programme, PI or no PI ──────────────────────
+   A sprint with no PI ranks BEFORE every sprint that is in one. That is not an
+   accident of `findIndex` returning -1 — it is the rule, and it is chosen for the
+   migration this app now supports: you start without PIs, and the day you create
+   one, everything recorded up to then is the history that came before it.
+
+   The consequence worth knowing: recording a NEW sprint with no PI while PIs
+   already exist files it at the start of that team's history, not the end. The
+   sprint form defaults to the current PI precisely so "No PI" is always something
+   you chose rather than something you fell into. */
+const piRank = (piId) => (piId ? piIndex(piId) : -1);
+
+/* Every way of saying "no PI" collapsed to ONE comparable value. A `<select>`'s
+   none-option gives `''`, an absent key gives `undefined`, and the stored shape is
+   `null` — three values that are all "not in a PI" and none of which are `===` each
+   other. `findSprint` compares ids with `===`, so without this a sprint saved as
+   unassigned could not be found again by the form that saved it. */
+const piKey = (piId) => (piId ? piId : null);
+
+/* The IP sprint is sprint 6 OF A PI. One predicate so no two callers can disagree
+   about that — the same discipline `isCounted()` follows. */
+const isIpSlot = (s) => !!s.piId && s.sprintNumber === IP_SPRINT;
+
 function activeTeam() {
   return teamById(state.settings.activeTeamId) || state.teams[0] || null;
 }
@@ -2119,7 +2214,9 @@ function forecast(teamId, points, includeSix) {
      depends on which slot the team is starting from. */
   const slot = t.slot;
   const calendarSlots = (n) => {
-    if (includeSix || !slot) return n;
+    /* `!slot.piId` too: on the unassigned track every slot delivers, because
+       there is no IP sprint out there to step over. */
+    if (includeSix || !slot || !slot.piId) return n;
     let slots = 0, delivered = 0, num = slot.sprintNumber;
     /* Bounded as well as conditioned: a hand-typed backlog can ask for
        thousands of sprints, and a render must not hang on one. */
@@ -2281,11 +2378,16 @@ function artPredictability(teams, piId) {
 function teamSprints(teamId) {
   return state.sprints
     .filter(s => s.teamId === teamId)
-    .sort((a, b) => (piIndex(a.piId) - piIndex(b.piId)) || (a.sprintNumber - b.sprintNumber));
+    .sort((a, b) => (piRank(a.piId) - piRank(b.piId)) || (a.sprintNumber - b.sprintNumber));
 }
 
 function findSprint(teamId, piId, num) {
-  return state.sprints.find(s => s.teamId === teamId && s.piId === piId && s.sprintNumber === num) || null;
+  /* Through piKey on BOTH sides, or an unassigned sprint stored as `null` would be
+     invisible to a form handing back `''` for the same slot — and the save path
+     would then write a duplicate instead of editing the sprint in front of you. */
+  const want = piKey(piId);
+  return state.sprints.find(s =>
+    s.teamId === teamId && piKey(s.piId) === want && s.sprintNumber === num) || null;
 }
 
 /* ── Planned capacity adjustments ───────────────────────────────────────────
@@ -2299,8 +2401,12 @@ function findSprint(teamId, piId, num) {
    at a planning session, and the card has to be able to say plainly which
    figure is in force. */
 function planFor(teamId, piId, num) {
-  if (!piId) return null;
-  return state.plans.find(p => p.teamId === teamId && p.piId === piId && p.sprintNumber === num) || null;
+  /* No longer refuses a PI-less slot. It used to, because a slot outside a PI was
+     unreachable; now a whole team can live out there and capacity planning has to
+     reach them. Same piKey comparison as findSprint, for the same reason. */
+  const want = piKey(piId);
+  return state.plans.find(p =>
+    p.teamId === teamId && piKey(p.piId) === want && p.sprintNumber === num) || null;
 }
 
 /* The availability in force for a slot, and where it came from. `pct` is always
@@ -2329,7 +2435,7 @@ function latestSprint(teamId) {
 function focusLatestSprint(teamId) {
   const s = latestSprint(teamId);
   if (!s) return;
-  state.settings.activePiId = s.piId;
+  state.settings.activePiId = piKey(s.piId);   // never undefined — that stops the Firestore push
   state.settings.activeSprintNum = s.sprintNumber;
 }
 
@@ -2445,7 +2551,12 @@ function rollingSprints(teamId, includeSix) {
        three read from here — a sprint recorded mid-flight would otherwise count
        as a 0% result and take a slot from a real sprint. */
     .filter(isCounted)
-    .filter(s => includeSix || s.sprintNumber !== IP_SPRINT)
+    /* ── The IP-sprint rule belongs to a PI, so it only applies inside one ──────
+       Sprint 6 of a team that isn't running PIs is an ordinary sprint. Dropping it
+       from the window because of its number would be the worst kind of exclusion:
+       invisible, and wrong — the toggle that would put it back is labelled "include
+       sprint 6 (IP)", which is a sentence about a PI that team hasn't got. */
+    .filter(s => includeSix || !isIpSlot(s))
     /* A sprint the user has deliberately taken out of the forecast: a major
        incident that ate the sprint, a re-baselining that put the points on a
        different scale, or a sprint the team was largely away for. The figures
@@ -2543,7 +2654,7 @@ function excludedLine(teamId, includeSix) {
 function excludedInRange(teamId, includeSix) {
   const counted = teamSprints(teamId)
     .filter(isCounted)
-    .filter(s => includeSix || s.sprintNumber !== IP_SPRINT);
+    .filter(s => includeSix || !isIpSlot(s));   // see rollingSprints
   /* The window as it WOULD have been with nothing excluded. Anything excluded
      inside it is a sprint the window reached over; anything older than it was
      never going to be counted anyway, so naming it would be noise.
@@ -2910,6 +3021,13 @@ function targetSprintSlot(teamId) {
 
   const last = all[all.length - 1];
   const base = { last: lastComplete, sprint: null };
+  /* A team with no PI just counts on. There is no six-slot boundary to roll over,
+     because six-to-a-PI is a fact about a PI — without one the numbers run 1, 2,
+     3 … 47, and the slot being planned is simply the next one. Guarding this
+     BEFORE the rollover also stops `piIndex(null) + 1` reaching `state.pis[0]`,
+     which would have quietly moved a PI-less team into the app's first PI. */
+  if (!last.piId)
+    return Object.assign(base, { piId: null, sprintNumber: last.sprintNumber + 1 });
   if (last.sprintNumber < SPRINTS_PER_PI)
     return Object.assign(base, { piId: last.piId, sprintNumber: last.sprintNumber + 1 });
   const nextPi = state.pis[piIndex(last.piId) + 1];
@@ -3366,6 +3484,12 @@ const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
   ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 
 function sprintLabel(s) {
+  /* Three cases, and they must read differently. In a PI: "PI 2026.3 · S3". In no
+     PI: just "S3" — there is no PI to name and inventing a placeholder would say
+     something went wrong when nothing did. `PI?` is kept for the third case, a
+     piId that names nothing, which after the boundary un-groups such sprints can
+     only ever be a live-session bug — so it should look like one. */
+  if (!piKey(s.piId)) return 'S' + s.sprintNumber;
   const pi = piById(s.piId);
   return (pi ? pi.name : 'PI?') + ' · S' + s.sprintNumber;
 }
@@ -3906,7 +4030,10 @@ function renderTabs() {
   const team = activeTeam();
   const shown = {
     sprint:  true,
-    pi:      !!team && teamSprints(team.id).length > 0,
+    /* Current PI needs a PI to be current. Without one the whole view is a table
+       of six empty slots and a picker with nothing in it — and the tab row is the
+       one place that decides what is on offer, so it decides this too. */
+    pi:      state.pis.length > 0 && !!team && teamSprints(team.id).some(x => !!x.piId),
     rolling: !!team && teamSprints(team.id).length > 0,
     /* The train view, for an RTE rather than a Scrum Master. It needs an ART with
        a team actually on it — an empty train is a heading over nothing — and a PI
@@ -4001,30 +4128,68 @@ function renderWelcome() {
   document.getElementById('welcomeSampleBtn').onclick = loadSample;
 }
 
+/* ── Which sprint numbers a picker offers ───────────────────────────────────
+   In a PI: the PI's six slots, always all of them, because a PI is a fixed frame
+   and every slot in it is a real place a sprint can go.
+
+   On the unassigned track there is no frame, so the list is the team's own
+   history plus the next one — every sprint they have, and the one they are about
+   to record. Deliberately still a `<select>` rather than a free number box: a box
+   lets a slip of the finger file a sprint at 900 and then leaves the user hunting
+   for it, and the one thing this control has to guarantee is that every sprint
+   they already have is reachable and "the next one" is a single press away.
+   `current` is always included so a stored position can never point at an option
+   that isn't there. */
+function sprintNumbers(teamId, piId, current) {
+  if (piKey(piId)) return Array.from({ length: SPRINTS_PER_PI }, (_, i) => i + 1);
+  const mine = state.sprints.filter(x => x.teamId === teamId && !x.piId)
+    .map(x => x.sprintNumber);
+  /* The next slot is one past what they have RECORDED — deliberately not one past
+     wherever the picker happens to be sitting, or a team with nothing yet would be
+     offered a sprint 2 it can't have reached. `current` is added separately, so a
+     stored position always has an option to select even if the sprint behind it
+     has since been deleted. */
+  const top = Math.min(MAX_SPRINT_NO, (mine.length ? Math.max(...mine) : 0) + 1);
+  const list = new Set(mine);
+  for (let n = 1; n <= top; n++) list.add(n);
+  if (current) list.add(Number(current));
+  return [...list].filter(n => n >= 1 && n <= MAX_SPRINT_NO).sort((a, b) => a - b);
+}
+
 /* ── View 1: single sprint ──────────────────────────────────────────────── */
 
 function renderSprintView() {
   const team = activeTeam();
-  if (!state.pis.length) return renderNeedPi();
 
+  /* No PI needed to get here any more. With none at all this resolves to the
+     unassigned track and the PI picker is hidden — a one-option select is chrome
+     pretending to be a control, the same reasoning as the header team picker's
+     `hidden`. With PIs present it keeps landing on the last one, unless the stored
+     position or the team's own history says otherwise. */
   const pis = state.pis;
-  let piId = state.settings.activePiId && piById(state.settings.activePiId)
-    ? state.settings.activePiId : pis[pis.length - 1].id;
+  const stored = piKey(state.settings.activePiId);
+  const hasUnassigned = teamSprints(team.id).some(x => !x.piId);
+  let piId = stored && piById(stored) ? stored
+    : (stored === null && (hasUnassigned || !pis.length)) ? null
+    : pis.length ? pis[pis.length - 1].id : null;
   const numSel = state.settings.activeSprintNum || 1;
   const s = findSprint(team.id, piId, numSel);
   const m = s ? metrics(s) : null;
+  const offerNoPi = !pis.length || hasUnassigned || piId === null;
 
   const selector = `
     <div class="card">
       <div class="row spread sprint-bar">
         <div class="row">
           <label class="sr-only" for="piSel">PI</label>
-          <select id="piSel" class="ctl">${pis.map(p =>
+          <select id="piSel" class="ctl"${pis.length ? '' : ' hidden'}>${
+            offerNoPi ? `<option value=""${piId === null ? ' selected' : ''}>No PI</option>` : ''}${
+            pis.map(p =>
             `<option value="${esc(p.id)}"${p.id === piId ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
           <label class="sr-only" for="numSel">Sprint</label>
-          <select id="numSel" class="ctl">${Array.from({ length: SPRINTS_PER_PI }, (_, i) => i + 1).map(n =>
+          <select id="numSel" class="ctl">${sprintNumbers(team.id, piId, numSel).map(n =>
             `<option value="${n}"${n === numSel ? ' selected' : ''}>Sprint ${n}${
-              n === IP_SPRINT ? ' (IP)' : ''}${sprintPickerNote(team.id, piId, n)}</option>`).join('')}</select>
+              piId && n === IP_SPRINT ? ' (IP)' : ''}${sprintPickerNote(team.id, piId, n)}</option>`).join('')}</select>
         </div>
         <!-- One button, two jobs, two treatments. On an empty slot it says Add
              Sprint and it is the only thing to do on the page, so it takes the
@@ -4042,7 +4207,8 @@ function renderSprintView() {
   if (!s) {
     viewsEl.innerHTML = selector + `<div class="card empty">
       <h2>Nothing Recorded Yet</h2>
-      <p>${esc(team.name)} has no data for sprint ${numSel} of ${esc(piById(piId).name)}.</p>
+      <p>${esc(team.name)} has no data for sprint ${numSel}${
+        piId && piById(piId) ? ' of ' + esc(piById(piId).name) : ''}.</p>
     </div>`;
     wireSprintSelectors(piId, numSel);
     return;
@@ -4207,32 +4373,27 @@ function wireSprintSelectors(piId, numSel) {
   if (edit) edit.onclick = () => openSprint(activeTeam().id, piId, numSel);
 }
 
-function renderNeedPi() {
-  /* Reachable in a shared view when the shared team has no sprints at all, since
-     the payload only carries PIs its sprints actually sit in. A visitor can't add
-     one, so say what's happened rather than offering a button that isn't theirs. */
-  if (viewOnly) {
-    viewsEl.innerHTML = `<div class="card empty">
-      <h2>No Sprint Data for This Team</h2>
-      <p>Nothing has been recorded for ${esc(activeTeam() ? activeTeam().name : 'this team')} yet,
-         so there's nothing to show.</p>
-    </div>`;
-    return;
-  }
+/* What is left of the old "Add a Program Increment First" card, which used to
+   block the whole app. A PI is no longer required for anything except the two
+   views that are about PIs, and `renderTabs()` hides those — so the only case
+   left is a shared link whose team carries no sprints at all. A visitor can't add
+   anything, so this says what happened rather than offering a button that isn't
+   theirs. */
+function renderNoSprints() {
   viewsEl.innerHTML = `<div class="card empty">
-    <h2>Add a Program Increment First</h2>
-    <p>Sprints live inside a PI. Create one — "PI 2026.3", say — and you can start entering data.</p>
-    <div class="row" style="justify-content:center;margin-top:16px">
-      <button class="btn primary" id="needPiBtn">Add a PI</button></div>
+    <h2>No Sprint Data for This Team</h2>
+    <p>Nothing has been recorded for ${esc(activeTeam() ? activeTeam().name : 'this team')} yet,
+       so there's nothing to show.</p>
   </div>`;
-  document.getElementById('needPiBtn').onclick = () => { openManage(); addPi(); };
 }
 
 /* ── View 2: current PI ─────────────────────────────────────────────────── */
 
 function renderPiView() {
   const team = activeTeam();
-  if (!state.pis.length) return renderNeedPi();
+  /* renderTabs() hides this view's tab without a PI, so this is a backstop, not
+     the route anyone takes. Two places deciding would be two places to disagree. */
+  if (!state.pis.length) return renderNoSprints();
 
   const piId = state.settings.activePiId && piById(state.settings.activePiId)
     ? state.settings.activePiId : state.pis[state.pis.length - 1].id;
@@ -4471,14 +4632,17 @@ function renderPiView() {
 function renderRollingView() {
   const team = activeTeam();
   const includeSix = !!state.settings.includeSprint6InRolling;
+  /* Does the IP-sprint rule mean anything to THIS team? Only if some of its
+     sprints are in a PI — sprint 6 outside one is an ordinary sprint. */
+  const ipApplies = teamSprints(team.id).some(x => !!x.piId);
   const rs = rollingSprints(team.id, includeSix);
   /* Finished sprints exist, but every one of them is excluded — so the reason the
      window is empty is the user's own doing, not missing data. */
   const allExcluded = !rs.length && teamSprints(team.id)
-    .filter(isCounted).filter(x => includeSix || x.sprintNumber !== IP_SPRINT).length > 0;
+    .filter(isCounted).filter(x => includeSix || !isIpSlot(x)).length > 0;
 
   if (!rs.length) {
-    viewsEl.innerHTML = rollingToolbar(includeSix) + `<div class="card empty">
+    viewsEl.innerHTML = rollingToolbar(includeSix, ipApplies) + `<div class="card empty">
       <h2>${allExcluded ? 'Every Sprint Is Left Out'
         : teamSprints(team.id).length ? 'No Finished Sprints Yet' : 'No Sprints Recorded Yet'}</h2>
       <p>${allExcluded
@@ -4545,11 +4709,15 @@ function renderRollingView() {
     : '';
 
   const labels  = rs.map(sprintLabel);
-  viewsEl.innerHTML = rollingToolbar(includeSix) + `
+  viewsEl.innerHTML = rollingToolbar(includeSix, ipApplies) + `
     <div class="card">
       <h2>${esc(team.name)} — Last ${rs.length} Sprint${rs.length === 1 ? '' : 's'}</h2>
       <p class="sub">${esc(labels[0])} → ${esc(labels[labels.length - 1])}${
-        includeSix ? '' : ' · sprint 6 (IP) excluded'}${
+        /* Only claim the exclusion where it could actually have happened. For a
+           team with no PI'd sprints the IP rule never fires, and saying "sprint 6
+           (IP) excluded" over a table that plainly lists S6 is the flat
+           contradiction this app's exclusion rules exist to prevent. */
+        includeSix || !ipApplies ? '' : ' · sprint 6 (IP) excluded'}${
         rs.some(x => sprintStatus(x) !== 'complete')
           ? ' · includes ' + esc(rs.filter(x => sprintStatus(x) !== 'complete')
               .map(x => 'S' + x.sprintNumber).join(', ')) + ', still running' : ''}${
@@ -4960,7 +5128,12 @@ function targetCapacityCard(team, includeSix) {
     <div class="row spread cardhead">
       <h2>Target Capacity for ${slotName}${
         t.inFlight ? ' <span class="badge">◐ In progress</span>' : ''}${adjustBadge}${scaleBadge}</h2>
-      ${t.slot && t.slot.piId && !viewOnly
+      ${/* No longer requires a PI. It used to, because a plan is keyed to a slot and
+             a slot outside a PI was unreachable — but a whole team can live out there
+             now, and a button that silently disappears for them is the invisible
+             exclusion this app refuses everywhere else. `planFor` reaches a PI-less
+             slot; this is the other half of that. */
+        t.slot && !viewOnly
         ? '<button class="btn small" id="adjustBtn" type="button">Adjust capacity</button>' : ''}
     </div>
     <p class="sub">What ${esc(team.name)} can realistically commit to, based on their last
@@ -5083,18 +5256,23 @@ function wireTargetCard(teamId, includeSix) {
   if (b) b.onclick = () => openAdjust(teamId, includeSix);
 }
 
-function rollingToolbar(includeSix) {
+/* `ipApplies` is whether the IP-sprint toggle means anything to the teams on this
+   page. It is a sentence about a PI, and it changes nothing at all for a team
+   whose sprints are not in one — offering it there would be a control that does
+   nothing next to prose describing a concept the reader isn't using. Same rule as
+   `renderTabs()`: hide what has nothing to say. */
+function rollingToolbar(includeSix, ipApplies) {
   const inProg = !!state.settings.includeInProgress;
   return `<div class="card">
-    <div class="row spread">
+    ${ipApplies === false ? '' : `<div class="row spread">
       <label class="row" style="gap:8px;cursor:pointer;font-size:14px">
         <input type="checkbox" id="incSix"${includeSix ? ' checked' : ''}>
         Include sprint 6 (IP) in the rolling average
       </label>
       <span class="muted" style="font-size:13px">Off by default — the IP sprint is for innovation
         and planning, not delivery.</span>
-    </div>
-    <div class="row spread" style="margin-top:10px">
+    </div>`}
+    <div class="row spread"${ipApplies === false ? '' : ' style="margin-top:10px"'}>
       <label class="row" style="gap:8px;cursor:pointer;font-size:14px">
         <input type="checkbox" id="incProgress"${inProg ? ' checked' : ''}>
         Count sprints that are still running
@@ -5135,7 +5313,9 @@ function wireRollingToolbar() {
    question nobody asked. */
 
 function renderArtPiView() {
-  if (!state.pis.length) return renderNeedPi();
+  /* renderTabs() hides this view's tab without a PI, so this is a backstop, not
+     the route anyone takes. Two places deciding would be two places to disagree. */
+  if (!state.pis.length) return renderNoSprints();
 
   const grouped = groupTeamsByArt(state.teams, state.arts);
   const shown = teamsInArt(grouped, state.settings.artFilter);
@@ -5165,7 +5345,14 @@ function renderArtPiView() {
   /* One pass per team, so the table, the tiles, the chart and the footer row can
      only ever disagree by method and never by which sprints they looked at — the
      same discipline renderTeamsView() applies to the rolling window. */
-  const rows = shown.map(t => {
+  /* A team with nothing in THIS PI is left out of the table rather than shown as a
+     row of zeros. With a PI compulsory every team was in one, so this was rare;
+     now that a team can run without PIs entirely it is routine, and eight zeros
+     under a team's name reads as a team that delivered nothing rather than one
+     that isn't in this PI at all. Named below the table, never merely omitted. */
+  const inThisPi = (t) => state.sprints.some(s => s.teamId === t.id && s.piId === piId);
+  const elsewhere = shown.filter(t => !inThisPi(t));
+  const rows = shown.filter(inThisPi).map(t => {
     const mine = state.sprints.filter(s => s.teamId === t.id && s.piId === piId);
     const closed = mine.filter(isCounted);
     const committed = sum(closed, 'committed');
@@ -5181,9 +5368,26 @@ function renderArtPiView() {
     };
   });
 
-  const pred = artPredictability(shown, piId);
+  /* The same list the table uses, or the train's measure would count teams the
+     table doesn't show. */
+  const pred = artPredictability(rows.map(r => r.team), piId);
   const scoredRows = rows.filter(r => r.has && r.bv.pct !== null);
   const inBand = scoredRows.filter(r => rag(r.bv.pct, 'predictability') === 'green').length;
+
+  /* Every team on this ART is outside the selected PI — the table would be a set
+     of headings over nothing, so say what happened and offer the way out. */
+  if (!rows.length) {
+    viewsEl.innerHTML = artToolbar(shown.length, hiddenCount) + `
+      <div class="card empty">
+        <h2>Nothing Recorded in ${esc(pi.name)}</h2>
+        <p>${shown.length === 1 ? 'This team has' : 'None of these teams has'} a sprint in
+           <strong>${esc(pi.name)}</strong>. Pick another PI above, or look at
+           <strong>Rolling ${ROLLING_WINDOW}</strong> and <strong>All teams</strong>, which
+           don't work by PI.</p>
+      </div>`;
+    wireArtToolbar();
+    return;
+  }
 
   const artCommitted = rows.reduce((a, r) => a + r.committed, 0);
   const artDone = rows.reduce((a, r) => a + r.done, 0);
@@ -5194,6 +5398,15 @@ function renderArtPiView() {
   /* The teams the headline measure could not include. Named, never merely
      omitted: a train figure worked out from three of five teams while the page
      shows five is the silent exclusion the rest of this app refuses. */
+  const notInPiNote = elsewhere.length
+    ? `<p class="sub exnote"><span class="badge">⚑ Not in this PI</span>
+        <span class="muted">${elsewhere.map(t => esc(t.name)).join(', ')} ${
+          elsewhere.length === 1 ? 'has' : 'have'} no sprints recorded in ${esc(pi.name)}, so
+        ${elsewhere.length === 1 ? 'it is' : 'they are'} left out of every figure here. A team
+        that doesn't run PIs lives on the <strong>Rolling ${ROLLING_WINDOW}</strong> and
+        <strong>All teams</strong> views instead.</span></p>`
+    : '';
+
   const missingNote = pred.missing.length
     ? `<p class="sub exnote"><span class="badge">⚑ Not scored yet</span>
         <span class="muted">${pred.missing.map(t => esc(t.name)).join(', ')} — no business value
@@ -5255,7 +5468,7 @@ function renderArtPiView() {
         business value delivered against business value committed at PI planning — the measure an
         RTE reports at Inspect &amp; Adapt, and a different question from whether the points
         landed. The two sit side by side here because a train can hit one and miss the other.</p>
-      ${missingNote}${cancellingNote}
+      ${notInPiNote}${missingNote}${cancellingNote}
       <div class="tiles">
         ${tile('ART predictability', fmtPct(pred.mean, 'predictability'),
           rag(pred.mean, 'predictability'),
@@ -5585,7 +5798,10 @@ function renderTeamsView() {
 
   const dashCond = dashboardCondition(rowsData);
 
-  viewsEl.innerHTML = artToolbar(shown.length, hiddenCount) + rollingToolbar(includeSix) + `
+  viewsEl.innerHTML = artToolbar(shown.length, hiddenCount)
+    /* Across teams, so the toggle stays as soon as ANY team on the page has a
+       sprint in a PI — it would still change that team's figures. */
+    + rollingToolbar(includeSix, shown.some(t => teamSprints(t.id).some(x => !!x.piId))) + `
     <div class="card">
       <h2>${heading} — Rolling ${ROLLING_WINDOW}-Sprint Averages</h2>
       <p class="sub">${art ? `Every team on ${esc(art.name)}`
@@ -5910,7 +6126,7 @@ function closeOnBackdropClick(dlg) {
 /* Every dialog except the sync reconciliation one, which deliberately refuses to
    be dismissed — picking which copy of your data to keep has to be a choice. */
 ['sprintDialog', 'manageDialog', 'dataDialog', 'clearDialog', 'helpDialog', 'adjustDialog',
- 'bvDialog'].forEach(id => closeOnBackdropClick(F(id)));
+ 'bvDialog', 'delPiDialog'].forEach(id => closeOnBackdropClick(F(id)));
 
 /* Fill a reason <select> from the fixed code list. The label comes from REASONS
    and never from the stored value, so a code that arrived in a share link can
@@ -5926,17 +6142,30 @@ function syncExcludeReason() {
   F('f_excludeReason').disabled = !F('f_excluded').checked;
 }
 
+/* The number picker follows the PI picker: six slots inside a PI, the team's own
+   running sequence outside one. Re-run whenever `f_pi` changes, or a sprint moved
+   out of a PI would be stuck choosing between six numbers it has outgrown. */
+function fillSprintNumbers(teamId, piId, chosen) {
+  const inPi = !!piKey(piId);
+  F('f_num').innerHTML = sprintNumbers(teamId, piId, chosen).map(n =>
+    `<option value="${n}"${n === Number(chosen) ? ' selected' : ''}>Sprint ${n}${
+      inPi && n === IP_SPRINT ? ' (IP)' : ''}</option>`).join('');
+}
+
 function openSprint(teamId, piId, sprintNumber) {
+  piId = piKey(piId);
   const existing = findSprint(teamId, piId, sprintNumber);
   editing = { teamId, piId, sprintNumber, id: existing ? existing.id : null };
 
+  const pi = piId ? piById(piId) : null;
   F('sprintDialogTitle').textContent =
-    `${teamById(teamId).name} — ${piById(piId).name} · Sprint ${sprintNumber}`;
-  F('f_pi').innerHTML = state.pis.map(p =>
-    `<option value="${esc(p.id)}"${p.id === piId ? ' selected' : ''}>${esc(p.name)}</option>`).join('');
-  F('f_num').innerHTML = Array.from({ length: SPRINTS_PER_PI }, (_, i) => i + 1).map(n =>
-    `<option value="${n}"${n === sprintNumber ? ' selected' : ''}>Sprint ${n}${
-      n === IP_SPRINT ? ' (IP)' : ''}</option>`).join('');
+    `${teamById(teamId).name} — ${pi ? pi.name + ' · ' : ''}Sprint ${sprintNumber}`;
+  /* "No PI" is always on offer, so this picker is how a sprint moves in and out
+     of a PI as well as between PIs — no second control needed for either. */
+  F('f_pi').innerHTML = `<option value=""${piId ? '' : ' selected'}>No PI</option>`
+    + state.pis.map(p =>
+      `<option value="${esc(p.id)}"${p.id === piId ? ' selected' : ''}>${esc(p.name)}</option>`).join('');
+  fillSprintNumbers(teamId, piId, sprintNumber);
 
   const s = existing || {};
   F('f_start').value = s.startDate || '';
@@ -6020,6 +6249,20 @@ function updateStatusHint() {
   maybePrefillDates();
 }));
 
+/* Changing the PI changes which numbers are on offer — six slots inside one, the
+   team's running sequence outside. Rebuilt here rather than inside the listener
+   above because it has to keep the chosen number where it still exists, and that
+   is a different job from re-projecting the dates. */
+F('f_pi').addEventListener('change', () => {
+  if (!editing) return;
+  const want = Number(F('f_num').value);
+  fillSprintNumbers(editing.teamId, F('f_pi').value, want);
+  /* The number may not survive the move — a PI only has six slots. Falling back
+     to the first option keeps the form on a slot that actually exists. */
+  if (!F('f_num').value) F('f_num').selectedIndex = 0;
+  checkSprintForm();
+});
+
 /* Once the user types their own carried-in, the note explaining the guess is stale. */
 F('f_carriedIn').addEventListener('input', () => { F('carryHint').hidden = true; });
 
@@ -6052,6 +6295,14 @@ function checkSprintForm() {
     msgs.push('Total completed is lower than the committed points completed.');
   if (gt('f_carriedOut', 'f_committed'))
     msgs.push('Carried out is higher than points committed.');
+  /* Not a figure problem — a placement one, and the only way the user can find
+     out before saving. A sprint with no PI sorts before every PI in the team's
+     history, so choosing "No PI" while PIs exist files it as older than all of
+     them. That is right for history recorded before the first PI and wrong for
+     anything else, and only the person in front of the form knows which. */
+  if (!piKey(F('f_pi').value) && state.pis.length)
+    msgs.push(`Sprints with no PI sit before every PI in this team's history, so this one `
+      + `counts as older than ${state.pis[0].name}.`);
   /* Emptied rather than `hidden`: this is a live region, and an element toggled out
      of the accessibility tree announces nothing when it comes back. CSS collapses it
      while it holds no text. */
@@ -6179,6 +6430,10 @@ function previousSprint() {
   const piId = F('f_pi').value;
   const n = Number(F('f_num').value);
   if (n > 1) return findSprint(editing.teamId, piId, n - 1);
+  /* Sprint 1 looks back into the PI before it. With no PI there is no "PI before"
+     to reach into — the track starts here — so it is explicitly nothing rather
+     than `state.pis[-1]` happening to be undefined. */
+  if (!piKey(piId)) return null;
   const earlier = state.pis[piIndex(piId) - 1];
   return earlier ? findSprint(editing.teamId, earlier.id, SPRINTS_PER_PI) : null;
 }
@@ -6208,7 +6463,20 @@ const isoDay = (n) => new Date(n * DAY_MS).toISOString().slice(0, 10);
 
 /* Position in the team's programme, so two sprints can be measured apart across a
    PI boundary. */
-const slotIndex = (piId, num) => piIndex(piId) * SPRINTS_PER_PI + (num - 1);
+/* ── The absolute slot a sprint occupies, used only for date arithmetic ──────
+   PI'd sprints tile six to a PI. PI-less sprints are a plain linear sequence, so
+   they get a band of their own BELOW every PI — far enough below that a team's
+   PI-less sprint 47 can never land on the same index as a real PI slot, which is
+   what would silently corrupt the cadence stride for a team that has both.
+
+   `teamCadence()` refuses to measure a stride across the two bands for the same
+   reason; a difference that spans the gap is meaningless, not merely large. */
+const PI_LESS_BAND = -100000;
+const slotIndex = (piId, num) => (piId
+  ? piIndex(piId) * SPRINTS_PER_PI + (num - 1)
+  : PI_LESS_BAND + (num - 1));
+/* Which band a slot is in, so callers can refuse to compare across them. */
+const sameBand = (a, b) => (!a.piId) === (!b.piId);
 
 /* The team's rhythm: how long a sprint runs, and how far apart two starts sit.
 
@@ -6226,9 +6494,17 @@ function teamCadence(teamId) {
   let stride = Math.max(7, Math.round((length + 1) / 7) * 7);
   if (dated.length > 1) {
     const prev = dated[dated.length - 2];
-    const slots = slotIndex(anchor.piId, anchor.sprintNumber) - slotIndex(prev.piId, prev.sprintNumber);
-    const gap = dayNum(anchor.startDate) - dayNum(prev.startDate);
-    if (slots > 0 && gap > 0) stride = Math.round(gap / slots);
+    /* Only when both sprints are in the same band — both in PIs, or both in
+       none. `slotIndex` puts PI-less sprints a hundred thousand slots below the
+       first PI, so a difference that spans the two is not a big number of
+       sprints, it is a meaningless one, and dividing the date gap by it would
+       hand back a stride of zero days. Falling through leaves the week-snapped
+       length, which is the same answer a team with one dated sprint gets. */
+    if (sameBand(anchor, prev)) {
+      const slots = slotIndex(anchor.piId, anchor.sprintNumber) - slotIndex(prev.piId, prev.sprintNumber);
+      const gap = dayNum(anchor.startDate) - dayNum(prev.startDate);
+      if (slots > 0 && gap > 0) stride = Math.round(gap / slots);
+    }
   }
   return { anchor, length, stride };
 }
@@ -6237,6 +6513,11 @@ function teamCadence(teamId) {
 function cadenceDates(teamId, piId, num) {
   const c = teamCadence(teamId);
   if (!c) return null;
+  /* Never across the two tracks. A PI-less run and a PI'd run are not one
+     continuous programme, so the distance between them is not a number of
+     sprints — it is however long somebody took to set a PI up. Returning null
+     leaves the date boxes empty, which every caller already handles. */
+  if (!sameBand({ piId }, c.anchor)) return null;
   const offset = slotIndex(piId, num) - slotIndex(c.anchor.piId, c.anchor.sprintNumber);
   if (!offset) return null;                      // that's the anchor itself
   const start = dayNum(c.anchor.startDate) + offset * c.stride;
@@ -6365,7 +6646,7 @@ function buildSprintRecord() {
   const record = {
     id: editing.id || uid(),
     teamId: editing.teamId,
-    piId: F('f_pi').value,
+    piId: piKey(F('f_pi').value),   // the No-PI option's empty value becomes a real null
     sprintNumber: Number(F('f_num').value),
     startDate: F('f_start').value || '',
     endDate: F('f_end').value || '',
@@ -6419,7 +6700,7 @@ function commitSprint(record) {
   if (i >= 0 && typeof state.sprints[i].capacityScale === 'number' && !('capacityScale' in record))
     record.capacityScale = state.sprints[i].capacityScale;
   if (i >= 0) state.sprints[i] = record; else state.sprints.push(record);
-  state.settings.activePiId = record.piId;
+  state.settings.activePiId = piKey(record.piId);   // see focusLatestSprint
   state.settings.activeSprintNum = record.sprintNumber;
   save();
   return true;
@@ -6519,7 +6800,8 @@ let adjusting = null;     // { teamId, piId, sprintNumber, window: [{id, label, 
 
 function openAdjust(teamId, includeSix) {
   const t = nextSprintTarget(teamId, includeSix);
-  if (!t || !t.slot || !t.slot.piId) return;
+  /* A slot is all this needs — the PI is optional, see the button that opens it. */
+  if (!t || !t.slot) return;
   const { piId, sprintNumber } = t.slot;
   /* The window is snapshotted so the live preview can recompute the mean from the
      scale boxes without re-reading state — the boxes ARE the draft state until Save. */
@@ -6529,7 +6811,7 @@ function openAdjust(teamId, includeSix) {
       scale: typeof sp.capacityScale === 'number' ? sp.capacityScale : 100 })) };
 
   F('adjustTitle').textContent =
-    `Adjust Capacity — ${piById(piId).name} · Sprint ${sprintNumber}`;
+    `Adjust Capacity — ${piId && piById(piId) ? piById(piId).name + ' · ' : ''}Sprint ${sprintNumber}`;
   F('adjustSub').textContent = `${teamById(teamId).name} would normally be recommended ` +
     `${fmtNum(Math.round(t.baseRecommended))} story points. Say how available the team will be, or
     scale a sprint the team has outgrown, and the recommendation moves with it.`.replace(/\s+/g, ' ');
@@ -6980,15 +7262,114 @@ function renderManage() {
   });
   manageDialog.querySelectorAll('[data-del-pi]').forEach(b => b.onclick = () => {
     const p = piById(b.dataset.delPi);
-    const n = state.sprints.filter(s => s.piId === p.id).length;
-    if (!confirm(`Delete ${p.name}${n ? ` and its ${n} sprint${n === 1 ? '' : 's'} of data (all teams)` : ''}? This can’t be undone.`)) return;
-    state.pis = state.pis.filter(x => x.id !== p.id);
-    state.sprints = state.sprints.filter(s => s.piId !== p.id);
-    state.plans = state.plans.filter(pl => pl.piId !== p.id);
-    state.objectives = state.objectives.filter(o => o.piId !== p.id);
-    if (state.settings.activePiId === p.id) state.settings.activePiId = null;
-    save(); renderManage(); render();
+    if (p) openDeletePi(p);
   });
+}
+
+
+/* ── Deleting a PI, without deleting a year of sprints with it ───────────────
+   This used to hard-delete every sprint in the PI across every team, and while a
+   sprint could not exist outside a PI that was the only coherent answer. It isn't
+   any more: a sprint with no PI is now an ordinary, visible sprint, so the
+   grouping can go without the data going. "A remedy that destroys data must never
+   be the guess" is already this file's rule — it just had nowhere else to go.
+
+   So the dialog offers both, and neither is the default. Two things still die
+   either way, because both are defined BY the PI and have nowhere to live without
+   one: its business value, and any capacity adjustment against one of its slots.
+   The dialog says so rather than letting them go quietly.
+
+   The renumbering is not a nicety. A PI's S1–S6 would land straight on top of a
+   team's existing unassigned S1–S6, and `findSprint(team, null, 3)` would start
+   returning whichever it met first — two sprints sharing one slot, one of them
+   unreachable. Appending past the team's current highest is also the honest
+   order: the PI ran after the history that preceded it. */
+let deletingPi = null;
+const delPiDialog = F('delPiDialog');
+
+function openDeletePi(pi) {
+  deletingPi = pi;
+  const sprints = state.sprints.filter(s => s.piId === pi.id);
+  const teamsHit = new Set(sprints.map(s => s.teamId)).size;
+  const bv = state.objectives.filter(o => o.piId === pi.id).length;
+  const plans = state.plans.filter(pl => pl.piId === pi.id).length;
+
+  F('delPiTitle').textContent = `Delete ${pi.name}?`;
+  /* Kept sprints leave the PI, and sprints with no PI sort before every PI — so if
+     other PIs remain, this reverses their place in the history. That is the one
+     case where the ordering rule bites the wrong way round, and the honest answer
+     is to say so here rather than to let a team's timeline quietly turn over.
+     (The rule itself stays: the common case by far is a team recording history
+     before it ever creates a PI, and there it is exactly right.) */
+  const othersRemain = state.pis.length > 1;
+  F('delPiBody').innerHTML = sprints.length
+    ? `<strong>${plural(sprints.length, 'sprint')}</strong> across
+       ${plural(teamsHit, 'team')} ${sprints.length === 1 ? 'is' : 'are'} in this PI.
+       You can keep ${sprints.length === 1 ? 'it' : 'them'} — the figures are untouched,
+       ${sprints.length === 1 ? 'it simply stops' : 'they simply stop'} being in a PI, and you can
+       put ${sprints.length === 1 ? 'it' : 'them'} in another one later.${
+       othersRemain ? ` One thing to know: sprints with no PI count as the oldest history a
+       team has, so ${sprints.length === 1 ? 'it would move' : 'they would move'} <em>before</em>
+       your remaining ${plural(state.pis.length - 1, 'PI')} rather than after.` : ''}`
+    : `Nothing is recorded against this PI, so there is nothing to keep.`;
+  /* Named separately because they are what dies whichever button is pressed —
+     a "keep the sprints" choice that quietly binned the business value would be
+     the silent loss this whole dialog exists to stop. */
+  F('delPiAlso').innerHTML = (bv || plans)
+    ? `Either way, this PI's ${[bv ? plural(bv, 'business value record') : '',
+        plans ? plural(plans, 'capacity adjustment') : ''].filter(Boolean).join(' and ')}
+       ${bv + plans === 1 ? 'is' : 'are'} deleted — both are defined by the PI and have nowhere
+       to go without it.`
+    : '';
+  F('delPiKeepBtn').hidden = !sprints.length;
+  F('delPiDropBtn').textContent = sprints.length ? 'Delete the sprints too' : 'Delete the PI';
+  openModal(delPiDialog);
+}
+
+/* Move a PI's sprints onto the team's unassigned track, appending past whatever
+   is already out there so no two sprints share a slot. */
+function unassignPiSprints(piId) {
+  const byTeam = new Map();
+  state.sprints.filter(s => s.piId === piId).forEach(s => {
+    if (!byTeam.has(s.teamId)) byTeam.set(s.teamId, []);
+    byTeam.get(s.teamId).push(s);
+  });
+  let moved = 0;
+  byTeam.forEach((mine, teamId) => {
+    const taken = state.sprints
+      .filter(x => x.teamId === teamId && !x.piId)
+      .map(x => x.sprintNumber);
+    let next = (taken.length ? Math.max(...taken) : 0) + 1;
+    /* In the PI's own order, so the sequence they had inside it survives. */
+    mine.sort((a, b) => a.sprintNumber - b.sprintNumber).forEach(s => {
+      s.piId = null;
+      s.sprintNumber = Math.min(MAX_SPRINT_NO, next++);
+      moved++;
+    });
+  });
+  return moved;
+}
+
+F('delPiCancelBtn').onclick = () => { delPiDialog.close(); deletingPi = null; };
+F('delPiKeepBtn').onclick = () => finishDeletePi(true);
+F('delPiDropBtn').onclick = () => finishDeletePi(false);
+
+function finishDeletePi(keepSprints) {
+  const p = deletingPi;
+  if (!p) return;
+  const moved = keepSprints ? unassignPiSprints(p.id) : 0;
+  state.pis = state.pis.filter(x => x.id !== p.id);
+  if (!keepSprints) state.sprints = state.sprints.filter(s => s.piId !== p.id);
+  state.plans = state.plans.filter(pl => pl.piId !== p.id);
+  state.objectives = state.objectives.filter(o => o.piId !== p.id);
+  if (state.settings.activePiId === p.id) state.settings.activePiId = null;
+  save();
+  delPiDialog.close();
+  deletingPi = null;
+  renderManage(); render();
+  toast(keepSprints
+    ? `${p.name} removed — ${plural(moved, 'sprint')} kept, now with no PI`
+    : `${p.name} deleted`);
 }
 
 /* ── Adding one of the three ─────────────────────────────────────────────────
@@ -7185,12 +7566,14 @@ F('importFile').onchange = (e) => {
       }
       const parsed = sanitizeIds(coerceShape(rawParsed));
       const orphans = sanitizeIds.dropped;
+      const unassigned = sanitizeIds.unassigned;
       /* The counts quoted here are the ones that will actually arrive, so any
          sprint the boundary dropped is named before the user decides — not
          after, when the numbers would already have moved. */
       const msg = `Replace everything in this browser with ${parsed.teams.length} team(s) and `
         + `${parsed.sprints.length} sprint(s) from this file? Your current data will be lost.`
-        + (orphans ? `\n\n${orphanNote(orphans)}` : '');
+        + (orphans ? `\n\n${orphanNote(orphans)}` : '')
+        + (unassigned ? `\n\n${unassignedNote(unassigned)}` : '');
       if (!confirm(msg)) return;
       state = adoptState(parsed);
       save();
@@ -7277,7 +7660,7 @@ const SHARE_FORMAT = 1;
    are bumped anyway, because "quietly fewer figures than the sender is looking
    at" is the silent exclusion this app refuses everywhere else, and the
    recipient's own copy is the one thing they can fix. */
-const SHARE_PAYLOAD_V = 3;
+const SHARE_PAYLOAD_V = 4;
 
 const b64urlEncode = (bytes) => {
   let s = '';
@@ -7473,6 +7856,7 @@ async function openSharedView() {
   try {
     const p = await decodeShare(shareToken);
     const orphans = sanitizeIds.dropped;
+    const unassigned = sanitizeIds.unassigned;
     shareMeta = { sharedAt: p.sharedAt, label: p.label, allTeams: !!p.allTeams, range: p.range };
     state = Object.assign(blankState(), {
       teams: p.teams, arts: p.arts || [], pis: p.pis || [], sprints: p.sprints,
@@ -7497,6 +7881,7 @@ async function openSharedView() {
     F('shareBar').innerHTML = shareBanner();
     render();
     if (orphans) toast(orphanNote(orphans));
+    else if (unassigned) toast(unassignedNote(unassigned));
   } catch (e) {
     console.warn('share link could not be read', e);
     renderShareError(e && e.newerVersion ? 'newer' : 'broken');
@@ -7813,8 +8198,8 @@ F('shareOpenBtn').onclick = () => {
    can't quietly leave a first run with nothing to look at. */
 function loadSample() {
   if (!confirm(
-      'Load the demo? Five sample teams on two ARTs, two PIs of history, and one sprint '
-    + 'running right now.\n\n'
+      'Load the demo? Six sample teams — five on two ARTs across two PIs of history, one '
+    + 'running right now, and one team that doesn\'t use PIs at all.\n\n'
     + 'Each team shows something different — a live sprint, a target adjusted for leave, '
     + 'a sprint left out of the averages, and a team with room to commit to more.\n\n'
     + 'It is added alongside anything you already have, and you can delete it later.')) return;
@@ -7832,9 +8217,21 @@ function loadSample() {
   const t3 = { id: uid(), name: 'Team Otter', artId: a2.id };
   const t4 = { id: uid(), name: 'Team Curlew', artId: a2.id };
   const t5 = { id: uid(), name: 'Team Wren' };
+  /* ── Pipit: the team that doesn't run PIs at all ──────────────────────────
+     Its one job is to show that the app works with no PI, and it deliberately
+     carries nothing else — no ART, no scale, no exclusion, no dates, no goals, no
+     business value. Every one of those findings already belongs to another team,
+     and a second owner would blur which team is meant to teach what.
+
+     Its sprints are numbered 12–16, which is the point: continuous numbering that
+     ran past six long ago, and a 16th sprint that could not exist inside a
+     six-slot PI. S12 also proves the IP rule stays out of it — sprint 6 means
+     nothing on this track, and if the rule ever leaked back the window would be
+     the wrong size on a team whose numbers don't even reach 6. */
+  const t6 = { id: uid(), name: 'Team Pipit' };
   state.pis.push(piA, piB);
   state.arts.push(a1, a2);
-  state.teams.push(t1, t2, t3, t4, t5);
+  state.teams.push(t1, t2, t3, t4, t5, t6);
 
   /* Everything is dateless unless a sprint asks for dates, because a sprint with
      no dates resolves COMPLETE — which is what keeps four of the five teams fully
@@ -7914,7 +8311,16 @@ function loadSample() {
        room for new work at all, which is the most actionable thing the capacity
        card can say and needs both levers pointing the same way to produce. */
     mk(t5.id, piB.id, 1, 20, 14, 2, 0, 0, 15),
-    mk(t5.id, piB.id, 2, 20, 11, 3, 2, 6, 13)
+    mk(t5.id, piB.id, 2, 20, 11, 3, 2, 6, 13),
+
+    /* Pipit — no PI at all. Ordinary, steady figures on purpose: this team is the
+       control, and the only thing it demonstrates is that none of the machinery
+       needs a PI. `null`, never absent — see the boundary. */
+    mk(t6.id, null, 12, 21, 19, 2, 0, 1, 20),
+    mk(t6.id, null, 13, 22, 20, 3, 0, 2, 22),
+    mk(t6.id, null, 14, 20, 18, 1, 1, 2, 19),
+    mk(t6.id, null, 15, 23, 21, 2, 0, 2, 22),
+    mk(t6.id, null, 16, 22, 20, 3, 0, 2, 23)
   );
 
   /* The one-off lever, against the slot Wren is about to plan. */
@@ -8002,7 +8408,7 @@ function loadSample() {
   state.settings.activeSprintNum = 4;
   state.settings.view = 'sprint';
   save(); render();
-  toast('Demo loaded — five teams, each showing something different');
+  toast('Demo loaded — six teams, each showing something different');
 }
 
 /* ═════════════════════════════ Theme & chrome ═════════════════════════════ */
@@ -8100,6 +8506,7 @@ window.svAdopt = (incoming, ts) => {
   }
   incoming = sanitizeIds(coerceShape(incoming));
   const orphans = sanitizeIds.dropped;
+  const unassigned = sanitizeIds.unassigned;
   state = adoptState(incoming);
   /* Guarded like save(): this runs inside the sync module's onSnapshot callback,
      where a quota or private-mode throw would otherwise be uncaught and skip the
@@ -8113,6 +8520,7 @@ window.svAdopt = (incoming, ts) => {
   }
   render();
   if (orphans) toast(orphanNote(orphans));
+  else if (unassigned) toast(unassignedNote(unassigned));
 };
 window.svCounts = (d) => ({
   teams: (d && d.teams ? d.teams.length : 0),
@@ -8152,6 +8560,7 @@ if (viewOnly) {
 } else {
   render();
   if (bootOrphans) toast(orphanNote(bootOrphans));
+  else if (bootUnassigned) toast(unassignedNote(bootUnassigned));
   /* Anything the boundary scrubbed — legacy sprint notes, a stray key, a value
      of the wrong type — is written back cleaned, so it's gone from localStorage
      now and, because save() stamps this copy as the newest, gone from the
@@ -8180,6 +8589,8 @@ window.__svTestHooks = { raisesKeyboard, reorderById,
   PRED_BAND_LOW, PRED_BAND_HIGH, PRED_UNDER_RED, PRED_OVER_RED, BV_MAX,
   /* Arrow `const`s, so invisible on window the same way fmtPct is. */
   objectivesFor, hasBv, hasGoal, goalWord,
+  /* The PI-optional vocabulary — arrow consts, so invisible on window. */
+  piRank, piKey, isIpSlot, sameBand, MAX_SPRINT_NO,
   /* Arrow consts again — the CSV escaping is the one place text leaves this app
      for somewhere it can be interpreted, so the suite has to be able to reach it. */
   csvCell, toCsv, toTsv,

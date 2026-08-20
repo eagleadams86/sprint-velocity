@@ -225,7 +225,13 @@ t('hostile ids are replaced and every reference rewritten through the same map',
   eq(out.sprints.length, 1, 'a remapped sprint is not mistaken for an orphan');
   eq(w.sanitizeIds.dropped, 0, 'nothing dropped');
 });
-t('a sprint whose team or PI is missing from the payload is dropped, and counted', () => {
+t('a sprint whose TEAM is missing is dropped; a missing PI only UN-GROUPS it', () => {
+  /* The drop used to take both, and while a PI was compulsory that was right: an
+     orphan moved a rolling average with nothing on screen behind it, because no
+     PI-based view could show it. A sprint with no PI is now an ordinary visible
+     sprint, so a broken PI reference costs the grouping and nothing else — the
+     same call this boundary already makes for a team whose ART has gone. A team,
+     though, is still fatal: there is no view a team-less sprint appears on. */
   const data = {
     teams: [{ id: 'team-1', name: 'A' }],
     pis: [{ id: 'pi-1', name: 'PI 1' }],
@@ -237,15 +243,37 @@ t('a sprint whose team or PI is missing from the payload is dropped, and counted
     settings: {},
   };
   const out = w.sanitizeIds(data);
-  eq(out.sprints.length, 1, 'only the sprint whose team and PI are both present survives');
-  eq(out.sprints[0].id, 's1');
-  eq(w.sanitizeIds.dropped, 2, 'the count is handed to the caller so the drop is never silent');
+  eq(out.sprints.map(x => x.id), ['s1', 's2'], 'the PI orphan survives; the team orphan does not');
+  eq(out.sprints[1].piId, null, 'and it survives UN-GROUPED, not still pointing at a ghost');
+  eq(w.sanitizeIds.dropped, 1, 'only the team orphan counts as a loss');
+  eq(w.sanitizeIds.unassigned, 1, 'the un-grouping is counted separately, so it can be reported');
+});
+t('a sprint that never had a PI passes through untouched', () => {
+  const out = w.sanitizeIds(w.coerceShape({
+    teams: [{ id: 't1', name: 'A' }], arts: [], pis: [],
+    sprints: [{ id: 's1', teamId: 't1', piId: null, sprintNumber: 12, committed: 20 }],
+    settings: {},
+  }));
+  eq(out.sprints.length, 1, 'no PI is not a broken PI');
+  eq(out.sprints[0].piId, null);
+  eq(out.sprints[0].sprintNumber, 12, 'and its number is not clamped to a PI’s six slots');
+  eq(w.sanitizeIds.dropped, 0);
+  eq(w.sanitizeIds.unassigned, 0, 'nothing was un-grouped — it was never grouped');
+});
+t('the empty string collapses to null, so a picker’s none-option is storable', () => {
+  const out = w.sanitizeIds(w.coerceShape({
+    teams: [{ id: 't1', name: 'A' }], arts: [], pis: [],
+    sprints: [{ id: 's1', teamId: 't1', piId: '', sprintNumber: 1 }],
+    settings: {},
+  }));
+  eq(out.sprints[0].piId, null, 'an empty-string id names nothing and must not be stored as one');
 });
 t('the drop count resets, so a caller never reads a stale one', () => {
   w.sanitizeIds({ teams: [], pis: [], sprints: [{ id: 's1', teamId: 'gone', piId: 'gone' }] });
   eq(w.sanitizeIds.dropped, 1);
   w.sanitizeIds({ teams: [{ id: 't1' }], pis: [{ id: 'p1' }], sprints: [] });
   eq(w.sanitizeIds.dropped, 0, 'a clean payload reports zero');
+  eq(w.sanitizeIds.unassigned, 0, 'and so does the un-grouping count');
   w.sanitizeIds(null);
   eq(w.sanitizeIds.dropped, 0, 'so does junk that never reaches the check');
 });
@@ -714,7 +742,7 @@ group('encodeShare / decodeShare — the share-link round trip');
 /* The same shape buildSharePayload() emits: nothing but ids, numbers, dates and
    the short labels — a share link must never need more. */
 const SHARE_PAYLOAD = {
-  v: 3, sharedAt: 1755000000000, label: 'Kestrel',
+  v: 4, sharedAt: 1755000000000, label: 'Kestrel',
   teams: [{ id: 't1', name: 'Kestrel', artId: null }],
   arts: [], pis: [{ id: 'p1', name: 'PI 1', sprintCount: 6 }],
   sprints: [{ id: 's1', teamId: 't1', piId: 'p1', sprintNumber: 1,
@@ -1145,14 +1173,32 @@ function withSample(fn) {
     st.settings.view = settings.view;
   }
 }
-t('the roster is five teams, two ARTs of two, and one team in neither', () => {
+t('the roster is six teams, two ARTs of two, and two teams in neither', () => {
   withSample(() => {
     const st = w.svGet();
     eq(st.teams.map(t => t.name),
-      ['Team Kestrel', 'Team Merlin', 'Team Otter', 'Team Curlew', 'Team Wren']);
+      ['Team Kestrel', 'Team Merlin', 'Team Otter', 'Team Curlew', 'Team Wren', 'Team Pipit']);
     eq(st.arts.map(a => w.teamsInArt(st.teams, a.id).length), [2, 2]);
-    eq(w.teamsInArt(st.teams, w.__svTestHooks.ART_NONE).map(t => t.name), ['Team Wren'],
+    eq(w.teamsInArt(st.teams, w.__svTestHooks.ART_NONE).map(t => t.name),
+      ['Team Wren', 'Team Pipit'],
       'so the All teams picker has a "No ART" group to show');
+  });
+});
+t('Pipit is the demo’s PI-less team, and its one job is to have no PI', () => {
+  withSample((id) => {
+    /* A feature isn't finished until the demo reaches it, and "the app works with
+       no PI" is invisible from a demo where every team is in one. Pipit carries
+       nothing else on purpose — no ART, no scale, no exclusion, no dates, no
+       goals, no business value — because every one of those findings already
+       belongs to another team. */
+    const mine = w.teamSprints(id('Team Pipit'));
+    eq(mine.every(s => s.piId === null), true, 'every sprint outside a PI');
+    eq(mine.map(s => s.sprintNumber), [12, 13, 14, 15, 16],
+      'numbered continuously, and past six — a 16th sprint cannot exist in a six-slot PI');
+    eq(w.rollingSprints(id('Team Pipit'), false).length, 5,
+      'a full window: the IP rule must not reach out here and take one');
+    ok(w.nextSprintTarget(id('Team Pipit'), false), 'the capacity target works without a PI');
+    eq(w.nextSprintTarget(id('Team Pipit'), false).slot.sprintNumber, 17);
   });
 });
 t('Curlew is the headroom case, and shows it on a first run', () => {
@@ -1294,7 +1340,7 @@ t('one demo team records goals for SOME of its sprints, not all or none', () => 
 });
 t('two teams record none at all, so the tile is absent rather than showing zero', () => {
   withSample((id) => {
-    ['Team Merlin', 'Team Wren'].forEach(name => {
+    ['Team Merlin', 'Team Wren', 'Team Pipit'].forEach(name => {
       eq(w.goalRecord(w.rollingSprints(id(name), false)).recorded, 0, name);
     });
   });
@@ -2504,6 +2550,142 @@ t('a small piece that fits inside the PI is reported as fitting', () => {
     eq(f.fast, 1); eq(f.slow, 1);
     eq(f.fitsPi, true, 'one sprint of work, one delivery slot left');
     eq(f.missesPi, false);
+  });
+});
+
+group('PIs are optional — the unassigned track');
+/* A team's sprints live on one of two tracks: the unassigned track (`piId: null`),
+   which is the app's pre-history, or a PI's. The unassigned track sorts before
+   every PI, is numbered continuously, and the IP-sprint rule does not exist on it.
+   Everything in this group is that one sentence, checked. */
+const H = () => w.__svTestHooks;
+function mixedFixture() {
+  const sp = (id, piId, n) => ({ id, teamId: 't1', piId, sprintNumber: n,
+    committed: 20, committedCompleted: 18, totalCompleted: 19,
+    added: 0, removed: 0, carriedIn: 0, carriedOut: 2, addedThenRemoved: 0 });
+  return {
+    teams: [{ id: 't1', name: 'A' }], arts: [], plans: [], objectives: [],
+    pis: [{ id: 'p1', name: 'PI 1' }],
+    sprints: [sp('b', 'p1', 1), sp('a2', null, 13), sp('a1', null, 12)]
+  };
+}
+t('an unassigned sprint sorts BEFORE every sprint that is in a PI', () => {
+  withState(mixedFixture(), () => {
+    eq(w.teamSprints('t1').map(s => s.id), ['a1', 'a2', 'b'],
+      'pre-history first, in its own number order, then the PI');
+  });
+});
+t('piRank says it outright rather than leaning on findIndex returning -1', () => {
+  withState(mixedFixture(), () => {
+    eq(H().piRank(null), -1);
+    eq(H().piRank(''), -1, 'every way of saying "no PI" ranks the same');
+    eq(H().piRank('p1'), 0, 'and a real PI ranks by its place in the list');
+  });
+});
+t('piKey collapses null, undefined and the empty string to one value', () => {
+  const piKey = H().piKey;
+  eq(piKey(null), null); eq(piKey(undefined), null); eq(piKey(''), null);
+  eq(piKey('p1'), 'p1');
+});
+t('findSprint matches an unassigned sprint however "no PI" is spelled', () => {
+  withState(mixedFixture(), () => {
+    /* The form hands back '' from its none-option while the store holds null. Without
+       piKey on both sides the save path would write a duplicate instead of editing
+       the sprint in front of you. */
+    ['', null, undefined].forEach(v =>
+      eq(w.findSprint('t1', v, 12).id, 'a1', 'looked up with ' + JSON.stringify(v)));
+  });
+});
+t('the IP-sprint rule applies inside a PI and NOWHERE else', () => {
+  const isIpSlot = H().isIpSlot;
+  eq(isIpSlot({ piId: 'p1', sprintNumber: 6 }), true);
+  eq(isIpSlot({ piId: null, sprintNumber: 6 }), false,
+    'sprint 6 of a team with no PI is an ordinary sprint');
+  eq(isIpSlot({ piId: 'p1', sprintNumber: 5 }), false);
+});
+t('so the rolling window keeps an unassigned sprint 6 and still drops a PI’d one', () => {
+  const sp = (id, piId, n) => ({ id, teamId: id[0] === 'u' ? 'tu' : 'tp', piId, sprintNumber: n,
+    committed: 20, committedCompleted: 18, totalCompleted: 19,
+    added: 0, removed: 0, carriedIn: 0, carriedOut: 2, addedThenRemoved: 0 });
+  withState({
+    teams: [{ id: 'tu', name: 'No PI' }, { id: 'tp', name: 'In a PI' }],
+    arts: [], plans: [], objectives: [], pis: [{ id: 'p1', name: 'PI 1' }],
+    sprints: [sp('u5', null, 5), sp('u6', null, 6), sp('p5', 'p1', 5), sp('p6', 'p1', 6)]
+  }, () => {
+    eq(w.rollingSprints('tu', false).map(s => s.sprintNumber), [5, 6],
+      'no PI, so no IP sprint to leave out');
+    eq(w.rollingSprints('tp', false).map(s => s.sprintNumber), [5],
+      'in a PI, so sprint 6 is the IP sprint and stays out');
+  });
+});
+t('a PI-less team counts on past six instead of rolling into the first PI', () => {
+  /* The old code did `state.pis[piIndex(last.piId) + 1]`, and piIndex(null) is -1,
+     so a PI-less team at sprint 6 was silently moved into the app's first PI. */
+  const sp = (n) => ({ id: 's' + n, teamId: 't1', piId: null, sprintNumber: n,
+    committed: 20, committedCompleted: 20, totalCompleted: 20,
+    added: 0, removed: 0, carriedIn: 0, carriedOut: 0, addedThenRemoved: 0 });
+  withState({
+    teams: [{ id: 't1', name: 'A' }], arts: [], plans: [], objectives: [],
+    pis: [{ id: 'p1', name: 'PI 1' }],
+    sprints: [sp(5), sp(6)]
+  }, () => {
+    const slot = w.targetSprintSlot('t1');
+    eq(slot.piId, null, 'still on the unassigned track');
+    eq(slot.sprintNumber, 7, 'and simply the next number');
+  });
+});
+t('the two tracks are separate coordinate spaces, so nothing measures across', () => {
+  const sameBand = H().sameBand;
+  eq(sameBand({ piId: null }, { piId: null }), true);
+  eq(sameBand({ piId: 'p1' }, { piId: 'p2' }), true, 'two PIs are one track');
+  eq(sameBand({ piId: null }, { piId: 'p1' }), false,
+    'the gap between them is not a number of sprints, it is however long a setup took');
+});
+t('the sprint-number picker offers the team’s own run, plus the next one', () => {
+  withState(mixedFixture(), () => {
+    eq(w.sprintNumbers('t1', null, 12), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+      'every number up to what they have, and one more');
+    eq(w.sprintNumbers('t1', 'p1', 1), [1, 2, 3, 4, 5, 6], 'inside a PI it is the six slots');
+  });
+});
+t('a team with nothing yet is offered sprint 1, and not sprint 2', () => {
+  withState({ teams: [{ id: 't1', name: 'A' }], arts: [], pis: [], sprints: [], plans: [], objectives: [] }, () => {
+    eq(w.sprintNumbers('t1', null, 1), [1]);
+  });
+});
+t('sprintLabel drops the PI rather than inventing a placeholder for it', () => {
+  withState(mixedFixture(), () => {
+    eq(w.sprintLabel({ piId: null, sprintNumber: 12 }), 'S12');
+    eq(w.sprintLabel({ piId: 'p1', sprintNumber: 1 }), 'PI 1 · S1');
+    eq(w.sprintLabel({ piId: 'ghost', sprintNumber: 1 }), 'PI? · S1',
+      'PI? now means damaged, and only damaged');
+  });
+});
+t('capacity planning reaches a PI-less slot — planFor no longer refuses one', () => {
+  const fx = mixedFixture();
+  fx.plans = [{ id: 'pl1', teamId: 't1', piId: null, sprintNumber: 14, availability: 60, reason: 'leave' }];
+  withState(fx, () => {
+    const plan = w.planFor('t1', null, 14);
+    ok(plan, 'a whole team can live out here, so capacity planning has to reach them');
+    eq(plan.availability, 60);
+    eq(w.availabilityFor('t1', null, 14).source, 'sprint');
+  });
+});
+t('a PI-less team gets a working capacity target and forecast', () => {
+  const sp = (n, done) => ({ id: 's' + n, teamId: 't1', piId: null, sprintNumber: n,
+    committed: done + 2, committedCompleted: done, totalCompleted: done + 1,
+    added: 1, removed: 0, carriedIn: 0, carriedOut: 2, addedThenRemoved: 0 });
+  withState({
+    teams: [{ id: 't1', name: 'A' }], arts: [], pis: [], plans: [], objectives: [],
+    sprints: [sp(12, 18), sp(13, 20), sp(14, 19), sp(15, 21), sp(16, 20)]
+  }, () => {
+    const t1 = w.nextSprintTarget('t1', false);
+    approx(t1.baseRecommended, 19.6);
+    eq(t1.slot.sprintNumber, 17);
+    eq(t1.slot.piId, null);
+    const f = w.forecast('t1', 100, false);
+    eq(f.fast > 0, true, 'and the forecast answers');
+    eq(f.slotsLeftInPi, null, 'with no does-it-fit-this-PI clause, because there is no PI');
   });
 });
 
