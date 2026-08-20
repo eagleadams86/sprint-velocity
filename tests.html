@@ -714,13 +714,13 @@ group('encodeShare / decodeShare — the share-link round trip');
 /* The same shape buildSharePayload() emits: nothing but ids, numbers, dates and
    the short labels — a share link must never need more. */
 const SHARE_PAYLOAD = {
-  v: 2, sharedAt: 1755000000000, label: 'Kestrel',
+  v: 3, sharedAt: 1755000000000, label: 'Kestrel',
   teams: [{ id: 't1', name: 'Kestrel', artId: null }],
   arts: [], pis: [{ id: 'p1', name: 'PI 1', sprintCount: 6 }],
   sprints: [{ id: 's1', teamId: 't1', piId: 'p1', sprintNumber: 1,
     startDate: '2026-06-01', endDate: '2026-06-12', status: 'auto',
     committed: 30, committedCompleted: 28, totalCompleted: 31, added: 3,
-    removed: 0, carriedIn: 2, carriedOut: 2, addedThenRemoved: 0 }],
+    removed: 0, carriedIn: 2, carriedOut: 2, addedThenRemoved: 0, goalMet: false }],
   plans: [{ id: 'pl1', teamId: 't1', piId: 'p1', sprintNumber: 2,
     availability: 60, reason: 'leave' }],
   objectives: [{ id: 'o1', teamId: 't1', piId: 'p1',
@@ -766,6 +766,11 @@ t('the capacity adjustments survive the trip, for the recipient’s target card'
   eq(out.plans[0].reason, 'leave', 'still one of the fixed codes, never free text');
 });
 
+t('a recorded sprint goal travels, and a FALSE one is not lost on the way', async () => {
+  const out = await w.decodeShare(await w.encodeShare(SHARE_PAYLOAD));
+  eq(out.sprints[0].goalMet, false,
+    'a missed goal is a real answer — dropping it would read as never recorded');
+});
 t('the PI business value travels too, or the link shows fewer figures than the sender', async () => {
   const out = await w.decodeShare(await w.encodeShare(SHARE_PAYLOAD));
   eq(out.objectives.length, 1);
@@ -1259,6 +1264,39 @@ t('Otter is the demo’s reliable-commitment case, and Curlew and Wren are not',
     eq(w.nextSprintTarget(id('Team Curlew'), false).hasFloor, false,
       'a steady team gets one figure — that IS the message');
     eq(w.nextSprintTarget(id('Team Wren'), false).hasFloor, false, 'and two sprints is too thin');
+  });
+});
+t('the demo shows the goal and the points DISAGREEING, in both directions', () => {
+  withSample((id) => {
+    /* The finding the field exists for, and the reason the demo's goals are not
+       tidied to agree with its points: a demo where they always match teaches
+       that they always do, and the field would have nothing to show for itself. */
+    const of = (name) => {
+      const rs = w.rollingSprints(id(name), false);
+      return { goals: w.goalRecord(rs), commit: w.avg(rs, 'commitCompletePct') };
+    };
+    const curlew = of('Team Curlew');
+    eq(w.rag(curlew.commit, 'completion'), 'green', 'Curlew’s points read as the best on the demo…');
+    ok(curlew.goals.met * 2 < curlew.goals.recorded,
+      '…while it misses most of its goals — the ◎ "points land, goals don’t" note');
+    const otter = of('Team Otter');
+    eq(w.rag(otter.commit, 'completion'), 'red', 'Otter’s points read as the worst…');
+    eq(otter.goals.met, otter.goals.recorded, '…and it met every goal in the window — the note reversed');
+  });
+});
+t('one demo team records goals for SOME of its sprints, not all or none', () => {
+  withSample((id) => {
+    const g = w.goalRecord(w.rollingSprints(id('Team Kestrel'), false));
+    eq(g.missing.length, 1, 'so the tile’s "no goal recorded" caption has somewhere to appear');
+    eq(g.recorded, 4);
+    eq(g.met, 3, 'and a mixed record, so neither ◎ note fires on the ordinary team');
+  });
+});
+t('two teams record none at all, so the tile is absent rather than showing zero', () => {
+  withSample((id) => {
+    ['Team Merlin', 'Team Wren'].forEach(name => {
+      eq(w.goalRecord(w.rollingSprints(id(name), false)).recorded, 0, name);
+    });
   });
 });
 t('the demo lands on the running sprint', () => {
@@ -2121,6 +2159,83 @@ t('a shared link that withholds the team comparison withholds this view too', ()
   eq(gate(false, false), true, 'your own copy always offers it');
   eq(gate(true, true), true, 'a link that shares the comparison offers it');
   eq(gate(true, false), false, 'a link that does not, does not');
+});
+
+group('the sprint goal — the app’s one tri-state field');
+/* `goalMet` is true, false, or the key ABSENT because nobody recorded one. Absent
+   is deliberately NOT the blank-means-zero rule the rest of the sprint form
+   follows: a blank points box really is zero points, but an unanswered goal is
+   not a missed goal, and reading it as one would invent a failure for every
+   sprint recorded before the field existed — which is all of them. */
+const goalSprints = (goals) => goals.map((g, i) => {
+  const s = { id: 's' + i, teamId: 't1', piId: 'p1', sprintNumber: i + 1,
+    committed: 20, committedCompleted: 18, totalCompleted: 18,
+    added: 0, removed: 0, carriedIn: 0, carriedOut: 2, addedThenRemoved: 0 };
+  if (typeof g === 'boolean') s.goalMet = g;
+  return s;
+});
+t('the rate counts only the sprints that answered, and says how many did not', () => {
+  const g = w.goalRecord(goalSprints([true, false, true, null, null]));
+  eq(g.met, 2);
+  eq(g.recorded, 3, 'the two with no goal are not counted as missed');
+  eq(g.total, 5);
+  eq(g.missing.length, 2, 'and they come back, so the caption can name them');
+  approx(g.pct, 2 / 3 * 100);
+});
+t('nothing recorded is null, not 0% — no denominator, no figure', () => {
+  const g = w.goalRecord(goalSprints([null, null]));
+  eq(g.pct, null);
+  eq(g.recorded, 0);
+  eq(g.met, 0);
+});
+t('an empty window does not throw', () => {
+  eq(w.goalRecord([]).pct, null);
+  eq(w.goalRecord(undefined).total, 0);
+});
+t('goalWord names all three states, so a prompt can print any of them', () => {
+  const goalWord = w.__svTestHooks.goalWord;
+  eq(goalWord(true), 'Met');
+  eq(goalWord(false), 'Not met');
+  eq(goalWord(undefined), 'Not recorded');
+  eq(goalWord(null), 'Not recorded');
+});
+t('hasGoal is by TYPE, so a missed goal counts as recorded and a null does not', () => {
+  const hasGoal = w.__svTestHooks.hasGoal;
+  eq(hasGoal({ goalMet: false }), true, 'false is an answer, not an absence');
+  eq(hasGoal({ goalMet: true }), true);
+  eq(hasGoal({}), false);
+  eq(hasGoal({ goalMet: null }), false);
+});
+
+group('the goal boundary — absent must survive as absent');
+/* The whole point of the 'tribool' kind. 'bool' coerces with !!v, which would
+   turn a null into false and silently record a missed goal; and a key written as
+   undefined is the one value Firestore refuses outright, which stopped sync for a
+   whole document once already. */
+function goalPayload(goalMet) {
+  const sprint = { id: 's1', teamId: 't1', piId: 'p1', sprintNumber: 1 };
+  if (arguments.length) sprint.goalMet = goalMet;
+  return w.sanitizeIds(w.coerceShape({
+    teams: [{ id: 't1', name: 'A' }], arts: [], pis: [{ id: 'p1', name: 'PI' }],
+    sprints: [sprint], settings: {},
+  })).sprints[0];
+}
+t('true and false both survive, because both are real answers', () => {
+  eq(goalPayload(true).goalMet, true);
+  eq(goalPayload(false).goalMet, false);
+});
+t('a null is DROPPED, never coerced to "goal missed"', () => {
+  ok(!('goalMet' in goalPayload(null)),
+    '!!null would be false, which is a failure nobody recorded');
+});
+t('so is a string, a number and anything else that is not a boolean', () => {
+  ok(!('goalMet' in goalPayload('yes')), '"yes" is truthy, and would read as met');
+  ok(!('goalMet' in goalPayload(0)));
+  ok(!('goalMet' in goalPayload({})));
+});
+t('an absent key stays absent, and is never created holding undefined', () => {
+  const out = goalPayload();
+  ok(!('goalMet' in out), 'by KEY, not by value — undefined would pass an === check either way');
 });
 
 group('adoptState — the SCHEMA stamp on a copy from outside');

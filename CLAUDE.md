@@ -158,6 +158,37 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   Blanks were once kept as `null` so a half-typed sprint couldn't read as real results; the
   sprint lifecycle now does that job, data mostly arrives via the Jira paste where absent
   really is zero, and a `—` where the answer is 0 looked like missing data.
+- **`goalMet` is the app's ONE tri-state field, and absent is a real answer.** true, false,
+  or the key not there because nobody recorded a goal. **This is deliberately not the
+  blank-means-zero rule above** — a blank points box really is zero points, but an unanswered
+  goal is not a missed goal, and treating it as one invents a failure for every sprint
+  recorded before the field existed, which is all of them. It therefore needs its own
+  `keepKnown` kind: `'tribool'` keeps a value only when `typeof v === 'boolean'`, where
+  `'bool'` would coerce a `null` into `false` and silently record a missed goal. The form
+  writes it in `buildSprintRecord()` **after** the object literal, so "not recorded" is the
+  key's ABSENCE — never `null`, never `undefined` (the one value Firestore refuses outright).
+  Same shape as `capacityScale`, which deletes rather than storing its no-op. `confirmOverwrite`
+  compares it separately, because `OVERWRITE_FIELDS` goes through `num()` and would read both
+  `false` and absent as 0.
+- **Every goal figure counts over the sprints that ANSWERED, and hands back what it left
+  out.** `goalRecord()` returns `recorded` and `missing` beside `met` for exactly that reason:
+  "3 of 4" printed beside a chart of five sprints is the silent exclusion this app refuses
+  everywhere else, so the tile's foot names the ones with no goal. `pct` is null when nothing
+  is recorded, the same rule as every other percentage.
+- **The Rolling 5 tile is a COUNT, not a percentage** — "3 of 4" is what somebody says at a
+  retro, and over four or five sprints a percentage rounds to figures like 67% that imply a
+  precision four answers don't have. On the Current PI table the goal is a **badge on the
+  row**, not a tenth column: that table already scrolls sideways on a phone, and six rows is
+  countable by eye. The Sprint view shows a tile only when there IS an answer — an unanswered
+  question is not a metric, the same rule the PI predictability tile follows.
+- **`goalGap` is the finding the field exists for, and neither number can make it alone.** A
+  team hitting its commitment while missing what the sprints were FOR is planning the wrong
+  work, and every points figure on the page keeps reading green while that is true; the
+  reverse is worth saying too and is the kinder half. It needs two answered sprints and fires
+  only on a clear disagreement (points green + goals under half, or points red + goals all
+  met), so an ordinary mixed record stays quiet. **Prose and a glyph, never a colour** — the
+  finding is precisely that the colour-coded tiles beside it answer a different question, so
+  painting it would be its own contradiction. Same rule as the headroom and cancelling notes.
 - The one surviving `null` is a **percentage with `committed === 0`** — no denominator, so it
   renders as `—` and `avg()` skips it. Keep that; don't turn it into 0%.
 - **Sprint lifecycle:** `sprintStatus()` resolves planned/active/complete from the dates,
@@ -380,7 +411,13 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   just as its points are), one team unscored so the ⚑ note has something to name, and
   Platform ART arranged as the cancelling case so the "average is hiding this" note fires on
   a first run. A demo whose predictability figures are all healthy teaches a two-sided
-  measure as a one-sided one. Merlin is the ONLY dated team, and its dates
+  measure as a one-sided one. **The sprint goals are picked the same way and must not be
+  tidied into agreement with the points**: Curlew reads best on every points figure and meets
+  2 of 5 goals (the ◎ note), Otter reads worst and meets all of them (the note reversed),
+  Kestrel is mixed with one sprint unrecorded (the only home for the "no goal recorded"
+  caption), and Merlin and Wren record none so the tile can be absent. A demo where the goals
+  always agree with the points teaches that they always do, and the field would have nothing
+  to show for itself. Merlin is the ONLY dated team, and its dates
   are counted from `Date.now()` so the running sprint is still running whenever the demo is
   opened; everything else is dateless because a dateless sprint resolves complete.
 - **The headroom note is a `.badge` line, and its amber is NOT a RAG band.** It takes the
@@ -533,7 +570,7 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   exactly right for a hostile payload and exactly wrong for a copy written by a NEWER
   build: an older tab would strip the fields it has never heard of, render what's left,
   and push the stripped copy back to Firestore on the next edit — another device's work
-  gone silently. So `version` (`SCHEMA`, currently **2** — the `objectives` list took it off 1) rides into localStorage, the cloud
+  gone silently. So `version` (`SCHEMA`, currently **3** — `objectives` took it off 1, `goalMet` to 3) rides into localStorage, the cloud
   document and every backup file, and four boundaries compare it:
   - `load()` and `svAdopt()` call **`haltForNewerData()`** — a full-screen card, no
     render, and a `throw` that aborts the rest of the script block so nothing can save

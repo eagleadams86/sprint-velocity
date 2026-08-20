@@ -990,7 +990,25 @@ main:focus { outline: none; }
           <label class="field" for="f_totalCompleted">Total points completed</label>
           <input type="number" id="f_totalCompleted" min="0" step="1" inputmode="numeric">
         </div>
+        <!-- A picker and not a checkbox, because this has THREE answers. A tick
+             box can only say met or not-met, and "nobody recorded one" is the
+             honest state of almost every sprint — including every sprint entered
+             before this field existed. Recording those as missed goals would
+             invent a failure for each of them. -->
+        <div>
+          <label class="field" for="f_goalMet">Sprint goal</label>
+          <select id="f_goalMet" aria-describedby="goalHint">
+            <option value="">Not recorded</option>
+            <option value="met">Met</option>
+            <option value="missed">Not met</option>
+          </select>
+        </div>
       </div>
+      <p class="sub" id="goalHint" style="margin:10px 0 0">Did the sprint achieve what it was
+        <em>for</em>? That is a different question from whether the points landed, and only the
+        team can answer it — a sprint can finish 95% of its commitment and miss the one outcome it
+        was planned around, or drop half its points and still deliver the goal. Left as
+        <strong>Not recorded</strong> it counts in nothing.</p>
     </fieldset>
 
     <fieldset>
@@ -1359,8 +1377,9 @@ const STORAGE_KEY = 'sv-data';
    strip the very field the bump exists to protect. Nothing that stays on this
    page (theme, which tab is open) needs a bump.
 
-   2 — the `objectives` list (PI business value) arrived. */
-const SCHEMA = 2;
+   2 — the `objectives` list (PI business value) arrived.
+   3 — sprints gained `goalMet`. */
+const SCHEMA = 3;
 
 const SPRINTS_PER_PI = 6;
 const IP_SPRINT = 6;          // sprint 6 is the innovation & planning sprint
@@ -1652,6 +1671,15 @@ function sanitizeIds(data) {
            would otherwise put a nonsense figure on the planning card. */
         const n = Number(v);
         if (Number.isFinite(n)) out[k] = Math.min(200, Math.max(0, Math.round(n)));
+      } else if (kind === 'tribool') {
+        /* A field with THREE states: true, false, and not recorded at all. Unlike
+           'bool' it does not coerce — a null, a 0 or a string is DROPPED rather
+           than turned into false, because `!!null` would silently record "the
+           sprint goal was missed" for a sprint nobody ever answered the question
+           about. Absent is a real answer here and has to survive the boundary as
+           absent, which is also the only shape Firestore will take (see
+           cleanKey): the key is never written, rather than written as undefined. */
+        if (typeof v === 'boolean') out[k] = v;
       } else if (kind === 'bv') {
         /* Business value on a PI objective. Clamped rather than merely checked
            for finiteness, for the same reason 'pct' is: it is the numerator or
@@ -1680,7 +1708,8 @@ function sanitizeIds(data) {
   data.sprints = objects(data.sprints).map(s => keepKnown(s, Object.assign({
     id: 'id', teamId: 'id', piId: 'id',
     startDate: 'date', endDate: 'date', status: 'status',
-    excluded: 'bool', excludeReason: 'reason', capacityScale: 'pct' }, NUMS)));
+    excluded: 'bool', excludeReason: 'reason', capacityScale: 'pct',
+    goalMet: 'tribool' }, NUMS)));
   data.plans = objects(data.plans).map(p => keepKnown(p, {
     id: 'id', teamId: 'id', piId: 'id', sprintNumber: 'sprintNum',
     availability: 'pct', reason: 'reason' }));
@@ -1996,6 +2025,38 @@ function groupTeamsByArt(teams, arts) {
     .map(x => x.t);
 }
 
+/* ── The sprint goal ────────────────────────────────────────────────────────
+   `goalMet` is the app's only tri-state: true, false, or the key absent because
+   nobody recorded one. **Absent is deliberately NOT the blank-means-zero rule**
+   that governs every other field on the sprint form. A blank points box really
+   is zero points; an unanswered goal is not a missed goal, and reading it as one
+   would invent a failure for every sprint recorded before this field existed —
+   which is all of them.
+
+   So everything below counts over the sprints that HAVE an answer, and hands
+   back the denominator it used so the view can say what it left out. A rate of
+   "3 of 4" where the reader can see five sprints is the silent exclusion this
+   app refuses everywhere else. */
+const hasGoal = (s) => typeof s.goalMet === 'boolean';
+const goalWord = (v) => (v === true ? 'Met' : v === false ? 'Not met' : 'Not recorded');
+
+function goalRecord(sprints) {
+  const scored = (sprints || []).filter(hasGoal);
+  const met = scored.filter(s => s.goalMet === true).length;
+  return {
+    met,
+    /* How many sprints answered the question, and how many were asked. The two
+       differ exactly when some sprints have no goal recorded, which is the case
+       the caption has to name. */
+    recorded: scored.length,
+    total: (sprints || []).length,
+    missing: (sprints || []).filter(s => !hasGoal(s)),
+    /* Null rather than 0 when nothing is recorded — the same rule as every other
+       percentage here: no denominator, no figure. */
+    pct: scored.length ? (met / scored.length) * 100 : null
+  };
+}
+
 /* ── PI business value and the predictability measure ───────────────────────
    All three figures are per team per PI, so there is exactly one record to find
    and everything below is derived from it. Pure functions taking the record
@@ -2243,6 +2304,19 @@ function rollingSprints(teamId, includeSix) {
    colour alone, and deliberately the same ⚑ the adjusted-capacity badge wears:
    the two are one family of "somebody has told the app something the sprints
    can't say for themselves". */
+/* On the sprint's own row rather than in a column of its own: the Current PI
+   table already carries nine numeric columns and scrolls sideways on a phone, and
+   a tenth holding one of three words would cost every other column width to say
+   less than a glyph does. Six rows is a countable number, so the rate the Rolling
+   5 tile states is visible here just by looking. Colour is never the only signal —
+   and here there is no colour at all, so the word rides along for a screen reader
+   while the glyph carries it on screen. */
+function goalBadge(s) {
+  if (!hasGoal(s)) return '';
+  return ` <span class="badge">${s.goalMet ? '✓' : '✕'} Goal<span class="sr-only"> ${
+    s.goalMet ? 'met' : 'not met'}</span></span>`;
+}
+
 function excludedBadge(s) {
   /* Names the WINDOW, not "the average". On the Current PI table this badge sits
      two rows above a summary line called "Average per sprint" that counts the
@@ -2469,6 +2543,16 @@ const METRIC_HELP = {
     body: `How much of the commitment is done, against how far through the sprint you are.
       Work tends to land in a lump near the end rather than evenly, so treat this as a rough
       steer for a conversation, not a verdict.` },
+  sprintGoal: { title: 'Sprint goal', target: 'No target — it is a yes or no, recorded by the team.',
+    body: `Whether the sprint achieved what it was <em>for</em>. Deliberately not derived from the
+      points: a team can finish 95% of its commitment and miss the one outcome the sprint was
+      planned around, or drop half the points and still deliver the goal. Only the team can
+      answer it, so it is a question on the sprint form rather than a calculation.` },
+  goalsMet: { title: 'Sprint goals met', target: 'No target — a rate, not a percentage against a threshold.',
+    body: `How often this team achieved what the sprint was for, across the window. It counts only
+      the sprints somebody actually answered the question about, and the caption says how many that
+      was. A team that lands its points and misses its goals is planning the wrong work; the two
+      figures disagreeing is the useful part.` },
   carriedIn: { title: 'Carried in', target: null,
     body: `Unfinished points inherited from last sprint. They're part of this sprint's
       commitment, so they take up capacity before any new work does.` },
@@ -3797,6 +3881,16 @@ function renderSprintView() {
           `${fmtNum(m.carriedOut)} points to next sprint`, false, 'carryover')}
         ${tile('Velocity', fmtNum(m.velocity), null, 'total points completed', false, 'velocity')}
         `}
+        ${/* Shown on a running sprint too, because a team often knows before the
+             end. Absent means nobody answered, and an unanswered question is not
+             a metric — so there is no "—" tile for it, the way there is none for
+             PI predictability. The picker on the sprint form is the discovery
+             route, and every user opens that form. */
+          hasGoal(s) ? tile('Sprint goal', goalWord(s.goalMet),
+            s.goalMet ? 'green' : 'red',
+            s.goalMet ? 'the sprint delivered what it was for'
+                      : 'the points are a separate question — see commitment completion',
+            false, 'sprintGoal') : ''}
       </div>
     </div>
 
@@ -4054,7 +4148,7 @@ function renderPiView() {
             <th scope="row"><button type="button" class="rowbtn"
               aria-label="Edit sprint ${n}">Sprint ${n}${n === IP_SPRINT ? ' (IP)' : ''}</button>${
               open ? ` <span class="badge">${STATUS_BADGE[st]} ${STATUS_TEXT[st]}</span>` : ''}${
-              excludedBadge(s)}</th>
+              excludedBadge(s)}${goalBadge(s)}</th>
             <td>${fmtNum(m.committed)}</td>
             <td>${fmtNum(m.committedCompleted)}</td>
             <td class="metric">${open && !isCounted(s)
@@ -4163,6 +4257,46 @@ function renderRollingView() {
   const aRemove = avg(rs, 'removedPct');
   const aCarry  = avg(rs, 'carryoverPct');
   const aVel    = avg(rs, 'velocity');
+  const goals   = goalRecord(rs);
+
+  /* ── When the points and the goals disagree ──────────────────────────────
+     This is the finding the whole field exists for, and neither number can make
+     it on its own. A team hitting its commitment while missing what the sprints
+     were FOR is not an execution problem — it is planning the wrong work, and
+     every points figure on this page will keep saying it is fine. The reverse is
+     worth saying too, and is the kinder half: a team whose points slip but whose
+     goals land is delivering what matters, and a run of amber commitment figures
+     reads very differently once you know that.
+
+     Needs at least two answered sprints — one is an anecdote — and fires only on
+     a clear disagreement, so an ordinary team with a mixed record stays quiet.
+     Prose and a glyph, never a colour: the finding is precisely that the
+     colour-coded tiles beside it are answering a different question. */
+  const goalGap = (() => {
+    if (goals.recorded < 2 || aCommit === null) return null;
+    const pointsGood = rag(aCommit, 'completion') === 'green';
+    const goalsBad = goals.met * 2 < goals.recorded;
+    const goalsGood = goals.met === goals.recorded;
+    if (pointsGood && goalsBad) return 'points';
+    if (rag(aCommit, 'completion') === 'red' && goalsGood) return 'goals';
+    return null;
+  })();
+  const goalGapNote = goalGap === 'points'
+    ? `<p class="sub exnote"><span class="badge">◎ The points land, the goals don’t</span>
+       <span class="muted">${esc(team.name)} finished ${fmtPct(aCommit, 'completion')} of what they
+       committed to, and met the sprint goal in only <strong>${goals.met} of
+       ${goals.recorded}</strong> sprints. Every points figure on this page will keep reading well
+       while that is true — the work is getting done and it isn't the work the sprint was for.
+       That is a planning conversation, not a delivery one.</span></p>`
+    : goalGap === 'goals'
+    ? `<p class="sub exnote"><span class="badge">◎ The goals land, the points don’t</span>
+       <span class="muted">${esc(team.name)} met the sprint goal in <strong>all ${goals.recorded}</strong>
+       ${goals.missing.length ? 'of the sprints here with one recorded' : 'sprints in this window'},
+       on ${fmtPct(aCommit, 'completion')} commitment completion.
+       They are delivering what the sprints were for; what is off is the estimate of how much fits
+       in one. Worth reading the amber below with that in mind.</span></p>`
+    : '';
+
   const labels  = rs.map(sprintLabel);
   viewsEl.innerHTML = rollingToolbar(includeSix) + `
     <div class="card">
@@ -4174,6 +4308,7 @@ function renderRollingView() {
               .map(x => 'S' + x.sprintNumber).join(', ')) + ', still running' : ''}${
         openSprintsNote(team.id) ? ' · ' + esc(openSprintsNote(team.id)) + ', not counted' : ''}</p>
       ${excludedLine(team.id, includeSix)}
+      ${goalGapNote}
       <div class="tiles">
         ${tile('Avg commitment completion', fmtPct(aCommit, 'completion'), rag(aCommit, 'completion'),
           'target ≥85%', false, 'rollCompletion')}
@@ -4181,6 +4316,20 @@ function renderRollingView() {
         ${tile('Avg removed', fmtPct(aRemove, 'churn'), rag(aRemove, 'churn'), 'target ≤15%', false, 'rollRemoved')}
         ${tile('Avg carryover', fmtPct(aCarry, 'churn'), rag(aCarry, 'churn'), 'target ≤15%', false, 'rollCarryover')}
         ${tile('Avg velocity', fmtNum(aVel), null, 'points completed per sprint', false, 'rollVelocity')}
+        ${/* A count, not a percentage: "3 of 4" is the sentence somebody says out
+             loud at a retro, and with a window of five a percentage would round
+             four answers into figures like 67% that imply a precision they don't
+             have. The denominator is the sprints that ANSWERED the question, and
+             the foot says so whenever that is fewer than the window — a rate over
+             three sprints, printed beside a chart of five, has to account for the
+             two it left out. */
+          goals.recorded ? tile('Sprint goals met', `${goals.met} of ${goals.recorded}`,
+            goals.met === goals.recorded ? 'green' : goals.met === 0 ? 'red' : null,
+            goals.missing.length
+              ? `${plural(goals.missing.length, 'sprint')} in the window ${
+                  goals.missing.length === 1 ? 'has' : 'have'} no goal recorded`
+              : `every sprint in the window has a goal recorded`,
+            false, 'goalsMet') : ''}
       </div>
     </div>
 
@@ -5413,6 +5562,9 @@ function openSprint(teamId, piId, sprintNumber) {
   F('f_totalCompleted').dataset.touched = existing && existing.totalCompleted != null ? '1' : '';
 
   F('f_status').value = s.status || 'auto';
+  /* Three states read back as three, so `false` must not fall through to the
+     empty option the way `|| ''` would. */
+  F('f_goalMet').value = s.goalMet === true ? 'met' : s.goalMet === false ? 'missed' : '';
 
   F('f_excluded').checked = !!s.excluded;
   fillReasons(F('f_excludeReason'), EXCLUDE_REASONS, s.excludeReason);
@@ -5786,6 +5938,14 @@ function confirmOverwrite(existing, record) {
     .filter(([k]) => num(existing[k]) !== num(record[k]))
     .map(([k, label]) => `  • ${label}: ${fmtNum(num(existing[k]))} → ${fmtNum(num(record[k]))}`);
 
+  /* Not in OVERWRITE_FIELDS, which compares through num() — that would read both
+     `false` and absent as 0 and never notice a goal being flipped or cleared. It
+     is three states and needs its own comparison, but it is the same kind of
+     accident the prompt exists to catch: pasting a Jira report over the wrong
+     sprint rebuilds this field along with every other one. */
+  if (existing.goalMet !== record.goalMet)
+    changes.push(`  • Sprint goal: ${goalWord(existing.goalMet)} → ${goalWord(record.goalMet)}`);
+
   if (existing.piId !== record.piId || existing.sprintNumber !== record.sprintNumber) {
     const to = piById(record.piId);
     changes.unshift(`  • Moving it to ${to ? to.name : 'another PI'} · S${record.sprintNumber}`);
@@ -5811,7 +5971,7 @@ function buildSprintRecord() {
   /* An empty box saves as 0. Story points are whole numbers, so a decimal typed by
      hand is rounded; averages and targets computed from these are still fractional. */
   const val = (id) => Math.max(0, Math.round(parseFloat(F(id).value) || 0));
-  return {
+  const record = {
     id: editing.id || uid(),
     teamId: editing.teamId,
     piId: F('f_pi').value,
@@ -5835,6 +5995,16 @@ function buildSprintRecord() {
     excluded: F('f_excluded').checked,
     excludeReason: F('f_excluded').checked ? F('f_excludeReason').value : 'other'
   };
+  /* The goal is the app's one TRI-STATE field, so "not recorded" is the ABSENCE
+     of the key — never `null`, never `undefined`, and never `false`. Written into
+     the literal above it would be created holding undefined on every unanswered
+     sprint, which is the one value Firestore refuses outright and which stopped
+     sync for a whole document once already (see cleanKey). Same shape as
+     `capacityScale`, which deletes rather than storing its no-op value. */
+  const goal = F('f_goalMet').value;
+  if (goal === 'met') record.goalMet = true;
+  else if (goal === 'missed') record.goalMet = false;
+  return record;
 }
 
 /* Moving a sprint onto a slot that already has data would silently create a
@@ -6532,12 +6702,12 @@ const SHARE_FORMAT = 1;
    newer build should get "ask for a fresh link" rather than a view silently
    missing whatever their build added. Unlike SCHEMA there is no cloud copy at
    stake, so nothing is written and nothing halts. */
-/* 2 — the payload gained `objectives`. Additive, and an older build would open
-   the link and simply show no predictability anywhere; it is bumped anyway,
-   because "quietly fewer figures than the sender is looking at" is the silent
-   exclusion this app refuses everywhere else, and the recipient's own copy is
-   the one thing they can fix. */
-const SHARE_PAYLOAD_V = 2;
+/* 2 — the payload gained `objectives`. 3 — sprints gained `goalMet`. Both are
+   additive, and an older build would open the link and simply show neither; they
+   are bumped anyway, because "quietly fewer figures than the sender is looking
+   at" is the silent exclusion this app refuses everywhere else, and the
+   recipient's own copy is the one thing they can fix. */
+const SHARE_PAYLOAD_V = 3;
 
 const b64urlEncode = (bytes) => {
   let s = '';
@@ -7126,11 +7296,11 @@ function loadSample() {
        putting it further back would show nothing. S2 carries work that came in
        mid-sprint and went straight back out, for the ↩ note on the Sprint view. */
     mk(t1.id, piA.id, 4, 34, 30, 3, 0, 4, 33, { capacityScale: 133 }),
-    mk(t1.id, piA.id, 5, 36, 33, 5, 2, 4, 36),
-    mk(t1.id, piA.id, 6, 20, 18, 0, 0, 3, 18),
-    mk(t1.id, piB.id, 1, 38, 35, 4, 0, 2, 38),
-    mk(t1.id, piB.id, 2, 40, 36, 6, 3, 3, 40, { addedThenRemoved: 3 }),
-    mk(t1.id, piB.id, 3, 38, 34, 3, 0, 4, 36),
+    mk(t1.id, piA.id, 5, 36, 33, 5, 2, 4, 36, { goalMet: true }),
+    mk(t1.id, piA.id, 6, 20, 18, 0, 0, 3, 18, { goalMet: true }),
+    mk(t1.id, piB.id, 1, 38, 35, 4, 0, 2, 38, { goalMet: true }),
+    mk(t1.id, piB.id, 2, 40, 36, 6, 3, 3, 40, { addedThenRemoved: 3, goalMet: false }),
+    mk(t1.id, piB.id, 3, 38, 34, 3, 0, 4, 36, { goalMet: true }),
 
     /* Merlin — the live one. S4 started five days ago and has eight to run, so it
        is ◐ In progress: the Sprint view shows done-so-far, pace (day 6 of 14,
@@ -7148,11 +7318,11 @@ function loadSample() {
        so the ⚑ sprints-left-out notice has something to name. Ending at S5 puts
        the next slot on the IP sprint, which is the third caveat on this one card
        and the only place that one shows. */
-    mk(t3.id, piB.id, 1, 30, 26, 9, 4, 6, 30),
-    mk(t3.id, piB.id, 2, 28, 14, 8, 2, 4, 20),
-    mk(t3.id, piB.id, 3, 26, 22, 4, 1, 8, 25),
-    mk(t3.id, piB.id, 4, 30, 12, 3, 6, 4, 18, { excluded: true, excludeReason: 'incident' }),
-    mk(t3.id, piB.id, 5, 28, 17, 6, 2, 9, 22),
+    mk(t3.id, piB.id, 1, 30, 26, 9, 4, 6, 30, { goalMet: true }),
+    mk(t3.id, piB.id, 2, 28, 14, 8, 2, 4, 20, { goalMet: true }),
+    mk(t3.id, piB.id, 3, 26, 22, 4, 1, 8, 25, { goalMet: true }),
+    mk(t3.id, piB.id, 4, 30, 12, 3, 6, 4, 18, { excluded: true, excludeReason: 'incident', goalMet: false }),
+    mk(t3.id, piB.id, 5, 28, 17, 6, 2, 9, 22, { goalMet: true }),
 
     /* Curlew — room for more. The commitment is cleared nearly every sprint and
        5-9 points of work are pulled in on top of it each time, so it reads 98%
@@ -7161,12 +7331,12 @@ function loadSample() {
        the mean delivered that the over-commitment finding stays off, which the
        note needs. S2 lands at 92% on purpose, so it reads "4 of the last 5"
        rather than a suspiciously clean five. */
-    mk(t4.id, piA.id, 4, 22, 22, 8, 0, 2, 29),
-    mk(t4.id, piA.id, 5, 24, 23, 6, 0, 0, 28),
-    mk(t4.id, piA.id, 6, 12, 11, 0, 0, 1, 11),
-    mk(t4.id, piB.id, 1, 24, 24, 9, 0, 1, 31),
-    mk(t4.id, piB.id, 2, 26, 24, 5, 0, 0, 27),
-    mk(t4.id, piB.id, 3, 24, 24, 7, 0, 2, 30),
+    mk(t4.id, piA.id, 4, 22, 22, 8, 0, 2, 29, { goalMet: false }),
+    mk(t4.id, piA.id, 5, 24, 23, 6, 0, 0, 28, { goalMet: true }),
+    mk(t4.id, piA.id, 6, 12, 11, 0, 0, 1, 11, { goalMet: false }),
+    mk(t4.id, piB.id, 1, 24, 24, 9, 0, 1, 31, { goalMet: false }),
+    mk(t4.id, piB.id, 2, 26, 24, 5, 0, 0, 27, { goalMet: false }),
+    mk(t4.id, piB.id, 3, 24, 24, 7, 0, 2, 30, { goalMet: true }),
 
     /* Wren — brand new, and two sprints is not a history: it trips the thin-data
        caveat. Nine points carry out of S2, and with the team only half available
@@ -7180,6 +7350,32 @@ function loadSample() {
   /* The one-off lever, against the slot Wren is about to plan. */
   state.plans.push({ id: uid(), teamId: t5.id, piId: piB.id, sprintNumber: 3,
                      availability: 50, reason: 'leave' });
+
+  /* ── The sprint goal, and the finding it exists for ──────────────────────
+     Three teams answer the question and two deliberately don't, because "not
+     recorded" is the state most sprints are really in and the tile has to be able
+     to say how many it left out.
+
+     · Curlew  2 of 5 goals met on 98% commitment completion → the ◎ "the points
+               land, the goals don't" note. The team that already reads as the
+               best on every points figure is the one planning the wrong work,
+               which is the whole argument for recording this at all — and it is
+               the same team the headroom note is about, so its card carries both.
+     · Otter   4 of 4 in the window, on 70% completion → the ◎ note the other way
+               round: the team the targets catch is delivering what the sprints
+               were for. Its excluded S4 is the one goal it missed, so the window
+               and the PI table disagree — which is correct, and the ⚑ says why.
+     · Kestrel 3 of 4, an ordinary mixed record, so neither note fires on the team
+               that is meant to read as unremarkable — and its S4 has NO goal while
+               the other four do, which is the only place the tile's "1 sprint in
+               the window has no goal recorded" caption appears. Most real teams
+               will be part-way like this rather than all-or-nothing.
+     · Merlin and Wren record none, so the "no goal recorded" caption has somewhere
+               to appear and the Sprint view's goal tile is absent on some teams.
+
+     Don't tidy Curlew's into a healthier record: a demo where the goals always
+     agree with the points teaches that they always do, and the field would then
+     have nothing to show for itself. */
 
   /* ── PI business value, for the ART PI view ──────────────────────────────
      Four of the five teams are scored, and each is a different reading of the
@@ -7402,7 +7598,7 @@ window.__svTestHooks = { raisesKeyboard,
      constants themselves rather than against four numbers copied out of them. */
   PRED_BAND_LOW, PRED_BAND_HIGH, PRED_UNDER_RED, PRED_OVER_RED, BV_MAX,
   /* Arrow `const`s, so invisible on window the same way fmtPct is. */
-  objectivesFor, hasBv,
+  objectivesFor, hasBv, hasGoal, goalWord,
   /* `const` at the top level of a classic script is not a property of window,
      so the two version numbers have to be handed over deliberately or the
      suite would compare against `undefined` and pass on nothing. */

@@ -33,6 +33,7 @@ Per team, per sprint:
 | **Carried in** | Unfinished points inherited from the previous sprint |
 | **Carried out** | Committed points not finished, rolling into the next sprint |
 | **Brought in, then removed** | Work that arrived mid-sprint and left again — counted in neither break-in nor removed |
+| **Sprint goal** | Met, not met, or not recorded — see [The Sprint Goal](#the-sprint-goal) |
 
 Per team, per PI, it also tracks the **business value** on that team's PI objectives —
 planned, achieved, and achieved from stretch — which is what the [predictability
@@ -41,8 +42,9 @@ measure](#predictability-and-the-art-pi-view) is worked out from.
 There is deliberately **no free-text field anywhere in the app**. The figures come out of a
 work Jira, and a comment box is the one place sensitive detail could ride along into the
 saved copy — so beyond the short team/ART/PI names, only numbers and dates are ever saved.
-That's why PI objectives are three numbers and not a list of titled objectives: an
-objective's title is exactly the sort of text this rule exists to keep out.
+That's why PI objectives are three numbers and not a list of titled objectives, and why the
+sprint goal is a yes/no rather than the goal itself: a title or a goal statement is exactly
+the sort of text this rule exists to keep out.
 (Earlier versions had optional per-sprint "Why?" notes; the feature was removed, and any
 notes in a previously saved copy are scrubbed the next time the app opens, locally and from
 the synced copy.)
@@ -53,6 +55,58 @@ average](#leaving-a-sprint-out-of-the-average) — record *why* as a pick from a
 rather than in a box you type into. "Why did we drop that sprint?" is the obvious place to
 want free text, and it's exactly where a ticket key or a colleague's name would end up in
 the cloud. A code from the list carries the meaning and can't carry anything else.
+
+## The Sprint Goal
+
+Every other figure here is about **points**. None of them can tell you whether the sprint
+achieved what it was *for*.
+
+A team can finish 95% of its commitment and miss the one outcome the sprint was planned
+around. Another can drop half its points to an incident and still deliver the goal. Only the
+team knows which happened, so it's a question on the sprint form — **Met**, **Not met**, or
+**Not recorded** — and never something the app infers from the numbers.
+
+**"Not recorded" is a real answer and is the default.** This is deliberately *not* the
+[blank means zero](#blank-means-zero) rule that governs the rest of the form: a blank points
+box really is zero points, but an unanswered goal is not a missed goal. Reading it as one
+would invent a failure for every sprint recorded before this field existed — which is all of
+them — and plenty of teams don't set sprint goals at all. Every rate below counts only the
+sprints somebody actually answered, and says how many it left out.
+
+Where it shows up:
+
+- **Sprint** — a tile, when there's an answer. No answer, no tile: an unanswered question
+  isn't a metric.
+- **Current PI** — a ✓ or ✕ badge on each sprint's row. Not a tenth column: the table already
+  scrolls sideways on a phone, and six rows is a countable number.
+- **Rolling 5** — **Sprint goals met**, as a count: *"3 of 4"*. A count rather than a
+  percentage because that's the sentence you say out loud at a retro, and over four or five
+  sprints a percentage rounds to figures like 67% that imply precision they don't have.
+
+### When the Points and the Goals Disagree
+
+This is the finding the field exists for, and neither number can make it alone. Rolling 5
+says so in plain words when the two clearly part company:
+
+> **◎ The points land, the goals don't** — Team Curlew finished 98% of what they committed
+> to, and met the sprint goal in only **2 of 5** sprints.
+
+A team hitting its commitment while missing what the sprints were *for* doesn't have an
+execution problem — it's planning the wrong work, and every points figure on the page will
+keep reading green while that's true.
+
+The reverse gets said too, and it's the kinder half:
+
+> **◎ The goals land, the points don't** — Team Otter met the sprint goal in all 4 sprints in
+> this window, on 70% commitment completion.
+
+They're delivering what the sprints were for; what's off is the estimate of how much fits in
+one. A run of amber commitment figures reads very differently once you know that.
+
+Both need at least two answered sprints — one is an anecdote — and both fire only on a clear
+disagreement, so an ordinary team with a mixed record stays quiet. Neither is colour-coded:
+the point is precisely that the colour-coded tiles beside them are answering a different
+question.
 
 ## The Metrics
 
@@ -367,10 +421,10 @@ is there to show something different:
 
 | Team | ART | What it's there to show |
 |---|---|---|
-| **Merlin** | Payments | A sprint **running right now** — done-so-far, pace ("day 6 of 14, slightly behind") and carried-in. Its commitment is well over the suggestion, which is the one finding still actionable mid-sprint. Also a **⚑ standing team availability**, and the only team with **no business value recorded** — its PI is still running, which is why. |
-| **Kestrel** | Payments | The ordinary team: green, landing about 90% of what it signs up for. Carries a **⚖ scaled sprint** (someone joined after it) and a sprint with work **↩ brought in then removed again**. Its PI predictability is 90% — **inside the band**. |
-| **Otter** | Platform | The team the targets exist to catch — around 70% completion and swinging from 14 to 26 points. Has a **⚑ sprint left out** for a major incident, and its next slot is the **IP sprint**, so it carries that caveat too. 59% predictability — **under the band**. It's also the team where the [**reliable commitment**](#two-figures-not-one) differs from the average enough to matter: 20 or 17. |
-| **Curlew** | Platform | **↗ Room for more** — it clears its commitment then pulls extra work in, so it reads 98% commitment completion beside a **red 29% break-in**. The contradiction the [headroom note](#when-a-team-has-room-for-more) exists to resolve. It under-commits its objectives too: 113%, **over the band**, with the value coming partly from **stretch**. Steady enough that it gets **one** capacity figure rather than two. |
+| **Merlin** | Payments | A sprint **running right now** — done-so-far, pace ("day 6 of 14, slightly behind") and carried-in. Its commitment is well over the suggestion, which is the one finding still actionable mid-sprint. Also a **⚑ standing team availability**, and the only team with **no business value recorded** — its PI is still running, which is why. Records **no sprint goals** either, so the goals tile is absent rather than showing a zero. |
+| **Kestrel** | Payments | The ordinary team: green, landing about 90% of what it signs up for. Carries a **⚖ scaled sprint** (someone joined after it) and a sprint with work **↩ brought in then removed again**. Its PI predictability is 90% — **inside the band**. Sprint goals **3 of 4**, with one sprint unrecorded — the only place the "no goal recorded" caption appears. |
+| **Otter** | Platform | The team the targets exist to catch — around 70% completion and swinging from 14 to 26 points. Has a **⚑ sprint left out** for a major incident, and its next slot is the **IP sprint**, so it carries that caveat too. 59% predictability — **under the band**. It's also the team where the [**reliable commitment**](#two-figures-not-one) differs from the average enough to matter: 20 or 17 — and where **◎ the goals land and the points don't**. |
+| **Curlew** | Platform | **↗ Room for more** — it clears its commitment then pulls extra work in, so it reads 98% commitment completion beside a **red 29% break-in**. The contradiction the [headroom note](#when-a-team-has-room-for-more) exists to resolve. It under-commits its objectives too: 113%, **over the band**, with the value coming partly from **stretch**. Steady enough that it gets **one** capacity figure rather than two — and it's the team where **◎ the points land and the goals don't**, at 2 of 5. |
 | **Wren** | *none* | A brand-new team: **thin history**, a **⚑ one-off availability** for leave, and a carryover that then **fills the whole figure** — no room for new work at all. Being in no ART, it's also the **No ART** group on *All teams* and *ART PI*. |
 
 Two ARTs of two plus one team in neither is the arrangement where the *All teams* ART
