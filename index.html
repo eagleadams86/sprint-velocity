@@ -741,14 +741,12 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
     transition-duration: .01ms !important; scroll-behavior: auto !important;
   }
 }
-/* theme.css (pack rule 10) puts every typing control at 16px on a touch screen,
-   so iOS stops zooming the page on focus. This app overrides ONE of them with a
-   heavier selector and so has to re-assert it: the Jira paste box is 12px
-   (`#jiraBlock textarea`, id + element) so a wide report stays recognisable as
-   one, and it is the box a phone user really does type into. */
-@media (pointer: coarse) {
-  #jiraBlock textarea { font-size: 16px; }
-}
+/* No `(pointer: coarse)` font-size block here any more. This one re-asserted
+   16px for `#jiraBlock textarea` alone — right about the specificity, and it
+   still left `#teamSel`, `#themeSel` and `#shareLink` zooming iOS, which is
+   what an app-by-app contract gets you. Pack rule 10 is `!important` as of
+   2026-08-20, so the floor holds against class and id alike. Don't re-add a
+   local one: a partial patch reads as coverage. */
 </style>
 </head>
 <body>
