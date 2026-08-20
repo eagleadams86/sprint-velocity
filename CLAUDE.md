@@ -14,7 +14,16 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   repo eagleadams86/claude-theme-pack), the source of truth for the palette of ALL apps —
   don't diverge it; palette changes go through the pack's `tokens.json` + contrast gate.
   App-specific tokens (chart series colours, threshold-band tints) live in the `<style>`
-  block at the top of `index.html` instead. The four themes (Midnight default) are surfaced
+  block at the top of `index.html` instead. **Those sit OUTSIDE the pack's
+  `check_contrast.py` gate, and that is the trade this arrangement makes** (recorded
+  2026-08-20, after an audit asked why 24 colour values — six series across four themes —
+  were defined outside the source of truth). Chart series aren't pack tokens; the pack has
+  no concept of "this app's six series", so gating them would mean teaching it a per-app
+  section. What that costs: nothing re-checks them when the palette moves. All six were
+  verified by hand at that audit — they clear AA and they avoid the red-green axis (slate,
+  blue, teal, amber, violet, rose). **Re-check them by hand whenever the pack's surface
+  tokens change**, and keep `SERIES_TEXTURE`, which is what actually tells them apart.
+  Golf Handicap carries the same note for its two. The four themes (Midnight default) are surfaced
   in the header picker **in alphabetical order** — Dark, Light, Midnight, Sepia — and an
   unrecognised stored value (including the retired forest/synthwave/solarized) falls back
   to midnight.
