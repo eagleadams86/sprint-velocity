@@ -1030,6 +1030,42 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
 - The scope is `./`, never absolute: on the local server the app is at the root,
   not under `/sprint-velocity/`, and an absolute scope is simply invalid there.
 
+## The Manage Dialog's Rows (2026-08-20)
+
+Teams, ARTs and PIs are all edited the same way now, and the same way Flow Metrics edits
+its own — Charles asked for the two to match, and the two apps share their chrome.
+
+- **A name is edited in place, not behind a Rename button and a `prompt()`.** One
+  `[data-name-<kind>]` box per row, `oninput`, capped at 120 where it is written (maxlength
+  stops typing past it but not a paste). **None of the three handlers may call
+  `renderManage()`** — that would replace the very box being typed in. `render()` is enough
+  for teams and PIs, whose names appear only in the chrome outside this dialog.
+- **An ART's name is the exception**, because it is printed inside every team's ART picker.
+  That handler calls `renderManageTeamRows()` — the teams table extracted for exactly this,
+  markup and its four handlers together — which rebuilds the pickers and leaves the ARTs
+  table, and so the box being typed in, alone. Don't collapse it back into `renderManage`.
+- **`+ Add` no longer prompts.** It pushes a row with a working default name and focuses the
+  box, already selected. A prompt would have been the only place left in the dialog asking
+  for a name in a box on top of a box, and it refused to add anything at all on Cancel,
+  which is a strange answer to "+ Add team".
+- **Delete is `.icon-btn.danger`; the arrows are plain `.icon-btn`.** The base hover is
+  neutral and `.danger` is what turns it red — the same split `.btn` / `.btn.danger` already
+  uses. Moving something is not destructive and must not light up as though it were.
+- **All three lists reorder**, not just PIs. PI order was always this app's sense of time;
+  team and ART order are read too, down every picker and every All teams table. Reordering
+  permutes an array that was always there, so **no new field and no version bump**.
+  `reorderById` is the permutation on its own, split out so tests.html can pin it without
+  writing anything — this suite is read-only about storage and must stay that way.
+- **Ends are disabled rather than hidden**: a button that vanishes at the top of a list makes
+  the row jump and moves the delete under the pointer.
+- **`moveInList` restores focus after the re-render**, or moving something with the keyboard
+  loses your place entirely — the row is rebuilt, so the focused button no longer exists. If
+  it lands disabled, focus goes to its opposite number on the same row.
+- The dialog tests render a fixture through `withState` + `renderManage()` rather than
+  reading whatever the app holds: the suite boots an app with no teams, and these tables are
+  only written when `renderManage` runs. It writes nothing to storage, so the read-only
+  promise still holds — and the last test puts the app's own rows back.
+
 ## Fields, Dialogs and Scroll Boxes (2026-08-20)
 
 - **Every modal opens through `openModal(dlg)`, never `showModal()` directly.**

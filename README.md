@@ -598,6 +598,32 @@ the band and there are teams on **both** sides of it, the view says so above the
 naming the teams, and pointing you at the rows instead of the headline. (The demo's Platform
 ART is exactly this case, deliberately.)
 
+## Teams, ARTs & PIs: the Window Itself
+
+All three lists are managed in one window, and all three rows work the same way.
+
+**A name is edited in place.** Type in the box; there is no *Rename* button and no prompt.
+A prompt was a box on top of a box to change one word, and it could not show you the other
+names while you picked one that fits beside them.
+
+**× deletes**, in the same red the app's other destructive buttons use. What a delete takes
+with it differs by row and the confirmation says so: a team takes its sprints, a PI takes
+its sprints across every team, and an ART takes nothing at all — its teams simply go back to
+being on none.
+
+**↑ and ↓ reorder.** All three lists are *read* in the order you put them in: teams appear
+in that order in every picker and down **All teams**, ARTs are the order their groups come
+in, and PI order is the app's sense of time — the rolling window walks back through it. The
+order you added things in is rarely the order you want to read them in a year later. The
+arrows at each end of a list are disabled rather than hidden, so no row ever jumps under the
+pointer, and moving something with the keyboard keeps your place on it.
+
+Adding is the same shape: **+ Add** puts a row in with a working default name and lands the
+cursor in it, already selected, so typing replaces it.
+
+The [Flow Metrics](https://eagleadams86.github.io/team-dashboard/) **Teams & ARTs** window
+works identically — the two apps share their chrome, so a row is a row in both.
+
 ## Grouping Teams into ARTs
 
 If you support teams across more than one Agile Release Train, you can group them.
@@ -1005,8 +1031,8 @@ slot. Nothing else.
 
 The names you type — teams, ARTs and PIs — are **capped at 120 characters as they're
 written**, not only on the way back in: the object you name is the one that reaches
-`localStorage` and the cloud, so the cap is applied at the point of the rename as well as
-at the boundary that reads a saved, imported or synced copy. Percentages and reason codes
+`localStorage` and the cloud, so the cap is applied as you type as well as at the boundary
+that reads a saved, imported or synced copy. Percentages and reason codes
 pass that same boundary, so a hand-edited file can't widen either.
 
 **Back up & restore** — the *Back up* button exports everything as a JSON file

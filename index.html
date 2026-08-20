@@ -220,6 +220,31 @@ button, select, input, textarea { font: inherit; color: inherit; }
 /* A disabled danger button must not light up on hover — same rule as the primary
    one above it, mirrored from Team Dashboard. */
 .btn.danger:disabled:hover { background: transparent; border-color: var(--err); }
+/* ── The square icon button, ported from Team Dashboard ─────────────────────
+   A row in Teams, ARTs & PIs ends in three of these: move up, move down,
+   delete. They replaced a pair of worded buttons per row — Rename and Delete —
+   which at four rows was eight words of chrome down the right of the dialog for
+   two actions everybody already knows the shape of.
+
+   The base hover is NEUTRAL and `.danger` is what turns it red, the same split
+   `.btn` / `.btn.danger` already uses: the arrows are not destructive and must
+   not light up as though they were. Disabled dims by opacity rather than by a
+   greyed colour, so nothing here invents a palette value. */
+.icon-btn { appearance: none; background: none; border: 1px solid var(--border-strong);
+  color: var(--text-muted); border-radius: var(--radius-sm); cursor: pointer;
+  width: 30px; height: 30px; font-size: 14px; line-height: 1; }
+.icon-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
+.icon-btn.danger:hover { color: var(--err); border-color: var(--err); }
+.icon-btn:disabled { opacity: .45; cursor: not-allowed; }
+.icon-btn:disabled:hover { color: var(--text-muted); border-color: var(--border-strong); }
+/* Kept on one line and pushed to the right edge, so the arrows line up down the
+   table however wide the columns end up. */
+.rowacts { display: flex; gap: 6px; justify-content: flex-end; white-space: nowrap; }
+/* A name is edited in place now, so the box has to be readable without eating
+   the row. The cap is what keeps the columns spread the way they were when the
+   name was plain text. */
+#manageDialog input[type=text] { width: 100%; max-width: 320px; }
+#manageDialog td:first-child { min-width: 150px; }
 select, input[type=text], input[type=number], input[type=date], textarea {
   background: var(--bg-card); border: 1px solid var(--input-border);
   border-radius: var(--radius-sm); padding: 7px 9px;
@@ -6776,16 +6801,78 @@ const manageDialog = F('manageDialog');
 
 function openManage() { renderManage(); openModal(manageDialog); }
 
-function renderManage() {
+/* ── The buttons at the end of a manage row ──────────────────────────────────
+   Move up, move down, delete — the same three on a team, an ART and a PI, so
+   they are built once. Mirrored from Team Dashboard, which grew the identical
+   helper the same afternoon; the two dialogs are read side by side.
+
+   The ORDER of all three lists is meaningful, which is why they are reorderable
+   rather than fixed to the order things were added in. PI order has always been
+   this app's sense of time — the rolling window walks back through it — and had
+   these arrows already; teams and ARTs get them because their order is read too,
+   down every picker and every All teams table, and because the order you add
+   teams in is rarely the order you want to read them in a year later.
+   Reordering permutes an array that was always there, so it stores and syncs
+   with no new field and no version bump.
+
+   Ends are disabled rather than hidden: a button that vanishes at the top of the
+   list makes the row jump and moves the delete under the pointer. */
+function rowActs(kind, thing, i, total) {
+  const arrow = (dir, glyph, word) =>
+    `<button class="icon-btn" data-move-${kind}="${esc(thing.id)}" data-dir="${dir}"
+      title="Move ${word}"${(dir < 0 ? i === 0 : i === total - 1) ? ' disabled' : ''}
+      aria-label="Move ${esc(thing.name)} ${word}">${glyph}</button>`;
+  return `<span class="rowacts">${arrow(-1, '\u2191', 'up')}${arrow(1, '\u2193', 'down')}
+    <button class="icon-btn danger" data-del-${kind}="${esc(thing.id)}"
+      title="Delete this ${kind}" aria-label="Delete ${esc(thing.name)}">&times;</button></span>`;
+}
+
+/* Swap one place along a list, then put the keyboard back where it was. Without
+   the focus restore, moving something with the keyboard loses your place
+   entirely: the row is rebuilt, so the button that was focused no longer exists.
+   If it lands disabled — the thing has reached an end — focus goes to its
+   opposite number on the same row, the only one still worth pressing. */
+/* The permutation on its own, so the suite can pin it without writing anything:
+   this file's tests are read-only about storage, and moveInList below saves. */
+const reorderById = (list, id, dir) => {
+  const i = list.findIndex(x => x.id === id);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= list.length) return false;
+  list.splice(j, 0, list.splice(i, 1)[0]);
+  return true;
+};
+
+function moveInList(list, kind, id, dir) {
+  if (!reorderById(list, id, dir)) return;
+  save(); renderManage(); render();
+  const pick = (d) => manageDialog.querySelector(`[data-move-${kind}="${id}"][data-dir="${d}"]`);
+  const want = pick(dir), other = pick(-dir);
+  if (want && !want.disabled) want.focus();
+  else if (other) other.focus();
+}
+
+/* A name is edited in the row it sits in rather than behind a Rename button and a
+   prompt(). Mirrored from Team Dashboard, whose Teams window this one is now laid
+   out like: a prompt is a modal on top of a modal to change one word, and it
+   cannot show you the other names while you pick one that fits beside them. */
+function nameCell(kind, thing, i) {
+  return `<td><input type="text" data-name-${kind}="${esc(thing.id)}" maxlength="120"
+    value="${esc(thing.name)}" aria-label="Name of ${kind}, row ${i + 1}"></td>`;
+}
+
+/* The teams table on its own, markup and handlers together, because it is built
+   from TWO places: the whole dialog, and an ART being renamed — every team's ART
+   picker prints that name, and rebuilding the ARTs table to refresh them would
+   replace the box the name is being typed into. */
+function renderManageTeamRows() {
   /* The ART column is where a team is put on one — a select in the row it belongs
      to, rather than a list of teams to tick inside each ART. Assignment reads the
      way the data does (a team has an ART), it can't put a team on two trains, and
      the whole thing is one control per row instead of a second dialog. The column
      appears only once an ART exists; before that it would be a picker with one
      option. */
-  const anyArts = state.arts.length > 0;
   const artCell = (t) => {
-    if (!anyArts) return '';
+    if (!state.arts.length) return '';
     const opt = (v, label, sel) =>
       `<option value="${esc(v)}"${sel ? ' selected' : ''}>${esc(label)}</option>`;
     return `<td><label class="sr-only" for="art-of-${esc(t.id)}">ART for ${esc(t.name)}</label>
@@ -6795,43 +6882,37 @@ function renderManage() {
       </select></td>`;
   };
 
-  F('teamRows').innerHTML = state.teams.length ? state.teams.map(t => `
-    <tr><td>${esc(t.name)}</td>
+  F('teamRows').innerHTML = state.teams.length ? state.teams.map((t, i) => `
+    <tr>${nameCell('team', t, i)}
       ${artCell(t)}
-      <td class="muted">${state.sprints.filter(s => s.teamId === t.id).length} sprints</td>
-      <td style="white-space:nowrap">
-        <button class="btn small" data-rename-team="${esc(t.id)}">Rename</button>
-        <button class="btn small" data-del-team="${esc(t.id)}">Delete</button></td></tr>`).join('')
+      <td class="muted">${plural(state.sprints.filter(s => s.teamId === t.id).length, 'sprint')}</td>
+      <td>${rowActs('team', t, i, state.teams.length)}</td></tr>`).join('')
     : '<tr><td class="muted">No teams yet.</td></tr>';
 
-  F('artRows').innerHTML = state.arts.length ? state.arts.map(a => {
-    const n = state.teams.filter(t => t.artId === a.id).length;
-    return `<tr><td>${esc(a.name)}</td>
-      <td class="muted">${plural(n, 'team')}</td>
-      <td style="white-space:nowrap">
-        <button class="btn small" data-rename-art="${esc(a.id)}">Rename</button>
-        <button class="btn small" data-del-art="${esc(a.id)}">Delete</button></td></tr>`;
-  }).join('') : '<tr><td class="muted">No ARTs yet.</td></tr>';
-
-  F('piRows').innerHTML = state.pis.length ? state.pis.map((p, i) => `
-    <tr><td>${esc(p.name)}</td>
-      <td class="muted">${state.sprints.filter(s => s.piId === p.id).length} sprints</td>
-      <td style="white-space:nowrap">
-        <button class="btn small" data-up-pi="${esc(p.id)}"${i === 0 ? ' disabled' : ''} title="Move earlier">↑</button>
-        <button class="btn small" data-down-pi="${esc(p.id)}"${i === state.pis.length - 1 ? ' disabled' : ''} title="Move later">↓</button>
-        <button class="btn small" data-rename-pi="${esc(p.id)}">Rename</button>
-        <button class="btn small" data-del-pi="${esc(p.id)}">Delete</button></td></tr>`).join('')
-    : '<tr><td class="muted">No PIs yet.</td></tr>';
-
-  /* Every name entered at a prompt gets the same 120-char cap keepKnown enforces
-     at the boundary — without it a pasted paragraph persists (and syncs) at full
-     length until the next boot scrubs it. Same at the three add* sites below. */
-  manageDialog.querySelectorAll('[data-rename-team]').forEach(b => b.onclick = () => {
-    const t = teamById(b.dataset.renameTeam);
-    const name = prompt('Team name', t.name);
-    if (name && name.trim()) { t.name = name.trim().slice(0, 120); save(); renderManage(); render(); }
+  /* Rebuilt markup means rebuilt handlers — this table's four, and only these. */
+  F('teamRows').querySelectorAll('[data-name-team]').forEach(el => el.oninput = () => {
+    const t = teamById(el.dataset.nameTeam);
+    if (!t) return;
+    /* The same 120-char cap keepKnown enforces at the boundary: maxlength stops
+       typing past it but not a paste, and save() pushes the object as-is. */
+    t.name = el.value.slice(0, 120);
+    /* Deliberately NOT renderManage() — that would replace the box being typed
+       in. render() redraws the pickers in the chrome, which is everywhere else a
+       team's name appears. */
+    save(); render();
   });
-  manageDialog.querySelectorAll('[data-del-team]').forEach(b => b.onclick = () => {
+  F('teamRows').querySelectorAll('[data-move-team]').forEach(b => b.onclick = () =>
+    moveInList(state.teams, 'team', b.dataset.moveTeam, Number(b.dataset.dir)));
+  F('teamRows').querySelectorAll('[data-art-of]').forEach(sel => sel.onchange = () => {
+    const t = teamById(sel.dataset.artOf);
+    if (!t) return;
+    t.artId = sel.value || null;
+    /* The whole dialog: the ARTs table below counts the teams on each one, and it
+       has just changed. A picker keeps its value across a render where a text box
+       being typed in would not, so this one is safe to rebuild. */
+    save(); renderManage(); render();
+  });
+  F('teamRows').querySelectorAll('[data-del-team]').forEach(b => b.onclick = () => {
     const t = teamById(b.dataset.delTeam);
     const n = state.sprints.filter(s => s.teamId === t.id).length;
     if (!confirm(`Delete ${t.name}${n ? ` and its ${n} sprint${n === 1 ? '' : 's'} of data` : ''}? This can’t be undone.`)) return;
@@ -6843,19 +6924,48 @@ function renderManage() {
       state.settings.activeTeamId = state.teams[0] ? state.teams[0].id : null;
     save(); renderManage(); render();
   });
-  manageDialog.querySelectorAll('[data-art-of]').forEach(sel => sel.onchange = () => {
-    const t = teamById(sel.dataset.artOf);
-    if (!t) return;
-    t.artId = sel.value || null;
-    /* renderManage() as well as render(): the ARTs table below counts the teams on
-       each one, and it has just changed. */
-    save(); renderManage(); render();
+}
+
+function renderManage() {
+  renderManageTeamRows();
+
+  F('artRows').innerHTML = state.arts.length ? state.arts.map((a, i) => `
+    <tr>${nameCell('art', a, i)}
+      <td class="muted">${plural(state.teams.filter(t => t.artId === a.id).length, 'team')}</td>
+      <td>${rowActs('art', a, i, state.arts.length)}</td></tr>`).join('')
+    : '<tr><td class="muted">No ARTs yet.</td></tr>';
+
+  F('piRows').innerHTML = state.pis.length ? state.pis.map((p, i) => `
+    <tr>${nameCell('pi', p, i)}
+      <td class="muted">${plural(state.sprints.filter(s => s.piId === p.id).length, 'sprint')}</td>
+      <td>${rowActs('pi', p, i, state.pis.length)}</td></tr>`).join('')
+    : '<tr><td class="muted">No PIs yet.</td></tr>';
+
+  /* The teams table wires its own — see renderManageTeamRows. What is left is the
+     ARTs and PIs tables, whose names are not printed anywhere inside this dialog,
+     so neither needs to rebuild anything here.
+
+     Every name typed in gets the same 120-char cap keepKnown enforces at the
+     boundary: maxlength stops typing past it but not a paste. And none of these
+     re-renders THIS dialog, which would replace the very box being typed in. */
+  manageDialog.querySelectorAll('[data-name-art]').forEach(el => el.oninput = () => {
+    const a = artById(el.dataset.nameArt);
+    if (!a) return;
+    a.name = el.value.slice(0, 120);
+    save(); render();
+    /* Only the rows that print this name — not the row it is being typed in. */
+    renderManageTeamRows();
   });
-  manageDialog.querySelectorAll('[data-rename-art]').forEach(b => b.onclick = () => {
-    const a = artById(b.dataset.renameArt);
-    const name = prompt('ART name', a.name);
-    if (name && name.trim()) { a.name = name.trim().slice(0, 120); save(); renderManage(); render(); }
+  manageDialog.querySelectorAll('[data-name-pi]').forEach(el => el.oninput = () => {
+    const p = piById(el.dataset.namePi);
+    if (!p) return;
+    p.name = el.value.slice(0, 120);
+    save(); render();
   });
+  manageDialog.querySelectorAll('[data-move-art]').forEach(b => b.onclick = () =>
+    moveInList(state.arts, 'art', b.dataset.moveArt, Number(b.dataset.dir)));
+  manageDialog.querySelectorAll('[data-move-pi]').forEach(b => b.onclick = () =>
+    moveInList(state.pis, 'pi', b.dataset.movePi, Number(b.dataset.dir)));
   /* Deleting an ART is deliberately the cheapest delete in this dialog: it takes no
      sprint and no team with it, because an ART owns neither — its teams simply go
      back to having none. No confirm for the same reason, unlike Delete team and
@@ -6868,11 +6978,6 @@ function renderManage() {
     save(); renderManage(); render();
     toast(`${a.name} removed — its teams and their sprints are untouched`);
   });
-  manageDialog.querySelectorAll('[data-rename-pi]').forEach(b => b.onclick = () => {
-    const p = piById(b.dataset.renamePi);
-    const name = prompt('PI name', p.name);
-    if (name && name.trim()) { p.name = name.trim().slice(0, 120); save(); renderManage(); render(); }
-  });
   manageDialog.querySelectorAll('[data-del-pi]').forEach(b => b.onclick = () => {
     const p = piById(b.dataset.delPi);
     const n = state.sprints.filter(s => s.piId === p.id).length;
@@ -6884,43 +6989,44 @@ function renderManage() {
     if (state.settings.activePiId === p.id) state.settings.activePiId = null;
     save(); renderManage(); render();
   });
-  manageDialog.querySelectorAll('[data-up-pi]').forEach(b => b.onclick = () => movePi(b.dataset.upPi, -1));
-  manageDialog.querySelectorAll('[data-down-pi]').forEach(b => b.onclick = () => movePi(b.dataset.downPi, 1));
 }
 
-/* PI order is the app's sense of time — the rolling window walks back through this
-   list — so it's reorderable rather than fixed to creation order. */
-function movePi(id, delta) {
-  const i = piIndex(id);
-  const j = i + delta;
-  if (i < 0 || j < 0 || j >= state.pis.length) return;
-  const [p] = state.pis.splice(i, 1);
-  state.pis.splice(j, 0, p);
-  save(); renderManage(); render();
+/* ── Adding one of the three ─────────────────────────────────────────────────
+   No prompt(). Now that a name is edited in its own row, adding through a prompt
+   would be the only place in this dialog that asked for one in a box on top of a
+   box — and it would refuse to add anything at all if you pressed Cancel, which
+   is a strange answer to "+ Add team". Each of these puts a row in with a
+   working default name and lands the cursor in it, already selected, so typing
+   replaces it. Mirrored from Team Dashboard. */
+function addNamed(list, kind, name, extra) {
+  const thing = Object.assign({ id: uid(), name }, extra || {});
+  list.push(thing);
+  return thing;
+}
+
+function focusNewRow(kind, id) {
+  const el = manageDialog.querySelector(`[data-name-${kind}="${id}"]`);
+  if (el) { el.focus(); el.select(); }
 }
 
 function addTeam() {
-  const name = prompt('Team name', '');
-  if (!name || !name.trim()) return;
-  const t = { id: uid(), name: name.trim().slice(0, 120) };
-  state.teams.push(t);
+  const t = addNamed(state.teams, 'team', `Team ${state.teams.length + 1}`);
   if (!state.settings.activeTeamId) state.settings.activeTeamId = t.id;
   save(); renderManage(); render();
+  focusNewRow('team', t.id);
 }
 
 function addArt() {
-  const name = prompt('ART name (e.g. "Payments ART")', '');
-  if (!name || !name.trim()) return;
-  state.arts.push({ id: uid(), name: name.trim().slice(0, 120) });
+  const a = addNamed(state.arts, 'art', `ART ${state.arts.length + 1}`);
   save(); renderManage(); render();
+  focusNewRow('art', a.id);
 }
 
 function addPi() {
-  const suggestion = state.pis.length ? '' : 'PI 1';
-  const name = prompt('PI name (e.g. "PI 2026.3")', suggestion);
-  if (!name || !name.trim()) return;
-  state.pis.push({ id: uid(), name: name.trim().slice(0, 120), sprintCount: SPRINTS_PER_PI });
+  const p = addNamed(state.pis, 'pi', `PI ${state.pis.length + 1}`,
+    { sprintCount: SPRINTS_PER_PI });
   save(); renderManage(); render();
+  focusNewRow('pi', p.id);
 }
 
 F('addTeamBtn').onclick = addTeam;
@@ -8067,7 +8173,7 @@ if (viewOnly) {
    calls the pure functions). Function declarations are already reachable as
    window properties; this exposes the consts the tests need. Nothing in the
    app reads it. */
-window.__svTestHooks = { raisesKeyboard,
+window.__svTestHooks = { raisesKeyboard, reorderById,
   fmtPct, ART_NONE, b64urlEncode, REASONS, AVAILABILITY_REASONS, EXCLUDE_REASONS, isCounted,
   /* The predictability band's edges, so the suite pins the boundaries against the
      constants themselves rather than against four numbers copied out of them. */

@@ -1908,6 +1908,132 @@ t('a share link of the current version still opens', async () => {
     'the fixture and the app must agree on the current payload version');
 });
 
+group('reordering teams, ARTs and PIs');
+/* All three lists are ORDERED and the order is read: teams appear in this order
+   in every picker and down the All teams table, ARTs are the order their groups
+   come in, and PI order has always been this app's sense of time — the rolling
+   window walks back through it. PIs had these arrows already; teams and ARTs
+   gained them on 2026-08-20, along with Flow Metrics, whose Teams window this
+   dialog is laid out like.
+
+   `reorderById` is the permutation on its own, split out of the click handler so
+   the suite can pin it without writing anything — this file stays read-only
+   about storage. */
+const RE = () => [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+t('a thing moves one place up', () => {
+  const l = RE();
+  eq(w.__svTestHooks.reorderById(l, 'c', -1), true);
+  eq(l.map(x => x.id), ['a', 'c', 'b']);
+});
+t('and one place down', () => {
+  const l = RE();
+  w.__svTestHooks.reorderById(l, 'a', 1);
+  eq(l.map(x => x.id), ['b', 'a', 'c']);
+});
+t('up from the top is refused and changes nothing', () => {
+  const l = RE();
+  eq(w.__svTestHooks.reorderById(l, 'a', -1), false);
+  eq(l.map(x => x.id), ['a', 'b', 'c']);
+});
+t('down from the bottom likewise', () => {
+  const l = RE();
+  eq(w.__svTestHooks.reorderById(l, 'c', 1), false);
+  eq(l.map(x => x.id), ['a', 'b', 'c']);
+});
+t('an id that is not in the list is refused', () => {
+  const l = RE();
+  eq(w.__svTestHooks.reorderById(l, 'zzz', -1), false);
+  eq(l.map(x => x.id), ['a', 'b', 'c']);
+});
+t('every item survives a move — reordering never drops one', () => {
+  const l = RE();
+  w.__svTestHooks.reorderById(l, 'b', 1);
+  w.__svTestHooks.reorderById(l, 'b', -1);
+  eq(l.map(x => x.id).sort(), ['a', 'b', 'c']);
+  eq(l.length, 3);
+});
+t('a list of one has nowhere to go in either direction', () => {
+  const l = [{ id: 'only' }];
+  eq(w.__svTestHooks.reorderById(l, 'only', -1), false);
+  eq(w.__svTestHooks.reorderById(l, 'only', 1), false);
+});
+
+group('the manage dialog — rows are edited in place');
+/* Rename buttons and their prompt() are gone: a name is edited in the row it
+   sits in, and Delete is the same × Flow Metrics uses. Pinned because the shape
+   of this dialog is now a rule shared across the two apps rather than a
+   preference — see the Teams & ARTs window there.
+
+   Rendered from a fixture through withState rather than from whatever the app
+   happens to hold: the suite boots an app with no teams in it, and renderManage
+   only writes these tables when it runs. It writes nothing to storage, so the
+   read-only promise at the top of this page still holds; the last line puts the
+   real rows back. */
+const MANAGE_FIXTURE = {
+  teams: [{ id: 'ft1', name: 'One', artId: 'fa1' }, { id: 'ft2', name: 'Two' },
+          { id: 'ft3', name: 'Three' }],
+  arts: [{ id: 'fa1', name: 'Alpha' }, { id: 'fa2', name: 'Beta' }],
+  pis: [{ id: 'fp1', name: 'PI One' }, { id: 'fp2', name: 'PI Two' }]
+};
+function withManageRows(fn) {
+  return withState(MANAGE_FIXTURE, () => { w.renderManage(); return fn(); });
+}
+
+t('every row carries an editable name box rather than a Rename button', () => withManageRows(() => {
+  eq(w.document.querySelectorAll('#manageDialog [data-rename-team], #manageDialog [data-rename-art], '
+     + '#manageDialog [data-rename-pi]').length, 0, 'no Rename buttons anywhere');
+  ok(w.document.querySelector('#teamRows [data-name-team]'), 'teams have a name box');
+  ok(w.document.querySelector('#artRows [data-name-art]'), 'ARTs have one');
+  ok(w.document.querySelector('#piRows [data-name-pi]'), 'and so do PIs');
+}));
+t('a name box holds the name, and is capped at the boundary length', () => withManageRows(() => {
+  eq(w.document.querySelector('#teamRows [data-name-team]').value, 'One');
+  eq(w.document.querySelector('#artRows [data-name-art]').value, 'Alpha');
+  ['#teamRows [data-name-team]', '#artRows [data-name-art]', '#piRows [data-name-pi]']
+    .forEach(sel => eq(w.document.querySelector(sel).getAttribute('maxlength'), '120', sel));
+}));
+t('delete is an icon button in the danger colour, on all three tables', () => withManageRows(() => {
+  ['team', 'art', 'pi'].forEach(kind => {
+    const b = w.document.querySelector('#manageDialog [data-del-' + kind + ']');
+    ok(b, kind + ' rows have a delete');
+    ok(b.classList.contains('icon-btn') && b.classList.contains('danger'),
+       kind + ' delete is an icon-btn.danger, not a worded button');
+  });
+}));
+t('the reorder arrows are NOT in the danger colour', () => withManageRows(() => {
+  const up = w.document.querySelector('#teamRows [data-dir="-1"]');
+  ok(up.classList.contains('icon-btn'), 'an arrow is an icon button');
+  ok(!up.classList.contains('danger'), 'but moving something is not destructive');
+}));
+t('all three tables have the arrows, not just PIs', () => withManageRows(() => {
+  ['team', 'art', 'pi'].forEach(kind => {
+    ok(w.document.querySelector('#manageDialog [data-move-' + kind + '][data-dir="-1"]'), kind + ' up');
+    ok(w.document.querySelector('#manageDialog [data-move-' + kind + '][data-dir="1"]'), kind + ' down');
+  });
+}));
+t('the ends are disabled rather than hidden, so no row ever jumps', () => withManageRows(() => {
+  const ups = [...w.document.querySelectorAll('#teamRows [data-dir="-1"]')];
+  const downs = [...w.document.querySelectorAll('#teamRows [data-dir="1"]')];
+  eq(ups.length, 3, 'one pair of arrows per team');
+  eq(ups.length, downs.length, 'and every row has both');
+  eq(ups[0].disabled, true, 'the first row cannot move up');
+  eq(downs[downs.length - 1].disabled, true, 'the last cannot move down');
+  eq(ups[1].disabled, false, 'every other direction is live');
+}));
+t('an ART picker appears in a team row only once an ART exists', () => {
+  withState({ teams: [{ id: 'ft1', name: 'One' }], arts: [], pis: [] }, () => {
+    w.renderManage();
+    eq(w.document.querySelectorAll('#teamRows [data-art-of]').length, 0,
+       'no picker while there is no train to pick');
+  });
+  withManageRows(() => {
+    eq(w.document.querySelectorAll('#teamRows [data-art-of]').length, 3,
+       'one per team the moment there is');
+  });
+  /* Put the app's own rows back, since renderManage wrote the fixture's. */
+  w.renderManage();
+});
+
 group('esc — the free-text boundary (a team, ART or PI name reaching innerHTML)');
 /* `sanitizeIds` above has had hostile-input tests since it was written; this
    boundary had none, here and in three siblings, which an audit found on
