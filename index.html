@@ -5327,8 +5327,19 @@ function renderArtPiView() {
     ? state.settings.activePiId : state.pis[state.pis.length - 1].id;
   const pi = piById(piId);
 
+  /* Both pickers live in one card: they narrow the same page, and stacking two
+     cards reads as two unrelated settings while costing a card's height to say
+     it. Built HERE, above the early returns, because both of those cards tell the
+     reader to change one of these two pickers — an empty state that names a
+     control and then withholds it is a dead end. */
+  const piPicker = `<label class="row" style="gap:8px;font-size:14px">
+      <span>PI</span>
+      <select id="piSel3" title="Which Program Increment these figures cover">${state.pis.map(p =>
+        `<option value="${esc(p.id)}"${p.id === piId ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
+    </label>`;
+
   if (!shown.length) {
-    viewsEl.innerHTML = artToolbar(0, hiddenCount) + `
+    viewsEl.innerHTML = artToolbar(0, hiddenCount, { controls: piPicker }) + `
       <div class="card empty">
         <h2>No Teams On This ART</h2>
         <p>Nothing is assigned to it at the moment. Pick <strong>All ARTs</strong> above, or
@@ -5377,7 +5388,7 @@ function renderArtPiView() {
   /* Every team on this ART is outside the selected PI — the table would be a set
      of headings over nothing, so say what happened and offer the way out. */
   if (!rows.length) {
-    viewsEl.innerHTML = artToolbar(shown.length, hiddenCount) + `
+    viewsEl.innerHTML = artToolbar(shown.length, hiddenCount, { controls: piPicker }) + `
       <div class="card empty">
         <h2>Nothing Recorded in ${esc(pi.name)}</h2>
         <p>${shown.length === 1 ? 'This team has' : 'None of these teams has'} a sprint in
@@ -5449,19 +5460,10 @@ function renderArtPiView() {
     return `<span class="artname">${on ? esc(on.name) : 'No ART'}</span>`;
   };
 
-  viewsEl.innerHTML = artToolbar(shown.length, hiddenCount) + `
-    <div class="card">
-      <div class="row spread">
-        <div class="row">
-          <label class="sr-only" for="piSel3">PI</label>
-          <select id="piSel3" class="ctl">${state.pis.map(p =>
-            `<option value="${esc(p.id)}"${p.id === piId ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
-        </div>
-        <span class="muted" style="font-size:13px">${plural(shown.length, 'team')}${
-          openHere ? ` · ${plural(openHere, 'sprint')} still in flight, not counted` : ''}</span>
-      </div>
-    </div>
-
+  viewsEl.innerHTML = artToolbar(shown.length, hiddenCount, {
+      controls: piPicker,
+      note: openHere ? `${plural(openHere, 'sprint')} still in flight, not counted.` : ''
+    }) + `
     <div class="card">
       <h2>${heading} — ${esc(pi.name)}</h2>
       <p class="sub">How the train did against what it planned. <strong>Predictability</strong> is
@@ -5557,9 +5559,6 @@ function renderArtPiView() {
     </div>`;
 
   wireArtToolbar();
-  document.getElementById('piSel3').onchange = (e) => {
-    state.settings.activePiId = e.target.value; save(); render();
-  };
   /* Clicking a team lands on ITS Current PI, on the PI you were already looking
      at — that is where the objectives are recorded and where the row's figures
      come from, so it's the page anyone following up on a row actually wants. */
@@ -5620,9 +5619,25 @@ function renderArtPiView() {
    Hidden entirely until an ART exists, with a pointer to where they're made —
    an empty picker offering only "All ARTs" is furniture, but a filter nobody
    can find is worse. */
-function artToolbar(shownCount, hiddenCount) {
+/* `extra` lets a view put ANOTHER scope control in this same card rather than
+   stacking a second one under it. Both pickers narrow the same page, so two cards
+   sitting one above the other read as two unrelated settings and cost a whole
+   card's worth of height to say it — the ART PI view puts its PI picker here.
+   `extra.note` joins the muted line for the same reason; a second status line
+   floating in its own box is the same problem one level down. */
+function artToolbar(shownCount, hiddenCount, extra) {
+  const controls = (extra && extra.controls) || '';
+  const note = (extra && extra.note) || '';
   const filter = state.settings.artFilter || '';
   if (!state.arts.length) {
+    /* No ARTs to filter by, but a caller's own control still has to appear —
+       it is not the ART picker's to withhold. */
+    if (controls) return `<div class="card">
+      <div class="row spread">
+        <div class="row" style="gap:14px;flex-wrap:wrap">${controls}</div>
+        <span class="muted" style="font-size:13px">${note}</span>
+      </div>
+    </div>`;
     return viewOnly ? '' : `<div class="card">
       <p class="sub" style="margin:0">Support more than one ART? Group your teams in
         <strong>Teams &amp; PIs</strong> and this view gains a filter for them.</p>
@@ -5633,28 +5648,38 @@ function artToolbar(shownCount, hiddenCount) {
   const unassigned = state.teams.some(t => !t.artId);
   return `<div class="card">
     <div class="row spread">
-      <label class="row" style="gap:8px;font-size:14px">
-        <span>ART</span>
-        <select id="artFilter" title="Show only the teams on one ART">
-          ${opt('', 'All ARTs')}
-          ${state.arts.map(a => opt(a.id, a.name)).join('')}
-          ${unassigned ? opt(ART_NONE, 'No ART') : ''}
-        </select>
-      </label>
+      <div class="row" style="gap:14px;flex-wrap:wrap">
+        <label class="row" style="gap:8px;font-size:14px">
+          <span>ART</span>
+          <select id="artFilter" title="Show only the teams on one ART">
+            ${opt('', 'All ARTs')}
+            ${state.arts.map(a => opt(a.id, a.name)).join('')}
+            ${unassigned ? opt(ART_NONE, 'No ART') : ''}
+          </select>
+        </label>
+        ${controls}
+      </div>
       <span class="muted" style="font-size:13px">${
         hiddenCount
           ? `Showing ${shownCount} of ${plural(state.teams.length, 'team')} — the other
              ${hiddenCount} ${hiddenCount === 1 ? 'is' : 'are'} in none of the figures below.`
           : `Showing all ${plural(shownCount, 'team')}. Every figure below follows this picker.`
-      }</span>
+      }${note ? ' ' + note : ''}</span>
     </div>
   </div>`;
 }
 
+/* Wires every scope control in that one card, so a view that adds one needn't
+   remember to wire it on each of its exit paths — the ART PI view has three. */
 function wireArtToolbar() {
   const sel = document.getElementById('artFilter');
   if (sel) sel.onchange = () => {
     state.settings.artFilter = sel.value || null;
+    save(); render();
+  };
+  const piSel = document.getElementById('piSel3');
+  if (piSel) piSel.onchange = () => {
+    state.settings.activePiId = piSel.value;
     save(); render();
   };
 }

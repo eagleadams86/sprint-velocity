@@ -308,6 +308,14 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   and 140%. `predictabilityStatus()` supplies the direction and `predPill()` is the only
   way a predictability figure should reach the page, so no site can render one without it.
   `pill()`'s third argument exists solely for this.
+- **The ART and PI pickers share ONE card on the ART PI view** (`artToolbar`'s `extra`
+  argument). Both narrow the same page, so two stacked cards read as two unrelated settings
+  and cost a card's height to say it. The PI picker is built **above** that view's early
+  returns and passed to all three `artToolbar` calls, because both empty-state cards tell the
+  reader to change a picker — an empty state that names a control and then withholds it is a
+  dead end. `wireArtToolbar()` wires both controls for the same reason: three exit paths, one
+  place to remember. The PI label stopped being `sr-only` when a second picker joined it —
+  two adjacent selects have to be told apart on sight, not only by a screen reader.
 - **`renderArtPiView()` is the RTE view, and it reads the PI, not the rolling window** —
   objectives are planned and scored per PI, so a five-sprint window crossing a PI boundary
   would answer a question nobody asked. It **shares `settings.artFilter` with All teams**
