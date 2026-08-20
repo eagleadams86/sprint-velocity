@@ -58,6 +58,70 @@ rather than in a box you type into. "Why did we drop that sprint?" is the obviou
 want free text, and it's exactly where a ticket key or a colleague's name would end up in
 the cloud. A code from the list carries the meaning and can't carry anything else.
 
+## Across PIs
+
+Every other view looks at a single PI, or at a fixed five-sprint window. **PI trend** is the
+only one that is PI-grained over time, which makes it the only place the Inspect & Adapt
+question can be asked: *not how the last PI went, but which way the train is moving.*
+
+```
+Every Team — Across 3 PIs
+
+PI predictability        Commitment completion      Delivered
+      86% ✓                    81% !                   429
+PI 2026.3 — up 5.2         down 11.7 points        up 303 on
+points on PI 2026.2        on PI 2026.2            PI 2026.2
+```
+
+The headline is **predictability**, because that's what goes on the I&A slide, and the chart
+plots it per PI against the 80–100% band with a dashed trend line through it. Commitment
+completion and delivered points sit beside it because a train can move one without the other
+— and when they disagree, as they do above, that gap is usually the conversation.
+
+### Comparing PIs that weren't the same train
+
+**Each PI is measured over the teams that were actually in it.** A train that grew from two
+teams to five didn't get better because there's more of it, so where the team count changes
+the view says so:
+
+> **⚑ Not the same train throughout** — These PIs cover different numbers of teams: PI 2026.1
+> 2 teams, PI 2026.2 2 teams, PI 2026.3 5 teams. Predictability is each team's own measure
+> averaged, so it compares fairly across a train that changed size; the **points** columns are
+> totals and will move with the headcount whatever the teams did.
+
+That's the reason the two methods are split the way they are. **Predictability** is the mean
+of each team's own measure — every team counting once — which survives the comparison.
+**Complete %** is pooled, matching the Current PI tab and the Agile Operations Dashboard, and
+it doesn't.
+
+A PI with nothing recorded is dropped rather than drawn as a hole, and a PI with no business
+value recorded leaves a gap in the predictability line rather than reading as 0%. Both are
+named under the heading.
+
+There's deliberately **no total row**. Adding PIs together answers nothing — a programme's
+history is a sequence, and the only summary worth having is which way it's going, which is
+what the trend line is.
+
+### What the next PI could hold
+
+At the foot of the same view, because PI planning is exactly when you look at how the last
+few went and then decide what to sign up for next:
+
+| Team | Per sprint | Across 5 sprints |
+|---|---|---|
+| Kestrel | 36 | 178 |
+| Merlin | 23 ⚑ 90% | 113 |
+| … | | |
+
+It's each team's next-sprint target multiplied by the **delivery** sprints in a PI — five,
+not six, since the IP sprint delivers none of it. That means it inherits the whole method
+from [Rolling 5](#target-capacity-for-the-next-sprint), availability adjustments included, so
+it can't drift from the card that explains the working. A second figure appears alongside it
+for the [reliable commitment](#two-figures-not-one) where teams have one.
+
+A team that has never run a PI is left out and named — its capacity is on Rolling 5, where it
+lives.
+
 ## PIs Are Optional
 
 Sprints used to have to live inside a Program Increment: with a team recorded but no
@@ -434,7 +498,7 @@ The one figure that still shows `—` is a percentage with nothing committed: th
 denominator to divide by, so it can't be a number, and those sprints stay out of averages
 rather than dragging them down.
 
-## The Five Views
+## The Six Views
 
 - **Sprint** — one sprint in detail: the RAG tiles and a breakdown of where the committed
   points actually went.
@@ -445,6 +509,9 @@ rather than dragging them down.
   ordinary least squares, the same treatment every chart in the sibling Flow Metrics app
   carries — and an instability chart plotting break-in, removed and carryover against
   shaded 15% / 20% threshold bands.
+- **PI trend** — every PI side by side, oldest first: predictability against the
+  80–100% band with a trend line through it, and how far the latest PI moved from the one
+  before. This is the Inspect & Adapt view — see [Across PIs](#across-pis).
 - **ART PI** — the whole train's PI on one page: every team's points and business value side
   by side, the ART's **predictability measure**, and a chart of each team against the
   80–100% band. This is the RTE view — see [Predictability and the ART PI
@@ -454,13 +521,14 @@ rather than dragging them down.
   comparison tables**, the same sprints through two different averages — see below — and
   an **ART filter** across the top when your teams are grouped into ARTs.
 
-The last two look **across** teams rather than into the one you've selected, so they sit
+The last three look **across** teams rather than into the one you've selected, so they sit
 apart from the other three in the tab row.
 
 A view is only offered once there's something in it. **All teams** appears when you have a
 second team; **Current PI** and **Rolling 5** appear once the team you're on has a recorded
 sprint, and step aside again if you switch to a team you haven't recorded anything for;
-**ART PI** appears once you have an ART with a team on it. With
+**ART PI** appears once you have an ART with a team on it; **PI trend** once two PIs have
+something recorded in them, because one point is a position rather than a direction. With
 no teams at all there are no tabs — just the welcome card. If the view you were on goes away,
 you land back on **Sprint**.
 
@@ -468,7 +536,7 @@ you land back on **Sprint**.
 
 The welcome card offers **Load sample data** beside *Add your first team*. It isn't
 filler: it's the app's demo, and the rule is that **every feature has to be reachable
-from it**. Six teams — five across two ARTs with twenty-two sprints over two PIs and one
+from it**. Six teams — five across two ARTs with history over three PIs and one
 running right now, plus one team that doesn't use PIs at all — so nothing in the app is a
 screen you have to imagine.
 
@@ -479,7 +547,7 @@ is there to show something different:
 | Team | ART | What it's there to show |
 |---|---|---|
 | **Merlin** | Payments | A sprint **running right now** — done-so-far, pace ("day 6 of 14, slightly behind") and carried-in. Its commitment is well over the suggestion, which is the one finding still actionable mid-sprint. Also a **⚑ standing team availability**, and the only team with **no business value recorded** — its PI is still running, which is why. Records **no sprint goals** either, so the goals tile is absent rather than showing a zero. |
-| **Kestrel** | Payments | The ordinary team: green, landing about 90% of what it signs up for. Carries a **⚖ scaled sprint** (someone joined after it) and a sprint with work **↩ brought in then removed again**. Its PI predictability is 90% — **inside the band**. Sprint goals **3 of 4**, with one sprint unrecorded — the only place the "no goal recorded" caption appears. |
+| **Kestrel** | Payments | The ordinary team: green, landing about 90% of what it signs up for. Spans **all three PIs**, so the [PI trend](#across-pis) has a team behind every point. Carries a **⚖ scaled sprint** (someone joined after it) and a sprint with work **↩ brought in then removed again**. Its PI predictability is 90% — **inside the band**. Sprint goals **3 of 4**, with one sprint unrecorded — the only place the "no goal recorded" caption appears. |
 | **Otter** | Platform | The team the targets exist to catch — around 70% completion and swinging from 14 to 26 points. Has a **⚑ sprint left out** for a major incident, and its next slot is the **IP sprint**, so it carries that caveat too. 59% predictability — **under the band**. It's also the team where the [**reliable commitment**](#two-figures-not-one) differs from the average enough to matter: 20 or 17 — and where **◎ the goals land and the points don't**. |
 | **Curlew** | Platform | **↗ Room for more** — it clears its commitment then pulls extra work in, so it reads 98% commitment completion beside a **red 29% break-in**. The contradiction the [headroom note](#when-a-team-has-room-for-more) exists to resolve. It under-commits its objectives too: 113%, **over the band**, with the value coming partly from **stretch**. Steady enough that it gets **one** capacity figure rather than two — and it's the team where **◎ the points land and the goals don't**, at 2 of 5. |
 | **Wren** | *none* | A brand-new team: **thin history**, a **⚑ one-off availability** for leave, and a carryover that then **fills the whole figure** — no room for new work at all. Being in no ART, it's also the **No ART** group on *All teams* and *ART PI*. |

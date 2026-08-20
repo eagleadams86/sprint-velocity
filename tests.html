@@ -1355,6 +1355,43 @@ t('the demo seeds the forecast box, so a first run sees it working', () => {
     ok(f.slow > f.fast, 'and on the swingy team the two ends are apart, which is the point');
   });
 });
+t('the demo carries three PIs, and its predictability CLIMBS across them', () => {
+  withSample(() => {
+    const st = w.svGet();
+    eq(st.pis.map(p => p.name), ['PI 2026.1', 'PI 2026.2', 'PI 2026.3'], 'oldest first');
+    const rows = w.piTrend(st.teams, false).filter(r => r.any);
+    eq(rows.length, 3);
+    /* Two points are a line and say nothing about whether a train is steadying or
+       drifting; three are the fewest that read as a direction, which is the whole
+       point of the view. A demo whose PIs jitter teaches nothing about what the
+       chart is for — don't tidy these into a flat line either. */
+    ok(rows[0].predPct < rows[1].predPct && rows[1].predPct < rows[2].predPct,
+      `climbing: ${rows.map(r => Math.round(r.predPct)).join(' → ')}`);
+    eq(w.rag(rows[0].predPct, 'predictability'), 'yellow', 'starting below the band…');
+    eq(w.rag(rows[2].predPct, 'predictability'), 'green', '…and ending inside it');
+  });
+});
+t('and the demo’s train changes size, so the "not the same train" note fires', () => {
+  withSample(() => {
+    const st = w.svGet();
+    const rows = w.piTrend(st.teams, false).filter(r => r.any);
+    eq(rows.map(r => r.teamsIn.length), [2, 2, 5],
+      'the two earlier PIs predate three of the teams');
+    ok(new Set(rows.map(r => r.teamsIn.length)).size > 1,
+      'which is what makes predictability the figure that survives the comparison');
+  });
+});
+t('the demo’s points and predictability disagree between the last two PIs', () => {
+  withSample(() => {
+    const st = w.svGet();
+    const rows = w.piTrend(st.teams, false).filter(r => r.any);
+    const last = rows[2], prev = rows[1];
+    ok(last.predPct > prev.predPct, 'predictability up…');
+    ok(last.commitPct < prev.commitPct, '…while commitment completion went down');
+    /* The two moving opposite ways is the conversation the view exists to start,
+       so the demo has to show it happening rather than only describing it. */
+  });
+});
 t('the demo lands on the running sprint', () => {
   withSample((id) => {
     const st = w.svGet();
@@ -2550,6 +2587,97 @@ t('a small piece that fits inside the PI is reported as fitting', () => {
     eq(f.fast, 1); eq(f.slow, 1);
     eq(f.fitsPi, true, 'one sprint of work, one delivery slot left');
     eq(f.missesPi, false);
+  });
+});
+
+group('piTrend — one row per PI, for the Inspect & Adapt view');
+/* The only PI-grained view over time. Every other one looks at a single PI or at a
+   fixed five-sprint window, so this is where "are we getting better?" lives — and
+   the trap it has to avoid is comparing PIs that covered different teams as though
+   they were the same train. */
+function trendFixture() {
+  const sp = (team, pi, n, committed, done, total) => ({
+    id: team + pi + n, teamId: team, piId: pi, sprintNumber: n,
+    committed, committedCompleted: done, totalCompleted: total,
+    added: 0, removed: 0, carriedIn: 0, carriedOut: committed - done, addedThenRemoved: 0 });
+  return {
+    teams: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }],
+    arts: [], plans: [],
+    pis: [{ id: 'p1', name: 'PI 1' }, { id: 'p2', name: 'PI 2' }, { id: 'p3', name: 'PI 3' }],
+    sprints: [
+      /* PI 1: team A only. PI 2: A and B. PI 3: nothing at all. */
+      sp('a', 'p1', 1, 20, 16, 17), sp('a', 'p1', 6, 20, 20, 20),
+      sp('a', 'p2', 1, 20, 18, 19), sp('b', 'p2', 1, 10, 9, 9)
+    ],
+    objectives: [
+      { id: 'o1', teamId: 'a', piId: 'p1', plannedBv: 20, actualBv: 14, stretchBv: 0 },  // 70%
+      { id: 'o2', teamId: 'a', piId: 'p2', plannedBv: 20, actualBv: 18, stretchBv: 0 },  // 90%
+      { id: 'o3', teamId: 'b', piId: 'p2', plannedBv: 10, actualBv: 7, stretchBv: 0 }    // 70%
+    ]
+  };
+}
+t('each PI is measured over the teams that were actually IN it', () => {
+  withState(trendFixture(), () => {
+    const st = w.svGet();
+    const rows = w.piTrend(st.teams, false);
+    eq(rows.map(r => r.pi.name), ['PI 1', 'PI 2', 'PI 3'], 'oldest first, in PI order');
+    eq(rows[0].teamsIn.map(t => t.name), ['A'], 'B did not exist yet');
+    eq(rows[1].teamsIn.map(t => t.name), ['A', 'B']);
+    eq(rows[2].teamsIn.length, 0);
+  });
+});
+t('predictability is the mean of those teams, so a growing train is comparable', () => {
+  withState(trendFixture(), () => {
+    const st = w.svGet();
+    const rows = w.piTrend(st.teams, false);
+    approx(rows[0].predPct, 70, 'one team at 70%');
+    approx(rows[1].predPct, 80, '90% and 70%, averaged — not pooled, so B’s smaller plan counts once');
+  });
+});
+t('the IP sprint is left out, so a PI’s delivery figures are not diluted by it', () => {
+  withState(trendFixture(), () => {
+    const st = w.svGet();
+    eq(w.piTrend(st.teams, false)[0].sprints, 1, 'PI 1 has S1 and S6; only S1 delivers');
+    eq(w.piTrend(st.teams, true)[0].sprints, 2, 'unless you ask for it');
+  });
+});
+t('a PI with nothing recorded is a gap in the history, not a zero', () => {
+  withState(trendFixture(), () => {
+    const st = w.svGet();
+    const rows = w.piTrend(st.teams, false);
+    eq(rows[2].any, false, 'so the view drops it rather than plotting a hole as a collapse');
+    eq(rows[0].any, true);
+    eq(rows[1].any, true);
+  });
+});
+t('an unscored PI has a null measure, never a zero', () => {
+  const fx = trendFixture();
+  fx.objectives = [];
+  withState(fx, () => {
+    const st = w.svGet();
+    eq(w.piTrend(st.teams, false)[0].predPct, null,
+      'no business value recorded is not 0% predictability');
+    ok(w.piTrend(st.teams, false)[0].any, 'but the PI still has sprints, so it stays on the page');
+  });
+});
+t('points figures are pooled totals, and move with the size of the train', () => {
+  withState(trendFixture(), () => {
+    const st = w.svGet();
+    const rows = w.piTrend(st.teams, false);
+    eq(rows[1].committed, 30, 'A’s 20 plus B’s 10');
+    approx(rows[1].commitPct, 27 / 30 * 100, 'pooled — the Current PI and Dashboard method');
+  });
+});
+t('a PI-less sprint never lands in any PI’s row', () => {
+  const fx = trendFixture();
+  fx.sprints.push({ id: 'x', teamId: 'a', piId: null, sprintNumber: 12,
+    committed: 99, committedCompleted: 99, totalCompleted: 99,
+    added: 0, removed: 0, carriedIn: 0, carriedOut: 0, addedThenRemoved: 0 });
+  withState(fx, () => {
+    const st = w.svGet();
+    const rows = w.piTrend(st.teams, false);
+    eq(rows.reduce((a, r) => a + r.committed, 0), 20 + 30,
+      'the 99 is on the unassigned track and belongs to no PI');
   });
 });
 

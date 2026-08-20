@@ -299,8 +299,8 @@ select.ctl:hover { border-color: var(--text-muted); }
   border-radius: var(--radius-sm);
   padding: 8px 14px; cursor: pointer; color: var(--text-primary); font-weight: 500;
 }
-/* All teams and ART PI both look ACROSS teams rather than into the one that's
-   selected, so the pair sits apart from the three views of the current team —
+/* PI trend, ART PI and All teams all look ACROSS teams rather than into the one
+   that's selected, so the three sit apart from the three views of the current team —
    but only while the row fits on one line. Pushed right on a wrapped row they
    land alone on the second line, reading as orphans rather than a separation.
 
@@ -312,8 +312,14 @@ select.ctl:hover { border-color: var(--text-muted); }
    work, since renderTabs() hides the tab by setting the property, which reflects
    to the attribute. */
 @media (min-width: 470px) {
+  .tab[data-view="trend"]:not([hidden]),
   .tab[data-view="art"]:not([hidden]),
   .tab[data-view="teams"] { margin-left: auto; }
+  /* Only the FIRST visible one of the three keeps the gap — two auto margins in a
+     flex row split the free space, which would break the group apart again. In
+     markup order trend → art → teams, so each one zeroes every later sibling. */
+  .tab[data-view="trend"]:not([hidden]) ~ .tab[data-view="art"],
+  .tab[data-view="trend"]:not([hidden]) ~ .tab[data-view="teams"],
   .tab[data-view="art"]:not([hidden]) ~ .tab[data-view="teams"] { margin-left: 0; }
 }
 .tab:hover { border-color: var(--text-muted); }
@@ -891,6 +897,7 @@ main:focus { outline: none; }
     <button class="tab" role="tab" id="tab-sprint"  aria-controls="views" data-view="sprint"  aria-selected="true"  tabindex="0">Sprint</button>
     <button class="tab" role="tab" id="tab-pi"      aria-controls="views" data-view="pi"      aria-selected="false" tabindex="-1">Current PI</button>
     <button class="tab" role="tab" id="tab-rolling" aria-controls="views" data-view="rolling" aria-selected="false" tabindex="-1">Rolling 5</button>
+    <button class="tab" role="tab" id="tab-trend"   aria-controls="views" data-view="trend"   aria-selected="false" tabindex="-1">PI trend</button>
     <button class="tab" role="tab" id="tab-art"     aria-controls="views" data-view="art"     aria-selected="false" tabindex="-1">ART PI</button>
     <button class="tab" role="tab" id="tab-teams"   aria-controls="views" data-view="teams"   aria-selected="false" tabindex="-1">All teams</button>
   </div>
@@ -1703,7 +1710,7 @@ function sanitizeIds(data) {
      sanitizeIds.pruned so boot can persist the scrub. */
   const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
   const STATUSES = ['auto', 'planned', 'active', 'complete'];
-  const VIEWS = ['sprint', 'pi', 'rolling', 'art', 'teams'];   // renderTabs() owns this list
+  const VIEWS = ['sprint', 'pi', 'rolling', 'trend', 'art', 'teams'];   // renderTabs() owns this list
   const keepKnown = (src, spec) => {
     const out = {};
     for (const k of Object.keys(src)) {
@@ -2279,6 +2286,49 @@ function forecast(teamId, points, includeSix) {
     beyondHorizon,
     impossible: false
   };
+}
+
+/* ── One row per PI, for the trend across them ──────────────────────────────
+   The question this answers is the Inspect & Adapt one — "are we getting better?"
+   — which no other view can reach: Current PI and ART PI each look at a single
+   PI, and Rolling 5 is a fixed five-sprint window that crosses PI boundaries
+   without ever being PI-grained.
+
+   **Each PI is measured over the teams that were actually IN it.** A train that
+   grew from two teams to five did not get better because there are more of it,
+   and averaging a five-team PI against a two-team one as though they were the
+   same train is the comparison this view exists to make honestly. The row hands
+   back its own team count so the page can say when that changed.
+
+   Predictability is the MEAN of the teams' own measures — SAFe's definition, and
+   the same method the ART PI tile uses, so the two views can't disagree about the
+   same PI. Commitment completion is POOLED, matching Current PI's headline tile
+   and the Agile Operations Dashboard. Neither picks a method silently; the table
+   says which is which. */
+function piTrend(teams, includeSix) {
+  const ids = (teams || []).map(t => t.id);
+  return state.pis.map(pi => {
+    const mine = state.sprints.filter(s => s.piId === pi.id && ids.includes(s.teamId));
+    /* The IP sprint is left out on the same terms as everywhere else, so a PI's
+       delivery figures aren't diluted by the sprint that isn't for delivery. */
+    const closed = mine.filter(s => isCounted(s) && (includeSix || !isIpSlot(s)));
+    const teamsIn = (teams || []).filter(t => mine.some(s => s.teamId === t.id));
+    const committed = sum(closed, 'committed');
+    const done = sum(closed, 'committedCompleted');
+    const pred = artPredictability(teamsIn, pi.id);
+    return {
+      pi, teamsIn, sprints: closed.length,
+      committed, done, velocity: sum(closed, 'velocity'),
+      commitPct: committed > 0 ? (done / committed) * 100 : null,
+      predPct: pred.mean,
+      scored: pred.scored,
+      missing: pred.missing,
+      goals: goalRecord(closed),
+      /* A PI nobody recorded anything in is a gap in the history rather than a
+         zero, and the view drops it rather than plotting a hole as a collapse. */
+      any: closed.length > 0 || pred.scored > 0
+    };
+  });
 }
 
 /* ── The sprint goal ────────────────────────────────────────────────────────
@@ -2863,6 +2913,27 @@ const METRIC_HELP = {
       commitment completion: that one asks whether the points landed, this one asks whether
       the <em>objectives</em> did. Value from stretch objectives counts in what was delivered
       but never in what was committed, which is what lets an honest figure sit above 100%.` },
+  trendPredictability: { title: 'PI predictability', target: TARGET_PREDICTABILITY,
+    body: `The latest PI's measure, and how far it moved from the one before. Each team's own
+      measure averaged, so it stays comparable across PIs that covered different teams — a
+      train that grew didn't get better because there is more of it.` },
+  trendCommitment: { title: 'Commitment completion', target: TARGET_COMPLETION,
+    body: `Every committed point across the PI's counted sprints, pooled — the same method the
+      Current PI tab and the Agile Operations Dashboard use. A train can move this without
+      moving predictability, or the reverse, and that gap is usually the conversation.` },
+  trendDelivered: { title: 'Delivered', target: null,
+    body: `Total points completed in the PI, break-in included. Unlike predictability this is a
+      raw total, so it moves with the size of the train as well as with how it did — read it
+      next to the team count.` },
+  trendTeams: { title: 'Teams counted', target: null,
+    body: `How many teams had sprints in this PI. It is here because the points columns are
+      totals: a PI covering five teams will out-deliver one covering two whatever either did,
+      and predictability is the figure that survives the comparison.` },
+  piCapacity: { title: 'What the next PI could hold', target: null,
+    body: `Each team's next-sprint target multiplied by the delivery sprints in a PI, added up.
+      It inherits the whole method from the Rolling ${ROLLING_WINDOW} tab, availability
+      adjustments included — a starting point for PI planning, not a quota, and it assumes
+      every sprint goes to planned work.` },
   artPredictability: { title: 'ART predictability', target: TARGET_PREDICTABILITY,
     body: `Each team's own measure, averaged — so <em>every team counts once</em>, whatever
       the size of its plan. That is the measure SAFe defines and the one an RTE reports at
@@ -4011,6 +4082,7 @@ function render() {
   if (view === 'sprint')       renderSprintView();
   else if (view === 'pi')      renderPiView();
   else if (view === 'rolling') renderRollingView();
+  else if (view === 'trend')   renderPiTrendView();
   else if (view === 'art')     renderArtPiView();
   else                         renderTeamsView();
 }
@@ -4041,6 +4113,13 @@ function renderTabs() {
        view is where you go to record it, and a tab that appears only once the data
        exists is a feature nobody finds. Unlike the three above it doesn't depend
        on the ACTIVE team, because it isn't about one team. */
+    /* Two PIs before there is a trend to look at — one point is a position, not a
+       direction, and the view would be a chart of a single dot. It is a comparison
+       ACROSS teams like ART PI and All teams, so it takes the same shared-view
+       rule: a sender who declined to publish one must not get it back here. */
+    trend:   state.pis.length > 1
+             && state.pis.some(p => state.sprints.some(x => x.piId === p.id))
+             && (!viewOnly || !!(shareMeta && shareMeta.allTeams)),
     art:     state.pis.length > 0
              && state.arts.some(a => teamsInArt(state.teams, a.id).length > 0)
              /* And in a shared view it takes All teams' rule as well, because it
@@ -5294,7 +5373,264 @@ function wireRollingToolbar() {
   };
 }
 
-/* ── View 4: the ART's PI ────────────────────────────────────────────────────
+/* ── View 4: across PIs ─────────────────────────────────────────────────────
+   The Inspect & Adapt view. Every other view looks at one PI or at a fixed
+   five-sprint window; this is the only one that is PI-grained over time, and the
+   only place the question "are we getting better?" can be asked at all.
+
+   It shares `settings.artFilter` with ART PI and All teams — one filter, one
+   stored value, and moving between the three keeps the scope you were looking at.
+   The headline is predictability, because that is what an RTE puts on the I&A
+   slide; the points figures sit beside it because a train can move one without
+   the other, and that gap is usually the conversation. */
+
+function renderPiTrendView() {
+  const grouped = groupTeamsByArt(state.teams, state.arts);
+  const shown = teamsInArt(grouped, state.settings.artFilter);
+  const hiddenCount = state.teams.length - shown.length;
+  const noArt = state.settings.artFilter === ART_NONE;
+  const art = noArt ? null : artById(state.settings.artFilter);
+  const includeSix = !!state.settings.includeSprint6InRolling;
+
+  const heading = art ? esc(art.name) : noArt ? 'Teams Without An ART' : 'Every Team';
+  const all = piTrend(shown, includeSix);
+  /* PIs nobody recorded anything in are gaps in the history, not zeroes — plotting
+     one as a hole would read as a collapse. Dropped, and named below if any. */
+  const rows = all.filter(r => r.any);
+  const empty = all.filter(r => !r.any);
+
+  if (rows.length < 2) {
+    viewsEl.innerHTML = artToolbar(shown.length, hiddenCount) + `
+      <div class="card empty">
+        <h2>Not Enough PIs Yet</h2>
+        <p>${rows.length ? 'Only one PI has anything recorded in it' : 'Nothing is recorded in any PI'}
+           for ${art ? esc(art.name) : 'these teams'}, so there is no trend to draw yet. A second
+           PI of history is what turns a position into a direction.</p>
+      </div>`;
+    wireArtToolbar();
+    return;
+  }
+
+  const latest = rows[rows.length - 1];
+  const prev = rows[rows.length - 2];
+  /* The change since last PI is the whole point of the tile — a bare percentage is
+     already on two other views. Null when either side is unscored, because "up 5"
+     against a PI nobody measured is an invention. */
+  const delta = (key) => (latest[key] === null || prev[key] === null) ? null
+    : latest[key] - prev[key];
+  /* Takes the KEY and does its own subtraction — an earlier cut took the delta and
+     was handed the key string instead, which read as "down — points" on every tile:
+     Math.abs('predPct') is NaN, NaN > 0 is false, so it always said down and never
+     printed a number. One argument, no way to pass the wrong thing. */
+  const movement = (key, unit) => {
+    const d = delta(key);
+    if (d === null) return `no figure for ${esc(prev.pi.name)} to compare with`;
+    const r = Math.round(Math.abs(d) * 10) / 10;
+    if (r < 0.5) return `level with ${esc(prev.pi.name)}`;
+    return `${d > 0 ? 'up' : 'down'} ${fmtNum(r)}${unit} on ${esc(prev.pi.name)}`;
+  };
+
+  /* Whether the train was the same size across the window. A PI measured over two
+     teams and one measured over five are not the same train, and comparing them as
+     though they were is exactly what this view could otherwise invite. */
+  const sizes = [...new Set(rows.map(r => r.teamsIn.length))];
+  const sizeNote = sizes.length > 1
+    ? `<p class="sub exnote"><span class="badge">⚑ Not the same train throughout</span>
+        <span class="muted">These PIs cover different numbers of teams — ${
+          rows.map(r => `${esc(r.pi.name)} ${plural(r.teamsIn.length, 'team')}`).join(', ')}.
+        Predictability is each team's own measure averaged, so it compares fairly across a
+        train that changed size; the <strong>points</strong> columns are totals and will move
+        with the headcount whatever the teams did.</span></p>`
+    : '';
+
+  const emptyNote = empty.length
+    ? `<p class="sub exnote"><span class="badge">⚑ Nothing recorded</span>
+        <span class="muted">${empty.map(r => esc(r.pi.name)).join(', ')} ${
+          empty.length === 1 ? 'has' : 'have'} no counted sprints for these teams, so
+        ${empty.length === 1 ? 'it is' : 'they are'} left out rather than drawn as a gap.</span></p>`
+    : '';
+
+  const unscored = rows.filter(r => r.predPct === null);
+  const unscoredNote = unscored.length
+    ? `<p class="sub exnote"><span class="badge">⚑ No business value</span>
+        <span class="muted">${unscored.map(r => esc(r.pi.name)).join(', ')} ${
+          unscored.length === 1 ? 'has' : 'have'} no business value recorded, so the
+        predictability line skips ${unscored.length === 1 ? 'it' : 'them'}. Record it on the
+        <strong>Current PI</strong> tab and the line fills in.</span></p>`
+    : '';
+
+  viewsEl.innerHTML = artToolbar(shown.length, hiddenCount) + `
+    <div class="card">
+      <h2>${heading} — Across ${plural(rows.length, 'PI')}</h2>
+      <p class="sub">${esc(rows[0].pi.name)} → ${esc(latest.pi.name)}, oldest first.
+        This is the Inspect &amp; Adapt read: not how the last PI went, but which way the
+        train is moving.${includeSix ? '' : ' Sprint 6 (IP) is left out of every figure.'}</p>
+      ${sizeNote}${emptyNote}${unscoredNote}
+      <div class="tiles">
+        ${tile('PI predictability', fmtPct(latest.predPct, 'predictability'),
+          rag(latest.predPct, 'predictability'),
+          `${esc(latest.pi.name)} — ${movement('predPct', ' points')}`,
+          true, 'trendPredictability')}
+        ${tile('Commitment completion', fmtPct(latest.commitPct, 'completion'),
+          rag(latest.commitPct, 'completion'),
+          `${esc(latest.pi.name)} — ${movement('commitPct', ' points')}`,
+          false, 'trendCommitment')}
+        ${tile('Delivered', fmtNum(latest.velocity), null,
+          `points in ${esc(latest.pi.name)} — ${movement('velocity', '')}`,
+          false, 'trendDelivered')}
+        ${tile('Teams counted', String(latest.teamsIn.length), null,
+          `in ${esc(latest.pi.name)}${latest.missing.length
+            ? ` · ${plural(latest.missing.length, 'team')} unscored` : ''}`,
+          false, 'trendTeams')}
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Predictability by PI</h2>
+      <p class="sub">Each PI's predictability against the ${PRED_BAND_LOW}–${PRED_BAND_HIGH}% band,
+        with a dashed trend line through them. <strong>Both edges of the band matter</strong> —
+        a train climbing past 100% is committing to less than it can deliver, which is a
+        different problem from missing, not a better one.</p>
+      <div class="chartbox"><canvas id="trendChart" role="img"
+        aria-label="PI predictability for each PI from ${esc(rows[0].pi.name)} to ${esc(latest.pi.name)}, against the ${PRED_BAND_LOW} to ${PRED_BAND_HIGH} percent band. Figures in the table below."></canvas></div>
+    </div>
+
+    <div class="card">
+      <div class="row spread cardhead">
+        <h2>The Numbers</h2>
+        ${exportButtons('trendTable', 'pi-trend')}
+      </div>
+      <p class="sub">Oldest PI first. <strong>Predictability</strong> is each team's own measure
+        averaged — every team counting once, which is what makes it comparable across PIs that
+        cover different teams. <strong>Complete %</strong> is pooled: every point added up and
+        the percentage taken once, matching the Current PI tab and the Agile Operations
+        Dashboard.</p>
+      <div class="tablewrap">
+      <table id="trendTable" aria-label="Every PI, oldest first">
+        <thead><tr>
+          <th scope="col">PI</th><th scope="col">Teams</th><th scope="col">Sprints</th>
+          <th scope="col">Committed</th><th scope="col">Cmt. done</th>
+          <th scope="col" class="metric">Complete %</th>
+          <th scope="col">Delivered</th>
+          <th scope="col">Goals met</th>
+          <th scope="col" class="metric">Predictability</th>
+        </tr></thead>
+        <tbody>${rows.map(r => `
+          <tr>
+            <th scope="row">${esc(r.pi.name)}</th>
+            <td>${r.teamsIn.length}</td>
+            <td>${r.sprints}</td>
+            <td>${fmtNum(r.committed)}</td>
+            <td>${fmtNum(r.done)}</td>
+            <td class="metric">${pill(r.commitPct, 'completion')}</td>
+            <td>${fmtNum(r.velocity)}</td>
+            <td>${r.goals.recorded ? `${r.goals.met} of ${r.goals.recorded}`
+              : '<span class="muted">—</span>'}</td>
+            <td class="metric">${r.predPct === null
+              ? '<span class="muted">not scored</span>' : predPill(r.predPct)}</td></tr>`).join('')}</tbody>
+      </table></div>
+      <p class="sub methodnote">There is deliberately no total row. Adding PIs together answers
+        nothing — a programme's history is a sequence, and the only summary worth having is
+        which way it is going, which is the trend line above.</p>
+    </div>
+
+    ${piCapacityCard(shown, includeSix)}`;
+
+  wireArtToolbar();
+
+  const scored = rows.filter(r => r.predPct !== null);
+  makeChart('trendChart', {
+    data: {
+      labels: rows.map(r => r.pi.name),
+      datasets: [
+        { type: 'bar', label: 'PI predictability %', order: 3,
+          data: rows.map(r => r.predPct),
+          maxBarThickness: 72, borderWidth: 2, borderSkipped: false, borderRadius: 4,
+          backgroundColor: rows.map(r => cssVar(ragVar(r.predPct, 'predictability', '-bg'))),
+          borderColor: rows.map(r => cssVar(ragVar(r.predPct, 'predictability'))) },
+        /* The same dashed least-squares line Rolling 5 and Flow Metrics use, so a
+           trend reads the same way wherever it appears. Two PIs make it the line
+           between them, which is honest — it is what two points support. */
+        { type: 'line', label: 'Trend', order: 1,
+          data: linearTrend(rows.map(r => r.predPct)),
+          borderColor: cssVar('--text-muted'), borderWidth: 1.5, borderDash: [6, 4],
+          pointRadius: 0, spanGaps: true }
+      ]
+    },
+    options: baseOptions({
+      plugins: {
+        /* The band drawn rather than described. Green is the 80–100 target, and the
+           amber above it is the half people forget: over-delivery is a finding. */
+        thresholdBands: { bands: [
+          { from: PRED_UNDER_RED, to: PRED_BAND_LOW,  color: cssVar('--band-yellow') },
+          { from: PRED_BAND_LOW,  to: PRED_BAND_HIGH, color: cssVar('--band-green') },
+          { from: PRED_BAND_HIGH, to: PRED_OVER_RED,  color: cssVar('--band-yellow') }
+        ] }
+      },
+      scales: { x: gridOpts(),
+        y: Object.assign(pctAxis('Predictability'), { suggestedMax: 120 }) }
+    })
+  });
+}
+
+/* ── What the next PI could hold ────────────────────────────────────────────
+   The forward half of this view, and the reason it sits under the trend rather
+   than on its own: at PI planning you look at how the last few went and then
+   decide what to sign up for next. Every figure is the team's own sprint target
+   (see nextSprintTarget) multiplied by the delivery sprints in a PI — so it
+   inherits the whole method, including the availability adjustments, and cannot
+   drift from the Rolling 5 card that explains it. */
+function piCapacityCard(teams, includeSix) {
+  const slots = includeSix ? SPRINTS_PER_PI : SPRINTS_PER_PI - 1;
+  /* Only teams that have ever been in a PI, matching the table above — a team that
+     doesn't run PIs has no place in a figure headed "the next PI", and including it
+     would make this card cover a different set of teams from the trend it sits
+     under. Their capacity is on the Rolling 5 tab, where they live; named below so
+     the omission isn't silent. */
+  const inPis = (t) => state.sprints.some(s => s.teamId === t.id && s.piId);
+  const outside = (teams || []).filter(t => !inPis(t));
+  const rows = (teams || []).filter(inPis)
+    .map(t => ({ team: t, t: nextSprintTarget(t.id, includeSix) }))
+    .filter(r => r.t);
+  if (!rows.length) return '';
+  const total = rows.reduce((a, r) => a + r.t.recommended * slots, 0);
+  const floor = rows.reduce((a, r) => a + r.t.reliable * slots, 0);
+  const anyFloor = rows.some(r => r.t.hasFloor);
+
+  return `<div class="card">
+    <h2>What the Next PI Could Hold</h2>
+    <p class="sub">Each team's next-sprint target across <strong>${plural(slots, 'delivery sprint')}</strong>${
+      includeSix ? '' : ' — sprint 6 is the IP sprint and delivers none of it'}. A starting
+      point for PI planning, not a quota: it assumes every sprint goes to planned work, and
+      the whole of the <strong>Rolling ${ROLLING_WINDOW}</strong> tab is the working behind
+      each team's figure.</p>
+    <div class="tiles">
+      ${tile('Across the PI', fmtNum(Math.round(total)), null,
+        `points from ${plural(rows.length, 'team')}`, true, 'piCapacity')}
+      ${anyFloor ? tile('If it has to hold', fmtNum(Math.round(floor)), null,
+        'each team at the commitment it has met in all but one sprint', false, 'piCapacity') : ''}
+    </div>
+    ${outside.length ? `<p class="sub exnote" style="margin-top:14px">
+      <span class="badge">⚑ Not counted here</span>
+      <span class="muted">${outside.map(t => esc(t.name)).join(', ')} ${
+        outside.length === 1 ? 'has' : 'have'} never run a PI, so ${
+        outside.length === 1 ? 'it is' : 'they are'} out of this figure. ${
+        outside.length === 1 ? 'Its' : 'Their'} next-sprint target is on the
+      <strong>Rolling ${ROLLING_WINDOW}</strong> tab.</span></p>` : ''}
+    <div class="tablewrap" style="margin-top:14px">
+    <table aria-label="Suggested capacity per team for the next PI">
+      <thead><tr><th scope="col">Team</th><th scope="col">Per sprint</th>
+        <th scope="col">Across ${plural(slots, 'sprint')}</th></tr></thead>
+      <tbody>${rows.map(r => `
+        <tr><th scope="row">${esc(r.team.name)}</th>
+          <td>${fmtNum(Math.round(r.t.recommended))}${r.t.adjusted
+            ? ` <span class="badge">⚑ ${r.t.availability}%</span>` : ''}</td>
+          <td>${fmtNum(Math.round(r.t.recommended * slots))}</td></tr>`).join('')}</tbody>
+    </table></div>
+  </div>`;
+}
+
+/* ── View 5: the ART's PI ────────────────────────────────────────────────────
    The one view written for an RTE rather than a Scrum Master, and the one place
    an ART is a level of arithmetic rather than only a label. That is a deliberate
    change to a standing rule and it is narrow on purpose: nothing here touches
@@ -5609,7 +5945,7 @@ function renderArtPiView() {
   }
 }
 
-/* ── View 5: all teams ──────────────────────────────────────────────────── */
+/* ── View 6: all teams ──────────────────────────────────────────────────── */
 
 /* The ART picker that narrows this view. It's a card of its own above the two
    rolling toggles rather than a third row inside them: those two change what
@@ -8229,6 +8565,10 @@ function loadSample() {
     + 'a sprint left out of the averages, and a team with room to commit to more.\n\n'
     + 'It is added alongside anything you already have, and you can delete it later.')) return;
 
+  /* Three PIs, because a trend needs somewhere to go. Two points are a line and
+     tell you nothing about whether a train is steadying or drifting; three are the
+     fewest that read as a direction, which is what the PI trend tab is for. */
+  const pi0 = { id: uid(), name: 'PI 2026.1', sprintCount: 6 };
   const piA = { id: uid(), name: 'PI 2026.2', sprintCount: 6 };
   const piB = { id: uid(), name: 'PI 2026.3', sprintCount: 6 };
   const a1 = { id: uid(), name: 'Payments ART' };
@@ -8254,7 +8594,7 @@ function loadSample() {
      nothing on this track, and if the rule ever leaked back the window would be
      the wrong size on a team whose numbers don't even reach 6. */
   const t6 = { id: uid(), name: 'Team Pipit' };
-  state.pis.push(piA, piB);
+  state.pis.push(pi0, piA, piB);
   state.arts.push(a1, a2);
   state.teams.push(t1, t2, t3, t4, t5, t6);
 
@@ -8287,6 +8627,16 @@ function loadSample() {
        INSIDE the rolling window on purpose — a scale outside it is inert, so
        putting it further back would show nothing. S2 carries work that came in
        mid-sprint and went straight back out, for the ↩ note on the Sprint view. */
+    /* PI 2026.1 — the oldest, and only the two teams that existed then. Kept to
+       S4-S6 like PI 2026.2 so the demo stays small; the table shows the sprint
+       count, so a shorter PI is a fact on the page rather than a hidden one. */
+    mk(t1.id, pi0.id, 4, 30, 24, 4, 1, 3, 26, { goalMet: false }),
+    mk(t1.id, pi0.id, 5, 32, 26, 5, 2, 6, 28, { goalMet: true }),
+    mk(t1.id, pi0.id, 6, 18, 15, 0, 0, 6, 15),
+    mk(t4.id, pi0.id, 4, 20, 17, 5, 0, 2, 21, { goalMet: true }),
+    mk(t4.id, pi0.id, 5, 22, 18, 6, 1, 3, 23, { goalMet: false }),
+    mk(t4.id, pi0.id, 6, 10, 9, 0, 0, 4, 9),
+
     mk(t1.id, piA.id, 4, 34, 30, 3, 0, 4, 33, { capacityScale: 133 }),
     mk(t1.id, piA.id, 5, 36, 33, 5, 2, 4, 36, { goalMet: true }),
     mk(t1.id, piA.id, 6, 20, 18, 0, 0, 3, 18, { goalMet: true }),
@@ -8404,13 +8754,27 @@ function loadSample() {
      disagreeing by under two points over the same teams, which is exactly what
      the method note under the table is there to explain. Don't tidy them into
      agreement; a demo where the two methods match teaches that they always do. */
-  const bv = (teamId, plannedBv, actualBv, stretchBv) =>
-    ({ id: uid(), teamId, piId: piB.id, plannedBv, actualBv, stretchBv });
+  const bv = (teamId, piId, plannedBv, actualBv, stretchBv) =>
+    ({ id: uid(), teamId, piId, plannedBv, actualBv, stretchBv });
   state.objectives.push(
-    bv(t1.id, 40, 36, 0),
-    bv(t3.id, 34, 20, 0),
-    bv(t4.id, 30, 28, 6),
-    bv(t5.id, 18, 15, 0)
+    bv(t1.id, piB.id, 40, 36, 0),
+    bv(t3.id, piB.id, 34, 20, 0),
+    bv(t4.id, piB.id, 30, 28, 6),
+    bv(t5.id, piB.id, 18, 15, 0),
+
+    /* ── And the two earlier PIs, so the trend tab has a direction ────────────
+       Predictability is the mean of each PI's own teams, and these are picked to
+       climb: 2026.1 ≈ 75%, 2026.2 ≈ 81%, 2026.3 ≈ 86%. A train getting steadily
+       better is the easiest shape to read, and the point of the view is the
+       DIRECTION — a demo where the three PIs jitter teaches nothing about what
+       the chart is for. Both earlier PIs cover two teams against 2026.3's four,
+       which is deliberate too: it is what makes the "not the same train
+       throughout" note fire, and the reason predictability is the figure that
+       survives a train changing size while the points totals don't. */
+    bv(t1.id, pi0.id, 36, 26, 0),
+    bv(t4.id, pi0.id, 28, 22, 0),
+    bv(t1.id, piA.id, 38, 31, 0),
+    bv(t4.id, piA.id, 26, 21, 0)
   );
 
   /* Land on the running sprint. It is the only screen in the app that cannot
