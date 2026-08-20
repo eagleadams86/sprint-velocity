@@ -318,7 +318,8 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
 - `nextSprintTarget()` recommends a commitment from **mean committed-points-completed**,
   deliberately *not* mean velocity — velocity includes break-in, so committing to it
   over-commits the team. Don't "improve" it into a velocity-based figure; the reasoning is
-  in the comment above the function and in the card's "How this is worked out".
+  in the comment above the function and in the card's "How this is worked out". **`forecast()`
+  reads the same rate for the same reason** — the two must not drift apart.
 - **Availability scales the OUTPUT and never the method.** The window still averages
   committed points completed; `baseRecommended` is that mean and `recommended` is it times
   the percentage. Two levers, deliberately not one: a `plans` entry is a one-off against a
@@ -386,6 +387,39 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   sprint, its pace reading and its over-commitment finding — all pinned — to demonstrate a
   formatting branch the Recommended tile already demos on Wren ("50% of 13"). The adjusted
   floor is covered by a test instead. That was a decision, not an oversight.
+- **`forecast()` runs the capacity numbers backwards, and uses the SAME rate — committed
+  points finished, never velocity.** Velocity counts break-in, which by definition is not the
+  piece of work being forecast, so forecasting at it assumes the whole sprint goes to this
+  work while the interruptions keep arriving anyway. That is the same reasoning as
+  `nextSprintTarget()`'s and it must not drift: a forecast at velocity is the identical
+  mistake as committing to velocity, one step further out. It always returns a RANGE from
+  `meanRate` and `floorRate`, and those two are kept apart **by what they are, not by which
+  is bigger** — the card names each end ("the 20 they average", "the 17 they finished in 3 of
+  the last 4"), those sentences are not interchangeable, and which is faster genuinely swaps
+  for a left-skewed team (see `hasFloor`). `Math.ceil` on both ends: you do not finish in 4.4
+  sprints.
+- **A STANDING availability applies across the horizon; a ONE-OFF does not.** `team.availability`
+  is a lasting change and holds for every sprint in the span; a `plans` entry is leave next
+  fortnight, and stretching it over ten sprints would forecast a team as permanently
+  short-staffed off one holiday. The card says which it did, either way — `lastingAdjustment`
+  and `oneOffIgnored` exist so it can.
+- **Delivery sprints are not calendar sprints, and the dates have to know it.** Unless the
+  team counts it, sprint 6 delivers none of the work, so a span long enough to cross one
+  takes an extra stride of calendar per crossing. `calendarSlots()` walks the slots from the
+  one being planned rather than multiplying, because how many IP sprints land inside the
+  horizon depends on where it starts.
+- **`FORECAST_HORIZON` is two PIs, and past it the card keeps the count but drops the
+  dates.** A rate from a five-sprint window cannot speak to the next hundred sprints, and a
+  specific date four years out is a straight-faced absurdity. It also bounds the slot walk
+  against a mistyped backlog, and suppresses the does-it-fit-this-PI clause, which is not a
+  question anybody has about 5,000 sprints.
+- **The forecast's input is the one number on the page that is NOT stored, deliberately.** A
+  backlog total is only a number, so the numbers-and-dates rule would allow it — but it goes
+  stale the moment anyone grooms the backlog, and a saved figure would have the app
+  confidently forecasting from a total nobody has checked since. `forecastPoints` is a plain
+  module-level string. That also means **`wireForecast` re-renders THIS CARD'S result region
+  only, never `render()`** — a full re-render rebuilds the input and takes the caret with it,
+  so every keystroke would land in a fresh empty box.
 - **Carry-over does not shrink with the team.** `carryoverFills` exists because work already
   carried in comes off the top of a smaller sprint, so a big adjustment can leave no room for
   new work at all. It's the most actionable thing the feature surfaces — keep it visible.

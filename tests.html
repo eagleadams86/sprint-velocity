@@ -1299,6 +1299,16 @@ t('two teams record none at all, so the tile is absent rather than showing zero'
     });
   });
 });
+t('the demo seeds the forecast box, so a first run sees it working', () => {
+  withSample((id) => {
+    /* Not stored data — it is a question asked fresh each time — so the demo
+       seeds it in memory. Without it, a first run reaches the card and finds an
+       empty box with an instruction in it, which demonstrates nothing. */
+    const f = w.forecast(id('Team Otter'), Number(w.__svTestHooks.svForecastPoints()), false);
+    ok(f && f.fast > 0, 'the seeded figure produces a real forecast');
+    ok(f.slow > f.fast, 'and on the swingy team the two ends are apart, which is the point');
+  });
+});
 t('the demo lands on the running sprint', () => {
   withSample((id) => {
     const st = w.svGet();
@@ -2159,6 +2169,130 @@ t('a shared link that withholds the team comparison withholds this view too', ()
   eq(gate(false, false), true, 'your own copy always offers it');
   eq(gate(true, true), true, 'a link that shares the comparison offers it');
   eq(gate(true, false), false, 'a link that does not, does not');
+});
+
+group('forecast — how many sprints for X points');
+/* The capacity card fixes the sprint and asks how much fits; this fixes the work
+   and asks how many sprints. The fixture's window is [10, 20, 30, 40]: mean 25,
+   second-lowest 20 — so 100 points is 4 sprints at the mean and 5 at the floor. */
+t('it returns a RANGE, from the same two rates the capacity card shows', () => {
+  withState(capacityFixture(), () => {
+    const f = w.forecast('t1', 100, false);
+    eq(f.fast, 4, '100 at 25 a sprint');
+    eq(f.slow, 5, '100 at the 20 they hit in all but one');
+    approx(f.meanRate, 25);
+    approx(f.floorRate, 20);
+  });
+});
+t('THE RATE IS COMMITTED POINTS FINISHED, NEVER VELOCITY', () => {
+  /* The stance the whole app is built on, stated here as a number. Velocity
+     counts break-in, which by definition is not the work being forecast — at
+     velocity this team would read 3 sprints for work that takes them 5. */
+  const fx = capacityFixture();
+  fx.sprints.forEach(sp => {
+    sp.committed = 20; sp.committedCompleted = 20;
+    sp.totalCompleted = 40; sp.added = 20;      // half of every sprint is break-in
+  });
+  withState(fx, () => {
+    const f = w.forecast('t1', 100, false);
+    approx(f.meanRate, 20, 'not 40 — the break-in is not this piece of work');
+    eq(f.fast, 5, 'forecasting at velocity would have said 3');
+  });
+});
+t('sprints are whole, and it rounds UP — you do not finish in 4.4 of them', () => {
+  withState(capacityFixture(), () => {
+    const f = w.forecast('t1', 110, false);
+    eq(f.fast, 5, 'ceil(110 / 25)');
+    eq(f.slow, 6, 'ceil(110 / 20)');
+  });
+});
+t('no points, no forecast — and a team that has finished nothing says so', () => {
+  withState(capacityFixture(), () => {
+    eq(w.forecast('t1', 0, false), null);
+    eq(w.forecast('t1', -5, false), null);
+    eq(w.forecast('nobody', 100, false), null, 'a team with no window at all');
+  });
+  const fx = capacityFixture();
+  fx.sprints.forEach(sp => { sp.committedCompleted = 0; });
+  withState(fx, () => {
+    eq(w.forecast('t1', 100, false).impossible, true,
+      'zero sprints would be a lie and Infinity is not a forecast');
+  });
+});
+t('a STANDING availability holds across the horizon; a one-off does not', () => {
+  const standing = capacityFixture();
+  standing.teams = [{ id: 't1', name: 'Team One', availability: 50, availabilityReason: 'teamChange' }];
+  withState(standing, () => {
+    const f = w.forecast('t1', 100, false);
+    approx(f.meanRate, 12.5, 'someone left — that holds for every sprint here');
+    eq(f.fast, 8);
+    eq(f.lastingAdjustment, 50);
+  });
+  withState(capacityFixture({
+    plans: [{ id: 'pl1', teamId: 't1', piId: 'p1', sprintNumber: 5, availability: 50, reason: 'leave' }]
+  }), () => {
+    const f = w.forecast('t1', 100, false);
+    approx(f.meanRate, 25, 'one fortnight of leave must not forecast a permanently smaller team');
+    eq(f.fast, 4);
+    eq(f.oneOffIgnored, 50, 'but the card says it declined to apply it');
+  });
+});
+t('the range stays the right way round for a team dragged down by one sprint', () => {
+  /* [10, 30, 32]: the mean is 24 and the second-lowest is 30, so the FLOOR is the
+     faster rate here. Taking min/max rather than assuming which is which is what
+     keeps `slow` from coming out below `fast`. */
+  const fx = capacityFixture();
+  fx.sprints = fx.sprints.slice(0, 3);
+  [10, 30, 32].forEach((v, i) => {
+    fx.sprints[i].committed = v; fx.sprints[i].committedCompleted = v; fx.sprints[i].totalCompleted = v;
+  });
+  withState(fx, () => {
+    const f = w.forecast('t1', 120, false);
+    ok(f.fast <= f.slow, `fast ${f.fast} must not exceed slow ${f.slow}`);
+    eq(f.fast, 4, 'ceil(120 / 30) — the floor is the faster rate for this team');
+    eq(f.slow, 5, 'ceil(120 / 24)');
+  });
+});
+t('past two PIs it keeps the count, drops the dates, and says why', () => {
+  withState(capacityFixture(), () => {
+    const f = w.forecast('t1', 100000, false);
+    eq(f.beyondHorizon, true);
+    eq(f.fastEnd, null, 'a specific Tuesday four years out is a straight-faced absurdity');
+    eq(f.slowEnd, null);
+    eq(f.fastWeeks, null);
+    ok(f.fast > 0 && isFinite(f.fast), 'the sprint count is still a real number');
+  });
+});
+t('the IP sprint is skipped in the CALENDAR, so the dates do not run early', () => {
+  /* Delivery sprints and calendar sprints are not the same thing: unless the team
+     counts it, sprint 6 delivers none of this work, so a horizon long enough to
+     span one takes an extra fortnight of calendar. */
+  const fx = capacityFixture();
+  fx.sprints[0].startDate = '2026-01-05'; fx.sprints[0].endDate = '2026-01-16';
+  fx.sprints[1].startDate = '2026-01-19'; fx.sprints[1].endDate = '2026-01-30';
+  withState(fx, () => {
+    const withIp = w.forecast('t1', 100, false);      // slot 5, so slot 6 (IP) is inside the span
+    const countingIp = w.forecast('t1', 100, true);
+    eq(withIp.fast, 4);
+    ok(withIp.fastWeeks > countingIp.fastWeeks,
+      `skipping the IP sprint must cost calendar time: ${withIp.fastWeeks} vs ${countingIp.fastWeeks}`);
+  });
+});
+t('it says how much of the current PI is left to deliver in', () => {
+  withState(capacityFixture(), () => {
+    const f = w.forecast('t1', 100, false);
+    eq(f.slotsLeftInPi, 1, 'planning S5, and S6 is the IP sprint — one delivery slot left');
+    eq(f.missesPi, true, 'four sprints of work does not fit in one');
+    eq(f.fitsPi, false);
+  });
+});
+t('a small piece that fits inside the PI is reported as fitting', () => {
+  withState(capacityFixture(), () => {
+    const f = w.forecast('t1', 15, false);
+    eq(f.fast, 1); eq(f.slow, 1);
+    eq(f.fitsPi, true, 'one sprint of work, one delivery slot left');
+    eq(f.missesPi, false);
+  });
 });
 
 group('the sprint goal — the app’s one tri-state field');

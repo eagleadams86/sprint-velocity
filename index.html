@@ -1393,6 +1393,12 @@ const ROLLING_WINDOW = 5;
    that counts as having taken more on — below a point it's rounding, not spare
    capacity. HEADROOM_SHARE is how much of the window has to show the pattern
    before it's a pattern: a clear majority, so one quiet sprint can't raise it. */
+/* How far out the forecast will still call itself one. Two PIs: past that, a rate
+   taken from a five-sprint window is arithmetic rather than a forecast, because
+   the team, the backlog and the estimate scale will all have moved. The card keeps
+   the sprint count and drops the calendar dates beyond it. */
+const FORECAST_HORIZON = SPRINTS_PER_PI * 2;
+
 const CLEARED_PCT       = 95;
 const HEADROOM_MIN_EXTRA = 1;
 const HEADROOM_SHARE     = 0.6;
@@ -2025,6 +2031,134 @@ function groupTeamsByArt(teams, arts) {
     .map(x => x.t);
 }
 
+/* ── "How many sprints for X points?" ───────────────────────────────────────
+   The other question a planning session asks, and the one the capacity card
+   turns inside out: that one fixes the sprint and asks how much fits, this one
+   fixes the work and asks how many sprints.
+
+   THE RATE IS COMMITTED POINTS COMPLETED, NOT VELOCITY, and for the same reason
+   `nextSprintTarget()` uses it. Velocity counts the break-in that turns up
+   mid-sprint, which is by definition NOT the piece of work being forecast —
+   forecast at velocity and you have assumed the whole sprint goes to this work
+   while the interruptions keep arriving anyway, which is how a confident date
+   slips a sprint at a time.
+
+   It returns a RANGE, never a single number. The two rates are the same pair the
+   capacity card shows, and taking min/max of them rather than assuming which is
+   which keeps the range the right way round for a team whose mean sits below its
+   own second-lowest result (see `hasFloor`). */
+function forecast(teamId, points, includeSix) {
+  const t = nextSprintTarget(teamId, includeSix);
+  if (!t || !(points > 0)) return null;
+
+  /* A STANDING availability figure is a lasting change — someone left — so it
+     holds across the whole horizon. A one-off against a single slot is leave next
+     sprint, and stretching that over ten sprints would forecast a team as
+     permanently short-staffed because of one fortnight's holiday. The card says
+     which it did. */
+  const lasting = t.availabilitySource === 'team' ? t.availability / 100 : 1;
+  /* Kept apart by WHAT THEY ARE rather than by which is bigger, because the card
+     has to name each end ("the 20 they average", "the 17 they hit in 3 of the
+     last 4") and those two sentences are not interchangeable. Which one is the
+     faster end is then just a comparison — and it does swap round for a team
+     whose mean sits below its own second-lowest result (see `hasFloor`). */
+  const meanRate = t.planningBase * lasting;
+  const floorRate = t.reliableBase * lasting;
+  const fastRate = Math.max(meanRate, floorRate);
+  const slowRate = Math.min(meanRate, floorRate);
+  /* A team that has finished none of its commitment has no rate to divide by.
+     Zero sprints would be a lie and Infinity is not a forecast, so the card says
+     it can't answer rather than printing something. */
+  if (!(slowRate > 0)) return { points, impossible: true, sprints: t.sprints };
+
+  /* Sprints are whole. You do not finish in 5.3 of them, you finish in 6. */
+  const fast = Math.ceil(points / fastRate);
+  const slow = Math.ceil(points / slowRate);
+
+  /* ── Where a forecast stops being one ─────────────────────────────────────
+     A rate taken from five sprints cannot tell you about the next hundred. Past
+     roughly two PIs the number is arithmetic rather than a forecast — the team,
+     the backlog and the estimate scale will all have moved long before then — so
+     beyond this the card keeps the sprint count, drops the calendar dates
+     (a specific Tuesday four years out is a straight-faced absurdity) and says
+     why. It also keeps the slot walk below from iterating thousands of times on
+     a mistyped backlog. */
+  const beyondHorizon = slow > FORECAST_HORIZON;
+
+  /* ── Delivery sprints are not the same as calendar sprints ────────────────
+     The rates are per DELIVERY sprint, and unless the team counts it, sprint 6
+     is the IP sprint and delivers none of this work. Over a horizon long enough
+     to matter at least one falls inside it, so counting calendar slots as if
+     every one delivered under-states the finish date by a fortnight each time.
+     Walking the slots is the only honest way: how many land in the horizon
+     depends on which slot the team is starting from. */
+  const slot = t.slot;
+  const calendarSlots = (n) => {
+    if (includeSix || !slot) return n;
+    let slots = 0, delivered = 0, num = slot.sprintNumber;
+    /* Bounded as well as conditioned: a hand-typed backlog can ask for
+       thousands of sprints, and a render must not hang on one. */
+    while (delivered < n && slots < n + SPRINTS_PER_PI + 1) {
+      if (num !== IP_SPRINT) delivered++;
+      slots++;
+      num = num === SPRINTS_PER_PI ? 1 : num + 1;
+    }
+    return slots;
+  };
+
+  /* Dates, when the team's rhythm is known. The horizon starts at the sprint
+     being planned — its own dates if it is already running, otherwise where the
+     cadence puts it. */
+  const c = teamCadence(teamId);
+  let startDay = null;
+  if (c && slot) {
+    const own = slot.sprint && slot.sprint.startDate ? slot.sprint.startDate : null;
+    const projected = slot.piId ? cadenceDates(teamId, slot.piId, slot.sprintNumber) : null;
+    const iso = own || (projected && projected.startDate)
+      /* cadenceDates() returns null for the anchor sprint itself — which is
+         exactly the case where the slot already has its own dates to use. */
+      || (c.anchor.piId === (slot.piId || null) && c.anchor.sprintNumber === slot.sprintNumber
+          ? c.anchor.startDate : null);
+    if (iso) startDay = dayNum(iso);
+  }
+  const endOf = (n) => (startDay === null || beyondHorizon ? null
+    : isoDay(startDay + (calendarSlots(n) - 1) * c.stride + c.length));
+
+  /* How much of the current PI is left to deliver in, so the card can answer the
+     question this one always turns into: does it land before the PI ends? */
+  let slotsLeftInPi = null;
+  if (slot && slot.piId) {
+    slotsLeftInPi = 0;
+    for (let n = slot.sprintNumber; n <= SPRINTS_PER_PI; n++)
+      if (includeSix || n !== IP_SPRINT) slotsLeftInPi++;
+  }
+
+  return {
+    points, fast, slow, fastRate, slowRate, meanRate, floorRate,
+    /* So the card can say "3 of the last 4" rather than "all but one" — which is
+       simply wrong under three sprints, where the floor is the lowest result the
+       team has and they have therefore hit it every time. */
+    reliableMet: t.reliableMet,
+    /* Whole weeks, from the team's own stride rather than an assumed fortnight. */
+    fastWeeks: c && !beyondHorizon ? Math.round(calendarSlots(fast) * c.stride / 7) : null,
+    slowWeeks: c && !beyondHorizon ? Math.round(calendarSlots(slow) * c.stride / 7) : null,
+    fastEnd: endOf(fast),
+    slowEnd: endOf(slow),
+    slotsLeftInPi,
+    piId: slot ? slot.piId : null,
+    /* True when even the optimistic end runs past the sprints left in this PI —
+       the answer to "will it make the PI?" that isn't "it depends". */
+    missesPi: slotsLeftInPi !== null && fast > slotsLeftInPi,
+    fitsPi: slotsLeftInPi !== null && slow <= slotsLeftInPi,
+    /* Carried straight through so the card's caveats read from one object. */
+    lastingAdjustment: t.availabilitySource === 'team' ? t.availability : null,
+    oneOffIgnored: t.availabilitySource === 'sprint' ? t.availability : null,
+    sprints: t.sprints, thin: t.thin, steady: t.steady, spread: t.spread,
+    beyondHorizon,
+    impossible: false
+  };
+}
+
 /* ── The sprint goal ────────────────────────────────────────────────────────
    `goalMet` is the app's only tri-state: true, false, or the key absent because
    nobody recorded one. **Absent is deliberately NOT the blank-means-zero rule**
@@ -2553,6 +2687,13 @@ const METRIC_HELP = {
       the sprints somebody actually answered the question about, and the caption says how many that
       was. A team that lands its points and misses its goals is planning the wrong work; the two
       figures disagreeing is the useful part.` },
+  forecast: { title: 'How long would it take?', target: 'No target — it is a range, and the width of the range is the point.',
+    body: `The capacity card fixes the sprint and asks how much fits; this fixes the work and
+      asks how many sprints. It uses <em>committed points finished</em>, never velocity — velocity
+      counts the break-in that turns up mid-sprint, which by definition isn't the work you asked
+      about, so forecasting at it assumes the whole sprint goes to this piece while the
+      interruptions keep arriving anyway. Nothing is saved: a backlog total goes stale as soon as
+      anyone grooms it.` },
   carriedIn: { title: 'Carried in', target: null,
     body: `Unfinished points inherited from last sprint. They're part of this sprint's
       commitment, so they take up capacity before any new work does.` },
@@ -3204,11 +3345,13 @@ function sprintLabel(s) {
   return (pi ? pi.name : 'PI?') + ' · S' + s.sprintNumber;
 }
 
-/* "4 Aug – 17 Aug", in whatever order the reader's locale writes dates. */
+/* "17 Aug", in whatever order the reader's locale writes dates. */
+const fmtDate = (d) => new Date(d + 'T00:00:00').toLocaleDateString(undefined,
+  { day: 'numeric', month: 'short' });
+
+/* "4 Aug – 17 Aug". */
 function fmtDateRange(a, b) {
-  const one = (d) => new Date(d + 'T00:00:00').toLocaleDateString(undefined,
-    { day: 'numeric', month: 'short' });
-  return one(a) + ' – ' + one(b);
+  return fmtDate(a) + ' – ' + fmtDate(b);
 }
 
 /* The same ⓘ a tile carries, for use beside a heading or a column name — the one
@@ -4334,6 +4477,7 @@ function renderRollingView() {
     </div>
 
     ${targetCapacityCard(team, includeSix)}
+    ${forecastCard(team, includeSix)}
 
     <div class="card">
       <h2>Velocity and Commitment Completion</h2>
@@ -4393,6 +4537,7 @@ function renderRollingView() {
 
   wireRollingToolbar();
   wireTargetCard(team.id, includeSix);
+  wireForecast(team, includeSix);
   wireEditRows(tr => {
     const s = state.sprints.find(x => x.id === tr.dataset.id);
     openSprint(s.teamId, s.piId, s.sprintNumber);
@@ -4472,6 +4617,136 @@ function renderRollingView() {
         y: Object.assign(pctAxis('% of committed points'), { suggestedMax: 25 }) }
     })
   });
+}
+
+/* ── The forecast card ──────────────────────────────────────────────────────
+   The one number on this page the app does NOT store, and deliberately. A
+   backlog size is only a number, so the numbers-and-dates rule would allow it —
+   but it goes stale the moment anybody grooms the backlog, and a saved figure
+   would have the app confidently forecasting from a total nobody has checked
+   since. Asking each time costs one box and cannot be wrong.
+
+   That also means it never re-renders the view: typing recalculates this card's
+   result region on its own, so the caret stays in the box. */
+let forecastPoints = '';
+
+function forecastResultHtml(team, includeSix) {
+  const points = Math.max(0, Math.round(parseFloat(forecastPoints) || 0));
+  if (!points) return `<p class="sub" style="margin:0">Type a number of story points above —
+    the whole backlog, an epic, a release — and this says how many sprints it would take
+    ${esc(team.name)} at the rate they have actually been finishing committed work.</p>`;
+
+  const f = forecast(team.id, points, includeSix);
+  if (!f) return '';
+  if (f.impossible) return `<p class="warn" style="margin:0">${esc(team.name)} has finished none
+    of its committed points across the last ${plural(f.sprints, 'sprint')}, so there is no rate
+    to forecast from. Record a sprint with some committed work finished and this will answer.</p>`;
+
+  const range = f.fast === f.slow ? `<strong>${f.fast}</strong> ${f.fast === 1 ? 'sprint' : 'sprints'}`
+    : `<strong>${f.fast} to ${f.slow}</strong> sprints`;
+  const weeks = f.fastWeeks !== null
+    ? (f.fastWeeks === f.slowWeeks ? `about ${plural(f.fastWeeks, 'week')}`
+                                   : `about ${f.fastWeeks} to ${f.slowWeeks} weeks`)
+    : null;
+
+  /* Both rates named outright, and named for WHAT THEY ARE. The whole point of a
+     range is that the reader can see what each end assumes; "6 to 8" with nothing
+     behind it is a guess wearing a range's clothes. The floor is described by its
+     counted fact rather than as "all but one sprint", which is plainly wrong under
+     three sprints — there the floor is the lowest figure the team has, so they
+     have hit it every time. */
+  const meanPhrase = `the <strong>${fmtNum(Math.round(f.meanRate))}</strong> points a sprint they average`;
+  const floorPhrase = `the <strong>${fmtNum(Math.round(f.floorRate))}</strong> they finished in
+    ${f.reliableMet} of the last ${f.sprints}`;
+  const fastPhrase = f.meanRate >= f.floorRate ? meanPhrase : floorPhrase;
+  const slowPhrase = f.meanRate >= f.floorRate ? floorPhrase : meanPhrase;
+  const working = f.fast === f.slow
+    ? `At ${meanPhrase}, and at ${floorPhrase}, it comes to the same number.`
+    : `<strong>${f.fast}</strong> at ${fastPhrase}, <strong>${f.slow}</strong> at ${slowPhrase}.`;
+
+  /* One date when both ends land in the same sprint — "between Nov 20 and Nov 20"
+     reads as a bug rather than as a team consistent enough that the range closed. */
+  const dates = f.slowEnd
+    ? (f.fastEnd === f.slowEnd
+        ? ` Starting from the sprint being planned, that lands around
+            <strong>${esc(fmtDate(f.slowEnd))}</strong>.`
+        : ` Starting from the sprint being planned, that lands between
+            <strong>${esc(fmtDateRange(f.fastEnd, f.slowEnd))}</strong>.`)
+    : '';
+
+  const pi = (() => {
+    /* "Does 5,339 sprints fit in this PI?" is not a question anybody has, and the
+       horizon caveat below is already saying the useful thing. */
+    if (f.slotsLeftInPi === null || !f.piId || f.beyondHorizon) return '';
+    const name = piById(f.piId) ? esc(piById(f.piId).name) : 'this PI';
+    /* Its own sentence, because "it does not fit — there are only 0 delivery
+       sprints left" is a clumsy way to say the PI is already over for delivery,
+       and that is a different fact from a piece of work being too big for it. */
+    if (f.slotsLeftInPi === 0) return ` ${name} has <strong>no delivery sprints left</strong> —
+      the next slot is the IP sprint — so all of this falls into the PI after it.`;
+    if (f.fitsPi) return ` It fits inside ${name}, which has
+      ${plural(f.slotsLeftInPi, 'delivery sprint')} left, even at the slower end.`;
+    if (f.missesPi) return ` <strong>It does not fit in ${name}</strong> — there
+      ${f.slotsLeftInPi === 1 ? 'is' : 'are'} only ${plural(f.slotsLeftInPi, 'delivery sprint')}
+      left in it, and even the faster end needs ${f.fast}.`;
+    return ` ${name} has ${plural(f.slotsLeftInPi, 'delivery sprint')} left, so it lands inside it
+      only at the faster end.`;
+  })();
+
+  const caveats = [];
+  if (f.beyondHorizon)
+    caveats.push(`That is further out than ${plural(f.sprints, 'sprint')} of history can speak to,
+      so it is a rough size rather than a forecast and there are no dates on it. The team, the
+      backlog and the way you size things will all have moved before you get there.`);
+  if (f.thin)
+    caveats.push(`Only ${plural(f.sprints, 'sprint')} of history behind the rate, so this is a
+      rough shape rather than a forecast.`);
+  if (!f.steady)
+    caveats.push(`This team's delivery swings a fair bit, which is why the two ends are far
+      apart. The range is the honest answer — quoting either end on its own isn't.`);
+  if (f.lastingAdjustment !== null)
+    caveats.push(`Worked out at the team's standing <strong>${f.lastingAdjustment}%</strong>
+      availability, because that is a lasting change and holds for every sprint here.`);
+  if (f.oneOffIgnored !== null)
+    caveats.push(`The <strong>${f.oneOffIgnored}%</strong> availability set against the next sprint
+      is <em>not</em> applied across this whole span — it is a one-off, and stretching it over
+      every sprint would forecast the team as permanently short-staffed.`);
+  caveats.push(`It assumes the whole commitment goes to this work. Anything else the team picks
+    up — break-in, support, a second stream — comes out of the same sprints.`);
+
+  return `<p style="margin:0 0 10px">${plural(points, 'point')} would take ${range}${
+      weeks ? ` — ${weeks}` : ''}.${dates}${pi}</p>
+    <p class="sub" style="margin:0">${working}</p>
+    <ul class="sub" style="margin:10px 0 0;padding-left:20px">${
+      caveats.map(c => `<li>${c}</li>`).join('')}</ul>`;
+}
+
+function forecastCard(team, includeSix) {
+  if (!nextSprintTarget(team.id, includeSix)) return '';
+  return `<div class="card">
+    <div class="row spread cardhead">
+      <h2>How Long Would It Take?${helpBtn('forecast', 'the forecast')}</h2>
+      <label class="row" style="gap:8px;font-size:14px">
+        <span>Story points</span>
+        <input type="number" id="forecastPoints" min="0" step="1" inputmode="numeric"
+          style="width:110px" value="${esc(forecastPoints)}" placeholder="e.g. 120">
+      </label>
+    </div>
+    <div id="forecastResult">${forecastResultHtml(team, includeSix)}</div>
+  </div>`;
+}
+
+function wireForecast(team, includeSix) {
+  const box = document.getElementById('forecastPoints');
+  if (!box) return;
+  box.oninput = () => {
+    forecastPoints = box.value;
+    /* This card's own result only — never render(). A full re-render rebuilds the
+       input and takes the caret with it, so every keystroke would land in a fresh
+       empty box. */
+    const out = document.getElementById('forecastResult');
+    if (out) out.innerHTML = forecastResultHtml(team, includeSix);
+  };
 }
 
 /* The actionable takeaway from the rolling window: what to commit to at the next
@@ -7376,6 +7651,8 @@ function loadSample() {
      Don't tidy Curlew's into a healthier record: a demo where the goals always
      agree with the points teaches that they always do, and the field would then
      have nothing to show for itself. */
+  /* (The forecast box is seeded further down, at the settings — it holds no
+     stored data, so it is not part of this payload.) */
 
   /* ── PI business value, for the ART PI view ──────────────────────────────
      Four of the five teams are scored, and each is a different reading of the
@@ -7416,6 +7693,15 @@ function loadSample() {
      The confirm text above is what points at the other four teams — a first run
      that lands somewhere good but says nothing about the rest is how the headroom
      note went unnoticed the first time round. */
+  /* The forecast box is not stored data — it is a question, asked fresh each time
+     (see forecastPoints) — so the demo seeds it in memory instead. Without this a
+     first run reaches the card and finds an empty box with an instruction in it,
+     which demonstrates nothing; with it, every team's Rolling 5 shows a worked
+     forecast the moment you get there. 120 points is chosen to land differently
+     on different teams: inside the PI for nobody, 6 sprints for Merlin, 7 to 8
+     for Otter with its swings pulling the two ends apart. */
+  forecastPoints = '120';
+
   state.settings.activeTeamId = t2.id;
   state.settings.activePiId = piB.id;
   state.settings.activeSprintNum = 4;
@@ -7599,6 +7885,9 @@ window.__svTestHooks = { raisesKeyboard,
   PRED_BAND_LOW, PRED_BAND_HIGH, PRED_UNDER_RED, PRED_OVER_RED, BV_MAX,
   /* Arrow `const`s, so invisible on window the same way fmtPct is. */
   objectivesFor, hasBv, hasGoal, goalWord,
+  /* A plain module-level `let`, so a getter rather than the value itself — the
+     suite needs what it holds AFTER loadSample() has run, not at export time. */
+  svForecastPoints: () => forecastPoints,
   /* `const` at the top level of a classic script is not a property of window,
      so the two version numbers have to be handed over deliberately or the
      suite would compare against `undefined` and pass on nothing. */

@@ -438,6 +438,10 @@ from one of its two teams, so the "not scored yet" note has a team to name. The 
 methods land 1.7 points apart on Platform — don't tidy them into agreement, a demo where the
 two methods always match teaches that they always do.
 
+The demo also seeds the **forecast** box with 120 points, so that card shows a worked answer
+the moment you reach it rather than an empty box — it holds no stored data, so seeding it
+costs nothing and it lands differently on each team.
+
 The running sprint's dates are counted from the day you load it, not baked in, so the
 demo is still live whenever it's opened rather than stale from the day it was written.
 Everything else is dateless on purpose — a sprint with no dates resolves as complete,
@@ -654,7 +658,8 @@ three sprints of history, when the team's delivery swings by more than 30%, and 
 next sprint up is the IP sprint.
 
 It's a starting point for the planning conversation, not a quota. The sections below cover
-the second figure, and then the things the history structurally cannot see.
+the second figure, the forecast that runs the same numbers backwards, and then the things the
+history structurally cannot see.
 
 ### Two Figures, Not One
 
@@ -702,6 +707,46 @@ Both figures move with an availability adjustment, because both are recommendati
 sprint. The **recent range** and the swings warning never do — those describe what already
 happened, and a team knocked down for next month's leave must not read as erratic because of
 it.
+
+### How Long Would It Take?
+
+The capacity card fixes the sprint and asks how much fits. The card below it turns that round:
+type a number of story points — a backlog, an epic, a release — and it says how many sprints
+that would take.
+
+```
+120 points would take 7 to 8 sprints.
+PI 2026.3 has no delivery sprints left — the next slot is the IP sprint —
+so all of this falls into the PI after it.
+
+7 at the 20 points a sprint they average, 8 at the 17 they finished in 3 of the last 4.
+```
+
+**The rate is committed points finished, never velocity** — the same stance as the capacity
+target, for the same reason. Velocity counts the break-in that turns up mid-sprint, and that
+is by definition *not* the work you asked about. Forecast at velocity and you've assumed the
+whole sprint goes to this piece while the interruptions keep arriving anyway, which is how a
+confident date slips a sprint at a time.
+
+It's always a **range**, from the same two rates the [capacity card](#two-figures-not-one)
+shows, and each end names what it assumes. A single number would be a guess wearing a
+forecast's clothes.
+
+Where the team's dates are known it adds calendar weeks and a landing date. **Delivery
+sprints and calendar sprints aren't the same thing**: unless you've opted the IP sprint into
+the window, sprint 6 delivers none of this work, so a span long enough to cross one takes an
+extra fortnight of calendar per crossing. The dates account for that. It also says whether
+the work fits in the delivery sprints left in the current PI, which is the question this one
+usually turns into.
+
+**Nothing is typed here is saved**, and that's deliberate. A backlog total is only a number,
+so the numbers-and-dates rule would allow storing it — but it goes stale the moment somebody
+grooms the backlog, and a saved figure would have the app confidently forecasting from a
+total nobody has checked since. Asking each time costs one box and can't be wrong.
+
+Past **two PIs** it keeps the sprint count, drops the dates and says why. A rate taken from a
+five-sprint window can't speak to the next hundred: the team, the backlog and the way you
+size things will all have moved long before you get there.
 
 ### When a Team Has Room for More
 
