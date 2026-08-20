@@ -952,6 +952,47 @@ unannounced. Small targets like the ⓘ carry a 24px hit area without growing on
 
 ---
 
+## Getting the Numbers Out
+
+Every table in the app carries a **Copy** and a **⬇ CSV** button in its heading:
+
+| View | Table |
+|---|---|
+| **Current PI** | Sprint by sprint, with the PI total row |
+| **Rolling 5** | The sprints in the window |
+| **ART PI** | Every team on the train, with the ART row |
+| **All teams** | Comparison 1 and Comparison 2, separately |
+
+**Copy** puts the table on the clipboard tab-separated, which pastes as a real grid into a
+status email, a slide or a spreadsheet. **⬇ CSV** downloads a file — `sprint-velocity-all-teams-avg-2026-08-20.csv`
+— for keeping or for opening in Excel later. (Tabs for the clipboard because a pasted CSV
+lands as a single column of text and has to be run through Text to Columns; a file has to be
+a CSV because that's what a spreadsheet opens.)
+
+**What you export is what you're looking at.** The tables are read off the page rather than
+rebuilt from the stored data, so every filter you've set — which ART, which PI, whether
+running sprints count, whether sprint 6 is in — is already applied, and the file can't
+quietly disagree with the screen it came from. The display furniture is dropped: the ✓ / ! /
+✕ glyphs, their screen-reader text, and the ⚑ markers, none of which are values. The
+caption above each table already says what the ⚑ meant.
+
+Percentages come out as they're shown — `84.6%`, not `0.8462` — because these go into
+reports, and the [decimal rule](#the-metrics) that stops a figure contradicting its own
+colour applies just as much on a slide.
+
+**Cells that a spreadsheet would run as a formula are defused.** A name beginning `=`, `+`
+or `@` gets a leading apostrophe, so opening the file can't execute anything. Everything the
+app renders to HTML is escaped for the same class of reason; a CSV is simply another place
+text goes somewhere it can be interpreted. A genuine negative number is left alone.
+
+The buttons work in a [shared read-only link](#sharing-a-read-only-link) too. Everything else
+a shared view takes away, it takes away because it would *write*; this writes nothing and can
+only hand back figures already on the page — and letting the person you sent it to paste the
+table into their own notes is rather the point.
+
+For the whole dataset rather than one table, **Back up** still exports the complete JSON —
+that's the one to keep, and the only one that can be restored.
+
 ## Your Data
 
 `localStorage` in your own browser is the source of truth. **No account is needed and no

@@ -3354,6 +3354,82 @@ function fmtDateRange(a, b) {
   return fmtDate(a) + ' – ' + fmtDate(b);
 }
 
+/* ── Getting a table off the page ───────────────────────────────────────────
+   Read from the rendered TABLE rather than rebuilt from state, and that is the
+   whole design. Every one of these tables is already the product of a filter the
+   user chose — the ART picker, the rolling toggles, which PI is selected, which
+   sprints are excluded — and a second code path building "the same" rows from
+   state would have to reproduce every one of those decisions and would silently
+   drift from the screen the first time one changed. What you export is what you
+   are looking at, by construction.
+
+   The cost is that display values come with display furniture, which this strips:
+   the RAG glyph, the screen-reader status that follows it, and the row buttons'
+   accessible labels. Badges go too — "⚑ Left out of the rolling 5" is a note to
+   the reader, not a value in a cell, and the caption above the table says it. */
+function cellText(cell) {
+  const copy = cell.cloneNode(true);
+  /* `[aria-hidden="true"]` is the general rule and the others are named cases of
+     it: anything hidden from assistive technology is DECORATION, and decoration
+     is not data. That one selector is what catches the bare ⚑ and ⚖ markers on
+     the All teams table — they are aria-hidden spans with an .sr-only sentence
+     beside them, not .badge elements — which otherwise turned a sprint count of
+     4 into the text "4 ⚑" and cost the column its numbers. */
+  copy.querySelectorAll('[aria-hidden="true"], .sr-only, .badge, .tile-help, .artname')
+    .forEach(el => el.remove());
+  return copy.textContent.replace(/\s+/g, ' ').trim();
+}
+
+function tableToRows(table) {
+  if (!table) return [];
+  const rows = [...table.rows].map(tr => [...tr.cells].map(cellText));
+  /* Padded to the widest row, so the file is a rectangle. The PI table's empty
+     slots are one cell with `colspan`, which would otherwise emit a two-column
+     row in a nine-column file — valid CSV, and every spreadsheet reads the rest
+     of that row as belonging to the wrong headings. */
+  const width = rows.reduce((a, r) => Math.max(a, r.length), 0);
+  rows.forEach(r => { while (r.length < width) r.push(''); });
+  return rows;
+}
+
+/* ── CSV, and the formula problem ───────────────────────────────────────────
+   A spreadsheet treats a cell opening with =, +, - or @ as a FORMULA, so a team
+   called `=1+1` — or something a good deal less playful — becomes executable the
+   moment the file is opened. The app escapes everything it renders to HTML for
+   the same class of reason; a CSV is just another place text goes somewhere it
+   can be interpreted, and it is the one place the escaping is not HTML.
+
+   A leading apostrophe is the standard defence: Excel, Numbers and Sheets all
+   read it as "this is text", and it is visible enough in a plain-text file that
+   nobody is misled about what happened. It only ever goes on a cell that starts
+   with one of the four characters, so an ordinary figure is untouched — and a
+   NEGATIVE NUMBER is deliberately left alone, since `-3` is a number everywhere
+   and quoting it would break the arithmetic people export a CSV to do. */
+const FORMULA_LEAD = /^[=+@]|^-(?![0-9.])/;
+
+function csvCell(v) {
+  let s = String(v == null ? '' : v);
+  if (FORMULA_LEAD.test(s)) s = "'" + s;
+  /* Quote whenever the delimiter, a quote or a newline is in play — and note that
+     fmtNum() groups thousands with a comma in most locales, so a four-figure
+     points total reaches here as "1,234" and MUST be quoted or the row gains a
+     column. */
+  return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+const toCsv = (rows) => rows.map(r => r.map(csvCell).join(',')).join('\r\n');
+
+/* Tab-separated for the clipboard, because that is what a spreadsheet, a Word
+   table and a Google Doc all paste as a grid — a pasted CSV lands as one column
+   of text and has to be run through Text to Columns. Same formula guard; no
+   quoting, because a tab cannot appear in any of these cells (cellText collapses
+   all whitespace) and quotes-in-clipboard-TSV is not a convention anything
+   agrees on. */
+const toTsv = (rows) => rows.map(r => r.map(v => {
+  const s = String(v == null ? '' : v);
+  return FORMULA_LEAD.test(s) ? "'" + s : s;
+}).join('\t')).join('\r\n');
+
 /* The same ⓘ a tile carries, for use beside a heading or a column name — the one
    delegated [data-help] listener picks it up wherever it lands. */
 function helpBtn(helpKey, label) {
@@ -4250,7 +4326,10 @@ function renderPiView() {
     </div>
 
     <div class="card">
-      <h2>The Numbers</h2>
+      <div class="row spread cardhead">
+        <h2>The Numbers</h2>
+        ${exportButtons('piTable', 'pi')}
+      </div>
       <p class="sub">Click any sprint to add or edit its data. The summary row covers
         ${countedRunning.length
           ? `the sprints being counted, including <strong>${countedRunning.map(x => 'S' + x.sprintNumber).join(', ')}</strong>
@@ -4267,7 +4346,7 @@ function renderPiView() {
              on the Rolling ${ROLLING_WINDOW} tab. This PI's own figures are untouched`
           : ''}.</p>
       <div class="tablewrap">
-      <table aria-label="Sprint by sprint figures for this PI">
+      <table id="piTable" aria-label="Sprint by sprint figures for this PI">
         <thead><tr>
           <th scope="col">Sprint</th><th scope="col">Committed</th><th scope="col">Cmt. done</th><th scope="col" class="metric">Complete %</th>
           <th scope="col">Added</th><th scope="col">Removed</th><th scope="col">Carried in</th><th scope="col">Carried out</th>
@@ -4497,14 +4576,17 @@ function renderRollingView() {
     </div>
 
     <div class="card">
-      <h2>The Numbers</h2>
+      <div class="row spread cardhead">
+        <h2>The Numbers</h2>
+        ${exportButtons('rollTable', 'rolling')}
+      </div>
       <p class="sub">Click any sprint to edit it.${
         excludedNames(team.id, includeSix)
           ? ` These are the sprints in the window — <strong>${excludedNames(team.id, includeSix)}</strong>,
              so it isn't listed here. The gap in the sprint numbers is that, not missing data.`
           : ''}</p>
       <div class="tablewrap">
-      <table aria-label="Figures for each sprint in the rolling window">
+      <table id="rollTable" aria-label="Figures for each sprint in the rolling window">
         <thead><tr><th scope="col">Sprint</th><th scope="col">Committed</th><th scope="col">Cmt. done</th>
           <th scope="col" class="metric">Complete %</th><th scope="col" class="metric">Break-in %</th>
           <th scope="col" class="metric">Removed %</th><th scope="col" class="metric">Carryover %</th>
@@ -5180,12 +5262,15 @@ function renderArtPiView() {
     </div>` : ''}
 
     <div class="card">
-      <h2>The Numbers</h2>
+      <div class="row spread cardhead">
+        <h2>The Numbers</h2>
+        ${exportButtons('artTable', 'art-pi')}
+      </div>
       <p class="sub">Click a team to open its own PI view. Points figures cover this PI's
         counted sprints; business value covers the whole PI. A team with no business value
         recorded shows <strong>—</strong> and is left out of the predictability figures only.</p>
       <div class="tablewrap">
-      <table aria-label="Every team on this ART for this PI">
+      <table id="artTable" aria-label="Every team on this ART for this PI">
         <thead><tr>
           <th scope="col">Team</th><th scope="col">Sprints</th>
           <th scope="col">Committed</th><th scope="col">Cmt. done</th>
@@ -5492,7 +5577,10 @@ function renderTeamsView() {
     </div>
 
     <div class="card">
-      <h2>Comparison 1 — Average of Sprints${helpBtn('teamsMean', 'the average-of-sprints method')}</h2>
+      <div class="row spread cardhead">
+        <h2>Comparison 1 — Average of Sprints${helpBtn('teamsMean', 'the average-of-sprints method')}</h2>
+        ${exportButtons('cmp1Table', 'all-teams-avg')}
+      </div>
       <p class="sub">Each sprint's own percentage worked out first, then averaged, so
         <strong>every sprint counts equally</strong> whatever its size. This is the read on how a
         typical sprint goes for the team. Click a team to switch to it. <strong>Next sprint
@@ -5502,7 +5590,7 @@ function renderTeamsView() {
         that figure was adjusted — for known availability, or by scaling a sprint the team has
         outgrown — and the total below includes those adjustments.</p>
       <div class="tablewrap">
-      <table aria-label="Comparison 1 — each team averaged across its sprints">
+      <table id="cmp1Table" aria-label="Comparison 1 — each team averaged across its sprints">
         <thead><tr><th scope="col">Team</th><th scope="col">Sprints</th><th scope="col" class="metric">Commitment completion</th>
           <th scope="col" class="metric">Break-in</th><th scope="col" class="metric">Removed</th>
           <th scope="col" class="metric">Carryover</th><th scope="col">Avg velocity</th>
@@ -5530,9 +5618,12 @@ function renderTeamsView() {
     </div>
 
     <div class="card">
-      <h2>Comparison 2 — Pooled Totals${helpBtn('teamsPooled', 'the pooled-totals method')}
-        <span class="tag${dashCond ? ' cond' : ''}">matches the Agile Operations Dashboard${
-          dashCond ? ` when ${dashCond.what} ${dashCond.isAre} unselected there too` : ''}</span></h2>
+      <div class="row spread cardhead">
+        <h2>Comparison 2 — Pooled Totals${helpBtn('teamsPooled', 'the pooled-totals method')}
+          <span class="tag${dashCond ? ' cond' : ''}">matches the Agile Operations Dashboard${
+            dashCond ? ` when ${dashCond.what} ${dashCond.isAre} unselected there too` : ''}</span></h2>
+        ${exportButtons('cmp2Table', 'all-teams-pooled')}
+      </div>
       <p class="sub">Every point added into one total first, then the percentage taken once, so
         <strong>a bigger sprint pulls harder</strong> than a small one. This is the read on how the
         body of work as a whole went — and it's the method the <strong>Agile Operations
@@ -5542,7 +5633,7 @@ function renderTeamsView() {
           only line up if ${dashCond.isAre === 'is' ? 'it is' : 'they are'} unselected in the Dashboard
           as well — otherwise it is still in their total and not in this one.` : ''}</p>
       <div class="tablewrap">
-      <table aria-label="Comparison 2 — each team's points pooled into one total">
+      <table id="cmp2Table" aria-label="Comparison 2 — each team's points pooled into one total">
         <thead><tr><th scope="col">Team</th><th scope="col">Sprints</th><th scope="col">Committed</th><th scope="col">Cmt. done</th>
           <th scope="col" class="metric">Commitment completion</th>
           <th scope="col" class="metric">Break-in</th><th scope="col" class="metric">Removed</th>
@@ -6848,6 +6939,104 @@ F('helpCloseBtn').onclick = () => F('helpDialog').close();
 /* Its own function because the delete-all dialog offers the same download as its
    safety net — one press away from losing everything is exactly when a backup is
    worth taking. */
+/* ── Taking a table off the page ────────────────────────────────────────────
+   Two verbs, because there are two things people do with these figures and one
+   is much worse at the other's job. **Copy** puts the table on the clipboard as
+   TSV, which pastes as a real grid into a status email, a deck or a spreadsheet
+   — the actual reason this was asked for. **CSV** downloads a file, for keeping
+   or for opening in Excel later.
+
+   `data-export` names the table's own id, so the pair is markup and one
+   delegated listener rather than wiring per render. `data-export-name` becomes
+   the filename, so a downloaded file says which view it came from. */
+function exportButtons(tableId, name) {
+  /* Deliberately NOT hidden in a shared view. Every other control that goes in
+     one goes because it would WRITE — `wireEditRows()` strips the row buttons for
+     exactly that reason. This writes nothing, and it reads the rendered table, so
+     it can only ever hand back figures already on the recipient's screen. Sharing
+     a link is how a fellow SM gets these numbers; letting them paste the table
+     into their own notes is the point of it, not a leak. */
+  return `<span class="row" style="gap:6px">
+    <button type="button" class="btn small" data-export="${esc(tableId)}"
+      data-export-name="${esc(name)}" data-export-how="copy">Copy</button>
+    <button type="button" class="btn small" data-export="${esc(tableId)}"
+      data-export-name="${esc(name)}" data-export-how="csv">⬇ CSV</button>
+  </span>`;
+}
+
+/* Two routes, because the modern one is gated in more places than it looks.
+   `navigator.clipboard` needs a secure context AND, in several browsers, a
+   permission or a trusted user gesture — an embedded webview or an older Safari
+   refuses it outright. The `execCommand` route is deprecated and still the thing
+   that works when the other doesn't, so it gets a turn before the app gives up
+   and sends the user to the file.
+
+   The textarea is off-screen rather than `display: none`: a hidden element
+   cannot be selected, so the copy would silently take nothing. */
+async function copyText(text) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (e) {
+    console.warn('clipboard API refused, trying execCommand', e);
+  }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.setAttribute('aria-hidden', 'true');
+    ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    return ok;
+  } catch (e) {
+    console.warn('execCommand copy refused too', e);
+    return false;
+  }
+}
+
+async function runExport(btn) {
+  const table = document.getElementById(btn.dataset.export);
+  const rows = tableToRows(table);
+  if (!rows.length) { toast('Nothing to export from that table'); return; }
+  const name = btn.dataset.exportName || 'table';
+
+  if (btn.dataset.exportHow === 'copy') {
+    if (await copyText(toTsv(rows)))
+      toast(`${rows.length - 1} row${rows.length === 2 ? '' : 's'} copied — paste into a mail or a sheet`);
+    else
+      /* Both routes refused. The file still works, so point at it rather than
+         leaving a button that appears to do nothing. */
+      toast('This browser wouldn’t let the app copy — use ⬇ CSV instead');
+    return;
+  }
+
+  /* A BOM, spelled as an escape so it can't be lost to a copy-paste or read as a
+     stray character in a diff. Without it Excel on Windows opens a UTF-8 CSV as
+     Latin-1, and any team name with an accent in it arrives mangled. */
+  const blob = new Blob(['\uFEFF' + toCsv(rows)], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  /* todayISO() for the same reason downloadBackup() uses it — a raw UTC slice
+     stamps tomorrow's date on an evening export west of Greenwich. */
+  a.download = `sprint-velocity-${name}-${todayISO()}.csv`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+  toast('Exported');
+}
+
+/* One listener for every export button there will ever be, delegated at the
+   views container so a re-render never has to re-wire them. */
+viewsEl.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-export]');
+  if (btn) runExport(btn);
+});
+
 function downloadBackup() {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -7885,6 +8074,9 @@ window.__svTestHooks = { raisesKeyboard,
   PRED_BAND_LOW, PRED_BAND_HIGH, PRED_UNDER_RED, PRED_OVER_RED, BV_MAX,
   /* Arrow `const`s, so invisible on window the same way fmtPct is. */
   objectivesFor, hasBv, hasGoal, goalWord,
+  /* Arrow consts again — the CSV escaping is the one place text leaves this app
+     for somewhere it can be interpreted, so the suite has to be able to reach it. */
+  csvCell, toCsv, toTsv,
   /* A plain module-level `let`, so a getter rather than the value itself — the
      suite needs what it holds AFTER loadSample() has run, not at export time. */
   svForecastPoints: () => forecastPoints,

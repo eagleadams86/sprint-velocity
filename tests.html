@@ -2171,6 +2171,92 @@ t('a shared link that withholds the team comparison withholds this view too', ()
   eq(gate(true, false), false, 'a link that does not, does not');
 });
 
+group('CSV export — the formula guard and the quoting');
+/* A spreadsheet treats a cell opening with =, + or @ as a FORMULA, so a team name
+   is executable the moment somebody opens the file. The app escapes everything it
+   renders to HTML for the same class of reason; a CSV is just another place text
+   goes somewhere it can be interpreted. */
+t('a cell that would run as a formula is defused with a leading apostrophe', () => {
+  eq(w.__svTestHooks.csvCell('=1+1'), "'=1+1");
+  eq(w.__svTestHooks.csvCell('+SUM(A1)'), "'+SUM(A1)");
+  eq(w.__svTestHooks.csvCell('@import'), "'@import");
+  eq(w.__svTestHooks.csvCell('=cmd|\' /c calc\'!A1'), "'=cmd|' /c calc'!A1",
+    'the classic DDE payload — apostrophes need no CSV quoting, only the guard');
+  eq(w.__svTestHooks.csvCell('=A1,B2'), '"\'=A1,B2"',
+    'guarded first, then quoted because of the comma');
+});
+t('a real negative number is left alone — quoting it would break the arithmetic', () => {
+  eq(w.__svTestHooks.csvCell('-5'), '-5');
+  eq(w.__svTestHooks.csvCell('-0.5'), '-0.5');
+  eq(w.__svTestHooks.csvCell('-alpha'), "'-alpha", 'but a dash followed by text is not a number');
+});
+t('the thousands separator is quoted, or the row silently gains a column', () => {
+  /* fmtNum() groups with a comma in most locales, so a four-figure points total
+     reaches the CSV as 1,234. This is the bug that would look like corrupt data. */
+  eq(w.__svTestHooks.csvCell('1,234'), '"1,234"');
+  eq(w.__svTestHooks.toCsv([['a', '1,234'], ['b', '2']]), 'a,"1,234"\r\nb,2');
+});
+t('quotes are doubled, newlines force quoting, and plain text is untouched', () => {
+  eq(w.__svTestHooks.csvCell('He said "hi"'), '"He said ""hi"""');
+  eq(w.__svTestHooks.csvCell('two\nlines'), '"two\nlines"');
+  eq(w.__svTestHooks.csvCell('Team Kestrel'), 'Team Kestrel');
+  eq(w.__svTestHooks.csvCell(null), '');
+});
+t('the clipboard flavour is TAB separated, and carries the same guard', () => {
+  /* Tabs, because that is what a spreadsheet, a Word table and a Google Doc all
+     paste as a grid — a pasted CSV lands as one column and needs Text to Columns. */
+  eq(w.__svTestHooks.toTsv([['Team', 'Done'], ['Kestrel', '30']]), 'Team\tDone\r\nKestrel\t30');
+  eq(w.__svTestHooks.toTsv([['=1+1']]), "'=1+1");
+});
+
+group('CSV export — reading the table off the page');
+/* Read from the rendered table rather than rebuilt from state, so what you export
+   is what you are looking at — every one of these tables is already the product of
+   a filter the user chose, and a second code path would drift from the screen the
+   first time one of those changed. The cost is display furniture, which is what
+   cellText() strips. */
+function makeTable(html) {
+  const el = w.document.createElement('table');
+  el.innerHTML = html;
+  return el;
+}
+t('the RAG glyph and its screen-reader status are stripped, the figure is kept', () => {
+  const t1 = makeTable(`<tbody><tr><td><span class="pill green">90%<span class="glyph"
+    aria-hidden="true">✓</span><span class="sr-only"> — On target</span></span></td></tr></tbody>`);
+  eq(w.tableToRows(t1), [['90%']]);
+});
+t('a bare aria-hidden marker goes too — that is what the ⚑ columns are', () => {
+  /* The All teams table marks an adjusted target with an aria-hidden ⚑ and an
+     .sr-only sentence, NOT a .badge — so without the aria-hidden rule a sprint
+     count of 4 exported as the text "4 ⚑" and the column lost its numbers. */
+  const t1 = makeTable(`<tbody><tr><td>4 <span aria-hidden="true">⚑</span><span
+    class="sr-only">, 1 sprint left out</span></td></tr></tbody>`);
+  eq(w.tableToRows(t1), [['4']]);
+});
+t('row buttons and badges come out as their plain text', () => {
+  const t1 = makeTable(`<tbody><tr><th><button class="rowbtn">Sprint 3</button>
+    <span class="badge">⚑ Left out of the rolling 5</span></th><td>26</td></tr></tbody>`);
+  eq(w.tableToRows(t1), [['Sprint 3', '26']]);
+});
+t('every row is padded to the widest, so the file is a rectangle', () => {
+  /* The PI table's empty slots are one cell with colspan, which would otherwise
+     emit a two-column row in a nine-column file — valid CSV, and every spreadsheet
+     reads the rest of that row against the wrong headings. */
+  const t1 = makeTable(`<thead><tr><th>A</th><th>B</th><th>C</th></tr></thead>
+    <tbody><tr><td>Sprint 6</td><td colspan="2">No data</td></tr></tbody>`);
+  eq(w.tableToRows(t1), [['A', 'B', 'C'], ['Sprint 6', 'No data', '']]);
+});
+t('the head, body and footer all come out, in that order', () => {
+  const t1 = makeTable(`<thead><tr><th>Team</th></tr></thead>
+    <tbody><tr><td>Kestrel</td></tr></tbody>
+    <tfoot><tr><th>All teams</th></tr></tfoot>`);
+  eq(w.tableToRows(t1), [['Team'], ['Kestrel'], ['All teams']]);
+});
+t('a table that is not there yields nothing rather than throwing', () => {
+  eq(w.tableToRows(null), []);
+  eq(w.tableToRows(makeTable('')), []);
+});
+
 group('forecast — how many sprints for X points');
 /* The capacity card fixes the sprint and asks how much fits; this fixes the work
    and asks how many sprints. The fixture's window is [10, 20, 30, 40]: mean 25,

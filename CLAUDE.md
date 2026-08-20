@@ -521,6 +521,51 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   `excludeReason` are written by `buildSprintRecord()`, not merely read by `openSprint()`:
   that function rebuilds the whole record, so a field without a form input is dropped on the
   next edit (the `addedThenRemoved` lesson).
+- **The CSV/Copy export reads the RENDERED TABLE, never state, and that is the design.**
+  Every exportable table is already the product of filters the user chose — the ART picker,
+  the two rolling toggles, which PI is selected, which sprints are excluded — so a second
+  code path building "the same" rows from `state` would have to reproduce all of them and
+  would drift from the screen the first time one changed. `tableToRows()` + `exportButtons()`
+  + one delegated listener on `viewsEl` serve all five tables; adding a table means giving it
+  an `id` and dropping `exportButtons()` into its `.row.cardhead`, nothing else.
+- **`cellText()` strips `[aria-hidden="true"]` as the general rule**, with `.sr-only`,
+  `.badge`, `.tile-help` and `.artname` as named cases. Anything hidden from assistive
+  technology is DECORATION and decoration is not data — that one selector is what catches the
+  bare ⚑/⚖ markers on the All teams table, which are aria-hidden spans with an `.sr-only`
+  sentence beside them rather than `.badge` elements, and which otherwise exported a sprint
+  count of 4 as the text `4 ⚑` and cost the column its numbers.
+- **Rows are padded to the widest row.** The PI table's empty slots are one cell with
+  `colspan`, which would otherwise emit a two-column row in a nine-column file — valid CSV,
+  and every spreadsheet then reads the rest of that row against the wrong headings.
+- **A CSV is the one place text leaves this app for somewhere it can be INTERPRETED, and it
+  is escaped accordingly.** A cell opening `=`, `+` or `@` is a formula to Excel, Numbers and
+  Sheets alike, so `csvCell()` prefixes it with an apostrophe — the same reasoning as `esc()`
+  for HTML, in a different grammar. `FORMULA_LEAD` deliberately exempts a real negative
+  number (`-5`), because quoting it would break the arithmetic people export a CSV to do,
+  while `-alpha` is still guarded. Quoting is separate and triggers on `"`, `,` or a newline
+  — and **the comma case is not hypothetical**: `fmtNum()` groups thousands, so a four-figure
+  points total arrives as `1,234` and an unquoted row silently gains a column.
+  **Money Map has its own `csvCell()`, written independently and to a different shape**: it
+  takes an `isText` flag and guards only the cells it knows are text, which is possible there
+  because it builds its rows from state and knows which is which. This one scrapes the DOM
+  and cannot, hence the value-based exemption for negatives. They are not the same function
+  and needn't be — but if the guard is ever widened, widen both, and check the other's
+  reasoning before assuming this one is behind.
+- **Two clipboard routes, then a message.** `navigator.clipboard` needs a secure context and,
+  in several browsers, a permission or a trusted gesture; `execCommand('copy')` is deprecated
+  and is what works when the first is refused. If both fail the toast points at the CSV
+  button rather than leaving a control that appears to do nothing. The temporary textarea is
+  positioned off-screen, **not `display: none`** — a hidden element cannot be selected, so the
+  copy would take nothing. TSV for the clipboard and CSV for the file, deliberately: a pasted
+  CSV lands as one column of text, and a file has to be a CSV to open as a spreadsheet.
+  A `﻿` BOM leads the file or Excel on Windows reads UTF-8 as Latin-1 and mangles any
+  accented team name.
+- **Export buttons stay ON in a shared view, unlike every other control there.** Everything
+  else `viewOnly` strips is stripped because it would WRITE — that is what `wireEditRows()`
+  is doing to the row buttons. Export writes nothing and reads the rendered table, so it can
+  only hand back figures already on the recipient's screen. Sharing a link is how a fellow SM
+  gets these numbers; letting them paste the table into their own notes is the point of the
+  feature, not a hole in it.
 - **A card heading that shares its line with a control needs `.row.cardhead`.** `.card > h2`
   stops matching once the heading sits inside a flex row, and it silently falls back to the
   browser's default h2 — half again the size of every other heading on the page. The class
