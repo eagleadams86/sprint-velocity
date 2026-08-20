@@ -6364,7 +6364,12 @@ window.__svTestHooks = { fmtPct, ART_NONE, b64urlEncode, REASONS, AVAILABILITY_R
   /* `const` at the top level of a classic script is not a property of window,
      so the two version numbers have to be handed over deliberately or the
      suite would compare against `undefined` and pass on nothing. */
-  SCHEMA, SHARE_PAYLOAD_V };
+  SCHEMA, SHARE_PAYLOAD_V,
+  /* Same reason, and it mattered more than the versions did: `esc` is the
+     function between a team or PI name and innerHTML, and the suite could not
+     reach it to test it. The id boundary had hostile-input tests; the free-text
+     boundary had none. */
+  esc };
 </script>
 
 <script type="module">

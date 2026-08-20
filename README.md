@@ -1004,7 +1004,9 @@ Then open http://localhost:8012. (The desktop app's preview pane reads
 `.claude/launch.json`, which is set to the same port.)
 
 **Tests:** open http://localhost:8012/tests.html — it loads the real `index.html` in a
-hidden iframe and pins the pure functions — 96 checks in 18 groups: the Jira paste
+hidden iframe and pins the pure functions. The page prints its own count and group total;
+this paragraph deliberately doesn't, having said "96 checks in 18 groups" while the suite
+ran 141 in 22. What it covers: the Jira paste
 pipeline and its estimate cells, the metrics and RAG bands, `avg` vs `pooled`, the trend
 line, the shape and id sanitizers, the 120-character label cap, the ART grouping, the
 sprint lifecycle, the share-link round trip and its history trimming, and the three
