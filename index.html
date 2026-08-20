@@ -5538,7 +5538,6 @@ function renderPiTrendView() {
 
   wireArtToolbar();
 
-  const scored = rows.filter(r => r.predPct !== null);
   makeChart('trendChart', {
     data: {
       labels: rows.map(r => r.pi.name),
