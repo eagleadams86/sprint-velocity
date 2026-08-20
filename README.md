@@ -369,8 +369,8 @@ is there to show something different:
 |---|---|---|
 | **Merlin** | Payments | A sprint **running right now** — done-so-far, pace ("day 6 of 14, slightly behind") and carried-in. Its commitment is well over the suggestion, which is the one finding still actionable mid-sprint. Also a **⚑ standing team availability**, and the only team with **no business value recorded** — its PI is still running, which is why. |
 | **Kestrel** | Payments | The ordinary team: green, landing about 90% of what it signs up for. Carries a **⚖ scaled sprint** (someone joined after it) and a sprint with work **↩ brought in then removed again**. Its PI predictability is 90% — **inside the band**. |
-| **Otter** | Platform | The team the targets exist to catch — around 70% completion and swinging from 14 to 26 points. Has a **⚑ sprint left out** for a major incident, and its next slot is the **IP sprint**, so it carries that caveat too. 59% predictability — **under the band**. |
-| **Curlew** | Platform | **↗ Room for more** — it clears its commitment then pulls extra work in, so it reads 98% commitment completion beside a **red 29% break-in**. The contradiction the [headroom note](#when-a-team-has-room-for-more) exists to resolve. It under-commits its objectives too: 113%, **over the band**, with the value coming partly from **stretch**. |
+| **Otter** | Platform | The team the targets exist to catch — around 70% completion and swinging from 14 to 26 points. Has a **⚑ sprint left out** for a major incident, and its next slot is the **IP sprint**, so it carries that caveat too. 59% predictability — **under the band**. It's also the team where the [**reliable commitment**](#two-figures-not-one) differs from the average enough to matter: 20 or 17. |
+| **Curlew** | Platform | **↗ Room for more** — it clears its commitment then pulls extra work in, so it reads 98% commitment completion beside a **red 29% break-in**. The contradiction the [headroom note](#when-a-team-has-room-for-more) exists to resolve. It under-commits its objectives too: 113%, **over the band**, with the value coming partly from **stretch**. Steady enough that it gets **one** capacity figure rather than two. |
 | **Wren** | *none* | A brand-new team: **thin history**, a **⚑ one-off availability** for leave, and a carryover that then **fills the whole figure** — no room for new work at all. Being in no ART, it's also the **No ART** group on *All teams* and *ART PI*. |
 
 Two ARTs of two plus one team in neither is the arrangement where the *All teams* ART
@@ -588,8 +588,9 @@ very capacity the break-in is going to consume, so the team starts every sprint 
 over-committed. That gap is how a fast team still misses its commitment every time.
 
 The card also splits the total into what's **already carried over** from last sprint and
-how much **new work** that leaves to pull off the backlog, and shows the recent range so
-you can see how much faith the number deserves. When the sprint it's aiming at is already
+how much **new work** that leaves to pull off the backlog, and — see
+[Two figures, not one](#two-figures-not-one) below — a second commitment for a sprint that
+has to hold. When the sprint it's aiming at is already
 running and has a commitment recorded, it swaps the new-work figure for a comparison
 against what the team actually signed up for — there's still time to descope. A running
 sprint whose commitment hasn't been entered yet keeps the forecast, since 0 committed is
@@ -598,8 +599,55 @@ column and its total use the adjusted figures, and mark an adjusted team with a 
 three sprints of history, when the team's delivery swings by more than 30%, and when the
 next sprint up is the IP sprint.
 
-It's a starting point for the planning conversation, not a quota. The three sections below
-are for the things the history structurally cannot see.
+It's a starting point for the planning conversation, not a quota. The sections below cover
+the second figure, and then the things the history structurally cannot see.
+
+### Two Figures, Not One
+
+**An average is met about half the time. That's what an average is.** Hand a team one number
+and it gets read as a floor, and half their sprints then miss a commitment that was never
+meant to be safe. A team whose last five sprints ran 5, 5, 5, 5 and 40 has an average of 12
+and has cleared 12 exactly once.
+
+So where it makes a difference, the card shows two:
+
+| | |
+|---|---|
+| **Recommended commitment** | The average — the right number for an ordinary sprint |
+| **Reliable commitment** | The largest commitment they met in **all but one** of the sprints in the window |
+
+```
+Team Otter · last 4 sprints
+  Recommended commitment   20   the average
+  Reliable commitment      17   met in 3 of the last 4
+```
+
+The second figure is a **counted fact, not a statistic**. It's the second-lowest result in
+the window, so "met in 3 of the last 4" is something you can check against the table further
+down the page. It's deliberately not a percentile or a standard deviation: over five sprints
+a percentile is an interpolation between two of the same five numbers, and a standard
+deviation assumes a shape five points can't evidence.
+
+Neither number is the safe answer on its own. Commit at the average and expect to miss about
+half the time; commit at the floor every sprint and the team is quietly under-committed,
+which comes back as break-in. The gap between the two is the size of the decision, and it
+belongs to the planning session.
+
+**The pair only appears when it changes something.** A steady team's two figures land within
+a point of each other, and two tiles reading 23 and 23 teach nothing — so a steady team gets
+one number and the recent range, which is itself the message. It needs three sprints, too:
+dropping one of two leaves an anecdote.
+
+There's one case where the arithmetic is honest and the display would not be. A team dragged
+down by a single bad sprint — 10, 30, 32 — has an average of 24 and a second-lowest of 30,
+so the "reliable" figure would sit *above* the recommendation. There's no safer number to
+offer such a team, because the average is already below what they usually do, so the pair is
+simply not shown and the swings warning speaks instead.
+
+Both figures move with an availability adjustment, because both are recommendations for next
+sprint. The **recent range** and the swings warning never do — those describe what already
+happened, and a team knocked down for next month's leave must not read as erratic because of
+it.
 
 ### When a Team Has Room for More
 

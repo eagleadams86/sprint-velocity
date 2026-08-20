@@ -316,10 +316,45 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
 - **Everything on the capacity card that describes the PAST reads `baseRecommended`.**
   "They finished an average of X", `overCommitting`, the average-velocity comparison —
   those are facts about the history and the adjusted figure states them wrongly. Only the
-  recommendation, `newWork` and `overBy` move with availability, and `spread`/`steady` stay
-  on the base too or a team knocked down for leave reads as erratic for no reason. This was
+  recommendation, `reliable`, `newWork` and `overBy` move with availability, and
+  `spread`/`steady`/`low`/`high` stay on the base too or a team knocked down for leave reads
+  as erratic for no reason. This was
   a real bug in the first cut: the card said the team "finished an average of 19.2" when the
   sprints said 24.
+- **The card shows TWO commitment figures, and `recommended` is still the mean.** An average
+  is met about half the time by definition, so one number gets read as a floor and half the
+  team's sprints then miss a commitment that was never meant to be safe (5, 5, 5, 5, 40 has
+  a mean of 12 and cleared it once). `reliableBase` is the **second-lowest** result — the
+  largest commitment met in all but one sprint — and `reliable` is that times availability,
+  exactly like `recommended`. **Deliberately not a percentile or a standard deviation**: over
+  a `ROLLING_WINDOW` of five, a percentile is an interpolation between two of the same five
+  numbers and an SD assumes a shape five points can't evidence, whereas "met in 4 of the
+  last 5" is a counted fact the reader can check against the table below it. `reliableMet`
+  and `meanMet` are **counted, not derived** — ties at the bottom really do mean all of them.
+  This does NOT contradict the don't-fold-headroom-in rule one bullet up: that forbids
+  raising the commitment on unplanned work, and this adds a FLOOR below it. Nothing here
+  moves `recommended`.
+- **`hasFloor` is what stops the pair reading as nonsense, and its subtraction is
+  load-bearing.** It needs three sprints (dropping one of two leaves an anecdote) and a gap
+  of at least a point (two tiles saying 23 and 23 teach nothing — a steady team getting one
+  figure IS the message). It also silently covers the left-skewed case: 10, 30, 32 has a mean
+  of 24 and a second-lowest of 30, so the "reliable" figure would sit ABOVE the
+  recommendation. **Don't clamp the floor to the recommendation to "fix" that** — it would
+  invent a figure none of the team's sprints support. There is no safer number to offer a
+  team whose mean is already below what they usually do, and the swings caveat speaks instead.
+- **The floor reads the SCALED results; `low`/`high`/`spread` stay raw.** It is a planning
+  output, and scale is what corrects the history to today's team — same basis as
+  `planningBase`. The raw range is a history sentence and must not move with next sprint's
+  leave, which is the same rule the `spread`/`steady` bullet above already states. The
+  fold-out quotes `planningBase` rather than "the figure above", because on an adjusted team
+  the tile shows the adjusted number and the two would disagree.
+- **The demo reaches the floor through Otter (20 vs 17) and Kestrel, and deliberately not
+  through an ADJUSTED team.** Merlin is the only team with a standing availability and its
+  three-sprint window puts the second-lowest exactly on the mean, so `hasFloor` is false
+  there. Bending Merlin's figures to reach the adjusted foot-string would disturb the live
+  sprint, its pace reading and its over-commitment finding — all pinned — to demonstrate a
+  formatting branch the Recommended tile already demos on Wren ("50% of 13"). The adjusted
+  floor is covered by a test instead. That was a decision, not an oversight.
 - **Carry-over does not shrink with the team.** `carryoverFills` exists because work already
   carried in comes off the top of a smaller sprint, so a big adjustment can leave no room for
   new work at all. It's the most actionable thing the feature surfaces — keep it visible.

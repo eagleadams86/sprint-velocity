@@ -901,6 +901,100 @@ t('the spread caveat stays on the history, so an adjustment cannot fake an errat
   });
 });
 
+group('the reliable commitment — the other half of the spread');
+/* The card had a mean and a min–max range, and neither answered the question a
+   planning session asks next: how much of this can I actually commit to? A MEAN
+   IS MET ABOUT HALF THE TIME BY DEFINITION, so the window also yields the largest
+   commitment the team met in all but one of its sprints. A counted fact, not a
+   percentile — over five sprints a percentile is an interpolation between two of
+   the same five numbers dressed up as statistics. The fixture's window is
+   [10, 20, 30, 40]: mean 25, second-lowest 20. */
+t('the floor is the second-lowest result, and the count is real', () => {
+  withState(capacityFixture(), () => {
+    const t1 = w.nextSprintTarget('t1', false);
+    approx(t1.reliableBase, 20);
+    approx(t1.reliable, 20, 'unadjusted, so the same figure');
+    eq(t1.reliableMet, 3, '20, 30 and 40 all cleared it — all but one, counted');
+    eq(t1.meanMet, 2, 'and only two of the four cleared the mean, which is the point');
+    eq(t1.hasFloor, true);
+  });
+});
+t('it never moves the recommendation — that is still the mean', () => {
+  withState(capacityFixture(), () => {
+    approx(w.nextSprintTarget('t1', false).recommended, 25,
+      'the floor is a second figure beside it, never a replacement for it');
+  });
+});
+t('availability scales the floor exactly as it scales the recommendation', () => {
+  withState(capacityFixture({
+    plans: [{ id: 'pl1', teamId: 't1', piId: 'p1', sprintNumber: 5, availability: 60, reason: 'leave' }]
+  }), () => {
+    const t1 = w.nextSprintTarget('t1', false);
+    approx(t1.recommended, 15);
+    approx(t1.reliable, 12, 'both are outputs, so both move');
+    approx(t1.reliableBase, 20, 'the basis stays on the history, for the card to quote');
+    eq(t1.low, 10, 'and the raw range never moves with next sprint’s leave');
+  });
+});
+t('a scaled sprint moves the floor, because the floor is a planning figure', () => {
+  const fx = capacityFixture();
+  fx.sprints[0].capacityScale = 200;      // the 10 counts as 20
+  withState(fx, () => {
+    const t1 = w.nextSprintTarget('t1', false);
+    approx(t1.reliableBase, 20, 'sorted [20, 20, 30, 40] — the second-lowest is still 20');
+    eq(t1.reliableMet, 4, 'but now every sprint clears it, and the card says 4 of 4');
+    eq(t1.low, 10, 'the raw low is what actually happened, and is unchanged');
+  });
+});
+t('under three sprints there is no floor — one of two is an anecdote', () => {
+  const fx = capacityFixture();
+  fx.sprints = fx.sprints.slice(0, 2);
+  withState(fx, () => {
+    const t1 = w.nextSprintTarget('t1', false);
+    eq(t1.hasFloor, false, 'so the card keeps the plain recent-range tile');
+    eq(t1.sprints, 2);
+  });
+});
+t('a steady team gets no second figure, because there is nothing to choose between', () => {
+  const fx = capacityFixture();
+  [20, 20, 20, 21].forEach((v, i) => {
+    fx.sprints[i].committed = v; fx.sprints[i].committedCompleted = v; fx.sprints[i].totalCompleted = v;
+  });
+  withState(fx, () => {
+    const t1 = w.nextSprintTarget('t1', false);
+    eq(t1.hasFloor, false, 'two tiles reading 20 and 20 teach nothing');
+  });
+});
+t('a team dragged down by ONE bad sprint gets no floor above its own recommendation', () => {
+  /* [10, 30, 32]: the mean is 24 and the second-lowest is 30, so a "reliable"
+     figure would sit ABOVE the recommendation. There is no safer number to offer
+     — the mean is already below what they usually do — so the pair is simply not
+     shown. Clamping the floor to the recommendation would invent a figure none of
+     their sprints support. */
+  const fx = capacityFixture();
+  fx.sprints = fx.sprints.slice(0, 3);
+  [10, 30, 32].forEach((v, i) => {
+    fx.sprints[i].committed = v; fx.sprints[i].committedCompleted = v; fx.sprints[i].totalCompleted = v;
+  });
+  withState(fx, () => {
+    const t1 = w.nextSprintTarget('t1', false);
+    approx(t1.recommended, 24);
+    approx(t1.reliableBase, 30, 'the arithmetic is honest…');
+    eq(t1.hasFloor, false, '…and the card declines to show it rather than reading as nonsense');
+  });
+});
+t('ties at the bottom are counted, not assumed to be all-but-one', () => {
+  const fx = capacityFixture();
+  [12, 12, 30, 40].forEach((v, i) => {
+    fx.sprints[i].committed = v; fx.sprints[i].committedCompleted = v; fx.sprints[i].totalCompleted = v;
+  });
+  withState(fx, () => {
+    const t1 = w.nextSprintTarget('t1', false);
+    approx(t1.reliableBase, 12);
+    eq(t1.reliableMet, 4, 'all four cleared 12, so the card says 4 of 4 and not 3 of 4');
+  });
+});
+
 group('the headroom signal — a team committing to less than it finishes');
 t('clearing the commitment and taking more on every sprint is flagged', () => {
   withState(headroomFixture([
@@ -1153,6 +1247,18 @@ t('Wren is the thin, half-available team whose carryover fills the whole figure'
     eq(t.availability, 50);
     eq(t.carryoverFills, true, 'the most actionable thing the capacity card can say');
     eq(t.newWork, 0, 'no room to pull anything in');
+  });
+});
+t('Otter is the demo’s reliable-commitment case, and Curlew and Wren are not', () => {
+  withSample((id) => {
+    const otter = w.nextSprintTarget(id('Team Otter'), false);
+    eq(otter.hasFloor, true, 'the swingy team is where the two figures differ enough to matter');
+    ok(otter.recommended - otter.reliable >= 2,
+      'and they differ by enough to change what goes on the board');
+    ok(otter.spread > 60, 'so the fold-out’s wide-gap clause has somewhere to fire');
+    eq(w.nextSprintTarget(id('Team Curlew'), false).hasFloor, false,
+      'a steady team gets one figure — that IS the message');
+    eq(w.nextSprintTarget(id('Team Wren'), false).hasFloor, false, 'and two sprints is too thin');
   });
 });
 t('the demo lands on the running sprint', () => {

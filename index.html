@@ -2733,6 +2733,56 @@ function nextSprintTarget(teamId, includeSix) {
      erratic, and flip the caveat on for a reason that has nothing to do with it. */
   const spread = baseRecommended > 0 ? ((high - low) / baseRecommended) * 100 : 0;
 
+  /* ── The half of the spread the card never said ──────────────────────────────
+     `low`/`high`/`spread` describe how consistent the history was. They don't
+     answer the question a planning session actually asks next, which is: how much
+     of that consistency can I commit to?
+
+     A MEAN IS MET ABOUT HALF THE TIME BY DEFINITION. That is not a flaw in the
+     recommendation — it is the right central figure and it stays exactly as it
+     was — but handing over one number and nothing else invites a team to read it
+     as a floor, and half their sprints then miss a commitment that was never
+     meant to be safe. A team whose sprints run 5, 5, 5, 5, 40 has a mean of 12
+     and has cleared 12 exactly once.
+
+     So the window also yields the largest commitment the team met in ALL BUT ONE
+     of its sprints — the second-lowest result. Not a percentile: with a window of
+     five, a percentile is an interpolation between two of the same five numbers
+     dressed up as statistics, and this app would rather state a counted fact ("4
+     of the last 5") than a derived one. Not a standard deviation either, which
+     assumes a shape five points cannot evidence.
+
+     Read from the SCALED results, because it is a planning figure and scale is
+     what corrects the history to today's team — and multiplied by availability
+     afterwards, exactly like `recommended`, because it is an output. The raw
+     `low`/`high` above stay raw: those are the history sentences, and the rule
+     that they must not move with next sprint's leave is unchanged. */
+  const scaledDone = rs.map(sp => metrics(sp).committedCompleted * scaleOf(sp) / 100)
+    .sort((a, b) => a - b);
+  /* Under three sprints there is no "all but one" worth the name — dropping one
+     of two leaves a single sprint, which is an anecdote, not a floor. */
+  const reliableBase = scaledDone.length >= 3 ? scaledDone[1] : scaledDone[0];
+  const reliable = reliableBase * av.pct / 100;
+  /* Counted rather than assumed to be n−1: with ties at the bottom of the window
+     it really is all of them, and the card says whichever is true. */
+  const reliableMet = scaledDone.filter(v => v >= reliableBase).length;
+  /* How many sprints would have cleared the central figure. Around half is
+     normal and says nothing; well under half means one big sprint is carrying
+     the mean, which is exactly when the floor above is the number to use. */
+  const meanMet = scaledDone.filter(v => v >= planningBase).length;
+  /* Worth showing the pair at all only when they differ enough to change what
+     somebody writes on the board. Below a point apart they are the same number
+     with different rounding, and two tiles saying 24 and 24 teach nothing.
+
+     The subtraction also disposes of the one case that would read as nonsense: a
+     team dragged down by a single bad sprint (10, 30, 32) has a mean of 24 and a
+     second-lowest of 30, so the "reliable" figure would sit ABOVE the
+     recommendation. There is no safer number to offer such a team — the mean is
+     already below what they usually do — so the pair is simply not shown, and the
+     swings caveat is what speaks instead. Don't "fix" this by clamping the floor
+     to the recommendation: that would invent a figure nobody's sprints support. */
+  const hasFloor = rs.length >= 3 && (recommended - reliable) >= 1;
+
   /* ── The blind spot in the method above, and the one case it can spot itself ──
      The recommendation is the mean of committed points COMPLETED, so it can never
      rise above what the team committed to. That is the right answer for a team
@@ -2791,6 +2841,8 @@ function nextSprintTarget(teamId, includeSix) {
     carryoverFills: carriedIn > 0 && carriedIn >= recommended,
     carriedIn,
     low, high, spread,
+    /* The floor, and the two counted facts that make it worth trusting. */
+    reliable, reliableBase, reliableMet, meanMet, hasFloor,
     sprints: rs.length,
     avgVelocity: avg(rs, 'velocity'),
     avgCommitted,
@@ -4382,6 +4434,14 @@ function targetCapacityCard(team, includeSix) {
     </div>
     <p class="sub">What ${esc(team.name)} can realistically commit to, based on their last
       ${t.sprints} finished sprint${t.sprints === 1 ? '' : 's'}.${
+      /* The trade in one sentence, on the face of the card. It is the whole point
+         of showing two figures, and a card that shows them without saying why
+         reads as two rival answers to one question. Deliberately not left to the
+         fold-out: a rule technically satisfied and never read is not satisfied. */
+      t.hasFloor ? ` Two figures, because <strong>an average is met about half the time</strong>
+        — that is what an average is. Commit to <strong>${fmtNum(Math.round(t.recommended))}</strong>
+        for an ordinary sprint, or <strong>${fmtNum(Math.round(t.reliable))}</strong> when this one
+        has to hold.` : ''}${
       t.hasCommitment ? ' This sprint is already under way, so compare it with what they signed up for.' : ''}</p>
     ${headroomNote}
     <div class="tiles">
@@ -4399,8 +4459,18 @@ function targetCapacityCard(team, includeSix) {
         t.slot && t.slot.last ? `from ${esc(sprintLabel(t.slot.last))}` : 'from the last finished sprint')}
       ${t.hasCommitment ? '' : tile('New work to pull in', fmtNum(Math.round(t.newWork)), null,
         'on top of the carryover')}
-      ${tile('Recent range', `${fmtNum(t.low)}–${fmtNum(t.high)}`, null,
-        'committed points finished per sprint')}
+      ${/* The floor replaces the range tile rather than joining it: min–max is the
+           least informative thing five sprints can say — two outliers define it and
+           nothing in between is visible — and the number it was standing in for is
+           the one below. The range is still on the card, in this tile's foot and in
+           the swings caveat, which is where it belongs as a fact about the past
+           rather than as a figure to plan with. */
+        t.hasFloor
+        ? tile('Reliable commitment', fmtNum(Math.round(t.reliable)), null,
+            (t.adjusted ? `${t.availability}% of ${fmtNum(Math.round(t.reliableBase))} · ` : '')
+            + `met in ${t.reliableMet} of the last ${t.sprints}`)
+        : tile('Recent range', `${fmtNum(t.low)}–${fmtNum(t.high)}`, null,
+            'committed points finished per sprint')}
     </div>
     <details class="datatable" style="margin-top:16px">
       <summary>How This Is Worked Out</summary>
@@ -4411,6 +4481,28 @@ function targetCapacityCard(team, includeSix) {
           ${esc(team.name)} finished an average of <strong>${fmtNum(t.baseRecommended)}</strong> of the points
           they committed to. That is the amount of commitment they have actually been able to deliver,
           so that is ${t.adjusted || t.scaled ? 'where the recommendation starts' : 'the recommendation'}.</p>
+        ${t.hasFloor ? `<p><strong>An average is not a floor.</strong> Half a team's sprints land
+          below their own average — that is what an average is — so ${esc(team.name)} would have
+          finished <strong>${fmtNum(Math.round(t.planningBase))}</strong> points, the figure the
+          recommendation starts from, in <strong>${t.meanMet} of the last ${t.sprints}</strong>
+          sprints. That is the right number for an ordinary sprint, and the wrong one for a sprint
+          that has to hold.</p>
+        <p>So the second figure is the largest commitment they met in <em>all but one</em> of those
+          sprints — <strong>${fmtNum(Math.round(t.reliableBase))}</strong> points, cleared in
+          ${t.reliableMet} of ${t.sprints}${t.adjusted
+            ? `, which the ${t.availability}% availability brings to
+               <strong>${fmtNum(Math.round(t.reliable))}</strong>` : ''}. It is a counted fact about
+          these sprints rather than a statistic: over ${t.sprints} sprints a percentile or a
+          standard deviation is an assumption about a shape ${t.sprints} points can't evidence,
+          while "${t.reliableMet} of the last ${t.sprints}" is something you can check against the
+          table below.</p>
+        <p>Neither figure is the safe answer on its own. Commit at the average and expect to miss
+          about half the time; commit at the floor every sprint and the team is quietly
+          under-committed, which shows up as break-in and as
+          ${fmtNum(Math.round(t.recommended - t.reliable))} points a sprint of capacity nobody
+          planned for. The gap between them is the size of the decision, and it belongs to the
+          planning session${t.spread > 60 ? ' — and it is a wide gap for this team, which is worth '
+            + 'a retro conversation of its own' : ''}.</p>` : ''}
         <p>Their average <em>velocity</em> is higher —
           <strong>${fmtNum(t.avgVelocity)}</strong> points — but committing to that would over-commit them.
           Velocity counts the break-in work that turns up mid-sprint, and if that capacity is booked out in
