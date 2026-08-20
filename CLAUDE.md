@@ -316,6 +316,37 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   dead end. `wireArtToolbar()` wires both controls for the same reason: three exit paths, one
   place to remember. The PI label stopped being `sr-only` when a second picker joined it —
   two adjacent selects have to be told apart on sight, not only by a screen reader.
+- **`piTrend()` is the only PI-GRAINED view over time, and each PI is measured over the teams
+  that were actually IN it.** That last clause is the whole design. A train that grew from two
+  teams to five did not get better because there is more of it, so a PI's row carries its own
+  `teamsIn` and the view says so when the count changes. It is also why the two methods split
+  the way they do: **predictability is the MEAN of the teams' own measures** (every team once,
+  so it survives a train changing size, and the same method `renderArtPiView`'s tile uses so
+  the two views can't disagree about one PI), while **commitment completion is POOLED**
+  (matching Current PI and the Dashboard) and openly does not survive it. A PI with nothing
+  recorded is a GAP, not a zero — `any` is false and the view drops it rather than plotting a
+  hole as a collapse; a PI with no business value leaves a hole in the predictability line for
+  the same reason. **There is deliberately no total row**: adding PIs together answers
+  nothing, a programme's history is a sequence, and the only summary worth having is the
+  direction, which is what `linearTrend()` draws.
+- **The trend tab needs TWO PIs**, because one point is a position rather than a direction and
+  the chart would be a single dot. It is cross-team like ART PI and All teams, so it takes the
+  same `shareMeta.allTeams` rule and joins the same right-hand tab group — the `margin-left:
+  auto` now belongs to the FIRST VISIBLE of `trend`/`art`/`teams`, with each zeroing every
+  later sibling, or two auto margins split the free space and break the group apart.
+- **`piCapacityCard()` is the forward half of that view, and it multiplies rather than
+  re-deriving.** Each team's `nextSprintTarget()` times the DELIVERY sprints in a PI
+  (`SPRINTS_PER_PI - 1` — the IP sprint delivers none of it), so it inherits the whole method
+  including both availability levers and cannot drift from the Rolling 5 card that explains
+  the working. It covers only teams that have been in a PI, matching the table above it, and
+  names any it left out — a team that doesn't run PIs has no place under a heading about the
+  next PI, and its target is on Rolling 5 where it lives.
+- **The demo carries THREE PIs so the trend has a direction** (≈75% → 81% → 86%, climbing out
+  of the band into it). Two points are a line and say nothing about whether a train is
+  steadying or drifting. The two earlier PIs cover two teams against 2026.3's five, which is
+  also deliberate: it is what makes the "not the same train throughout" note fire, and it
+  demonstrates the one thing the view has to get right. Don't tidy the three into agreement,
+  and don't level them off.
 - **`renderArtPiView()` is the RTE view, and it reads the PI, not the rolling window** —
   objectives are planned and scored per PI, so a five-sprint window crossing a PI boundary
   would answer a question nobody asked. It **shares `settings.artFilter` with All teams**
@@ -352,7 +383,7 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   the OLD number over data now holding new fields — and the next older build to read it sails
   straight past `haltForNewerData()` and strips them. Invisible while `SCHEMA` had never moved
   off 1; found the day it moved to 2. Pinned in tests.html.
-- **The ART PI and All teams tabs are the CROSS-TEAM pair and sit apart from the other
+- **PI trend, ART PI and All teams are the CROSS-TEAM group and sit apart from the other
   three**, which look into the selected team. Only the first of the pair takes the
   `margin-left: auto` — two auto margins in a flex row split the free space and would put a
   gap between them as well — so the rule hands it to `[data-view="art"]:not([hidden])` and
@@ -656,7 +687,8 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   main landmark once already.
 - **`renderTabs()` is the one place that decides which views are on offer**, and it hides a
   tab only when the view behind it has nothing to say: **All teams** needs a second team,
-  **Current PI** needs a PI *and* a sprint of the active team's inside one, **Rolling 5**
+  **Current PI** needs a PI *and* a sprint of the active team's inside one, **PI trend** needs
+  two PIs with something in them, **Rolling 5**
   needs at least one recorded sprint *for the active team*
   (so they come and go as you switch teams), and with no teams at all the whole row goes
   rather than leaving a lone Sprint tab over the welcome card. If the stored view's tab has
