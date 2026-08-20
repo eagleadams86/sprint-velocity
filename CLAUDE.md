@@ -209,6 +209,66 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   sprints into every figure for last-day planning. It's deliberately one predicate so no two
   views can disagree; `targetSprintSlot()` then stops aiming at the running sprint, since a
   sprint being counted as data isn't the one you're planning. Planned sprints never count.
+- **A PI IS OPTIONAL, AND `piId: null` IS A REAL ANSWER (2026-08-20).** A team's sprints
+  live on one of two tracks: the **unassigned track** (`piId: null`), which is the app's
+  pre-history, or a PI's. The unassigned track sorts before every PI, is numbered
+  continuously, and the IP-sprint rule does not exist on it. Everything else follows from
+  that one sentence. `piRank()` states the ordering rather than leaning on `piIndex()`
+  returning `-1` — that `-1` was an accident that happened to be right, and the next person
+  to "fix" `findIndex` would take the rule with it. `piKey()` collapses `''`, `undefined`
+  and `null` to one comparable value, because a `<select>`'s none-option hands back `''`
+  while the store holds `null`: without it `findSprint` misses its own sprint and the save
+  path writes a duplicate instead of editing the one in front of you. Four don'ts:
+  - **Don't clamp `sprints.sprintNumber`.** It is typed `'num'`, which looks like an
+    oversight and is now load-bearing: clamping to `SPRINTS_PER_PI` would rewrite every
+    unassigned sprint past 6 onto slot 6 and collide them all. `sprintNum` is bounded by
+    `MAX_SPRINT_NO` (999) instead — six-to-a-PI is a property of a PI, enforced by the
+    picker, not by the boundary.
+  - **Don't measure across the two tracks.** `slotIndex()` puts unassigned slots in a band
+    (`PI_LESS_BAND`) far below PI 0 so an unassigned S47 can never land on a real PI slot;
+    a *difference* across the bands is meaningless, not merely large, so `teamCadence()`
+    refuses the stride (falling back to the week-snapped length) and `cadenceDates()`
+    returns null. `sameBand()` is the guard.
+  - **Don't make `objectives` PI-optional.** PI business value is defined per team **per
+    PI**; there is no such thing as unassigned business value, and `piId` there stays `'id'`.
+  - **Don't reinstate the PI-orphan drop.** See the next bullet.
+- **A sprint whose PI is missing is UN-GROUPED, not dropped — and that reverses an older
+  rule in this file.** The drop was right while a PI was compulsory: an orphan moved a
+  rolling average with nothing on screen behind it, because no PI-based view could show it.
+  That justification is gone — an unassigned sprint is now an ordinary, visible sprint — so
+  a broken PI reference costs the grouping and nothing else, exactly as a missing ART costs
+  a team its grouping and nothing else. **A missing TEAM is still fatal** and still feeds
+  `sanitizeIds.dropped` + `orphanNote()`: there is no view a team-less sprint appears on.
+  The un-grouping gets its own counter (`sanitizeIds.unassigned`) and its own sentence
+  (`unassignedNote()`) — counted into `pruned` as well so boot persists the repair, but
+  reported out loud, because a sprint losing its PI is a change to what is on screen. That
+  is the `strippedNotes` shape, not the silent `objectives` one.
+- **The IP-sprint rule applies inside a PI and nowhere else**, through one predicate,
+  `isIpSlot(s)` — the `isCounted()` discipline, so no two callers can disagree. Sprint 6 of
+  a team with no PI is an ordinary sprint; dropping it from the window because of its number
+  would be the worst kind of exclusion, and the toggle that would put it back is a sentence
+  about a PI that team hasn't got. So `rollingToolbar()` takes an `ipApplies` flag and hides
+  the toggle entirely where it means nothing, and the Rolling 5 heading stops claiming
+  "sprint 6 (IP) excluded" over a table that plainly lists S6.
+- **PI-scoped views leave out teams with nothing in the selected PI, and name them.** With a
+  PI compulsory every team was in one, so `renderArtPiView()` mapping every shown team was
+  safe; now a PI-less team would appear as a row of zeros, which reads as a team that
+  delivered nothing rather than one that isn't in this PI. `renderTabs()` hides **Current
+  PI** without a PI (and for a team with no PI'd sprint) as well as **ART PI**.
+- **Deleting a PI asks whether to keep its sprints, and the renumbering is not optional.**
+  It used to destroy every sprint in the PI across every team, which was the only coherent
+  answer while a sprint needed one. `unassignPiSprints()` appends them past the team's
+  current highest unassigned number — a PI's S1–S6 landing on an existing unassigned S1–S6
+  would put two sprints in one slot and make `findSprint` non-deterministic. Business value
+  and capacity plans die either way (both are defined by the PI) and the dialog says so.
+  It also **discloses the one place the ordering rule bites backwards**: kept sprints move
+  *before* any remaining PIs, because unassigned is the oldest track.
+- **The demo's Team Pipit exists to show the app working with no PI, and carries nothing
+  else.** Sprints 12–16 — continuous, past six, and a 16th that could not exist in a
+  six-slot PI. No ART, no scale, no exclusion, no dates, no goals, no business value: every
+  one of those findings already belongs to another team, and a second owner would blur which
+  team teaches what.
+
 - **An ART is a grouping of teams, and ONE figure's worth of maths.** `state.arts` is a flat
   list beside `teams` and `pis`, and a team carries an optional `artId`. **No POINTS figure
   is ever worked out per ART** — an ART's points are simply what its teams' points come to
@@ -301,8 +361,9 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   arriving in a share link or a hand-edited file can collide with the sentinel — which is
   why `sanitizeIds()` has to *skip* it when cleaning `settings.artFilter`. Clean it and the
   "teams on no ART" filter becomes a fresh uid matching nothing.
-- **A team whose ART is missing is un-grouped, never dropped** — unlike an orphaned sprint
-  on the same boundary. An ART changes no figure, so a broken label must not cost a team its
+- **A team whose ART is missing is un-grouped, never dropped** — and since 2026-08-20 a
+  sprint whose PI is missing is treated the same way, so this is no longer the exception it
+  was once described as. An ART changes no figure, so a broken label must not cost a team its
   sprints; it reads as "No ART" on screen, which is where it can be seen and fixed. Same for
   a saved filter naming an ART that's gone, and same for Delete ART, which is the one delete
   in Teams & PIs with no confirm because it destroys nothing.
@@ -314,7 +375,8 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
 - `fmtPct()` takes the RAG scale and drops to one decimal when rounding would cross a
   threshold, so a displayed figure never contradicts the colour next to it (84.6% must not
   render as "85%" in yellow). Any new percentage display must pass its scale.
-- Sprint 6 is the IP sprint: **excluded from the rolling window by default**, with a toggle.
+- Sprint 6 is the IP sprint **of a PI**: excluded from the rolling window by default, with a
+  toggle — and only for sprints actually in a PI (`isIpSlot`).
 - `nextSprintTarget()` recommends a commitment from **mean committed-points-completed**,
   deliberately *not* mean velocity — velocity includes break-in, so committing to it
   over-commits the team. Don't "improve" it into a velocity-based figure; the reasoning is
@@ -586,7 +648,8 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   main landmark once already.
 - **`renderTabs()` is the one place that decides which views are on offer**, and it hides a
   tab only when the view behind it has nothing to say: **All teams** needs a second team,
-  **Current PI** and **Rolling 5** need at least one recorded sprint *for the active team*
+  **Current PI** needs a PI *and* a sprint of the active team's inside one, **Rolling 5**
+  needs at least one recorded sprint *for the active team*
   (so they come and go as you switch teams), and with no teams at all the whole row goes
   rather than leaving a lone Sprint tab over the welcome card. If the stored view's tab has
   just been hidden it falls back to `sprint`, corrected **in memory** — a render must never
@@ -649,7 +712,8 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   exactly right for a hostile payload and exactly wrong for a copy written by a NEWER
   build: an older tab would strip the fields it has never heard of, render what's left,
   and push the stripped copy back to Firestore on the next edit — another device's work
-  gone silently. So `version` (`SCHEMA`, currently **3** — `objectives` took it off 1, `goalMet` to 3) rides into localStorage, the cloud
+  gone silently. So `version` (`SCHEMA`, currently **4** — `objectives` took it off 1, `goalMet` to 3,
+  optional `piId` to 4) rides into localStorage, the cloud
   document and every backup file, and four boundaries compare it:
   - `load()` and `svAdopt()` call **`haltForNewerData()`** — a full-screen card, no
     render, and a `throw` that aborts the rest of the script block so nothing can save
@@ -667,6 +731,11 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
     which is only how the bytes are packed). `decodeShare()` marks the error
     `newerVersion` so the card can say the link is fine and this copy is behind, rather
     than sending the reader off to chase a fresh link.
+  **The `piId`-optional bump is the sharpest case this repo has had**: a SCHEMA-3 build
+  reading a copy that holds unassigned sprints runs the old orphan filter, `piIds.has(null)`
+  is false, and it DELETES every one of them — then pushes the deletion to Firestore. A whole
+  pre-PI history gone from opening one stale cached tab. That is exactly what
+  `haltForNewerData()` is for, and without the bump it never fires.
   **Bump `SCHEMA` in the same commit that adds or repurposes a saved field, widen the
   allowlists in that same commit, and check `adoptState()` still stamps the new number** — a bump without the allowlist change protects a field
   the boundary then strips anyway. UI-only state (theme, active tab) needs no bump.
@@ -697,8 +766,9 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   this: `teamSprints()`/`rollingSprints()` counted the orphan into the Rolling 5 average
   while every PI-based view couldn't show it, its PI never reaching the picker — a figure
   moving with no visible sprint behind it. Delete PI / Delete Team filter `state.sprints`
-  correctly, so this only arrives from a hand-edited or damaged payload. All four callers
-  **say so** (`orphanNote()`), per the never-silent-exclusion rule: the import names it in
+  correctly, so this only arrives from a hand-edited or damaged payload. **Only the TEAM half
+  still drops** — the PI half un-groups instead, see the PI-optional rule above. All four
+  callers **say so** (`orphanNote()` / `unassignedNote()`), per the never-silent-exclusion rule: the import names it in
   its confirm, before the user commits; the share view and `svAdopt()` toast after
   `render()`; `load()` hands the count to `bootOrphans` because a toast raised during parse
   is gone before there's anything to look at.
