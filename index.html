@@ -274,11 +274,23 @@ select.ctl:hover { border-color: var(--text-muted); }
   border-radius: var(--radius-sm);
   padding: 8px 14px; cursor: pointer; color: var(--text-primary); font-weight: 500;
 }
-/* All teams looks across every team rather than into the one that's selected, so
-   it sits apart from the three views of the current team — but only while the row
-   fits on one line. Pushed right on a wrapped row it lands alone on the second
-   line, reading as an orphan rather than a separation. */
-@media (min-width: 470px) { .tab[data-view="teams"] { margin-left: auto; } }
+/* All teams and ART PI both look ACROSS teams rather than into the one that's
+   selected, so the pair sits apart from the three views of the current team —
+   but only while the row fits on one line. Pushed right on a wrapped row they
+   land alone on the second line, reading as orphans rather than a separation.
+
+   The gap belongs to whichever of the two comes first, and only one of them can
+   have it: two auto margins in a flex row SPLIT the free space, which would put a
+   gap between ART PI and All teams as well and break the pair back apart. ART PI
+   sits before All teams in the markup, so the sibling combinator can hand the
+   margin back when it is on the page — and `:not([hidden])` is what makes that
+   work, since renderTabs() hides the tab by setting the property, which reflects
+   to the attribute. */
+@media (min-width: 470px) {
+  .tab[data-view="art"]:not([hidden]),
+  .tab[data-view="teams"] { margin-left: auto; }
+  .tab[data-view="art"]:not([hidden]) ~ .tab[data-view="teams"] { margin-left: 0; }
+}
 .tab:hover { border-color: var(--text-muted); }
 /* Now that every tab is a button, the selected one has to be filled rather than
    merely outlined to still read as "you are here". These are the palette's own
@@ -854,6 +866,7 @@ main:focus { outline: none; }
     <button class="tab" role="tab" id="tab-sprint"  aria-controls="views" data-view="sprint"  aria-selected="true"  tabindex="0">Sprint</button>
     <button class="tab" role="tab" id="tab-pi"      aria-controls="views" data-view="pi"      aria-selected="false" tabindex="-1">Current PI</button>
     <button class="tab" role="tab" id="tab-rolling" aria-controls="views" data-view="rolling" aria-selected="false" tabindex="-1">Rolling 5</button>
+    <button class="tab" role="tab" id="tab-art"     aria-controls="views" data-view="art"     aria-selected="false" tabindex="-1">ART PI</button>
     <button class="tab" role="tab" id="tab-teams"   aria-controls="views" data-view="teams"   aria-selected="false" tabindex="-1">All teams</button>
   </div>
 
@@ -1190,6 +1203,50 @@ main:focus { outline: none; }
   </form>
 </dialog>
 
+<!-- Three numbers and nothing else. There is no field here for an objective's
+     title, and there deliberately never will be: a title is free text, and free
+     text is the one thing this app refuses to store (see REASONS). -->
+<dialog id="bvDialog" aria-labelledby="bvTitle">
+  <form method="dialog" id="bvForm">
+    <h3 id="bvTitle">PI Objectives</h3>
+    <p class="sub" id="bvSub"></p>
+
+    <fieldset>
+      <legend>Business Value</legend>
+      <div class="grid-fields">
+        <div>
+          <label class="field" for="bv_planned">Planned (committed)</label>
+          <input type="number" id="bv_planned" min="0" max="999" step="1" inputmode="numeric">
+        </div>
+        <div>
+          <label class="field" for="bv_actual">Achieved</label>
+          <input type="number" id="bv_actual" min="0" max="999" step="1" inputmode="numeric">
+        </div>
+        <div>
+          <label class="field" for="bv_stretch">Achieved from stretch</label>
+          <input type="number" id="bv_stretch" min="0" max="999" step="1" inputmode="numeric">
+        </div>
+      </div>
+      <p class="sub" style="margin:10px 0 0">Add up the business value your ART assigned to this
+        team's objectives at PI planning. <strong>Planned</strong> covers the objectives the team
+        committed to — leave stretch objectives out of it, they were never a commitment.
+        <strong>Achieved</strong> is how much of that committed value landed.
+        <strong>From stretch</strong> is what the stretch objectives delivered on top: it counts
+        in the measure and never in the commitment, which is what lets an honest figure sit
+        above 100%.</p>
+    </fieldset>
+
+    <p class="warn" id="bvPreview" role="status"></p>
+    <div class="row spread" style="margin-top:16px">
+      <button type="button" class="btn" id="bvRemoveBtn">Remove</button>
+      <span class="row">
+        <button type="button" class="btn" id="bvCancelBtn">Cancel</button>
+        <button type="button" class="btn primary" id="bvSaveBtn">Save business value</button>
+      </span>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="helpDialog" aria-labelledby="helpTitle">
   <h3 id="helpTitle"></h3>
   <p id="helpBody" style="margin:0;font-size:14px"></p>
@@ -1300,8 +1357,10 @@ const STORAGE_KEY = 'sv-data';
    BUMP IT whenever a saved field is added, renamed, or given a new meaning —
    and widen sanitizeIds()'s allowlists in the SAME commit, or the boundary will
    strip the very field the bump exists to protect. Nothing that stays on this
-   page (theme, which tab is open) needs a bump. */
-const SCHEMA = 1;
+   page (theme, which tab is open) needs a bump.
+
+   2 — the `objectives` list (PI business value) arrived. */
+const SCHEMA = 2;
 
 const SPRINTS_PER_PI = 6;
 const IP_SPRINT = 6;          // sprint 6 is the innovation & planning sprint
@@ -1318,6 +1377,29 @@ const ROLLING_WINDOW = 5;
 const CLEARED_PCT       = 95;
 const HEADROOM_MIN_EXTRA = 1;
 const HEADROOM_SHARE     = 0.6;
+
+/* ── The PI predictability band (see rag()'s 'predictability' scale) ─────────
+   SAFe's own measure, and the only figure in this app judged by a BAND rather
+   than a one-sided threshold: 80–100% is the target, and BOTH sides of it are a
+   finding. Under-delivering against the objectives is the obvious one. Over —
+   a train that reliably lands at 130% didn't have a good PI, it committed to
+   less than it knew it could do, and the plan every other team's dependencies
+   were built on was wrong by that much.
+
+   Above 100% is amber rather than red up to PRED_OVER_RED because stretch
+   objectives are SUPPOSED to land sometimes: that's what they're for, and a PI
+   that pulls a couple in is a good PI, not a mis-planned one. It only becomes a
+   red when it is too big to be stretch. */
+const PRED_BAND_LOW  = 80;
+const PRED_BAND_HIGH = 100;
+const PRED_UNDER_RED = 70;
+const PRED_OVER_RED  = 120;
+
+/* The cap the boundary clamps business value to. Objectives are scored 1–10 in
+   SAFe and a team plans a handful of them, so a PI total is normally well under
+   a hundred — but ARTs do use other scales, so this is a bound against a crafted
+   payload putting 1e9 on the card rather than a claim about anybody's scale. */
+const BV_MAX = 999;
 
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
@@ -1387,6 +1469,22 @@ function blankState() {
        the PI table. Keyed to the slot, it also survives as the record of WHY that
        sprint came in low once the real numbers land on top of it. */
     plans: [],
+    /* ── PI business value: one record per TEAM per PI ────────────────────────
+       `{ id, teamId, piId, plannedBv, actualBv, stretchBv }` — the three figures
+       SAFe's predictability measure is worked out from. Deliberately NOT one
+       record per objective: an objective's identity is its title, titles are free
+       text, and free text is the one thing this app will not store (see REASONS).
+       Three numbers carry the measure and can't carry a ticket key.
+
+       `plannedBv` is the value COMMITTED to at PI planning — stretch objectives
+       are excluded from it, which is the whole point of a stretch objective.
+       `stretchBv` is what stretch actually delivered, and it counts in the
+       numerator only. That asymmetry is what lets the measure exceed 100%, the
+       same way commitment completion can when work is re-sized upward.
+
+       Its own list beside `plans` rather than a field on the PI, because a PI is
+       shared by every team and this figure is one team's. */
+    objectives: [],
     settings: { activeTeamId: null, activePiId: null, includeSprint6InRolling: false,
                 includeInProgress: false, view: 'sprint', artFilter: null }
   };
@@ -1441,7 +1539,7 @@ function orphanNote(n) {
    this can never turn an arbitrary JSON into a valid empty export. */
 function coerceShape(data) {
   const d = (data && typeof data === 'object') ? data : {};
-  for (const k of ['teams', 'arts', 'pis', 'sprints', 'plans']) {
+  for (const k of ['teams', 'arts', 'pis', 'sprints', 'plans', 'objectives']) {
     d[k] = (Array.isArray(d[k]) ? d[k] : []).filter(x => x && typeof x === 'object');
   }
   if (!d.settings || typeof d.settings !== 'object') d.settings = {};
@@ -1492,6 +1590,11 @@ function sanitizeIds(data) {
     cleanKey(p, 'teamId');
     cleanKey(p, 'piId');
   });
+  list(data.objectives).forEach(o => {
+    cleanKey(o, 'id');
+    cleanKey(o, 'teamId');
+    cleanKey(o, 'piId');
+  });
   if (data.settings && typeof data.settings === 'object') {
     cleanKey(data.settings, 'activeTeamId');
     cleanKey(data.settings, 'activePiId');
@@ -1515,7 +1618,7 @@ function sanitizeIds(data) {
      sanitizeIds.pruned so boot can persist the scrub. */
   const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
   const STATUSES = ['auto', 'planned', 'active', 'complete'];
-  const VIEWS = ['sprint', 'pi', 'rolling', 'teams'];   // renderTabs() owns this list
+  const VIEWS = ['sprint', 'pi', 'rolling', 'art', 'teams'];   // renderTabs() owns this list
   const keepKnown = (src, spec) => {
     const out = {};
     for (const k of Object.keys(src)) {
@@ -1549,6 +1652,14 @@ function sanitizeIds(data) {
            would otherwise put a nonsense figure on the planning card. */
         const n = Number(v);
         if (Number.isFinite(n)) out[k] = Math.min(200, Math.max(0, Math.round(n)));
+      } else if (kind === 'bv') {
+        /* Business value on a PI objective. Clamped rather than merely checked
+           for finiteness, for the same reason 'pct' is: it is the numerator or
+           the denominator of the predictability measure, so a payload carrying
+           1e9 would put a nonsense figure on an RTE's card. Whole numbers only —
+           nobody scores an objective 7.5. */
+        const n = Number(v);
+        if (Number.isFinite(n)) out[k] = Math.min(BV_MAX, Math.max(0, Math.round(n)));
       } else if (kind === 'reason') {
         /* One of the fixed codes — see REASONS. An unknown one becomes 'other'
            rather than being dropped, so the adjustment keeps a reason to show. */
@@ -1573,6 +1684,9 @@ function sanitizeIds(data) {
   data.plans = objects(data.plans).map(p => keepKnown(p, {
     id: 'id', teamId: 'id', piId: 'id', sprintNumber: 'sprintNum',
     availability: 'pct', reason: 'reason' }));
+  data.objectives = objects(data.objectives).map(o => keepKnown(o, {
+    id: 'id', teamId: 'id', piId: 'id',
+    plannedBv: 'bv', actualBv: 'bv', stretchBv: 'bv' }));
   if (data.settings && typeof data.settings === 'object') {
     data.settings = keepKnown(data.settings, {
       activeTeamId: 'idOrNull', activePiId: 'idOrNull', activeSprintNum: 'sprintNum',
@@ -1583,7 +1697,7 @@ function sanitizeIds(data) {
      share payload crosses this same boundary and the shared-view banner is
      built from them. They are never persisted: a shared view makes save() a
      no-op, so they exist only for the length of that visit. */
-  const TOP = ['version', 'teams', 'arts', 'pis', 'sprints', 'plans', 'settings',
+  const TOP = ['version', 'teams', 'arts', 'pis', 'sprints', 'plans', 'objectives', 'settings',
                'v', 'sharedAt', 'label', 'allTeams', 'range'];
   for (const k of Object.keys(data)) {
     if (!TOP.includes(k)) { delete data[k]; sanitizeIds.pruned++; }
@@ -1640,6 +1754,31 @@ function sanitizeIds(data) {
     sanitizeIds.dropped += data.plans.length - kept.length;
     data.plans = kept;
   }
+  /* Business value hangs off the same two ids, and is deduped the same way — the
+     write path upserts, so a second row for one team's PI only ever arrives from
+     a damaged payload, and left in place it would be invisible while the two
+     rows disagreed about the measure.
+
+     Counted as PRUNED, not dropped: an orphaned objective differs from an
+     orphaned sprint in the one way that matters here. A sprint whose PI is
+     missing still reaches teamSprints() and moves a rolling average with nothing
+     on screen behind it — the silent exclusion orphanNote() exists to announce.
+     Business value is only ever read for a team and PI that are both on the page,
+     so an orphan changes no figure; it is inert bytes riding along in the cloud
+     copy, which is what the whitelist pass is for. Boot persists the scrub
+     without a toast, which is the right weight for plumbing. */
+  if (Array.isArray(data.objectives)) {
+    const seen = new Set();
+    const kept = data.objectives.filter(o => {
+      if (!o || !teamIds.has(o.teamId) || !piIds.has(o.piId)) return false;
+      const key = o.teamId + ' ' + o.piId;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    sanitizeIds.pruned += data.objectives.length - kept.length;
+    data.objectives = kept;
+  }
   return data;
 }
 
@@ -1673,6 +1812,27 @@ let bootPruned = 0;          // stray keys or wrong-typed values found in it
 
 let state = load();
 
+/* ── Adopting a copy from outside ───────────────────────────────────────────
+   The three paths that replace `state` with somebody else's copy — boot's
+   load(), Restore from a file, and a document arriving over sync — all land
+   here, so they can't drift apart on the details.
+
+   The load-bearing part is `version: SCHEMA`, and it has to be written AFTER
+   `parsed`. Every caller has just refused a copy stamped NEWER than this build,
+   so whatever reaches this line is this build's shape or an older one — and once
+   it has been through sanitizeIds() it is this build's shape either way. Letting
+   the incoming `version` win instead means a browser that upgrades, opens an
+   old saved copy and then saves it back writes the OLD number over data that now
+   holds new fields — and the next older build to see it sails past
+   haltForNewerData() and strips them, which is the exact loss the stamp exists
+   to prevent. It went unnoticed while SCHEMA had never moved off 1. */
+function adoptState(parsed) {
+  return Object.assign(blankState(), parsed, {
+    settings: Object.assign(blankState().settings, (parsed && parsed.settings) || {}),
+    version: SCHEMA
+  });
+}
+
 function load() {
   /* The data-from-the-future check, before a single field is read or written.
      Deliberately OUTSIDE the try below: that catch returns blankState(), which
@@ -1695,8 +1855,7 @@ function load() {
     bootOrphans = sanitizeIds.dropped;
     bootStrippedNotes = sanitizeIds.strippedNotes;
     bootPruned = sanitizeIds.pruned;
-    return Object.assign(blankState(), parsed,
-      { settings: Object.assign(blankState().settings, parsed.settings || {}) });
+    return adoptState(parsed);
   } catch (e) {
     console.warn('Could not read saved data', e);
     return blankState();
@@ -1835,6 +1994,66 @@ function groupTeamsByArt(teams, arts) {
   return (teams || []).map((t, i) => ({ t, i }))
     .sort((a, b) => (rank(a.t) - rank(b.t)) || (a.i - b.i))
     .map(x => x.t);
+}
+
+/* ── PI business value and the predictability measure ───────────────────────
+   All three figures are per team per PI, so there is exactly one record to find
+   and everything below is derived from it. Pure functions taking the record
+   rather than reading state, so tests.html can pin the arithmetic without
+   standing a fixture up in `state`.
+
+   `measure()` returns null rather than 0 when nothing was committed — the same
+   rule every percentage in this app follows. A PI a team planned no objectives
+   for has no denominator, so it shows "—" and is skipped by the averages
+   instead of dragging them to zero. */
+const objectivesFor = (teamId, piId) =>
+  state.objectives.find(o => o.teamId === teamId && o.piId === piId) || null;
+
+function bvFigures(rec) {
+  const planned = num(rec && rec.plannedBv);
+  const actual  = num(rec && rec.actualBv);
+  const stretch = num(rec && rec.stretchBv);
+  return {
+    planned, actual, stretch,
+    /* Stretch counts in the numerator and never in the denominator. That is the
+       whole design of a stretch objective, and it is what lets an honest measure
+       land above 100% — the same shape as commitment completion exceeding 100%
+       when work is re-sized upward mid-sprint. */
+    delivered: actual + stretch,
+    pct: planned > 0 ? ((actual + stretch) / planned) * 100 : null
+  };
+}
+
+/* Has this team's PI been scored at all? A record of three zeroes is not the
+   same as no record: the first says the team planned nothing, the second says
+   nobody has filled it in yet, and the ART view has to be able to say which. */
+const hasBv = (rec) =>
+  !!rec && !!(num(rec.plannedBv) || num(rec.actualBv) || num(rec.stretchBv));
+
+/* The train's measure, both ways, over the teams that have actually been scored.
+   `mean` is SAFe's own — every team's measure counts once, whatever the size of
+   its plan — and `pooled` adds all the value up and divides once, so a team that
+   planned three times as much value pulls three times as hard. Neither is wrong
+   and they answer different questions, exactly as avg() and pooled() do for the
+   sprint figures; the view names which is which rather than picking silently.
+
+   `missing` is the teams with nothing recorded. It is returned rather than left
+   implicit because leaving a team out of a train's headline figure without
+   saying so is precisely the silent exclusion the rest of this app refuses. */
+function artPredictability(teams, piId) {
+  const rows = (teams || []).map(t => ({ team: t, bv: bvFigures(objectivesFor(t.id, piId)),
+                                         has: hasBv(objectivesFor(t.id, piId)) }));
+  const scored = rows.filter(r => r.has && r.bv.pct !== null);
+  const planned = scored.reduce((a, r) => a + r.bv.planned, 0);
+  const delivered = scored.reduce((a, r) => a + r.bv.delivered, 0);
+  return {
+    rows,
+    scored: scored.length,
+    missing: rows.filter(r => !r.has).map(r => r.team),
+    mean: scored.length ? scored.reduce((a, r) => a + r.bv.pct, 0) / scored.length : null,
+    pooled: planned > 0 ? (delivered / planned) * 100 : null,
+    planned, delivered
+  };
 }
 
 /* Sprints for a team in program order: PI order first (the list in Teams & PIs is
@@ -2147,7 +2366,29 @@ const num = (v) => (typeof v === 'number' && isFinite(v) ? v : parseFloat(v) || 
 function rag(value, scale) {
   if (value === null || value === undefined || !isFinite(value)) return 'none';
   if (scale === 'completion') return value >= 85 ? 'green' : value >= 75 ? 'yellow' : 'red';
+  /* The one BAND in the app — a figure can miss it from either side. See the
+     PRED_* constants for why over-delivery is a finding and not a triumph. */
+  if (scale === 'predictability') {
+    if (value >= PRED_BAND_LOW && value <= PRED_BAND_HIGH) return 'green';
+    if (value < PRED_UNDER_RED || value > PRED_OVER_RED) return 'red';
+    return 'yellow';
+  }
   return value <= 15 ? 'green' : value <= 20 ? 'yellow' : 'red';
+}
+
+/* Which side of the band a predictability figure missed on, as a sentence. The
+   generic RAG_TEXT can't say it: "Off target" is the same words for 40% and for
+   140%, and they are opposite findings needing opposite conversations. Spoken to
+   a screen reader in place of the generic status, and written into the tile foot
+   where everyone else reads it — colour and a glyph were never going to carry a
+   direction on their own. */
+function predictabilityStatus(value) {
+  const r = rag(value, 'predictability');
+  if (r === 'none') return 'Not recorded';
+  if (r === 'green') return 'In the ' + PRED_BAND_LOW + '–' + PRED_BAND_HIGH + '% band';
+  return (value < PRED_BAND_LOW ? 'Below' : 'Above') + ' the '
+    + PRED_BAND_LOW + '–' + PRED_BAND_HIGH + '% band'
+    + (r === 'red' ? ' — off target' : '');
 }
 
 const RAG_TEXT  = { green: 'On target', yellow: 'Watch', red: 'Off target', none: 'No data' };
@@ -2174,6 +2415,14 @@ const ragVar = (value, scale, suffix) => {
    budget: a wall of text in a tooltip goes unread, which is where it started. */
 const TARGET_COMPLETION = 'Target: 85% or above. Below 75% shows red, in between amber.';
 const TARGET_CHURN      = 'Target: 15% or below. Above 20% shows red, in between amber.';
+/* A band, not a threshold — so this line has to state both edges and say why the
+   top one exists, or a reader carries over the "higher is better" habit every
+   other figure on the page teaches and reads 130% as the best team on the ART. */
+const TARGET_PREDICTABILITY =
+  `Target: ${PRED_BAND_LOW}–${PRED_BAND_HIGH}%. Under ${PRED_UNDER_RED}% or over ${PRED_OVER_RED}% `
+  + `shows red, in between amber. Well above 100% isn't a better score — it means the train `
+  + `committed to less than it could deliver, and every plan built on that commitment was wrong `
+  + `by the difference.`;
 /* Appended to the Rolling 5 entries — which sprints the average is over is the
    thing people get wrong about that view. */
 const ROLLING_WINDOW_NOTE = `Only finished sprints count, unless you've switched on
@@ -2242,6 +2491,36 @@ const METRIC_HELP = {
   piCarryover: { title: 'Carryover', target: TARGET_CHURN,
     body: `The average of each counted sprint's carryover across this PI — how much a typical
       sprint spilled into the next one. The caption gives the total points carried out.` },
+
+  /* PI predictability — the only band in the app, so its target line has to say
+     both edges and why the upper one is there. Everything else on this page is
+     "higher is better" or "lower is better"; a reader who assumes the same here
+     will read 130% as the best team on the train. */
+  piPredictability: { title: 'PI predictability', target: TARGET_PREDICTABILITY,
+    body: `The business value this team actually delivered against the value it committed to
+      at PI planning — SAFe's own predictability measure, and a different question from
+      commitment completion: that one asks whether the points landed, this one asks whether
+      the <em>objectives</em> did. Value from stretch objectives counts in what was delivered
+      but never in what was committed, which is what lets an honest figure sit above 100%.` },
+  artPredictability: { title: 'ART predictability', target: TARGET_PREDICTABILITY,
+    body: `Each team's own measure, averaged — so <em>every team counts once</em>, whatever
+      the size of its plan. That is the measure SAFe defines and the one an RTE reports at
+      Inspect &amp; Adapt. Teams with nothing recorded are left out and named beneath it. For
+      the other method — all the value pooled, so a team that planned more pulls harder — see
+      the <strong>ART total</strong> row at the foot of the table below.` },
+  artTotalRow: { title: 'ART total', target: TARGET_PREDICTABILITY,
+    body: `Every point and every unit of business value across the train added into one total,
+      with each percentage taken once at the end — so <em>a bigger team pulls harder</em>. This
+      is the pooled method, the one the Agile Operations Dashboard uses for points. For the
+      per-team average that SAFe's predictability measure is defined as, see the
+      <em>ART predictability</em> tile at the top of this view.` },
+  bvPlanned: { title: 'Planned business value', target: null,
+    body: `The value of the objectives the team committed to at PI planning. <strong>Stretch
+      objectives are deliberately not in it</strong> — they were never a commitment, and
+      counting them here would penalise a team for planning them at all.` },
+  bvDelivered: { title: 'Business value delivered', target: null,
+    body: `The value actually achieved — the committed objectives that landed, plus anything
+      the stretch objectives delivered. It's the top half of the predictability measure.` },
 
   /* Rolling 5 */
   rollCompletion: { title: 'Avg commitment completion', target: TARGET_COMPLETION,
@@ -2817,13 +3096,20 @@ function tile(label, valueHtml, ragClass, foot, hero, helpKey) {
   </div>`;
 }
 
-function pill(value, scale) {
+/* `statusText` overrides the spoken status. Only the predictability band uses it,
+   and it has to: RAG_TEXT says "Off target" for 40% and for 140% alike, which
+   tells a screen-reader user nothing about which way the figure missed. */
+function pill(value, scale, statusText) {
   const r = rag(value, scale);
   const glyph = RAG_GLYPH[r];
   return `<span class="pill ${r}">${fmtPct(value, scale)}${
     glyph ? `<span class="glyph" aria-hidden="true">${glyph}</span>` : ''
-  }<span class="sr-only"> — ${RAG_TEXT[r]}</span></span>`;
+  }<span class="sr-only"> — ${esc(statusText || RAG_TEXT[r])}</span></span>`;
 }
+
+/* The pill every predictability figure renders as, so no site can put one on the
+   page without the direction that makes it readable. */
+const predPill = (v) => pill(v, 'predictability', predictabilityStatus(v));
 
 /* A modal <dialog> is promoted to the browser's TOP LAYER, which paints above
    every z-index in the ordinary document — so a toast fired while a dialog was
@@ -3221,6 +3507,7 @@ function render() {
   if (view === 'sprint')       renderSprintView();
   else if (view === 'pi')      renderPiView();
   else if (view === 'rolling') renderRollingView();
+  else if (view === 'art')     renderArtPiView();
   else                         renderTeamsView();
 }
 
@@ -3241,6 +3528,20 @@ function renderTabs() {
     sprint:  true,
     pi:      !!team && teamSprints(team.id).length > 0,
     rolling: !!team && teamSprints(team.id).length > 0,
+    /* The train view, for an RTE rather than a Scrum Master. It needs an ART with
+       a team actually on it — an empty train is a heading over nothing — and a PI
+       to look at. Deliberately NOT gated on business value being recorded: the
+       view is where you go to record it, and a tab that appears only once the data
+       exists is a feature nobody finds. Unlike the three above it doesn't depend
+       on the ACTIVE team, because it isn't about one team. */
+    art:     state.pis.length > 0
+             && state.arts.some(a => teamsInArt(state.teams, a.id).length > 0)
+             /* And in a shared view it takes All teams' rule as well, because it
+                is the same kind of thing: `allTeams` is the sender declining to
+                publish a comparison ACROSS their teams, and this view is one. A
+                link of two teams on one ART would otherwise hand the recipient
+                the comparison the sender had just switched off. */
+             && (!viewOnly || !!(shareMeta && shareMeta.allTeams)),
     teams:   viewOnly ? !!(shareMeta && shareMeta.allTeams) : state.teams.length > 1
   };
   /* Nothing to look at yet, so the whole row goes rather than leaving a lone
@@ -3564,6 +3865,15 @@ function renderPiView() {
   const piCommitPct = piCommitted > 0 ? (piCompleted / piCommitted) * 100 : null;
   const avgCommitPct = avg(closed, 'commitCompletePct');
 
+  /* Business value is recorded per team per PI, so this view is where a Scrum
+     Master enters it and the only place a single team's measure appears. Unlike
+     every other figure on the card it doesn't come from the sprints at all — an
+     objective either landed or it didn't, and no amount of points arithmetic
+     knows which. */
+  const bvRec = objectivesFor(team.id, piId);
+  const bv = bvFigures(bvRec);
+  const bvScored = hasBv(bvRec);
+
   viewsEl.innerHTML = `
     <div class="card">
       <div class="row spread">
@@ -3598,7 +3908,49 @@ function renderPiView() {
           `${fmtNum(sum(closed, 'added'))} points added in total`, false, 'piBreakIn')}
         ${tile('Carryover', fmtPct(avg(closed, 'carryoverPct'), 'churn'), rag(avg(closed, 'carryoverPct'), 'churn'),
           `${fmtNum(sum(closed, 'carriedOut'))} points carried out`, false, 'piCarryover')}
+        ${/* Only once the PI has been scored. A "—" tile beside five real figures
+             reads as a metric that failed rather than one nobody uses, and plenty
+             of teams don't run PI objectives at all — the card below is what
+             offers the feature to those who do. */
+          bvScored ? tile('PI predictability', fmtPct(bv.pct, 'predictability'),
+            rag(bv.pct, 'predictability'),
+            `${fmtNum(bv.delivered)} of ${fmtNum(bv.planned)} business value — ${
+              esc(predictabilityStatus(bv.pct)).toLowerCase()}`,
+            false, 'piPredictability') : ''}
       </div>
+    </div>
+
+    <div class="card">
+      <div class="row spread cardhead">
+        <h2>PI Objectives${helpBtn('piPredictability', 'PI predictability')}</h2>
+        ${viewOnly ? '' : `<button class="btn${bvScored ? '' : ' primary'}" id="bvBtn">${
+          bvScored ? 'Edit Business Value' : '+ Add Business Value'}</button>`}
+      </div>
+      ${bvScored ? `
+        <p class="sub">What <strong>${esc(team.name)}</strong> committed to at PI planning for
+          ${esc(pi.name)}, and what landed. Stretch objectives count in what was delivered and
+          never in what was committed — which is why this figure can sit above 100%.</p>
+        <div class="tablewrap">
+        <table aria-label="Business value for this team and PI">
+          <thead><tr>
+            <th scope="col">Planned${helpBtn('bvPlanned', 'planned business value')}</th>
+            <th scope="col">Achieved</th><th scope="col">From stretch</th>
+            <th scope="col">Delivered${helpBtn('bvDelivered', 'business value delivered')}</th>
+            <th scope="col" class="metric">Predictability</th>
+          </tr></thead>
+          <tbody><tr>
+            <td>${fmtNum(bv.planned)}</td>
+            <td>${fmtNum(bv.actual)}</td>
+            <td>${fmtNum(bv.stretch)}</td>
+            <td>${fmtNum(bv.delivered)}</td>
+            <td class="metric">${predPill(bv.pct)}</td>
+          </tr></tbody>
+        </table></div>`
+      : `<p class="sub">Nothing recorded for <strong>${esc(team.name)}</strong> in
+          ${esc(pi.name)}. Business value is the other half of predictability: commitment
+          completion says whether the points landed, this says whether the
+          <strong>objectives</strong> did — and it's the measure an RTE reports at Inspect
+          &amp; Adapt.${viewOnly ? '' : ' Three numbers off your PI planning sheet is all it takes.'}</p>`}
     </div>
 
     <div class="card">
@@ -3678,6 +4030,8 @@ function renderPiView() {
   document.getElementById('piSel2').onchange = (e) => {
     state.settings.activePiId = e.target.value; save(); render();
   };
+  const bvBtn = document.getElementById('bvBtn');
+  if (bvBtn) bvBtn.onclick = () => openBv(team.id, piId);
   wireEditRows(tr => openSprint(team.id, piId, Number(tr.dataset.num)));
 
   makeChart('piChart', {
@@ -4139,7 +4493,285 @@ function wireRollingToolbar() {
   };
 }
 
-/* ── View 4: all teams ──────────────────────────────────────────────────── */
+/* ── View 4: the ART's PI ────────────────────────────────────────────────────
+   The one view written for an RTE rather than a Scrum Master, and the one place
+   an ART is a level of arithmetic rather than only a label. That is a deliberate
+   change to a standing rule and it is narrow on purpose: nothing here touches
+   metrics(), every SPRINT figure below is still worked out per team and merely
+   added up, and the only genuinely ART-level number in the app is the
+   predictability measure — which is defined at train level in SAFe and has
+   nowhere else it could live.
+
+   It shares `settings.artFilter` with All teams rather than keeping a second
+   picker of its own. One filter, one stored value, and moving between the two
+   views keeps the scope you were looking at — two pickers that mean the same
+   thing and disagree is worse than either.
+
+   It reads the PI, not the rolling window: objectives are planned and scored per
+   PI, so a five-sprint window crossing a PI boundary would be answering a
+   question nobody asked. */
+
+function renderArtPiView() {
+  if (!state.pis.length) return renderNeedPi();
+
+  const grouped = groupTeamsByArt(state.teams, state.arts);
+  const shown = teamsInArt(grouped, state.settings.artFilter);
+  const hiddenCount = state.teams.length - shown.length;
+  const noArt = state.settings.artFilter === ART_NONE;
+  const art = noArt ? null : artById(state.settings.artFilter);
+
+  const piId = state.settings.activePiId && piById(state.settings.activePiId)
+    ? state.settings.activePiId : state.pis[state.pis.length - 1].id;
+  const pi = piById(piId);
+
+  if (!shown.length) {
+    viewsEl.innerHTML = artToolbar(0, hiddenCount) + `
+      <div class="card empty">
+        <h2>No Teams On This ART</h2>
+        <p>Nothing is assigned to it at the moment. Pick <strong>All ARTs</strong> above, or
+           assign a team to it in <strong>Teams &amp; PIs</strong>.</p>
+      </div>`;
+    wireArtToolbar();
+    return;
+  }
+
+  const heading = art ? esc(art.name) : noArt ? 'Teams Without An ART' : 'Every Team';
+  const scopeLabel = art ? `All teams on ${esc(art.name)}`
+    : noArt ? 'All teams with no ART' : 'All teams';
+
+  /* One pass per team, so the table, the tiles, the chart and the footer row can
+     only ever disagree by method and never by which sprints they looked at — the
+     same discipline renderTeamsView() applies to the rolling window. */
+  const rows = shown.map(t => {
+    const mine = state.sprints.filter(s => s.teamId === t.id && s.piId === piId);
+    const closed = mine.filter(isCounted);
+    const committed = sum(closed, 'committed');
+    const done = sum(closed, 'committedCompleted');
+    const rec = objectivesFor(t.id, piId);
+    return {
+      team: t, closed, open: mine.filter(s => !isCounted(s)),
+      committed, done, velocity: sum(closed, 'velocity'),
+      /* Pooled within the team's own PI, matching the headline tile on Current
+         PI — so a team's row here reads the same as its own PI view. */
+      commitPct: committed > 0 ? (done / committed) * 100 : null,
+      bv: bvFigures(rec), has: hasBv(rec)
+    };
+  });
+
+  const pred = artPredictability(shown, piId);
+  const scoredRows = rows.filter(r => r.has && r.bv.pct !== null);
+  const inBand = scoredRows.filter(r => rag(r.bv.pct, 'predictability') === 'green').length;
+
+  const artCommitted = rows.reduce((a, r) => a + r.committed, 0);
+  const artDone = rows.reduce((a, r) => a + r.done, 0);
+  const artVelocity = rows.reduce((a, r) => a + r.velocity, 0);
+  const artCommitPct = artCommitted > 0 ? (artDone / artCommitted) * 100 : null;
+  const openHere = rows.reduce((a, r) => a + r.open.length, 0);
+
+  /* The teams the headline measure could not include. Named, never merely
+     omitted: a train figure worked out from three of five teams while the page
+     shows five is the silent exclusion the rest of this app refuses. */
+  const missingNote = pred.missing.length
+    ? `<p class="sub exnote"><span class="badge">⚑ Not scored yet</span>
+        <span class="muted">${pred.missing.map(t => esc(t.name)).join(', ')} — no business value
+        has been recorded for ${pred.missing.length === 1 ? 'it' : 'them'} in ${esc(pi.name)}, so
+        ${pred.missing.length === 1 ? 'it is' : 'they are'} out of the predictability figures
+        and in every points figure. Record it on the <strong>Current PI</strong> tab, or click
+        the team below.</span></p>`
+    : '';
+
+  /* ── When the average hides the train ────────────────────────────────────
+     A two-sided measure has a failure mode no one-sided one has: a team that
+     under-delivered and a team that under-committed sit on OPPOSITE sides of
+     the band and cancel each other out, so the train's average lands inside it
+     and reads "on target" over two teams that both missed. The demo produces
+     exactly that — 59% and 113% average to 86% — and an RTE reading the tile
+     alone would take a healthy number into Inspect & Adapt.
+
+     The condition is the mechanism itself rather than a proxy for it: the mean
+     is in the band, and there is at least one team on each side. That can't fire
+     on a train that is genuinely fine, and it can't miss one that isn't. Prose
+     and a glyph, never a colour — the finding is that the colour is misleading,
+     so painting it a second colour would be its own contradiction. */
+  const below = scoredRows.filter(r => r.bv.pct < PRED_BAND_LOW);
+  const above = scoredRows.filter(r => r.bv.pct > PRED_BAND_HIGH);
+  const cancellingNote = (rag(pred.mean, 'predictability') === 'green' && below.length && above.length)
+    ? `<p class="sub exnote"><span class="badge">↔ The average is hiding this</span>
+        <span class="muted">The train's figure sits in the band, but
+        ${inBand ? 'only ' + plural(inBand, 'team') + ' actually ' + (inBand === 1 ? 'does' : 'do')
+                 : '<strong>no team actually does</strong>'}.
+        ${below.map(r => esc(r.team.name)).join(', ')} came in under it and
+        ${above.map(r => esc(r.team.name)).join(', ')} went over, and averaging the two
+        cancels them out. Two teams that both missed the band, one by under-delivering and one
+        by under-committing, produce the same number as two teams that hit it — so read the
+        rows below, not the tile.</span></p>`
+    : '';
+
+  const artTag = (team) => {
+    if (!state.arts.length || art || noArt) return '';
+    const on = team.artId ? artById(team.artId) : null;
+    return `<span class="artname">${on ? esc(on.name) : 'No ART'}</span>`;
+  };
+
+  viewsEl.innerHTML = artToolbar(shown.length, hiddenCount) + `
+    <div class="card">
+      <div class="row spread">
+        <div class="row">
+          <label class="sr-only" for="piSel3">PI</label>
+          <select id="piSel3" class="ctl">${state.pis.map(p =>
+            `<option value="${esc(p.id)}"${p.id === piId ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
+        </div>
+        <span class="muted" style="font-size:13px">${plural(shown.length, 'team')}${
+          openHere ? ` · ${plural(openHere, 'sprint')} still in flight, not counted` : ''}</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>${heading} — ${esc(pi.name)}</h2>
+      <p class="sub">How the train did against what it planned. <strong>Predictability</strong> is
+        business value delivered against business value committed at PI planning — the measure an
+        RTE reports at Inspect &amp; Adapt, and a different question from whether the points
+        landed. The two sit side by side here because a train can hit one and miss the other.</p>
+      ${missingNote}${cancellingNote}
+      <div class="tiles">
+        ${tile('ART predictability', fmtPct(pred.mean, 'predictability'),
+          rag(pred.mean, 'predictability'),
+          pred.scored
+            ? `each of ${plural(pred.scored, 'team')} counted once — ${
+                esc(predictabilityStatus(pred.mean)).toLowerCase()}`
+            : 'no business value recorded yet',
+          true, 'artPredictability')}
+        ${tile('Teams in the band', pred.scored ? `${inBand} of ${pred.scored}` : '—', null,
+          `inside ${PRED_BAND_LOW}–${PRED_BAND_HIGH}% — the rest are named in the table`,
+          false, 'artPredictability')}
+        ${tile('Commitment completion', fmtPct(artCommitPct, 'completion'),
+          rag(artCommitPct, 'completion'),
+          `${fmtNum(artDone)} of ${fmtNum(artCommitted)} committed points, pooled`,
+          false, 'artTotalRow')}
+        ${tile('Total delivered', fmtNum(artVelocity), null,
+          `points completed across ${plural(shown.length, 'team')}`, false, 'piDelivered')}
+      </div>
+    </div>
+
+    ${scoredRows.length ? `<div class="card">
+      <h2>Predictability by Team</h2>
+      <p class="sub">One bar per team that has been scored, against the
+        ${PRED_BAND_LOW}–${PRED_BAND_HIGH}% band. <strong>Both edges matter.</strong> Under it the
+        train delivered less than it promised; well over it, it promised less than it could
+        deliver — and every dependency planned around that promise was wrong by the difference.</p>
+      <div class="chartbox"><canvas id="artPredChart" role="img"
+        aria-label="PI predictability by team against the ${PRED_BAND_LOW} to ${PRED_BAND_HIGH} percent band. Figures in the table below."></canvas></div>
+    </div>` : ''}
+
+    <div class="card">
+      <h2>The Numbers</h2>
+      <p class="sub">Click a team to open its own PI view. Points figures cover this PI's
+        counted sprints; business value covers the whole PI. A team with no business value
+        recorded shows <strong>—</strong> and is left out of the predictability figures only.</p>
+      <div class="tablewrap">
+      <table aria-label="Every team on this ART for this PI">
+        <thead><tr>
+          <th scope="col">Team</th><th scope="col">Sprints</th>
+          <th scope="col">Committed</th><th scope="col">Cmt. done</th>
+          <th scope="col" class="metric">Complete %</th>
+          <th scope="col">Total done</th>
+          <th scope="col">BV planned${helpBtn('bvPlanned', 'planned business value')}</th>
+          <th scope="col">BV delivered${helpBtn('bvDelivered', 'business value delivered')}</th>
+          <th scope="col" class="metric">Predictability</th>
+        </tr></thead>
+        <tbody>${rows.map(r => `
+          <tr class="clickable" data-id="${esc(r.team.id)}">
+            <th scope="row"><button type="button" class="rowbtn"
+              aria-label="Open ${esc(r.team.name)}">${esc(r.team.name)}</button>${artTag(r.team)}</th>
+            <td>${r.closed.length}</td>
+            <td>${fmtNum(r.committed)}</td>
+            <td>${fmtNum(r.done)}</td>
+            <td class="metric">${pill(r.commitPct, 'completion')}</td>
+            <td>${fmtNum(r.velocity)}</td>
+            <td>${r.has ? fmtNum(r.bv.planned) : '<span class="muted">—</span>'}</td>
+            <td>${r.has ? fmtNum(r.bv.delivered) : '<span class="muted">—</span>'}</td>
+            <td class="metric">${r.has ? predPill(r.bv.pct)
+              : '<span class="muted">not scored</span>'}</td></tr>`).join('')}</tbody>
+        <tfoot>
+          <tr>
+            <th scope="row">${scopeLabel}${helpBtn('artTotalRow', 'the ART total row')}</th>
+            <td>${rows.reduce((a, r) => a + r.closed.length, 0)}</td>
+            <td>${fmtNum(artCommitted)}</td>
+            <td>${fmtNum(artDone)}</td>
+            <td class="metric">${pill(artCommitPct, 'completion')}</td>
+            <td>${fmtNum(artVelocity)}</td>
+            <td>${pred.scored ? fmtNum(pred.planned) : '<span class="muted">—</span>'}</td>
+            <td>${pred.scored ? fmtNum(pred.delivered) : '<span class="muted">—</span>'}</td>
+            <td class="metric">${pred.scored ? predPill(pred.pooled)
+              : '<span class="muted">—</span>'}</td>
+          </tr>
+        </tfoot>
+      </table></div>
+      <p class="sub methodnote">This row is <strong>pooled</strong> — every point and every unit
+        of business value added up, each percentage taken once at the end — so a bigger team pulls
+        harder on it. The <strong>ART predictability</strong> tile above is the other method:
+        each team's own measure, averaged, every team counting once. That is the one SAFe
+        defines, which is why it gets the tile.${
+        pred.scored && pred.scored < shown.length
+          ? ` Both cover the ${plural(pred.scored, 'team')} that ${
+              pred.scored === 1 ? 'has' : 'have'} been scored.` : ''}</p>
+    </div>`;
+
+  wireArtToolbar();
+  document.getElementById('piSel3').onchange = (e) => {
+    state.settings.activePiId = e.target.value; save(); render();
+  };
+  /* Clicking a team lands on ITS Current PI, on the PI you were already looking
+     at — that is where the objectives are recorded and where the row's figures
+     come from, so it's the page anyone following up on a row actually wants. */
+  viewsEl.querySelectorAll('tr.clickable').forEach(tr => {
+    const go = () => {
+      state.settings.activeTeamId = tr.dataset.id;
+      state.settings.view = 'pi';
+      save(); render();
+    };
+    tr.onclick = go;
+    const btn = tr.querySelector('.rowbtn');
+    if (btn) btn.onclick = (e) => { e.stopPropagation(); go(); };
+  });
+
+  if (scoredRows.length) {
+    makeChart('artPredChart', {
+      data: {
+        labels: scoredRows.map(r => r.team.name),
+        datasets: [
+          /* Tint fill, status-colour edge — the app's standing bar rule, and here it
+             also means a bar that overshoots the band is red at the TOP of the chart
+             rather than green, which is the whole point of a two-sided measure. */
+          { type: 'bar', label: 'PI predictability %', order: 3,
+            data: scoredRows.map(r => r.bv.pct),
+            maxBarThickness: 72, borderWidth: 2, borderSkipped: false, borderRadius: 4,
+            backgroundColor: scoredRows.map(r => cssVar(ragVar(r.bv.pct, 'predictability', '-bg'))),
+            borderColor: scoredRows.map(r => cssVar(ragVar(r.bv.pct, 'predictability'))) },
+          /* Two lines, not one, because the band has two edges — and they carry a
+             different dash and point shape as well as a different weight, so which
+             is which survives on a greyscale printout. */
+          { type: 'line', label: `Band floor ${PRED_BAND_LOW}%`, order: 2,
+            data: scoredRows.map(() => PRED_BAND_LOW),
+            borderColor: cssVar('--text-secondary'), borderWidth: 1.5, borderDash: [6, 4],
+            pointStyle: 'triangle', pointRadius: 0 },
+          { type: 'line', label: `Band ceiling ${PRED_BAND_HIGH}%`, order: 1,
+            data: scoredRows.map(() => PRED_BAND_HIGH),
+            borderColor: cssVar('--text-muted'), borderWidth: 1.5, borderDash: [2, 3],
+            pointStyle: 'rectRot', pointRadius: 0 }
+        ]
+      },
+      options: baseOptions({
+        /* suggestedMax, never max: a train that lands well above the band is the
+           finding this chart exists to show, and clipping it off the top hides it. */
+        scales: { x: gridOpts(),
+          y: Object.assign(pctAxis('Predictability'), { suggestedMax: 120 }) }
+      })
+    });
+  }
+}
+
+/* ── View 5: all teams ──────────────────────────────────────────────────── */
 
 /* The ART picker that narrows this view. It's a card of its own above the two
    rolling toggles rather than a third row inside them: those two change what
@@ -4645,7 +5277,8 @@ function closeOnBackdropClick(dlg) {
 
 /* Every dialog except the sync reconciliation one, which deliberately refuses to
    be dismissed — picking which copy of your data to keep has to be a choice. */
-['sprintDialog', 'manageDialog', 'dataDialog', 'clearDialog', 'helpDialog', 'adjustDialog'].forEach(id => closeOnBackdropClick(F(id)));
+['sprintDialog', 'manageDialog', 'dataDialog', 'clearDialog', 'helpDialog', 'adjustDialog',
+ 'bvDialog'].forEach(id => closeOnBackdropClick(F(id)));
 
 /* Fill a reason <select> from the fixed code list. The label comes from REASONS
    and never from the stored value, so a code that arrived in a share link can
@@ -5407,6 +6040,81 @@ F('adjustRemoveBtn').onclick = () => {
   toast('Adjustment removed');
 };
 
+/* ── PI business value ──────────────────────────────────────────────────────
+   The whole editor: three numbers for one team's PI, upserted into
+   `state.objectives`. It writes NO key that isn't a finite number, and it
+   deletes the record outright rather than storing three zeroes when everything
+   is cleared — "planned nothing" and "nobody has filled this in" are different
+   answers and the ART view has to be able to tell them apart. */
+
+let scoring = null;   // { teamId, piId }
+const bvDialog = F('bvDialog');
+
+const bvInput = (id) => {
+  const n = Math.round(Number(F(id).value));
+  return Number.isFinite(n) ? Math.min(BV_MAX, Math.max(0, n)) : 0;
+};
+
+function updateBvPreview() {
+  const planned = bvInput('bv_planned');
+  const bv = bvFigures({ plannedBv: planned, actualBv: bvInput('bv_actual'),
+                         stretchBv: bvInput('bv_stretch') });
+  F('bvPreview').textContent = planned > 0
+    ? `${fmtNum(bv.delivered)} of ${fmtNum(planned)} business value — `
+      + `${fmtPct(bv.pct, 'predictability')}, ${predictabilityStatus(bv.pct).toLowerCase()}.`
+    : (bv.delivered > 0
+        /* Value delivered against nothing planned has no measure to show, and the
+           reason is worth saying: it is almost always a planned figure not filled
+           in rather than a team that really committed to no objectives. */
+        ? 'Nothing planned, so there is no measure to work out — fill in the planned '
+          + 'figure and this will show the percentage.'
+        : '');
+}
+
+function openBv(teamId, piId) {
+  scoring = { teamId, piId };
+  const rec = objectivesFor(teamId, piId);
+  F('bvSub').textContent = `${teamById(teamId).name} — ${piById(piId).name}`;
+  F('bv_planned').value = rec ? num(rec.plannedBv) : '';
+  F('bv_actual').value  = rec ? num(rec.actualBv) : '';
+  F('bv_stretch').value = rec ? num(rec.stretchBv) : '';
+  F('bvRemoveBtn').hidden = !hasBv(rec);
+  updateBvPreview();
+  openModal(bvDialog);
+}
+
+['bv_planned', 'bv_actual', 'bv_stretch'].forEach(id => {
+  F(id).oninput = updateBvPreview;
+});
+
+F('bvCancelBtn').onclick = () => bvDialog.close();
+
+F('bvSaveBtn').onclick = () => {
+  if (!scoring) return;
+  const { teamId, piId } = scoring;
+  const planned = bvInput('bv_planned');
+  const actual = bvInput('bv_actual');
+  const stretch = bvInput('bv_stretch');
+  state.objectives = state.objectives.filter(o => !(o.teamId === teamId && o.piId === piId));
+  const empty = !planned && !actual && !stretch;
+  if (!empty) state.objectives.push({ id: uid(), teamId, piId,
+    plannedBv: planned, actualBv: actual, stretchBv: stretch });
+  save();
+  bvDialog.close();
+  render();
+  toast(empty ? 'Business value removed' : 'Business value saved');
+};
+
+F('bvRemoveBtn').onclick = () => {
+  if (!scoring) return;
+  const { teamId, piId } = scoring;
+  state.objectives = state.objectives.filter(o => !(o.teamId === teamId && o.piId === piId));
+  save();
+  bvDialog.close();
+  render();
+  toast('Business value removed');
+};
+
 F('sprintSaveBtn').onclick = () => {
   const record = buildSprintRecord();
   if (slotClash(record)) {
@@ -5502,6 +6210,7 @@ function renderManage() {
     state.teams = state.teams.filter(x => x.id !== t.id);
     state.sprints = state.sprints.filter(s => s.teamId !== t.id);
     state.plans = state.plans.filter(p => p.teamId !== t.id);
+    state.objectives = state.objectives.filter(o => o.teamId !== t.id);
     if (state.settings.activeTeamId === t.id)
       state.settings.activeTeamId = state.teams[0] ? state.teams[0].id : null;
     save(); renderManage(); render();
@@ -5543,6 +6252,7 @@ function renderManage() {
     state.pis = state.pis.filter(x => x.id !== p.id);
     state.sprints = state.sprints.filter(s => s.piId !== p.id);
     state.plans = state.plans.filter(pl => pl.piId !== p.id);
+    state.objectives = state.objectives.filter(o => o.piId !== p.id);
     if (state.settings.activePiId === p.id) state.settings.activePiId = null;
     save(); renderManage(); render();
   });
@@ -5650,8 +6360,7 @@ F('importFile').onchange = (e) => {
         + `${parsed.sprints.length} sprint(s) from this file? Your current data will be lost.`
         + (orphans ? `\n\n${orphanNote(orphans)}` : '');
       if (!confirm(msg)) return;
-      state = Object.assign(blankState(), parsed,
-        { settings: Object.assign(blankState().settings, parsed.settings || {}) });
+      state = adoptState(parsed);
       save();
       applyTheme();
       render();
@@ -5731,7 +6440,12 @@ const SHARE_FORMAT = 1;
    newer build should get "ask for a fresh link" rather than a view silently
    missing whatever their build added. Unlike SCHEMA there is no cloud copy at
    stake, so nothing is written and nothing halts. */
-const SHARE_PAYLOAD_V = 1;
+/* 2 — the payload gained `objectives`. Additive, and an older build would open
+   the link and simply show no predictability anywhere; it is bumped anyway,
+   because "quietly fewer figures than the sender is looking at" is the silent
+   exclusion this app refuses everywhere else, and the recipient's own copy is
+   the one thing they can fix. */
+const SHARE_PAYLOAD_V = 2;
 
 const b64urlEncode = (bytes) => {
   let s = '';
@@ -5855,6 +6569,14 @@ function buildSharePayload({ teamIds, includeAllTeams, scope }) {
        one of the fixed reason codes. Teams carry their standing figure in the
        `teams` list above for the same reason. */
     plans: state.plans.filter(pl => teams.some(t => t.id === pl.teamId) && usedPis.has(pl.piId)),
+    /* Business value for the teams and PIs that made it through — three numbers
+       and two ids, nothing identifying, exactly like a plan. It travels for the
+       same reason: without it a shared link's Current PI and ART PI views would
+       quietly show fewer figures than the screen the link was made from, which
+       reads as the recipient's copy being broken. A PI the window cut away takes
+       its objectives with it. */
+    objectives: state.objectives.filter(o =>
+      teams.some(t => t.id === o.teamId) && usedPis.has(o.piId)),
     /* Numbers only, and undefined on a full history so JSON.stringify drops the key
        entirely. The recipient's banner is built from these two figures rather than
        from a sentence the sender wrote, so a hand-edited link has no text to inject. */
@@ -5922,6 +6644,9 @@ async function openSharedView() {
     shareMeta = { sharedAt: p.sharedAt, label: p.label, allTeams: !!p.allTeams, range: p.range };
     state = Object.assign(blankState(), {
       teams: p.teams, arts: p.arts || [], pis: p.pis || [], sprints: p.sprints,
+      /* Same reason as `plans` below: a figure the sender can see and the
+         recipient can't is a broken link, not a tidier one. */
+      objectives: p.objectives || [],
       /* The capacity adjustments travel in the payload precisely so the
          recipient's Target Capacity card shows the sender's figure — leaving
          them out here silently showed the unadjusted number with no ⚑. */
@@ -6364,6 +7089,39 @@ function loadSample() {
   state.plans.push({ id: uid(), teamId: t5.id, piId: piB.id, sprintNumber: 3,
                      availability: 50, reason: 'leave' });
 
+  /* ── PI business value, for the ART PI view ──────────────────────────────
+     Four of the five teams are scored, and each is a different reading of the
+     band — the point being that predictability is a two-sided measure and a demo
+     that only ever shows teams under the band teaches it as a one-sided one.
+
+     · Kestrel  36 of 40  =  90%  — green, in the band, the ordinary team again.
+     · Otter    20 of 34  =  59%  — red UNDER. The team the targets exist to
+                                    catch misses on objectives as well as points.
+     · Curlew   34 of 30  = 113%  — amber OVER, and the same finding its headroom
+                                    note makes in points: it commits to less than
+                                    it delivers. 28 committed plus 6 of stretch,
+                                    so the stretch asymmetry is visible in a row.
+     · Wren     15 of 18  =  83%  — green, and in NO ART, so the "No ART" group on
+                                    this view has a figure of its own.
+     · Merlin   not scored        — its PI is still running, which is the honest
+                                    reason a team has no objectives yet, and it is
+                                    what puts the ⚑ "not scored" note on Payments
+                                    ART with a team named in it.
+
+     That leaves Payments ART worked out from one of its two teams (the note says
+     so) and Platform ART from both: mean 86%, pooled 84% — the two methods
+     disagreeing by under two points over the same teams, which is exactly what
+     the method note under the table is there to explain. Don't tidy them into
+     agreement; a demo where the two methods match teaches that they always do. */
+  const bv = (teamId, plannedBv, actualBv, stretchBv) =>
+    ({ id: uid(), teamId, piId: piB.id, plannedBv, actualBv, stretchBv });
+  state.objectives.push(
+    bv(t1.id, 40, 36, 0),
+    bv(t3.id, 34, 20, 0),
+    bv(t4.id, 30, 28, 6),
+    bv(t5.id, 18, 15, 0)
+  );
+
   /* Land on the running sprint. It is the only screen in the app that cannot
      exist without dates, it is the view the app opens on anyway, and a live
      sprint with a pace reading is a better first impression than a finished one.
@@ -6473,8 +7231,7 @@ window.svAdopt = (incoming, ts) => {
   }
   incoming = sanitizeIds(coerceShape(incoming));
   const orphans = sanitizeIds.dropped;
-  state = Object.assign(blankState(), incoming,
-    { settings: Object.assign(blankState().settings, (incoming && incoming.settings) || {}) });
+  state = adoptState(incoming);
   /* Guarded like save(): this runs inside the sync module's onSnapshot callback,
      where a quota or private-mode throw would otherwise be uncaught and skip the
      render below. The in-memory copy is already adopted, so warn and paint it. */
@@ -6549,6 +7306,11 @@ if (viewOnly) {
    app reads it. */
 window.__svTestHooks = { raisesKeyboard,
   fmtPct, ART_NONE, b64urlEncode, REASONS, AVAILABILITY_REASONS, EXCLUDE_REASONS, isCounted,
+  /* The predictability band's edges, so the suite pins the boundaries against the
+     constants themselves rather than against four numbers copied out of them. */
+  PRED_BAND_LOW, PRED_BAND_HIGH, PRED_UNDER_RED, PRED_OVER_RED, BV_MAX,
+  /* Arrow `const`s, so invisible on window the same way fmtPct is. */
+  objectivesFor, hasBv,
   /* `const` at the top level of a classic script is not a property of window,
      so the two version numbers have to be handed over deliberately or the
      suite would compare against `undefined` and pass on nothing. */

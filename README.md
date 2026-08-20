@@ -34,9 +34,15 @@ Per team, per sprint:
 | **Carried out** | Committed points not finished, rolling into the next sprint |
 | **Brought in, then removed** | Work that arrived mid-sprint and left again — counted in neither break-in nor removed |
 
+Per team, per PI, it also tracks the **business value** on that team's PI objectives —
+planned, achieved, and achieved from stretch — which is what the [predictability
+measure](#predictability-and-the-art-pi-view) is worked out from.
+
 There is deliberately **no free-text field anywhere in the app**. The figures come out of a
 work Jira, and a comment box is the one place sensitive detail could ride along into the
 saved copy — so beyond the short team/ART/PI names, only numbers and dates are ever saved.
+That's why PI objectives are three numbers and not a list of titled objectives: an
+objective's title is exactly the sort of text this rule exists to keep out.
 (Earlier versions had optional per-sprint "Why?" notes; the feature was removed, and any
 notes in a previously saved copy are scrubbed the next time the app opens, locally and from
 the synced copy.)
@@ -66,6 +72,11 @@ Velocity              = total points completed
 |---|---|---|---|
 | Commitment completion | ≥ 85% | 75–84% | < 75% |
 | Break-in / Removed / Carryover | ≤ 15% | 16–20% | > 20% |
+| PI predictability | 80–100% | 70–79%, 101–120% | < 70%, > 120% |
+
+The last one is a **band**, not a threshold — it can be missed from either side, and both
+sides mean something. See [Predictability and the ART PI
+view](#predictability-and-the-art-pi-view).
 
 Colour is never the only signal — every figure also carries a ✓ / ! / ✕ glyph and a
 screen-reader status, so the app is readable without colour vision.
@@ -265,7 +276,7 @@ a Jira report over it and saving. Legitimate corrections go through with one cli
 
 It stays quiet unless it needs to speak: no prompt for a sprint that's still running or
 hasn't started, none for a new sprint in an empty slot, none if you open an old sprint and
-change nothing, and none for adding a retro note. Only a recorded figure actually changing —
+change nothing. Only a recorded figure actually changing —
 or the sprint being moved to another slot — triggers it.
 
 ### Dates Fill Themselves
@@ -313,24 +324,33 @@ The one figure that still shows `—` is a percentage with nothing committed: th
 denominator to divide by, so it can't be a number, and those sprints stay out of averages
 rather than dragging them down.
 
-## The Four Views
+## The Five Views
 
 - **Sprint** — one sprint in detail: the RAG tiles and a breakdown of where the committed
   points actually went.
-- **Current PI** — all six sprints of a PI, with PI totals and a sprint-by-sprint chart.
+- **Current PI** — all six sprints of a PI, with PI totals and a sprint-by-sprint chart,
+  plus this team's **PI objectives** and the predictability measure worked out from them.
 - **Rolling 5** — the last five sprints for a team, crossing PI boundaries. Velocity and
   commitment completion on one chart — with a dashed **velocity trend line** fitted by
   ordinary least squares, the same treatment every chart in the sibling Flow Metrics app
   carries — and an instability chart plotting break-in, removed and carryover against
   shaded 15% / 20% threshold bands.
+- **ART PI** — the whole train's PI on one page: every team's points and business value side
+  by side, the ART's **predictability measure**, and a chart of each team against the
+  80–100% band. This is the RTE view — see [Predictability and the ART PI
+  view](#predictability-and-the-art-pi-view).
 - **All teams** — every team's rolling averages side by side, plus each team's next-sprint
   target in one column, so the one that needs attention is obvious. It carries **two
   comparison tables**, the same sprints through two different averages — see below — and
   an **ART filter** across the top when your teams are grouped into ARTs.
 
+The last two look **across** teams rather than into the one you've selected, so they sit
+apart from the other three in the tab row.
+
 A view is only offered once there's something in it. **All teams** appears when you have a
 second team; **Current PI** and **Rolling 5** appear once the team you're on has a recorded
-sprint, and step aside again if you switch to a team you haven't recorded anything for. With
+sprint, and step aside again if you switch to a team you haven't recorded anything for;
+**ART PI** appears once you have an ART with a team on it. With
 no teams at all there are no tabs — just the welcome card. If the view you were on goes away,
 you land back on **Sprint**.
 
@@ -347,14 +367,22 @@ is there to show something different:
 
 | Team | ART | What it's there to show |
 |---|---|---|
-| **Merlin** | Payments | A sprint **running right now** — done-so-far, pace ("day 6 of 14, slightly behind") and carried-in. Its commitment is well over the suggestion, which is the one finding still actionable mid-sprint. Also a **⚑ standing team availability**. |
-| **Kestrel** | Payments | The ordinary team: green, landing about 90% of what it signs up for. Carries a **⚖ scaled sprint** (someone joined after it) and a sprint with work **↩ brought in then removed again**. |
-| **Otter** | Platform | The team the targets exist to catch — around 70% completion and swinging from 14 to 26 points. Has a **⚑ sprint left out** for a major incident, and its next slot is the **IP sprint**, so it carries that caveat too. |
-| **Curlew** | Platform | **↗ Room for more** — it clears its commitment then pulls extra work in, so it reads 98% commitment completion beside a **red 29% break-in**. The contradiction the [headroom note](#when-a-team-has-room-for-more) exists to resolve. |
-| **Wren** | *none* | A brand-new team: **thin history**, a **⚑ one-off availability** for leave, and a carryover that then **fills the whole figure** — no room for new work at all. Being in no ART, it's also the **No ART** group on *All teams*. |
+| **Merlin** | Payments | A sprint **running right now** — done-so-far, pace ("day 6 of 14, slightly behind") and carried-in. Its commitment is well over the suggestion, which is the one finding still actionable mid-sprint. Also a **⚑ standing team availability**, and the only team with **no business value recorded** — its PI is still running, which is why. |
+| **Kestrel** | Payments | The ordinary team: green, landing about 90% of what it signs up for. Carries a **⚖ scaled sprint** (someone joined after it) and a sprint with work **↩ brought in then removed again**. Its PI predictability is 90% — **inside the band**. |
+| **Otter** | Platform | The team the targets exist to catch — around 70% completion and swinging from 14 to 26 points. Has a **⚑ sprint left out** for a major incident, and its next slot is the **IP sprint**, so it carries that caveat too. 59% predictability — **under the band**. |
+| **Curlew** | Platform | **↗ Room for more** — it clears its commitment then pulls extra work in, so it reads 98% commitment completion beside a **red 29% break-in**. The contradiction the [headroom note](#when-a-team-has-room-for-more) exists to resolve. It under-commits its objectives too: 113%, **over the band**, with the value coming partly from **stretch**. |
+| **Wren** | *none* | A brand-new team: **thin history**, a **⚑ one-off availability** for leave, and a carryover that then **fills the whole figure** — no room for new work at all. Being in no ART, it's also the **No ART** group on *All teams* and *ART PI*. |
 
 Two ARTs of two plus one team in neither is the arrangement where the *All teams* ART
 filter and its *No ART* group both actually do something.
+
+The business value is picked the same way — to make the *ART PI* view say something on a
+first run. **Platform ART is the [cancelling case](#when-the-average-hides-the-train)**: Otter
+at 59% and Curlew at 113% average to 86%, so the train reads on target while neither of its
+teams is, and the ⚑ note that catches it has something to catch. **Payments ART** is scored
+from one of its two teams, so the "not scored yet" note has a team to name. The two averaging
+methods land 1.7 points apart on Platform — don't tidy them into agreement, a demo where the
+two methods always match teaches that they always do.
 
 The running sprint's dates are counted from the day you load it, not baked in, so the
 demo is still live whenever it's opened rather than stale from the day it was written.
@@ -428,6 +456,90 @@ Comparison 2 also carries **Actual complete** — everything delivered, break-in
 included, against what was committed. It goes above 100% when a team finished more than it
 signed up for, which says throughput was high, not that the plan held.
 
+## Predictability and the ART PI View
+
+Commitment completion asks whether the **points** landed. It doesn't ask whether the
+**objectives** did, and those are different questions — a team can finish 95% of its points
+and miss the two objectives the PI was planned around.
+
+So each team's PI can carry three business-value figures, entered on the **Current PI** tab
+under *PI Objectives*:
+
+| Figure | What it is |
+|---|---|
+| **Planned (committed)** | The value of the objectives the team committed to at PI planning |
+| **Achieved** | How much of that committed value actually landed |
+| **Achieved from stretch** | What the stretch objectives delivered on top |
+
+```
+PI predictability = (achieved + achieved from stretch) / planned
+```
+
+**Stretch value counts in the top half and never in the bottom half.** That's the whole
+design of a stretch objective — it was never a commitment, so counting it as one would
+penalise a team for planning stretch at all. It's also what lets an honest figure sit above
+100%, the same shape as commitment completion exceeding 100% when work is re-sized upward.
+
+There is deliberately **no field for an objective's title**, and there never will be. A title
+is free text, and free text is the one thing this app doesn't store — see [What It
+Tracks](#what-it-tracks). Three numbers off your PI planning sheet carry the measure and
+can't carry a ticket key.
+
+### The Band — Both Edges Are a Finding
+
+This is the only figure in the app judged by a **band** rather than a one-sided threshold:
+
+| | 🟢 Green | 🟡 Yellow | 🔴 Red |
+|---|---|---|---|
+| PI predictability | 80–100% | 70–79%, or 101–120% | Under 70%, or over 120% |
+
+Under the band is the obvious finding. **Over it is a finding too**: a train that reliably
+lands at 130% didn't have a good PI, it committed to less than it knew it could deliver — and
+every other team's plan built on that commitment was wrong by the difference. Between 100%
+and 120% it's amber rather than red, because stretch objectives are *supposed* to land
+sometimes; that's what they're for. It only goes red when it's too big to be stretch.
+
+Because "off target" means two opposite things here, every figure also says **which side** it
+missed on, out loud — "below the 80–100% band", "above the 80–100% band" — rather than
+leaving a colour and a ✕ to carry a direction they can't.
+
+### The ART PI View
+
+The **ART PI** tab is the train's page. Pick an ART and a PI and you get every team on it at
+once: sprints counted, points committed and finished, commitment completion, business value
+planned and delivered, and each team's predictability. It shares its ART picker with **All
+teams**, so the scope follows you between the two.
+
+The headline **ART predictability** tile is the average of the teams' own measures — every
+team counting once, whatever the size of its plan. That's the measure SAFe defines and the
+one an RTE reports at Inspect & Adapt. The footer row of the table underneath is the *other*
+method: all the value pooled and divided once, so a team that planned three times as much
+value pulls three times as hard. Same teams, same PI, two honest answers — the same
+arrangement as [the two comparison tables](#the-two-comparison-tables), and each says which
+it is.
+
+**A team with nothing recorded is named, not quietly dropped.** It stays in every points
+figure and sits out the predictability ones, and a ⚑ note above the tiles says which teams
+those are and where to record them. A train figure worked out from three of five teams while
+the page shows five is exactly the silent exclusion the rest of the app refuses.
+
+### When the Average Hides the Train
+
+A two-sided measure has a failure mode a one-sided one doesn't. A team that **under-delivered**
+and a team that **under-committed** sit on opposite sides of the band and cancel each other
+out, so the train's average lands neatly inside it:
+
+```
+Team Otter    20 of 34 business value   =   59%   ✕ below the band
+Team Curlew   34 of 30 business value   =  113%   ! above the band
+                              ART average =  86%   ✓ in the band
+```
+
+Two teams that both missed, reading as a train that hit. So whenever the ART figure is inside
+the band and there are teams on **both** sides of it, the view says so above the tiles —
+naming the teams, and pointing you at the rows instead of the headline. (The demo's Platform
+ART is exactly this case, deliberately.)
+
 ## Grouping Teams into ARTs
 
 If you support teams across more than one Agile Release Train, you can group them.
@@ -435,12 +547,17 @@ If you support teams across more than one Agile Release Train, you can group the
 picker in its own row of the Teams table. A team can be on one ART or none — being on none
 is perfectly normal, and nothing forces you to use the feature at all.
 
-An ART is a **label, not a level of maths**. Every figure in the app is still worked out per
-team; there is no separate per-ART calculation, and grouping never changes a single number.
-What it changes is what you're looking at:
+An ART is **almost entirely a label rather than a level of maths**. Every points figure in
+the app is worked out per team and then simply added up; grouping never changes a single one
+of them. The one exception is the **predictability measure** on the [ART PI
+view](#predictability-and-the-art-pi-view), which SAFe defines at train level and which has
+nowhere else it could live. Everything else the grouping does is change what you're looking
+at:
 
+- **ART PI** appears at all — the train's own page, described above.
 - **All teams** gains an **ART** picker across the top — *All ARTs*, each ART by name, and
-  *No ART* if any team is un-grouped. Everything below it follows: both comparison tables,
+  *No ART* if any team is un-grouped. The ART PI view shares the same picker, so the scope
+  follows you between them. Everything below it follows: both comparison tables,
   both **All teams** footer rows, the chart, and the count of sprints still in flight. Pick
   *Payments ART* and the footer row reads **All teams on Payments ART**, worked out across
   that ART's teams only.
@@ -449,8 +566,10 @@ What it changes is what you're looking at:
 - With no filter, the table **sorts by ART** so a train's teams sit together, and each team
   carries its ART under its name. The header team picker groups the same way.
 
-Deleting an ART is the cheapest delete in the app: it takes no team and no sprint with it —
-the teams that were on it simply go back to having none.
+Deleting an ART is the cheapest delete in the app: it takes no team, no sprint and no
+business value with it — the teams that were on it simply go back to having none. The ART PI
+tab goes away with the last ART, and the figures it showed are all still on each team's own
+Current PI page.
 
 Share links carry only the ARTs the teams in the link are actually on, so sharing one team
 doesn't publish the names of every train you support.
