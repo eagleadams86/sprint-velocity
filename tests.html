@@ -85,7 +85,7 @@ function ok(cond, note) { if (!cond) throw new Error(note || 'expected truthy');
    the suite is read-only, which is the promise printed at the top of the page. */
 function withState(data, fn) {
   const st = w.svGet();
-  const keys = ['teams', 'arts', 'pis', 'sprints', 'plans'];
+  const keys = ['teams', 'arts', 'pis', 'sprints', 'plans', 'objectives'];
   const before = {};
   keys.forEach(k => { before[k] = st[k]; });
   const inProg = st.settings.includeInProgress;
@@ -454,6 +454,10 @@ t('the same for capacity adjustments — an older export gains an empty plans li
   eq(w.coerceShape({ plans: 'junk' }).plans, []);
   eq(w.coerceShape({ plans: [null, { id: 'x' }, 'junk'] }).plans.length, 1);
 });
+t('and for PI business value — an export written before it existed gains one too', () => {
+  eq(w.coerceShape({ teams: [], arts: [], pis: [], sprints: [], plans: [] }).objectives, []);
+  eq(w.coerceShape({ objectives: 'junk' }).objectives, []);
+});
 t('null and junk entries inside a list are dropped, real ones kept', () => {
   const out = w.coerceShape({ teams: [null, { id: 't1', name: 'A' }, 'junk'], pis: [], sprints: [] });
   eq(out.teams.length, 1);
@@ -469,12 +473,13 @@ t('junk input becomes a blank shape, never a throw', () => {
   eq(w.coerceShape('junk').sprints, []);
 });
 t('a well-formed payload passes through unchanged', () => {
-  /* `plans` is listed because coerceShape fills in every list it guards — the same
-     reason `arts` is here rather than being absent. Leaving it out would make this
-     test assert that a collection the app relies on is optional. */
+  /* `plans` and `objectives` are listed because coerceShape fills in every list it
+     guards — the same reason `arts` is here rather than being absent. Leaving one
+     out would make this test assert that a collection the app relies on is
+     optional. A new collection belongs in this literal on the day it lands. */
   const data = { teams: [{ id: 't1', name: 'A' }], arts: [], pis: [{ id: 'p1' }],
                  sprints: [{ id: 's1', teamId: 't1', piId: 'p1' }], plans: [],
-                 settings: { view: 'sprint' } };
+                 objectives: [], settings: { view: 'sprint' } };
   eq(w.coerceShape(JSON.parse(JSON.stringify(data))), data);
 });
 
@@ -709,7 +714,7 @@ group('encodeShare / decodeShare — the share-link round trip');
 /* The same shape buildSharePayload() emits: nothing but ids, numbers, dates and
    the short labels — a share link must never need more. */
 const SHARE_PAYLOAD = {
-  v: 1, sharedAt: 1755000000000, label: 'Kestrel',
+  v: 2, sharedAt: 1755000000000, label: 'Kestrel',
   teams: [{ id: 't1', name: 'Kestrel', artId: null }],
   arts: [], pis: [{ id: 'p1', name: 'PI 1', sprintCount: 6 }],
   sprints: [{ id: 's1', teamId: 't1', piId: 'p1', sprintNumber: 1,
@@ -718,6 +723,8 @@ const SHARE_PAYLOAD = {
     removed: 0, carriedIn: 2, carriedOut: 2, addedThenRemoved: 0 }],
   plans: [{ id: 'pl1', teamId: 't1', piId: 'p1', sprintNumber: 2,
     availability: 60, reason: 'leave' }],
+  objectives: [{ id: 'o1', teamId: 't1', piId: 'p1',
+    plannedBv: 40, actualBv: 34, stretchBv: 6 }],
   settings: { activeTeamId: 't1', activePiId: null, artFilter: null,
     includeSprint6InRolling: false, includeInProgress: false, view: 'sprint' },
 };
@@ -757,6 +764,14 @@ t('the capacity adjustments survive the trip, for the recipient’s target card'
   eq(out.plans.length, 1, 'the plan is still in the decoded payload');
   eq(out.plans[0].availability, 60);
   eq(out.plans[0].reason, 'leave', 'still one of the fixed codes, never free text');
+});
+
+t('the PI business value travels too, or the link shows fewer figures than the sender', async () => {
+  const out = await w.decodeShare(await w.encodeShare(SHARE_PAYLOAD));
+  eq(out.objectives.length, 1);
+  eq(out.objectives[0].plannedBv, 40);
+  eq(out.objectives[0].stretchBv, 6, 'the stretch half survives, or the measure changes on arrival');
+  ok(!('title' in out.objectives[0]), 'and still nothing but ids and numbers');
 });
 
 group('keepKnown — the 120-character label cap');
@@ -1018,7 +1033,7 @@ function withSample(fn) {
                      sprint: st.settings.activeSprintNum, view: st.settings.view };
   w.confirm = () => true; w.save = () => {}; w.render = () => {}; w.toast = () => {};
   try {
-    return withState({ teams: [], arts: [], pis: [], sprints: [], plans: [] }, () => {
+    return withState({ teams: [], arts: [], pis: [], sprints: [], plans: [], objectives: [] }, () => {
       w.loadSample();
       const by = (name) => st.teams.find(t => t.name === name);
       return fn(name => by(name).id, by);
@@ -1146,6 +1161,54 @@ t('the demo lands on the running sprint', () => {
     eq(st.settings.activeTeamId, id('Team Merlin'));
     eq(st.settings.activeSprintNum, 4);
     eq(st.settings.view, 'sprint');
+  });
+});
+
+/* ── The demo's PI business value ────────────────────────────────────────────
+   The ART PI view's whole point is that predictability is a TWO-SIDED measure, so
+   the demo has to show a team on each side of the band and one that hasn't been
+   scored at all. Tidy these into four healthy percentages and a first run teaches
+   the measure as one-sided, which is the misreading the view exists to prevent. */
+t('four of the five teams are scored, one on each side of the band', () => {
+  withSample((id) => {
+    const st = w.svGet();
+    const pct = (name) => w.bvFigures(
+      w.__svTestHooks.objectivesFor(id(name), st.settings.activePiId)).pct;
+    eq(w.rag(pct('Team Kestrel'), 'predictability'), 'green', 'the ordinary team, in the band');
+    eq(w.rag(pct('Team Otter'), 'predictability'), 'red', 'under it — the team the targets catch');
+    eq(w.rag(pct('Team Curlew'), 'predictability'), 'yellow',
+      'OVER it — the headroom team under-commits its objectives too');
+    ok(pct('Team Curlew') > 100, 'which is only reachable because stretch is in the numerator');
+    eq(w.rag(pct('Team Wren'), 'predictability'), 'green', 'and it is in no ART, so that group has a figure');
+  });
+});
+t('Merlin is deliberately unscored — its PI is still running', () => {
+  withSample((id) => {
+    const st = w.svGet();
+    eq(w.__svTestHooks.hasBv(
+      w.__svTestHooks.objectivesFor(id('Team Merlin'), st.settings.activePiId)), false,
+      'so the ⚑ "not scored yet" note has a team to name on Payments ART');
+  });
+});
+t('Platform ART is the cancelling case, and its two methods disagree', () => {
+  withSample((id, by) => {
+    const st = w.svGet();
+    const platform = st.arts.find(a => a.name === 'Platform ART');
+    const pred = w.artPredictability(w.teamsInArt(st.teams, platform.id), st.settings.activePiId);
+    eq(w.rag(pred.mean, 'predictability'), 'green', 'the train figure reads on target…');
+    eq(pred.rows.filter(r => w.rag(r.bv.pct, 'predictability') === 'green').length, 0,
+      '…while neither of its teams is in the band — the note this produces');
+    ok(Math.abs(pred.mean - pred.pooled) > 1,
+      'and the two methods differ, so the method note under the table has something to explain');
+  });
+});
+t('Payments ART is scored from one of its two teams, and says so', () => {
+  withSample((id) => {
+    const st = w.svGet();
+    const payments = st.arts.find(a => a.name === 'Payments ART');
+    const pred = w.artPredictability(w.teamsInArt(st.teams, payments.id), st.settings.activePiId);
+    eq(pred.scored, 1);
+    eq(pred.missing.map(t => t.name), ['Team Merlin']);
   });
 });
 
@@ -1745,6 +1808,232 @@ t('a control you press or pick does not', () => {
   eq(w.__svTestHooks.raisesKeyboard({ tagName: 'SUMMARY' }), false, 'a disclosure — the sprint form opens on one');
   eq(w.__svTestHooks.raisesKeyboard({ tagName: 'DIALOG' }), false, 'the dialog itself, once focus lands there');
   eq(w.__svTestHooks.raisesKeyboard(null), false, 'nothing focused is not a keyboard');
+});
+
+
+group('PI business value — the predictability measure');
+/* SAFe's own measure, and the app's only two-sided figure. The arithmetic is
+   three numbers, so what is worth pinning is the ASYMMETRY: stretch counts in
+   what was delivered and never in what was committed. Get that backwards and a
+   team is penalised for planning stretch objectives at all — which is the exact
+   opposite of what they are for. */
+t('stretch counts in the numerator and never in the denominator', () => {
+  const bv = w.bvFigures({ plannedBv: 30, actualBv: 28, stretchBv: 6 });
+  eq(bv.planned, 30, 'the commitment is what was committed — stretch is not in it');
+  eq(bv.delivered, 34, '28 committed value landed, plus 6 from stretch');
+  approx(bv.pct, 34 / 30 * 100);
+  ok(bv.pct > 100, 'which is how an honest measure sits above 100%');
+});
+t('nothing planned is null, not 0% — the same rule as every other percentage', () => {
+  eq(w.bvFigures({ plannedBv: 0, actualBv: 0, stretchBv: 0 }).pct, null);
+  eq(w.bvFigures({ plannedBv: 0, actualBv: 9, stretchBv: 0 }).pct, null,
+    'value delivered against no plan still has no denominator to divide by');
+  eq(w.bvFigures(null).pct, null, 'and a team with no record at all');
+});
+t('absent figures read as 0, like every other blank in the app', () => {
+  const bv = w.bvFigures({ plannedBv: 20 });
+  eq(bv.actual, 0); eq(bv.stretch, 0); eq(bv.delivered, 0);
+  approx(bv.pct, 0);
+});
+t('hasBv tells "planned nothing" apart from "nobody has filled this in"', () => {
+  const hasBv = w.__svTestHooks.hasBv;
+  eq(hasBv(null), false, 'no record — the ART view shows "not scored"');
+  eq(hasBv({ plannedBv: 0, actualBv: 0, stretchBv: 0 }), false);
+  eq(hasBv({ plannedBv: 0, actualBv: 0, stretchBv: 3 }), true,
+    'stretch alone is still a score somebody entered');
+});
+
+group('the predictability BAND — a figure can miss it from either side');
+/* Every other scale in this app is one-sided. This one is not, and the whole
+   point is that well over 100% is a finding: the train committed to less than it
+   could deliver, and every dependency planned around that commitment was wrong by
+   the difference. Pinned against the constants themselves, not against four
+   numbers copied out of them. */
+const P = () => w.__svTestHooks;
+t('inside the band is green, at both edges', () => {
+  eq(w.rag(P().PRED_BAND_LOW, 'predictability'), 'green');
+  eq(w.rag(P().PRED_BAND_HIGH, 'predictability'), 'green');
+  eq(w.rag(90, 'predictability'), 'green');
+});
+t('under the band: amber, then red below the floor', () => {
+  eq(w.rag(P().PRED_BAND_LOW - 0.01, 'predictability'), 'yellow');
+  eq(w.rag(P().PRED_UNDER_RED, 'predictability'), 'yellow');
+  eq(w.rag(P().PRED_UNDER_RED - 0.01, 'predictability'), 'red');
+});
+t('over the band too — over-delivery is a finding, not a triumph', () => {
+  eq(w.rag(P().PRED_BAND_HIGH + 0.01, 'predictability'), 'yellow');
+  eq(w.rag(P().PRED_OVER_RED, 'predictability'), 'yellow',
+    'a couple of stretch objectives landing is what stretch is for');
+  eq(w.rag(P().PRED_OVER_RED + 0.01, 'predictability'), 'red',
+    'too big to be stretch — the plan was wrong by that much');
+});
+t('nothing recorded is none, never 0', () => {
+  eq(w.rag(null, 'predictability'), 'none');
+});
+t('the spoken status says WHICH side, because "Off target" cannot', () => {
+  const st = w.predictabilityStatus;
+  ok(st(40).startsWith('Below'), '40% — ' + st(40));
+  ok(st(140).startsWith('Above'), '140% — ' + st(140));
+  ok(/^In the/.test(st(90)), '90% — ' + st(90));
+  eq(st(null), 'Not recorded');
+});
+t('fmtPct keeps a decimal at the band edges too, both of them', () => {
+  const fmtPct = P().fmtPct;
+  eq(fmtPct(79.6, 'predictability'), '79.6%', '80% beside an amber flag would lie');
+  eq(fmtPct(100.4, 'predictability'), '100.4%', 'and so would 100% beside one');
+  eq(fmtPct(90.2, 'predictability'), '90%', 'inside the band it rounds as usual');
+});
+
+group('artPredictability — the train figure, both methods');
+/* The ART view is the one place an ART is a level of arithmetic rather than a
+   label. The two methods are the same deliberate pair as avg()/pooled(): SAFe
+   defines the measure as the average of the teams', and pooling answers the other
+   question. They must be able to disagree, and unscored teams must be NAMED. */
+function bvFixture() {
+  return {
+    teams: [{ id: 't1', name: 'A' }, { id: 't2', name: 'B' }, { id: 't3', name: 'C' }],
+    arts: [], pis: [{ id: 'p1', name: 'PI 1' }], sprints: [], plans: [],
+    objectives: [
+      { id: 'o1', teamId: 't1', piId: 'p1', plannedBv: 10, actualBv: 10, stretchBv: 0 },
+      { id: 'o2', teamId: 't2', piId: 'p1', plannedBv: 90, actualBv: 45, stretchBv: 0 },
+    ]
+  };
+}
+t('mean counts every team once; pooled lets the bigger plan pull harder', () => {
+  withState(bvFixture(), () => {
+    const st = w.svGet();
+    const pred = w.artPredictability(st.teams, 'p1');
+    approx(pred.mean, 75, '100% and 50%, averaged — every team once');
+    approx(pred.pooled, 55, '55 of 100 — the 90-point plan pulls harder');
+  });
+});
+t('a team with nothing recorded is left out AND named, never silently dropped', () => {
+  withState(bvFixture(), () => {
+    const st = w.svGet();
+    const pred = w.artPredictability(st.teams, 'p1');
+    eq(pred.scored, 2, 'C has no record, so it is in neither method');
+    eq(pred.missing.map(t => t.name), ['C'],
+      'and it comes back by name, for the view to say so on the page');
+  });
+});
+t('a PI nobody scored has no measure at all, rather than 0%', () => {
+  withState(bvFixture(), () => {
+    const st = w.svGet();
+    const pred = w.artPredictability(st.teams, 'p-none');
+    eq(pred.mean, null); eq(pred.pooled, null); eq(pred.scored, 0);
+  });
+});
+t('the average can sit in the band while NO team does — the cancelling case', () => {
+  withState({
+    teams: [{ id: 't1', name: 'Under' }, { id: 't2', name: 'Over' }],
+    arts: [], pis: [{ id: 'p1', name: 'PI 1' }], sprints: [], plans: [],
+    objectives: [
+      { id: 'o1', teamId: 't1', piId: 'p1', plannedBv: 100, actualBv: 59, stretchBv: 0 },
+      { id: 'o2', teamId: 't2', piId: 'p1', plannedBv: 100, actualBv: 100, stretchBv: 13 },
+    ]
+  }, () => {
+    const st = w.svGet();
+    const pred = w.artPredictability(st.teams, 'p1');
+    approx(pred.mean, 86);
+    eq(w.rag(pred.mean, 'predictability'), 'green', 'the train figure reads on target…');
+    eq(w.rag(59, 'predictability'), 'red');
+    eq(w.rag(113, 'predictability'), 'yellow');
+    /* …over two teams that both missed it, from opposite sides. This is why the
+       view carries the "the average is hiding this" note; if this test ever goes
+       green with both teams in the band, the note's condition needs revisiting. */
+  });
+});
+
+group('the business-value boundary — numbers only, and bounded');
+t('business value is clamped and rounded, never taken as given', () => {
+  const out = w.sanitizeIds(w.coerceShape({
+    teams: [{ id: 't1', name: 'A' }], arts: [], pis: [{ id: 'p1', name: 'PI' }], sprints: [],
+    objectives: [{ id: 'o1', teamId: 't1', piId: 'p1',
+      plannedBv: 1e9, actualBv: -40, stretchBv: 7.6 }],
+    settings: {},
+  }));
+  eq(out.objectives[0].plannedBv, w.__svTestHooks.BV_MAX,
+    'an unbounded figure would put nonsense on an RTE’s card');
+  eq(out.objectives[0].actualBv, 0, 'negative value is not a thing');
+  eq(out.objectives[0].stretchBv, 8, 'nobody scores an objective 7.6');
+});
+t('a stray key on an objective is dropped — no free text rides in on one', () => {
+  const out = w.sanitizeIds(w.coerceShape({
+    teams: [{ id: 't1', name: 'A' }], arts: [], pis: [{ id: 'p1', name: 'PI' }], sprints: [],
+    objectives: [{ id: 'o1', teamId: 't1', piId: 'p1', plannedBv: 10,
+      title: 'Ship the PAY-1234 migration', owner: 'a colleague' }],
+    settings: {},
+  }));
+  eq(Object.keys(out.objectives[0]).sort(), ['id', 'piId', 'plannedBv', 'teamId']);
+  ok(!('title' in out.objectives[0]), 'an objective TITLE is exactly what must never be stored');
+});
+t('an objective is never created holding undefined — the Firestore rule', () => {
+  const out = w.sanitizeIds(w.coerceShape({
+    teams: [{ id: 't1', name: 'A' }], arts: [], pis: [{ id: 'p1', name: 'PI' }], sprints: [],
+    objectives: [{ id: 'o1', teamId: 't1', piId: 'p1', plannedBv: 10 }],
+    settings: {},
+  }));
+  ok(!('actualBv' in out.objectives[0]),
+    'an absent key stays absent — setDoc refuses the whole document over one undefined');
+});
+t('an orphan is pruned as plumbing, not counted as a dropped sprint', () => {
+  const out = w.sanitizeIds(w.coerceShape({
+    teams: [{ id: 't1', name: 'A' }], arts: [], pis: [{ id: 'p1', name: 'PI' }], sprints: [],
+    objectives: [{ id: 'o1', teamId: 'gone', piId: 'p1', plannedBv: 10 }],
+    settings: {},
+  }));
+  eq(out.objectives.length, 0);
+  eq(w.sanitizeIds.dropped, 0,
+    'it moves no figure, so it must not raise the "sprints left out" toast');
+  ok(w.sanitizeIds.pruned > 0, 'but the scrub is still persisted on boot');
+});
+t('two records for one team’s PI is a damaged payload — the second goes', () => {
+  const out = w.sanitizeIds(w.coerceShape({
+    teams: [{ id: 't1', name: 'A' }], arts: [], pis: [{ id: 'p1', name: 'PI' }], sprints: [],
+    objectives: [
+      { id: 'o1', teamId: 't1', piId: 'p1', plannedBv: 10, actualBv: 10 },
+      { id: 'o2', teamId: 't1', piId: 'p1', plannedBv: 99, actualBv: 1 },
+    ],
+    settings: {},
+  }));
+  eq(out.objectives.length, 1, 'or the two would disagree invisibly about the measure');
+  eq(out.objectives[0].plannedBv, 10, 'the first one wins, as it does for plans');
+});
+t('the ART PI view is a real view name at the boundary', () => {
+  const out = w.sanitizeIds(w.coerceShape({
+    teams: [{ id: 't1', name: 'A' }], arts: [], pis: [], sprints: [],
+    settings: { view: 'art' },
+  }));
+  eq(out.settings.view, 'art', 'renderTabs() owns the list — the boundary has to know it too');
+});
+
+t('a shared link that withholds the team comparison withholds this view too', () => {
+  /* renderTabs() is DOM-bound, so what is pinned here is the rule it applies:
+     the ART PI view is a comparison ACROSS teams, exactly like All teams, so a
+     sender who switched that off must not have it handed back by another tab. */
+  const gate = (viewOnly, allTeams) => (!viewOnly || !!allTeams);
+  eq(gate(false, false), true, 'your own copy always offers it');
+  eq(gate(true, true), true, 'a link that shares the comparison offers it');
+  eq(gate(true, false), false, 'a link that does not, does not');
+});
+
+group('adoptState — the SCHEMA stamp on a copy from outside');
+/* Every path that replaces `state` writes the CURRENT schema number, and it has
+   to: a browser that upgrades, opens a copy saved by the old build and saves it
+   back would otherwise write the OLD number over data now holding new fields —
+   and the next older build to read it sails past haltForNewerData() and strips
+   them. Invisible while SCHEMA had never moved off 1. */
+t('an older copy is stamped with this build’s schema, not left on its own', () => {
+  const out = w.adoptState({ version: 1, teams: [], arts: [], pis: [], sprints: [],
+    plans: [], objectives: [], settings: {} });
+  eq(out.version, w.__svTestHooks.SCHEMA);
+});
+t('a copy with no version at all is stamped too', () => {
+  eq(w.adoptState({ teams: [] }).version, w.__svTestHooks.SCHEMA);
+});
+t('the objectives list survives adoption rather than being blanked', () => {
+  const objectives = [{ id: 'o1', teamId: 't1', piId: 'p1', plannedBv: 10 }];
+  eq(w.adoptState({ objectives }).objectives, objectives);
 });
 
 /* ── Runner ───────────────────────────────────────────────────────────────── */

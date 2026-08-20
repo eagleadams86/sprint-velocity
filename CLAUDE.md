@@ -178,16 +178,87 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   sprints into every figure for last-day planning. It's deliberately one predicate so no two
   views can disagree; `targetSprintSlot()` then stops aiming at the running sprint, since a
   sprint being counted as data isn't the one you're planning. Planned sprints never count.
-- **An ART is a grouping of teams and nothing else.** `state.arts` is a flat list beside
-  `teams` and `pis`, a team carries an optional `artId`, and **no figure anywhere is worked
-  out per ART** — an ART's numbers are simply what its teams' numbers come to under the two
-  methods the All teams view already applies, so `metrics()` and `rag()` never learn the
-  concept exists. `teamsInArt()` and `groupTeamsByArt()` are pure (they take the team list
+- **An ART is a grouping of teams, and ONE figure's worth of maths.** `state.arts` is a flat
+  list beside `teams` and `pis`, and a team carries an optional `artId`. **No POINTS figure
+  is ever worked out per ART** — an ART's points are simply what its teams' points come to
+  under the two methods the All teams view already applies, so `metrics()` never learns the
+  concept exists. The single exception, added with the ART PI view, is
+  `artPredictability()`: SAFe defines the predictability measure at train level, so there is
+  nowhere else it could live. It reads `state.objectives`, not `metrics()`, and it does not
+  touch a points figure — keep that line where it is. This rule used to read "a label, not a
+  level of maths"; if a second per-ART calculation is ever proposed, that is the moment to
+  ask whether it is really defined at train level or just convenient there. `teamsInArt()` and `groupTeamsByArt()` are pure (they take the team list
   rather than reading state) and pinned in tests.html; `groupTeamsByArt()` is a **stable**
   sort, so grouping never reshuffles teams inside a train. Assignment is a `<select>` in the
   team's own row of Teams & PIs rather than a team-picker inside each ART: it reads the way
   the data does, and it can't put a team on two trains. The header team picker groups with
   plain `<optgroup>` once an ART exists.
+- **PI business value is `state.objectives` — one record per TEAM per PI, never per
+  objective.** `{ id, teamId, piId, plannedBv, actualBv, stretchBv }`, a fifth collection
+  beside `plans` and handled exactly like it: id remapping, orphan removal, dedupe by key,
+  a `keepKnown` spec, delete-team/delete-PI cascades, and a place in the share payload.
+  **Not one record per objective, and don't "improve" it into one** — an objective's
+  identity is its title, a title is free text, and free text is the one thing this app
+  refuses to store (the `REASONS` rule, one level up). Three numbers carry the whole measure
+  and cannot carry a ticket key. There is no title field in `#bvDialog` and there must never
+  be one.
+- **Stretch value is in the NUMERATOR and never the DENOMINATOR** (`bvFigures()`).
+  `plannedBv` is the committed objectives only; `delivered` is `actualBv + stretchBv`. Put
+  stretch into the denominator and a team is penalised for planning stretch at all, which is
+  the opposite of what stretch is for — and the measure loses the only honest way it can
+  read above 100%. Same shape as commitment completion exceeding 100% on a re-sized sprint.
+- **`rag(v, 'predictability')` is the app's only BAND, and both edges are findings.**
+  `PRED_BAND_LOW`/`PRED_BAND_HIGH` (80–100) green, out to `PRED_UNDER_RED`/`PRED_OVER_RED`
+  (70/120) amber, beyond them red. Over 100% is amber rather than red up to 120 because
+  stretch objectives are *supposed* to land sometimes. Every other scale here is one-sided,
+  so a reader arrives assuming higher is better and reads 130% as the best team on the
+  train — which is why `TARGET_PREDICTABILITY` has to state both edges and say why the top
+  one exists. **`RAG_TEXT` cannot carry this**: "Off target" is the same two words for 40%
+  and 140%. `predictabilityStatus()` supplies the direction and `predPill()` is the only
+  way a predictability figure should reach the page, so no site can render one without it.
+  `pill()`'s third argument exists solely for this.
+- **`renderArtPiView()` is the RTE view, and it reads the PI, not the rolling window** —
+  objectives are planned and scored per PI, so a five-sprint window crossing a PI boundary
+  would answer a question nobody asked. It **shares `settings.artFilter` with All teams**
+  rather than keeping a second picker: two controls meaning the same thing and disagreeing
+  is worse than either. Its tab takes All teams' shared-view rule as well
+  (`shareMeta.allTeams`) — it is a comparison ACROSS teams, so a sender who declined to
+  publish one must not have it handed back through another tab.
+- **The tile is `mean`, the footer row is `pooled`, and both say so.** Same deliberate pair
+  as `avg()`/`pooled()`: SAFe defines the measure as the average of the teams' own, so that
+  gets the tile; pooling answers the other question and gets the row. The `methodnote` under
+  the table names both. Don't "fix" one to agree with the other.
+- **The cancelling case is the reason that view carries prose.** A two-sided measure lets an
+  under-delivering team and an under-committing team cancel out, so the train's average
+  lands inside the band while neither team is in it — 59% and 113% average to 86%. The
+  condition is the MECHANISM (mean is green, and at least one team on each side), not a
+  proxy like "fewer than half in band": it cannot fire on a healthy train and cannot miss a
+  cancelling one. Glyph and prose, **never a colour** — the finding is that the colour is
+  misleading, so a second colour would be its own contradiction (same reasoning as the
+  headroom note).
+- **A team with no business value recorded is NAMED, and `hasBv()` is what makes that
+  possible.** A record of three zeroes ("planned nothing") and no record at all ("nobody has
+  filled this in") are different answers, so the empty record is deleted rather than stored
+  and the ART view says which teams it left out of the predictability figures. It stays in
+  every points figure. Same never-silent rule as `orphanNote()` and `excludedTeamsLine()`.
+- **An orphaned objective is `pruned`, not `dropped`, and the distinction is the toast.** An
+  orphaned sprint moves a rolling average with nothing on screen behind it, which is what
+  `orphanNote()` exists to announce; business value is only ever read for a team and PI both
+  on the page, so an orphan changes no figure and is inert bytes riding along in the cloud
+  copy. Plumbing gets a silent boot `save()`, not a sentence.
+- **`adoptState()` stamps `version: SCHEMA`, and that is load-bearing.** All three paths that
+  replace `state` from outside (boot's `load()`, Restore, `svAdopt()`) go through it, and
+  each has already refused anything stamped newer. Letting the incoming `version` win instead
+  means a browser that upgrades, opens a copy saved by the old build and saves it back writes
+  the OLD number over data now holding new fields — and the next older build to read it sails
+  straight past `haltForNewerData()` and strips them. Invisible while `SCHEMA` had never moved
+  off 1; found the day it moved to 2. Pinned in tests.html.
+- **The ART PI and All teams tabs are the CROSS-TEAM pair and sit apart from the other
+  three**, which look into the selected team. Only the first of the pair takes the
+  `margin-left: auto` — two auto margins in a flex row split the free space and would put a
+  gap between them as well — so the rule hands it to `[data-view="art"]:not([hidden])` and
+  the sibling combinator zeroes All teams' when ART PI is on the page. Below 470px it is off
+  entirely, and the pair falls onto the second row together, which is where it should be.
 - **The All teams view filters once, at the top.** `renderTeamsView()` derives `shown` from
   `state.settings.artFilter` before anything else, and both tables, both footer rows, the
   chart and the in-flight count all come off that one list — so no corner of the page can
@@ -269,7 +340,12 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   first run with nothing to look at. Every number in there is load-bearing: Kestrel's scale
   sits inside the rolling window (outside it a scale is inert), Otter ends at S5 so the
   next slot is the IP sprint, Curlew's S2 lands at 92% so the note reads "4 of the last 5",
-  Wren's carryover exceeds its halved figure. Merlin is the ONLY dated team, and its dates
+  Wren's carryover exceeds its halved figure. **The business value is picked the same way**:
+  one team inside the band, one under, one over (Curlew, whose objectives are under-committed
+  just as its points are), one team unscored so the ⚑ note has something to name, and
+  Platform ART arranged as the cancelling case so the "average is hiding this" note fires on
+  a first run. A demo whose predictability figures are all healthy teaches a two-sided
+  measure as a one-sided one. Merlin is the ONLY dated team, and its dates
   are counted from `Date.now()` so the running sprint is still running whenever the demo is
   opened; everything else is dateless because a dateless sprint resolves complete.
 - **The headroom note is a `.badge` line, and its amber is NOT a RAG band.** It takes the
@@ -422,7 +498,7 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   exactly right for a hostile payload and exactly wrong for a copy written by a NEWER
   build: an older tab would strip the fields it has never heard of, render what's left,
   and push the stripped copy back to Firestore on the next edit — another device's work
-  gone silently. So `version` (`SCHEMA`, currently 1) rides into localStorage, the cloud
+  gone silently. So `version` (`SCHEMA`, currently **2** — the `objectives` list took it off 1) rides into localStorage, the cloud
   document and every backup file, and four boundaries compare it:
   - `load()` and `svAdopt()` call **`haltForNewerData()`** — a full-screen card, no
     render, and a `throw` that aborts the rest of the script block so nothing can save
@@ -440,8 +516,8 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
     which is only how the bytes are packed). `decodeShare()` marks the error
     `newerVersion` so the card can say the link is fine and this copy is behind, rather
     than sending the reader off to chase a fresh link.
-  **Bump `SCHEMA` in the same commit that adds or repurposes a saved field, and widen the
-  allowlists in that same commit** — a bump without the allowlist change protects a field
+  **Bump `SCHEMA` in the same commit that adds or repurposes a saved field, widen the
+  allowlists in that same commit, and check `adoptState()` still stamps the new number** — a bump without the allowlist change protects a field
   the boundary then strips anyway. UI-only state (theme, active tab) needs no bump.
   All four boundaries are pinned in tests.html.
 - **`sanitizeIds()` must never invent a key, and `cleanKey()` is why.** `x.id = clean(x.id)`
