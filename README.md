@@ -12,10 +12,9 @@ Program Increment, with sprint 6 reserved for innovation and planning.
 One of a pair: [Flow Metrics](https://eagleadams86.github.io/team-dashboard/) (the
 `team-dashboard` repo — the app was renamed on screen only) is the
 sibling app for weekly flow metrics, sharing this app's look and behaviour — the same sticky
-header, button tabs, tiles, ⓘ help dialogs, theme picker and footer. **Each app's header
-carries a link to the other**, next to the title — one click either way, from anywhere on
-the page — and both still cross-link at the foot of the page, next to a **How it works**
-link to that app's README on GitHub. If a chrome rule changes in
+header, button tabs, tiles, ⓘ help dialogs, theme picker and footer. **Each app's footer
+carries a button link to the other**, at the right-hand end of the row that holds the
+**Privacy policy** and **How it works** links. If a chrome rule changes in
 one app, it should change in the other too.
 
 ---

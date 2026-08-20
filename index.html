@@ -167,9 +167,11 @@ header {
 }
 .headbar { max-width: 1500px; margin: 0 auto; padding: 0 16px;
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-/* An <h1>, so the page has a top-level heading — hence the margin reset. */
+/* An <h1>, so the page has a top-level heading — hence the margin reset. The auto
+   right margin is what pushes the control cluster to the right edge; it moved back
+   onto .brand on 2026-08-20, when the .applink left the header for the footer. */
 .brand { font-size: 17px; font-weight: 700; letter-spacing: -.01em;
-  margin: 0; }
+  margin: 0 auto 0 0; }
 .brand span { color: var(--text-muted); font-weight: 500; }
 /* The mark from the browser tab, worn in the header too. Width and height are on
    the element, not just in CSS, so the row is laid out at its final size before the
@@ -181,12 +183,12 @@ header {
    subtitle then wraps inside a narrow one beside the title rather than running on
    below it. Mirrored in Flow Metrics, whose line is longer still. */
 .brand img { width: 22px; height: 22px; vertical-align: middle; margin-right: 9px; }
-/* The link to Team Dashboard sits with the title, so it — not .brand — carries the
-   auto margin that pushes the control cluster to the right edge. An <a> is inline,
-   and .btn.small pins its height with min-height, which inline boxes ignore: hence
-   inline-flex. Mirrored in Team Dashboard. */
-.applink { display: inline-flex; align-items: center; text-decoration: none;
-  margin-right: auto; }
+/* The link to Team Dashboard. It sat in the header beside the title until
+   2026-08-20; it now lives in the footer, where the plain-text cross-link used to
+   be (see the footer rules further down). An <a> is inline, and .btn.small pins its
+   height with min-height, which inline boxes ignore: hence inline-flex. Mirrored in
+   Team Dashboard. */
+.applink { display: inline-flex; align-items: center; text-decoration: none; }
 
 button, select, input, textarea { font: inherit; color: inherit; }
 .btn {
@@ -714,6 +716,14 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
 .privacy-links { margin-top: 6px; }
 .privacy-links a { color: var(--text-muted); }
 .privacy-links a:hover { color: var(--text-secondary); }
+/* The footer is a flex row so the link to the sibling app can sit at the right
+   edge, bottom-aligned with the last note. Its 19px right margin mirrors the notes'
+   19px indent, so it lines up with the text inside the last card at both ends. Too
+   narrow to hold both, and it wraps onto a line of its own — still right-aligned,
+   which is what margin-left: auto is for. Mirrored in Flow Metrics. */
+footer { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.footnotes { flex: 1 1 320px; min-width: 0; }
+footer .applink { margin: 0 19px 0 auto; }
 
 /* ── Read-only share view ───────────────────────────────────────────────── */
 /* A standing bar above the tabs, so a borrowed link never reads as your own data.
@@ -805,12 +815,6 @@ main:focus { outline: none; }
          time. Bump it on both references whenever make_favicon.py is re-run. -->
     <h1 class="brand"><img src="favicon.ico?v=1" width="22" height="22" alt=""
       >Sprint&nbsp;Predictability <span>· Charlie’s Epic Sprint Planner</span></h1>
-    <!-- A real <a>, not a button that navigates: ⌘-click, middle-click and "open in
-         new tab" all keep working, and it needs no script. It stays visible in a
-         shared view — it's navigation, not an edit control. Mirrored in Team
-         Dashboard, which links back here. -->
-    <a class="btn small applink" href="https://eagleadams86.github.io/team-dashboard/"
-      title="Flow Metrics — the sibling app: throughput, cycle time, WIP and work item age by week, grouped into Flow, Delivery and Health">↗ Flow&nbsp;Metrics</a>
     <!-- Everything in this row is written out at its final size, because the header
          is painted long before the script at the foot of the page runs. Filling
          these from JS meant an empty 40px-wide select widening to 120px once it had
@@ -865,13 +869,13 @@ main:focus { outline: none; }
        page. These paragraphs already sat here loose. Purely semantic —
        .privacy keeps every rule that styles them. Mirrored in Flow Metrics. -->
   <footer>
+  <div class="footnotes">
   <p class="privacy" id="privacyNote">🔒 Private — your data is stored in this browser only. No account
     needed. Sign in with Google if you want the same data on your other devices.</p>
   <!-- Its own element, not part of #privacyNote: the sync code rewrites that
        note's textContent, which would silently delete a link nested inside it. -->
   <p class="privacy privacy-links"><a href="privacy.html">Privacy policy</a> &middot;
-    <a href="https://github.com/eagleadams86/sprint-velocity" target="_blank" rel="noopener noreferrer">How it works</a> &middot;
-    <a href="https://eagleadams86.github.io/team-dashboard/">Flow Metrics — the sibling app</a></p>
+    <a href="https://github.com/eagleadams86/sprint-velocity" target="_blank" rel="noopener noreferrer">How it works</a></p>
 
   <!-- Authorship line. Its own element, deliberately not part of #privacyNote:
        the sync code rewrites that note's textContent, which would silently delete
@@ -887,6 +891,18 @@ main:focus { outline: none; }
        target="_blank" rel="noopener noreferrer">independent personal project</a>,
     <a href="https://github.com/eagleadams86/sprint-velocity/blob/main/LICENSE"
        target="_blank" rel="noopener noreferrer">MIT licensed</a>.</p>
+  </div>
+
+  <!-- A real <a>, not a button that navigates: ⌘-click, middle-click and "open in
+       new tab" all keep working, and it needs no script. It stays visible in a
+       shared view — it's navigation, not an edit control. Last in the footer so it
+       is the last thing in the tab order, and so it falls below the notes rather
+       than above them when the row wraps; the CSS still pins it to the right edge,
+       bottom-aligned with the last note. It replaces the plain-text cross-link
+       that used to sit on the links line — one crossing per page, not two. Mirrored in Team Dashboard, which
+       links back here. -->
+  <a class="btn small applink" href="https://eagleadams86.github.io/team-dashboard/"
+    title="Flow Metrics — the sibling app: throughput, cycle time, WIP and work item age by week, grouped into Flow, Delivery and Health">↗ Flow&nbsp;Metrics</a>
   </footer>
 
 </div>

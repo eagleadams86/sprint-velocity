@@ -523,14 +523,18 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   itself is titled **Flow Metrics** on screen — display-only rename, every identifier still
   says team-dashboard) — sticky header, brand mark, button tabs, tiles, ⓘ help,
   footer. The two apps are meant to read as one family; if a chrome rule
-  changes here, change it there too (and vice versa). **Each app's header carries an
+  changes here, change it there too (and vice versa). **Each app's footer carries an
   `.applink` to the other** — a plain `<a class="btn small applink">`, no script, mirrored
-  in Team Dashboard — sitting with the title rather than in the control cluster: it is
-  navigation, not another thing to do to the data, and it stays visible in a shared view.
-  `.applink` (not `.brand`, whose margin is now plain `0`) carries the `margin-right: auto`
-  that pushes the controls right, and needs `display: inline-flex` because `.btn.small`
-  pins its height with `min-height`, which an inline box ignores. The footer keeps its
-  cross-link too.
+  in Team Dashboard. It sat in the header beside the title until 2026-08-20, when it moved
+  down to the foot of the page and took the place of the plain-text cross-link that used to
+  sit on the `.privacy-links` line: **one crossing per page, not two.** It is still
+  navigation rather than another thing to do to the data, so it stays visible in a shared
+  view. The footer is a flex row — the notes wrapped in `.footnotes`, the link after them
+  with `margin: 0 19px 0 auto`, so it sits at the right edge bottom-aligned with the last
+  note, and wraps onto its own line (still right-aligned) on a narrow window. The 19px
+  mirrors the notes' 19px indent. `.brand` carries the `margin-right: auto` that pushes the
+  header controls right again, and `.applink` still needs `display: inline-flex` because
+  `.btn.small` pins its height with `min-height`, which an inline box ignores.
 - **Each app wears its own mark in the header, from the same family tile** — midnight page,
   soft disc in the corner, one gradient stroke in the accent, the same shapes Money Map and
   PAPTrack use. Here it's the sprint cycle; Flow Metrics has three weeks of bars. It is
