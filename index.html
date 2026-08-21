@@ -5,18 +5,37 @@
 <!-- Content Security Policy. GitHub Pages can't set response headers, so this meta
      tag is the only place to declare one. 'unsafe-inline' is unavoidable: the app
      is inline script and style by design, with no build step to generate hashes.
-     The real value is the host allowlists — script only from this origin (the
-     vendored chart.min.js) and Firebase's CDN, network calls only to the Firebase
-     endpoints sync actually uses, frames only from
-     Google's own sign-in. accounts.google.com appears in script-src, connect-src
-     AND frame-src because sign-in goes through Google Identity Services rather
-     than Firebase's hosted handler — see the sign-in block in the sync module
-     before changing any of this. form-action is 'self' rather than 'none'
-     because the sprint editor's forms submit with method="dialog", which some
-     browsers have historically checked against form-action; 'self' keeps that
-     working everywhere while still blocking submission to any external URL.
+
+     This app talks to NOTHING. Since sync was removed (2026-08-20) there is no
+     external origin left in this policy at all — no CDN, no Google, no
+     analytics. `default-src 'none'` is therefore the real rule rather than a
+     formality, and every directive is an exception it has to earn:
+
+       script-src 'self' 'unsafe-inline'  the app's own code, and the theme
+                                          bootstrap that runs before first paint
+       style-src  'self' 'unsafe-inline'  theme.css and inline style attributes
+       img-src    'self' data:            the favicon and the SVG data: icon
+       worker-src 'self'                  sw.js, which is what makes it offline
+       connect-src 'none'                 stated OUTRIGHT rather than left to the
+                                          default, because this is the directive
+                                          that would carry data off the device
+                                          and opening it should take a
+                                          deliberate edit
+       frame-src 'none'                   nothing may be framed; the sign-in
+                                          popup is gone
+
+     form-action is 'self' rather than 'none' because the sprint editor's forms
+     submit with method="dialog", which some browsers have historically checked
+     against form-action; 'self' keeps that working everywhere while still
+     blocking submission to any external URL.
+
+     ⚠️ This app holds figures taken from a work Jira. Adding ANY origin here is
+     a decision about where that data may go, not a technical detail — and it
+     fails silently in production while working fine on localhost, so it will
+     not announce itself.
+
      Note: frame-ancestors is ignored in a meta tag; it needs a real header. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://accounts.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://accounts.google.com; worker-src 'self'; frame-src https://accounts.google.com; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; worker-src 'self'; frame-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sprint Predictability · Charlie’s Epic Sprint Planner</title>
 <meta name="description" content="Track sprint predictability across teams: commitment completion, break-in, carryover, and velocity.">
@@ -273,14 +292,6 @@ select.ctl:hover { border-color: var(--text-muted); }
   min-height: var(--chrome-h);
 }
 #teamSel:hover, #themeSel:hover { border-color: var(--text-muted); }
-
-/* Holds the signed-out label's width. Signing in swaps "Sign in to sync" for a
-   first name, which is shorter — without this the button shrinks, and the whole
-   header slides, the moment Firebase reports who you are. */
-#syncBtn { min-width: 125px; }
-/* Set by updateUI() while sync is failing, so the button reads as the warning it
-   is even before anyone hovers for the title. Mirrored from Team Dashboard. */
-#syncBtn[data-state="error"] { color: var(--warn); border-color: var(--warn); }
 
 /* The gap matches the header chrome's, so a row of tabs is spaced like every other
    run of buttons and pickers on the page. It was 20px to echo the space above and
@@ -861,9 +872,10 @@ main:focus { outline: none; }
     <!-- Everything in this row is written out at its final size, because the header
          is painted long before the script at the foot of the page runs. Filling
          these from JS meant an empty 40px-wide select widening to 120px once it had
-         options, and the sync button appearing only after Firebase had loaded over
-         the network — the row visibly re-flowed, and re-wrapped onto a second line
-         on a narrow window. Starting hidden costs nothing; growing does. -->
+         options — the row visibly re-flowed, and re-wrapped onto a second line on a
+         narrow window. Starting hidden costs nothing; growing does. (A sign-in
+         button used to sit at the end of this row and was the worse case, since it
+         waited on a network round trip; sync was removed on 2026-08-20.) -->
     <label class="sr-only" for="teamSel">Team</label>
     <select id="teamSel" title="Which team you're looking at" hidden></select>
     <button class="btn small" id="manageBtn" type="button" title="Add or rename teams, group them into ARTs, and manage PIs">Teams &amp; PIs</button>
@@ -880,8 +892,6 @@ main:focus { outline: none; }
     </select>
     <button class="btn small" id="dataBtn" type="button" title="Back up, restore or clear your data">Back up</button>
     <button class="btn small" id="shareBtn" type="button" title="Create a read-only link to show someone your figures">Share</button>
-    <button class="btn small" id="syncBtn" type="button"
-      title="Sign in with Google to see the same data on all your devices">☁️ Sign in to sync</button>
   </div>
 </header>
 
@@ -915,15 +925,20 @@ main:focus { outline: none; }
        .privacy keeps every rule that styles them. Mirrored in Flow Metrics. -->
   <footer>
   <div class="footnotes">
-  <p class="privacy" id="privacyNote">🔒 Private — your data is stored in this browser only. No account
-    needed. Sign in with Google if you want the same data on your other devices.</p>
-  <!-- Its own element, not part of #privacyNote: the sync code rewrites that
+  <!-- It said "…No account needed. Sign in with Google if you want the same data
+       on your other devices" until sync was removed on 2026-08-20; now the first
+       sentence is the whole story, and the second says so outright rather than
+       leaving "only" to carry it. Still rewritten in a shared view, which is why
+       it keeps its id. -->
+  <p class="privacy" id="privacyNote">🔒 Private — your data is stored in this browser only. It is
+    never sent anywhere, and there is no account to sign in to.</p>
+  <!-- Its own element, not part of #privacyNote: a shared view rewrites that
        note's textContent, which would silently delete a link nested inside it. -->
   <p class="privacy privacy-links"><a href="privacy.html">Privacy policy</a> &middot;
     <a href="https://github.com/eagleadams86/sprint-velocity" target="_blank" rel="noopener noreferrer">How it works</a></p>
 
   <!-- Authorship line. Its own element, deliberately not part of #privacyNote:
-       the sync code rewrites that note's textContent, which would silently delete
+       a shared view rewrites that note's textContent, which would silently delete
        a link nested inside it. Reuses .privacy-links only for the muted link
        colour — no new CSS. Mirrored byte-for-byte in the sibling app.
        TWO links, not one: "MIT licensed" pointed at NOTICE until 2026-08-20,
@@ -1160,7 +1175,6 @@ main:focus { outline: none; }
 <dialog id="clearDialog" aria-labelledby="clearTitle">
   <h3 id="clearTitle">Delete All Data?</h3>
   <p class="sub" id="clearBody"></p>
-  <p class="warn" id="clearSyncWarn" role="status"></p>
   <div class="row spread" style="margin-top:18px">
     <button class="btn" id="clearBackupBtn" type="button">⬇ Export a backup first</button>
     <span class="row">
@@ -1381,22 +1395,13 @@ main:focus { outline: none; }
   </div>
 </dialog>
 
-<!-- ── First-sync reconciliation ─────────────────────────────────────────── -->
-<dialog id="syncChoiceDialog" aria-labelledby="syncChoiceTitle">
-  <h3 id="syncChoiceTitle">Two Copies of Your Data</h3>
-  <p id="syncChoiceBody"></p>
-  <div class="row" style="justify-content:flex-end;margin-top:18px">
-    <button class="btn" id="syncKeepDeviceBtn">Keep this device's data</button>
-    <button class="btn primary" id="syncKeepGoogleBtn">Keep Google's data</button>
-  </div>
-</dialog>
-
 <script>
 /* ═══════════════════════════════════════════════════════════════════════════
    Sprint Velocity — sprint predictability tracking for Scrum Masters.
 
-   Everything is local-first: localStorage is the source of truth, and the
-   optional Firebase module at the bottom of this file only mirrors it. That
+   Everything is local: localStorage is the source of truth and the ONLY copy.
+   An optional Firebase module used to mirror it to a Google account; that was
+   removed on 2026-08-20 — see the note at the foot of this file. That
    ordering matters — the app must keep working with no network and no account.
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -1493,13 +1498,15 @@ const ART_NONE = '~none';
    Both capacity levers below record a reason, and both record it as one of these
    codes chosen from a <select> — exactly the way `status` and `view` work. This
    is not a stylistic choice. The figures in this app come out of a work Jira and
-   the saved copy lives in GitHub-hosted localStorage and a Google Firestore
-   document, so the rule is numbers and dates plus short labels, everywhere; the
+   the saved copy lives in GitHub-hosted localStorage — one browser origin shared
+   with every other app on the account — so the rule is numbers and dates plus
+   short labels, everywhere; the
    per-sprint `notes` textareas were removed on purpose in 2026-08 for precisely
    this reason. "Why did we drop that sprint?" is the obvious place for somebody
    to reach for a text box later — DON'T. A code carries the meaning, renders in
    plain English from the map below, and cannot smuggle a ticket key or a
-   colleague's name into the cloud. sanitizeIds() pins it to this list. */
+   colleague's name into a saved copy, a backup or a share link. sanitizeIds()
+   pins it to this list. */
 /* Kept SHORT on purpose. These are `<option>` text in a picker that has to fit a
    phone: a 375px screen leaves about 210px inside the control, and the first draft
    ran to 267px, so the longest reasons were cut off in the closed select — the one
@@ -1653,12 +1660,18 @@ function sanitizeIds(data) {
   /* Write back only where clean() can actually have changed something — which is
      only ever a string. `x.id = clean(x.id)` on an ABSENT key looks harmless and
      isn't: clean() hands back what it was given, and the assignment CREATES the key
-     holding `undefined`. JSON.stringify drops that, so localStorage and every export
-     look perfect, but the cloud push hands Firestore the live object and Firestore
-     refuses `undefined` outright with invalid-argument — one absent key stopped sync
-     for the whole document. That is exactly what shipping `settings.artFilter` did
-     to every browser holding a copy saved before ARTs existed. Any new optional
-     field goes through here the same way. */
+     holding `undefined`.
+
+     This mattered enormously when the app synced: JSON.stringify drops an
+     undefined, so localStorage and every export looked perfect, while the cloud
+     push handed Firestore the live object and Firestore refused `undefined`
+     outright with invalid-argument — one absent key stopped sync for the whole
+     document, which is exactly what shipping `settings.artFilter` did to every
+     browser holding a copy saved before ARTs existed. Sync is gone (2026-08-20)
+     and that failure mode with it, but the rule STAYS: an undefined that
+     JSON.stringify silently drops is a field that reads as "never set" on the
+     next load rather than announcing itself, which is its own quiet bug. Any new
+     optional field goes through here the same way. */
   const cleanKey = (o, k) => { if (o && typeof o[k] === 'string') o[k] = clean(o[k]); };
   list(data.teams).forEach(t => { cleanKey(t, 'id'); cleanKey(t, 'artId'); });
   list(data.arts).forEach(a => cleanKey(a, 'id'));
@@ -1669,11 +1682,10 @@ function sanitizeIds(data) {
     cleanKey(s, 'piId');
     /* Sprints once carried a free-text `notes` object. The feature was removed
        on purpose — the figures come out of a work Jira, and a comment field was
-       the one place sensitive detail could ride into the saved and synced copy —
-       so any notes still sitting in an old localStorage copy, cloud document,
-       backup file or share link are dropped right here at the boundary. `delete`,
-       never `s.notes = undefined`: an undefined value stops the Firestore push
-       cold (see cleanKey above). Boot persists the scrub when this counted
+       the one place sensitive detail could ride into the saved copy — so any
+       notes still sitting in an old localStorage copy, backup file or share link
+       are dropped right here at the boundary. `delete`, never
+       `s.notes = undefined` (see cleanKey above). Boot persists the scrub when this counted
        something, so the cleaned copy replaces the stored ones too. */
     if ('notes' in s) { delete s.notes; sanitizeIds.strippedNotes++; }
   });
@@ -1697,10 +1709,10 @@ function sanitizeIds(data) {
 
   /* ── The whitelist: only numbers, dates and short labels get through ───────
      Everything above cleans the values this app knows about; this pass drops
-     the keys it doesn't, and pins each kept value to its type. A cloud
-     document, backup file or share link is just somebody's JSON: a stray key
-     on it — the retired `notes` object, or anything else carrying text — would
-     otherwise ride along into localStorage and the synced copy for ever, and a
+     the keys it doesn't, and pins each kept value to its type. A backup file
+     or a share link is just somebody's JSON: a stray key on it — the retired
+     `notes` object, or anything else carrying text — would otherwise ride
+     along into localStorage for ever, and a
      known key holding the wrong kind of value (a `committed` holding a
      sentence) would be stored as-is. That must never happen: the figures come
      out of a work Jira, and the rule is numbers and dates plus short labels,
@@ -1763,8 +1775,9 @@ function sanitizeIds(data) {
            than turned into false, because `!!null` would silently record "the
            sprint goal was missed" for a sprint nobody ever answered the question
            about. Absent is a real answer here and has to survive the boundary as
-           absent, which is also the only shape Firestore will take (see
-           cleanKey): the key is never written, rather than written as undefined. */
+           absent: the key is never written, rather than written as undefined,
+           which JSON.stringify would drop anyway and turn into a lie about
+           whether it was ever set (see cleanKey). */
         if (typeof v === 'boolean') out[k] = v;
       } else if (kind === 'bv') {
         /* Business value on a PI objective. Clamped rather than merely checked
@@ -1901,7 +1914,7 @@ function sanitizeIds(data) {
      missing still reaches teamSprints() and moves a rolling average with nothing
      on screen behind it — the silent exclusion orphanNote() exists to announce.
      Business value is only ever read for a team and PI that are both on the page,
-     so an orphan changes no figure; it is inert bytes riding along in the cloud
+     so an orphan changes no figure; it is inert bytes riding along in the saved
      copy, which is what the whitelist pass is for. Boot persists the scrub
      without a toast, which is the right weight for plumbing. */
   if (Array.isArray(data.objectives)) {
@@ -1924,8 +1937,8 @@ function sanitizeIds(data) {
    anything renders. `viewOnly` then does two jobs: it strips every edit
    affordance, and — the load-bearing one — it turns save() into a no-op.
 
-   save() is the single chokepoint for localStorage *and* the cloud push, so
-   gating it there is what guarantees a borrowed view can never overwrite the
+   save() is the single chokepoint for localStorage, so gating it there is what
+   guarantees a borrowed view can never overwrite the
    data of whoever opened the link. That matters because the recipient is often
    another SM with their own teams in the same browser. UI state (which tab,
    which team) still moves in memory and re-renders; it just isn't written down,
@@ -1936,8 +1949,10 @@ const shareToken = location.hash.startsWith(SHARE_PREFIX)
 let viewOnly = !!shareToken;
 let shareMeta = null;   // { sharedAt, label, allTeams } once a link has been decoded
 
-/* The sync module is a separate <script type="module"> and can't see the above,
-   so the flag is mirrored here for it to check before it initialises. */
+/* The service-worker block at the foot of the page is a script of its own and
+   can't see the above, so the flag is mirrored here for it to check before it
+   registers anything. (Sync's module read it for the same reason, until sync was
+   removed on 2026-08-20.) */
 window.svViewOnly = viewOnly;
 
 /* load() runs while the page is still parsing, so it can't raise the toast
@@ -1951,9 +1966,9 @@ let bootPruned = 0;          // stray keys or wrong-typed values found in it
 let state = load();
 
 /* ── Adopting a copy from outside ───────────────────────────────────────────
-   The three paths that replace `state` with somebody else's copy — boot's
-   load(), Restore from a file, and a document arriving over sync — all land
-   here, so they can't drift apart on the details.
+   The paths that replace `state` with a copy from outside — boot's load(), and
+   Restore from a file — both land here, so they can't drift apart on the
+   details. There was a third until 2026-08-20: a document arriving over sync.
 
    The load-bearing part is `version: SCHEMA`, and it has to be written AFTER
    `parsed`. Every caller has just refused a copy stamped NEWER than this build,
@@ -2005,29 +2020,50 @@ function save() {
   if (viewOnly) return;   // someone else's data — never write it over your own
   /* Guarded like load(): Safari's private mode and a full quota both throw
      here, and an unguarded throw would kill the click handler mid-save with
-     nothing on screen to say so. The in-memory state is still good — and it
-     still reaches the cloud below if signed in — so warn and carry on. */
+     nothing on screen to say so. The in-memory state is still good — but since
+     sync was removed there is no second copy anywhere to fall back on, so
+     saying so is all the more the honest thing to do. */
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    localStorage.setItem('sv-updated', String(Date.now()));
   } catch (e) {
     console.warn('Could not write saved data', e);
     toast('⚠️ This browser is blocking storage (full, or private mode?) — changes may be lost when the tab closes');
   }
-  if (window.cloudPush) window.cloudPush();
 }
 
+/* Sync was removed on 2026-08-20, and its two keys are actively DELETED rather
+   than left to sit there. `sv-sync-uid` is the one that matters: it is a Google
+   account id, which is the only personally identifying thing this app ever
+   wrote down, and leaving it in localStorage after removing the feature that
+   needed it would be keeping an identifier for no reason at all. `sv-updated`
+   is only a number, and goes with it because a key nothing reads is a key that
+   confuses the next person to open devtools.
+
+   Runs on every load, not once behind a flag: a flag would be a third key, and
+   two removeItem calls on a key that is already gone cost nothing. Deliberately
+   NOT gated on viewOnly — a visitor's own leftovers are still theirs to be rid
+   of, and this removes rather than writes. Mirrored in Flow Metrics. */
+function clearSyncLeftovers() {
+  try {
+    localStorage.removeItem('sv-updated');
+    localStorage.removeItem('sv-sync-uid');
+  } catch (e) { /* private mode, or storage disabled: nothing to clean */ }
+}
+clearSyncLeftovers();
+
 /* Stop the app dead, with the saved data untouched, and say why.
-   Called only for a copy written by a NEWER build — from load() at boot, and
-   from svAdopt() when sync hands one over mid-session. It does three things,
-   in a deliberate order:
+   Called only for a copy written by a NEWER build — from load() at boot. (It had
+   a second caller, svAdopt(), for a document arriving from another device
+   mid-session; that went with sync on 2026-08-20.) It does three things, in a
+   deliberate order:
 
    1. Sets viewOnly (and its window mirror), which is the EXISTING, tested
-      chokepoint: save() is already a no-op under it and the sync module already
-      refuses to start. Reusing the share-view guard beats inventing a second
-      halt flag that every future write path would have to remember to check.
+      chokepoint: save() is already a no-op under it, and the service-worker
+      block at the foot of the page reads window.svViewOnly and installs
+      nothing. Reusing the share-view guard beats inventing a second halt flag
+      that every future write path would have to remember to check.
    2. Draws the message with textContent, never innerHTML. The number comes out
-      of localStorage or a cloud document, and data is data, not markup.
+      of localStorage or a backup file, and data is data, not markup.
    3. THROWS, which aborts the rest of this script block, so nothing after
       `let state = load()` ever initialises. Silence is the point: a half-booted
       app with its handlers attached is one stray click away from a save. */
@@ -2485,7 +2521,7 @@ function latestSprint(teamId) {
 function focusLatestSprint(teamId) {
   const s = latestSprint(teamId);
   if (!s) return;
-  state.settings.activePiId = piKey(s.piId);   // never undefined — that stops the Firestore push
+  state.settings.activePiId = piKey(s.piId);   // never undefined — see cleanKey
   state.settings.activeSprintNum = s.sprintNumber;
 }
 
@@ -7030,8 +7066,8 @@ function buildSprintRecord() {
   /* The goal is the app's one TRI-STATE field, so "not recorded" is the ABSENCE
      of the key — never `null`, never `undefined`, and never `false`. Written into
      the literal above it would be created holding undefined on every unanswered
-     sprint, which is the one value Firestore refuses outright and which stopped
-     sync for a whole document once already (see cleanKey). Same shape as
+     sprint, which JSON.stringify drops silently — so the key would read as
+     "never set" rather than announcing itself (see cleanKey). Same shape as
      `capacityScale`, which deletes rather than storing its no-op value. */
   const goal = F('f_goalMet').value;
   if (goal === 'met') record.goalMet = true;
@@ -7056,7 +7092,7 @@ function commitSprint(record) {
      scale (the addedThenRemoved lesson, inverted: no input, so preserve it here
      instead). Both save paths funnel through this function. Copied only when the
      stored record actually has one — an absent key must stay absent, never be
-     created holding undefined, or the Firestore push rejects the document. */
+     created holding undefined (see cleanKey). */
   if (i >= 0 && typeof state.sprints[i].capacityScale === 'number' && !('capacityScale' in record))
     record.capacityScale = state.sprints[i].capacityScale;
   if (i >= 0) state.sprints[i] = record; else state.sprints.push(record);
@@ -7298,7 +7334,7 @@ F('adjustSaveBtn').onclick = () => {
      per sprint, permanent until changed, and retires on its own when the sprint
      drops out of the window. 100 means no scale, stored as NO KEY: deleting
      rather than writing 100 keeps every unscaled record byte-identical to what
-     it was, and an absent key can never reach Firestore as undefined. */
+     it was, and an absent key can never become an undefined one. */
   const boxes = scaleBoxes();
   boxes.forEach(b => {
     const sp = state.sprints.find(x => x.id === b.id);
@@ -7916,9 +7952,9 @@ F('importFile').onchange = (e) => {
       if (!rawParsed || typeof rawParsed !== 'object'
           || !Array.isArray(rawParsed.teams) || !Array.isArray(rawParsed.sprints))
         throw new Error('not a Sprint Velocity export');
-      /* A backup written by a newer build, same check as load() and svAdopt().
-         This one does NOT halt the app: unlike those two, nothing has arrived
-         yet and the data on screen is still perfectly good — the file is simply
+      /* A backup written by a newer build, the same check load() makes at boot.
+         This one does NOT halt the app: unlike at boot, nothing has arrived yet
+         and the data on screen is still perfectly good — the file is simply
          refused, and the toast says what to do about it. */
       if (Number(rawParsed.version || 1) > SCHEMA) {
         toast('This backup was saved by a newer version of the app \u2014 reload to update, then restore it');
@@ -7969,12 +8005,9 @@ F('clearBtn').onclick = () => {
     `This deletes ${n(t, 'team')}, ${n(p, 'PI')} and ${n(s, 'recorded sprint')}. `
     + `Your theme is kept. There is no undo — an exported backup is the only way to get `
     + `any of it back.`;
-  /* Said plainly, because "clear this browser" and "clear every device I own"
-     are very different acts and the button looks identical either way. */
-  const signedIn = typeof window.svSignedIn === 'function' && window.svSignedIn();
-  F('clearSyncWarn').textContent = signedIn
-    ? 'You are signed in, so this also clears the copy in your Google account. Your other devices will ask before clearing themselves.'
-    : '';
+  /* No "…and every device you own" line any more: since sync was removed there
+     is exactly one copy of this data and it is the one in this browser, which is
+     what the sentence above already says. */
   openModal(clearDialog);
 };
 
@@ -7982,11 +8015,7 @@ F('clearBackupBtn').onclick = downloadBackup;
 F('clearCancel').onclick = () => clearDialog.close();
 F('clearConfirm').onclick = () => {
   state = blankState();
-  save();                 // the one write path, so this pushes to the cloud too
-  /* …but save() debounces its push, and a delete must not sit in that window:
-     clearing then closing the tab inside 1.2s would leave the cloud copy intact,
-     to resurrect everything on the next sign-in. */
-  if (window.cloudFlush) window.cloudFlush();
+  save();
   clearDialog.close();
   render();
   toast('Everything deleted — starting fresh');
@@ -7994,9 +8023,8 @@ F('clearConfirm').onclick = () => {
 
 /* ═══════════════════════ Read-only share links ════════════════════════════
    The whole payload rides in the URL fragment. Everything after '#' is never
-   sent to a server, so the figures reach the recipient without GitHub Pages,
-   Firebase or anyone else seeing them — which is also why this needs no
-   Firestore rules, no account and no network on either side.
+   sent to a server, so the figures reach the recipient without GitHub Pages or
+   anyone else seeing them — no account and no network on either side.
 
    Format: '#share=<marker>.<base64url>' where marker 1 is deflate-raw and 0 is
    plain JSON. Two formats rather than one because CompressionStream is missing
@@ -8801,13 +8829,12 @@ function loadSample() {
 
 /* ═════════════════════════════ Theme & chrome ═════════════════════════════ */
 
-/* Guarded storage for the small ancillary keys — theme, timestamps, the sync-uid
-   marker. With storage blocked outright (cookies disabled; some private modes)
-   even getItem throws, and an unguarded read in applyTheme() at boot would kill
-   this script before render() ever ran: a blank page over a preference. The boot
-   script in <head> already guards this same theme read; these cover everything
-   after it, the sync module's touches included (function declarations here are
-   globals the module can see). save()/load()/svAdopt() keep their own richer
+/* Guarded storage for the small ancillary keys — the theme, and whatever else
+   ends up beside it. With storage blocked outright (cookies disabled; some
+   private modes) even getItem throws, and an unguarded read in applyTheme() at
+   boot would kill this script before render() ever ran: a blank page over a
+   preference. The boot script in <head> already guards this same theme read;
+   these cover everything after it. save() and load() keep their own richer
    guards — losing DATA deserves a toast, losing a preference doesn't. */
 function lsGet(key) {
   try { return localStorage.getItem(key); } catch (e) { return null; }
@@ -8873,47 +8900,13 @@ document.querySelectorAll('.tab').forEach(tab => {
   };
 });
 
-/* ── Hooks the sync module calls ────────────────────────────────────────── */
+/* ── Hooks the test harness reads ───────────────────────────────────────────
+   `svGet` was one of three exports the sync module called (`svAdopt` replaced
+   the whole state from a cloud document; `svCounts` counted a copy for the
+   which-one-do-you-want dialog). Both went with sync on 2026-08-20. This one
+   stays because tests.html reads the live state through it — a suite that asks
+   the app what it holds beats one that reaches into a closure. */
 window.svGet = () => state;
-window.svAdopt = (incoming, ts) => {
-  /* The data-from-the-future check, live edition. load() only guards BOOT, but
-     onSnapshot can hand a page running yesterday's cached code a document
-     today's build wrote on another device, mid-session — which is the case the
-     offline cache actually makes likely.
-
-     Stored VERBATIM first, before sanitizeIds() can strip what makes it newer:
-     localStorage is the source of truth the fresh build will read on the next
-     load, and the newest copy belongs in it. Then the same halt as boot — it
-     sets viewOnly and THROWS, so nothing below ever adopts. */
-  if (Number((incoming && incoming.version) || 1) > SCHEMA) {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(incoming));
-      localStorage.setItem('sv-updated', String(ts || Date.now()));
-    } catch (e) { console.warn('Could not write saved data', e); }
-    haltForNewerData(incoming.version);
-  }
-  incoming = sanitizeIds(coerceShape(incoming));
-  const orphans = sanitizeIds.dropped;
-  const unassigned = sanitizeIds.unassigned;
-  state = adoptState(incoming);
-  /* Guarded like save(): this runs inside the sync module's onSnapshot callback,
-     where a quota or private-mode throw would otherwise be uncaught and skip the
-     render below. The in-memory copy is already adopted, so warn and paint it. */
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    localStorage.setItem('sv-updated', String(ts || Date.now()));
-  } catch (e) {
-    console.warn('Could not write saved data', e);
-    toast('⚠️ This browser is blocking storage (full, or private mode?) — changes may be lost when the tab closes');
-  }
-  render();
-  if (orphans) toast(orphanNote(orphans));
-  else if (unassigned) toast(unassignedNote(unassigned));
-};
-window.svCounts = (d) => ({
-  teams: (d && d.teams ? d.teams.length : 0),
-  sprints: (d && d.sprints ? d.sprints.length : 0)
-});
 
 /* ── Boot ───────────────────────────────────────────────────────────────── */
 
@@ -8932,12 +8925,10 @@ if (viewOnly) {
   /* Everything that writes, imports or creates belongs to whoever owns the data,
      not to a visitor. Theme and the team picker stay: those are the viewer's own
      preferences, kept in a separate key, and they don't alter anything shared. */
-  /* syncBtn is hidden from here rather than left to the sync module: this runs
-     while the page is still parsing, and the module is deferred, so leaving it to
-     the module would show a visitor a sign-in button that then vanished. */
-  ['manageBtn', 'dataBtn', 'shareBtn', 'syncBtn'].forEach(id => { F(id).hidden = true; });
-  /* The sync module normally rewrites this line; it never starts here, so the
-     default "your data is stored in this browser" text would be misleading. */
+  ['manageBtn', 'dataBtn', 'shareBtn'].forEach(id => { F(id).hidden = true; });
+  /* The default note says "your data is stored in this browser only", which is
+     true of the visitor's own data and misleading about what they are looking
+     at — so a shared view says what this copy actually is. */
   F('privacyNote').textContent = 'This is a read-only copy someone shared with you. It was '
     + 'read from the link itself — nothing was uploaded or downloaded, and nothing you '
     + 'already had saved in this browser has been changed.';
@@ -8996,458 +8987,18 @@ window.__svTestHooks = { raisesKeyboard, reorderById,
   esc };
 </script>
 
-<script type="module">
-/* ───────────────────────── Optional cross-device sync ─────────────────────────
-   Google sign-in + Firestore (free tier), ported from the PAPTrack app. The config
-   below is Firebase's public client config, not a secret — access is enforced by the
-   Firestore security rules, not this key. While FIREBASE_CONFIG is null the sync
-   button stays hidden and the app is 100% local; see the README for the five console
-   steps that turn it on. localStorage remains the source of truth either way.
+<!-- ── Cross-device sync: REMOVED 2026-08-20 ─────────────────────────────────
+     A Firebase/Firestore module sat here, with Google sign-in through Google
+     Identity Services, and it is gone on purpose rather than broken: this app
+     holds figures taken from a work Jira, and the only copy of them is now the
+     one in this browser. Nothing in the page reaches the network any more — the
+     CSP at the top says so in the one place a browser will enforce it.
 
-   The first time a given Google account syncs in a given browser, if both sides
-   already hold data the user is asked which to keep (chooseSyncSource) rather than
-   the code guessing by timestamp — that guesswork once wiped a browser's data in the
-   sibling app. After that first reconciliation, and for live updates arriving from
-   another device, the newer side by 'sv-updated' wins — except that an empty copy
-   never silently beats one with data in it; startSync has the full rule. */
-const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyCAEyY7SEh2Py4pcFiYrJH-s8wYoCGIZ8Y",
-  authDomain: "sprintvelocity-141b7.firebaseapp.com",
-  projectId: "sprintvelocity-141b7",
-  storageBucket: "sprintvelocity-141b7.firebasestorage.app",
-  messagingSenderId: "255575017001",
-  appId: "1:255575017001:web:5ab6eceff78bd825827e38"
-};
-
-/* ── Why sign-in prefers Google Identity Services over Firebase's popup ──────
-   Firebase's signInWithPopup opens its popup at
-   <project>.firebaseapp.com/__/auth/handler and only redirects to Google from
-   there — and corporate web filters block individual firebaseapp.com hostnames
-   unpredictably. The block is per *hostname*, not the domain: on the same
-   network on the same day, this project's hostname and a sibling app's were
-   both refused while a third sibling's went through untouched. Which way a
-   filter categorises a given hostname is outside our control and can change,
-   so "the other apps are fine" is not evidence this one will be.
-
-   The sibling Team Dashboard app proved the fix: a popup straight to
-   accounts.google.com (Google Identity Services) returns an OAuth access
-   token, and Firebase exchanges it for the same session via
-   signInWithCredential. Same Google account, same Firestore data, same rules —
-   only the doorway changes. accounts.google.com is a mainstream Google domain
-   and isn't blocked the same way.
-
-   ⚠️ GOOGLE_CLIENT_ID is NOT part of FIREBASE_CONFIG and can't be derived from
-   it. It comes from Google Cloud Console → APIs & Services → Credentials → the
-   OAuth 2.0 Client ID named "Web client (auto created by Google Service)", and
-   that same screen must list this app's origins (https://eagleadams86.github.io
-   plus the exact localhost origin, port included) under "Authorized JavaScript
-   origins" or Google refuses with origin_mismatch. Serving locally on an
-   unregistered port means sign-in works only in production — register the port
-   there first if local sign-in matters. */
-const GOOGLE_CLIENT_ID = "255575017001-t214ph19e49uihquoh5le7p3chk2e8rh.apps.googleusercontent.com";
-
-const SDK = 'https://www.gstatic.com/firebasejs/12.16.0/';
-const GIS = 'https://accounts.google.com/gsi/client';
-const btn = document.getElementById('syncBtn');
-const privacyNote = document.getElementById('privacyNote');
-const localTs = () => Number(lsGet('sv-updated') || 0);
-
-/* A shared view must not start sync at all. If the visitor happens to be signed
-   in, onAuthStateChanged would fire startSync() and svAdopt() would replace the
-   shared payload with their own cloud copy — and push it straight back out. */
-/* The button ships visible and signed-out in the markup, so the header is its final
-   width at first paint instead of growing by a button once the SDK has come down
-   the wire. It's taken away again only when sync genuinely can't run — no config,
-   a shared view, or a failed load — which is the case worth a reflow. */
-/* tests.html loads this page in a hidden iframe (marked data-sv-tests) to reach
-   the pure functions. The harness must not boot a real session: if this origin
-   had ever signed in, onAuthStateChanged would fire inside the invisible iframe
-   and sync — or the "another device cleared its data" dialog nobody can see —
-   would run mid-test. Same guard as the sibling Team Dashboard app. */
-let inTestHarness = false;
-try { inTestHarness = !!(window.frameElement && window.frameElement.hasAttribute('data-sv-tests')); }
-catch (e) { /* cross-origin parent — not the harness */ }
-
-if (FIREBASE_CONFIG && !window.svViewOnly && !inTestHarness) {
-  init().catch((e) => { console.warn('Sync unavailable:', e); btn.hidden = true; });
-} else {
-  btn.hidden = true;
-}
-
-let A, Fs, auth, db, user = null, unsub = null, pushTimer = null, tokenClient = null;
-
-/* The classic script above can't see `user` (this is a module), and the
-   delete-all dialog has to tell the truth about whether deleting reaches the
-   user's other devices. Same hook as Golf Handicap's ghSignedIn. */
-window.svSignedIn = () => !!user;
-
-/* Google's sign-in client is a classic script, not a module — it hangs
-   window.google off the page once it's in. Resolves as soon as that's true. */
-function loadGis() {
-  return new Promise((resolve, reject) => {
-    if (window.google?.accounts?.oauth2) return resolve();
-    const s = document.createElement('script');
-    s.src = GIS; s.async = true; s.defer = true;
-    s.onload = () => window.google?.accounts?.oauth2
-      ? resolve()
-      : reject(new Error('Google sign-in client loaded but exposed no oauth2 API'));
-    s.onerror = () => reject(new Error('Could not load Google sign-in client'));
-    document.head.appendChild(s);
-  });
-}
-
-async function init() {
-  const [{ initializeApp }, authMod, fsMod] = await Promise.all([
-    import(SDK + 'firebase-app.js'),
-    import(SDK + 'firebase-auth.js'),
-    import(SDK + 'firebase-firestore.js'),
-    loadGis(),
-  ]);
-  A = authMod; Fs = fsMod;
-  const app = initializeApp(FIREBASE_CONFIG);
-  // initializeAuth rather than getAuth, to keep apis.google.com out of the page.
-  // getAuth() always wires in browserPopupRedirectResolver, and on Safari, iOS
-  // and mobile browsers the SDK initialises that resolver eagerly at startup —
-  // which fetches https://apis.google.com/js/api.js to build the gapi iframe that
-  // carries popup and redirect results back. Nothing here reads those results:
-  // sign-in is signInWithCredential, and signInWithPopup and signInWithRedirect
-  // are never called. CSP blocked the script, and the only consequence was a red
-  // line in the console on phones and in Safari. Widening script-src would have
-  // been the wrong fix — it admits a script no code reads. Token refresh
-  // (securetoken.googleapis.com), sign-out and the cross-tab session all run
-  // elsewhere in the SDK and never touch the resolver.
-  //
-  // The three persistences are the ones getAuth would have set, in its order, so
-  // where the session is stored and how tabs see each other are unchanged.
-  //
-  // ⚠️ signInWithPopup, signInWithRedirect and phone sign-in now fail with
-  // auth/argument-error. If one is ever wanted, pass browserPopupRedirectResolver
-  // to that call — don't go back to getAuth() and reintroduce this at startup.
-  auth = A.initializeAuth(app, {
-    persistence: [A.indexedDBLocalPersistence, A.browserLocalPersistence, A.browserSessionPersistence],
-  });
-  db = Fs.getFirestore(app);
-  A.onAuthStateChanged(auth, (u) => {
-    user = u;
-    syncError = null;          // a change of who's signed in starts clean
-    updateUI();
-    if (unsub) { unsub(); unsub = null; }
-    if (u) startSync().catch((e) => setSyncError(e));
-  });
-  /* Built once, reused for every sign-in. requestAccessToken() must be called
-     from inside the click handler or the browser treats the popup as
-     unsolicited and blocks it. */
-  tokenClient = window.google.accounts.oauth2.initTokenClient({
-    client_id: GOOGLE_CLIENT_ID,
-    scope: 'openid email profile',
-    callback: (resp) => {
-      if (!resp || !resp.access_token) { onSignInFailed(resp); return; }
-      /* null id_token: Firebase accepts an OAuth access token on its own and
-         reads the profile from it. */
-      const cred = A.GoogleAuthProvider.credential(null, resp.access_token);
-      A.signInWithCredential(auth, cred).catch(onSignInFailed);
-    },
-    error_callback: (err) => {
-      /* Closing the popup is a normal thing to do, not a failure worth a toast. */
-      if (err && /popup_closed|user_cancel/.test(String(err.type))) return;
-      onSignInFailed(err);
-    },
-  });
-  btn.addEventListener('click', onClick);
-}
-
-function onSignInFailed(e) {
-  console.warn('sign-in error', e);
-  const s = String((e && (e.type || e.code || e.message)) || e || '');
-  if (s.includes('origin_mismatch') || s.includes('idpiframe') || s.includes('invalid_client')) {
-    window.toast('Sign-in rejected — this site isn’t an authorised origin for the Google client');
-  } else if (s.includes('popup_failed_to_open')) {
-    window.toast('Sign-in popup was blocked — allow popups for this site and try again');
-  } else {
-    window.toast('Sign-in failed — check the Firebase setup');
-  }
-}
-
-/* ── Saying so when sync stops working ──────────────────────────────────────
-   Every failure path here used to end at console.warn, which nobody has open. The
-   app went on looking signed in and the privacy line went on promising the data
-   was reaching your other devices, while nothing had left the browser for weeks —
-   you'd find out when a second device turned out to be months behind.
-
-   Nothing is ever lost when this happens: localStorage is the source of truth and
-   the cloud only mirrors it. But "your data is safe" and "your data is synced" are
-   different promises, and the header should only make the one that's true.
-
-   There's deliberately no retry button. Firestore already retries the transient
-   causes on its own, and the causes it can't retry — the document being too big,
-   the rules refusing — won't be fixed by pressing anything. Recovery comes from
-   the next successful push, which every edit attempts, so the state clears itself
-   the moment sync genuinely works again. */
-let syncError = null;
-
-/* Plain English, because the people reading it are Scrum Masters, and the useful
-   part is the second sentence: what to actually do about it. */
-function describeSyncError(e) {
-  const code = String((e && e.code) || e || '');
-  /* Firestore reports two unrelated things as invalid-argument: a document over the
-     1 MiB cap, and a value it can't store (an `undefined` anywhere in the object).
-     Only the first is about size, and this branch used to assume it was — so a bug
-     in this file told the user to export a backup and delete a PI, which is the
-     worst advice this app is capable of giving. The size wording is now used only
-     when Firestore's own message says size; anything else says plainly that the
-     problem is here, and asks for nothing to be deleted. */
-  if (code.includes('invalid-argument')) {
-    const detail = String((e && e.message) || '');
-    if (/maximum allowed size|exceeds|too large|longer than|bytes/i.test(detail)) return {
-      reason: 'There’s more history here than can be synced in one go.',
-      fix: 'Export a backup, then delete a PI you no longer need — sync picks up again on the next change.' };
-    return {
-      reason: 'The cloud refused this copy of your data — that’s a fault in the app, not in what you entered.',
-      fix: 'Nothing is lost: everything is still here and still saved. Reloading the page usually clears it.' };
-  }
-  if (code.includes('permission-denied') || code.includes('unauthenticated')) return {
-    reason: 'Google refused the sign-in for this data.',
-    fix: 'Signing out and back in usually clears it.' };
-  if (code.includes('resource-exhausted')) return {
-    reason: 'This project has hit its daily sync limit.',
-    fix: 'It resets tomorrow; nothing is lost in the meantime.' };
-  if (code.includes('unavailable') || code.includes('deadline-exceeded')) return {
-    reason: 'Couldn’t reach Google just now.',
-    fix: 'It should sort itself out — the next change will try again.' };
-  return { reason: 'Sync has stopped working.',
-    fix: 'The next change will try again. If it keeps up, sign out and back in.' };
-}
-
-function setSyncError(e) {
-  console.warn('sync problem', e);
-  const first = !syncError;
-  syncError = describeSyncError(e);
-  updateUI();
-  /* Announce the change of state, not every retry. Each save() schedules another
-     push, so a lasting problem calls this repeatedly — toasting every time would be
-     noise, and the header carries the state for as long as it lasts anyway. The
-     note at the foot of the page is where the detail lives, so say where to look. */
-  if (first) window.toast('⚠️ Not syncing — see the note at the foot of the page');
-}
-
-/* Called on every successful push, so recovery needs no intervention. */
-function clearSyncError() {
-  if (!syncError) return;
-  syncError = null;
-  updateUI();
-  window.toast('Syncing again ☁️');
-}
-
-function updateUI() {
-  if (user && syncError) {
-    btn.textContent = '⚠️ Not syncing';
-    btn.dataset.state = 'error';
-    btn.title = syncError.reason + ' ' + syncError.fix;
-    privacyNote.textContent = `⚠️ Not syncing — ${syncError.reason} Everything is still saved in `
-      + `this browser, but your other devices aren’t getting it. ${syncError.fix}`;
-  } else if (user) {
-    btn.textContent = `☁️ ${user.displayName ? user.displayName.split(' ')[0] : user.email}`;
-    delete btn.dataset.state;
-    btn.title = 'Syncing across your devices — click to sign out';
-    privacyNote.textContent = `☁️ Signed in as ${user.email} — your sprint data syncs privately to your own account and still works offline.`;
-  } else {
-    btn.textContent = '☁️ Sign in to sync';
-    delete btn.dataset.state;
-    btn.title = 'Sign in with Google to see the same data on all your devices';
-    privacyNote.textContent = '🔒 Private — your data is stored in this browser only. No account needed. Sign in with Google if you want the same data on your other devices.';
-  }
-}
-
-async function onClick() {
-  if (user) {
-    if (confirm('Sign out? The app keeps working with the local copy on this device.')) A.signOut(auth);
-    return;
-  }
-  /* Everything after this happens in the token client's callbacks — the popup
-     goes to accounts.google.com and comes back with a token, and
-     onAuthStateChanged picks it up from there. No redirect fallback needed:
-     unlike Firebase's hosted handler, this popup works on mobile Safari. */
-  tokenClient.requestAccessToken();
-}
-
-const docRef = () => Fs.doc(db, 'sprintvelocity', user.uid);
-
-/* Resolves true to keep Google's copy, false to keep this device's. The dialog
-   refuses dismissal: Escape is cancelled (preventCancel below) and it is the one
-   dialog deliberately exempt from the backdrop-click-closes-it rule, so only the
-   two buttons ever resolve. Either answer overwrites somebody's copy — there is
-   no neutral exit to hang a default on, and a guessed default is how the sibling
-   app once wiped a browser's data. */
-function chooseSyncSource(local, remote, remoteUpdatedAt) {
-  return new Promise((resolve) => {
-    const dlg = document.getElementById('syncChoiceDialog');
-    const body = document.getElementById('syncChoiceBody');
-    const when = remoteUpdatedAt ? new Date(remoteUpdatedAt).toLocaleString() : 'an earlier sign-in';
-    const l = window.svCounts(local), r = window.svCounts(remote);
-    const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
-    body.textContent =
-      `This device has ${plural(l.teams, 'team')} and ${plural(l.sprints, 'sprint')} saved. `
-      + `Your Google account already has ${plural(r.teams, 'team')} and ${plural(r.sprints, 'sprint')} `
-      + `(last updated ${when}). Pick which to keep — the other copy will be replaced.`;
-    const deviceBtn = document.getElementById('syncKeepDeviceBtn');
-    const googleBtn = document.getElementById('syncKeepGoogleBtn');
-    const preventCancel = (e) => e.preventDefault();
-    function finish(keepGoogle) {
-      deviceBtn.removeEventListener('click', onDevice);
-      googleBtn.removeEventListener('click', onGoogle);
-      dlg.removeEventListener('cancel', preventCancel);
-      dlg.close();
-      resolve(keepGoogle);
-    }
-    const onDevice = () => finish(false);
-    const onGoogle = () => finish(true);
-    deviceBtn.addEventListener('click', onDevice);
-    googleBtn.addEventListener('click', onGoogle);
-    dlg.addEventListener('cancel', preventCancel);
-    openModal(dlg);
-  });
-}
-
-const hasData = (d) => !!(d && ((d.teams && d.teams.length) || (d.sprints && d.sprints.length)));
-
-/* Stamps this device's copy as the newest. "Keep this device's data" has to
-   actually win everywhere, and pushNow() sends the timestamp the local copy
-   already carries — which, when the cloud is what looked newer, is the older of
-   the two. Without this the choice sticks here and nowhere else. */
-const touchLocal = () => lsSet('sv-updated', String(Date.now()));
-
-/* Reconciling the two copies at sign-in.
-
-   The rule underneath all four branches: **an empty copy never beats a copy with
-   data in it, whatever the timestamps say.** Timestamp-wins on its own had a hole
-   worth spelling out, because it cost real data. Signing in on a fresh browser
-   pushes that browser's empty state to the cloud stamped `now`; the reconciliation
-   dialog only opened when *both* sides held data, so the browser that actually had
-   the sprints — carrying an older timestamp, because it was last edited days ago —
-   skipped the dialog, took the empty cloud copy as "newer", and emptied itself. The
-   dialog exists precisely to stop that, so the guard can't be the thing that only
-   asks when there's nothing much at stake.
-
-   With that rule, the dialog is only needed for the genuine conflict: both sides
-   hold data and neither is obviously right. Once per account per browser — after
-   the first reconciliation both sides are caught up and timestamps are enough. A
-   different Google account signing in here re-prompts. */
-async function startSync() {
-  const snap = await Fs.getDoc(docRef());
-  const remote = snap.exists() ? snap.data() : null;
-  const local = window.svGet();
-  const remoteHas = !!(remote && hasData(remote.data));
-  const localHas = hasData(local);
-  const firstSyncForAccount = lsGet('sv-sync-uid') !== user.uid;
-
-  if (remoteHas && localHas && firstSyncForAccount) {
-    const keepGoogle = await chooseSyncSource(local, remote.data, remote.updatedAt);
-    if (keepGoogle) {
-      window.svAdopt(remote.data, remote.updatedAt);
-      window.toast('Loaded your data from the cloud ☁️');
-    } else {
-      touchLocal();
-      await pushNow();
-      window.toast('Kept this device’s data');
-    }
-  } else if (remoteHas && !localHas) {
-    /* Nothing here to lose. */
-    window.svAdopt(remote.data, remote.updatedAt);
-    window.toast('Loaded your data from the cloud ☁️');
-  } else if (localHas && !remoteHas) {
-    /* The cloud copy is empty — seeded by a sign-in on a browser that had nothing
-       in it yet. It doesn't get to overwrite a device that holds real sprints. */
-    await pushNow();
-  } else if (remoteHas && remote.updatedAt > localTs()) {
-    window.svAdopt(remote.data, remote.updatedAt);
-    window.toast('Loaded your data from the cloud ☁️');
-  } else {
-    await pushNow();
-  }
-  lsSet('sv-sync-uid', user.uid);
-
-  unsub = Fs.onSnapshot(docRef(), (s) => {
-    if (s.metadata.hasPendingWrites || !s.exists()) return;
-    const r = s.data();
-    if (!(r.updatedAt > localTs())) return;
-    /* Same rule live. Clearing everything really is something people do, so this
-       asks rather than refusing — but it asks, because the alternative is a device
-       quietly emptying itself while its owner is looking at another tab. Declining
-       re-pushes what's here, stamped now, so the two sides stop disagreeing. */
-    if (!hasData(r.data) && hasData(window.svGet())) {
-      const keep = !confirm('Another device has cleared all its Sprint Velocity data.\n\n'
-        + 'Clear this device too? Cancel keeps what\'s on this device and restores it '
-        + 'to your other devices.');
-      if (keep) {
-        touchLocal();
-        pushNow().catch(setSyncError);
-        window.toast('Kept this device’s data');
-        return;
-      }
-    }
-    window.svAdopt(r.data, r.updatedAt);
-    window.toast('Synced from another device ☁️');
-  }, (e) => {
-    /* A listener that dies stays dead — Firestore hands it to this callback and
-       drops it. Without one, losing permission mid-session meant updates from
-       another device just stopped arriving, with the header still saying "syncing". */
-    setSyncError(e);
-    unsub = null;
-  });
-}
-
-/* The cloud copy is sent through JSON, exactly as save() writes the local one, so
-   the two are the same bytes by construction. It is not tidiness: setDoc() walks the
-   live object, and Firestore rejects the whole document if it finds a single
-   `undefined` anywhere in it — where localStorage would simply have dropped that key
-   and carried on. That asymmetry is how one absent setting took sync down while every
-   local copy looked perfect, so the serialisation is now the same on both sides
-   rather than nearly the same. sanitizeIds() is where undefined is kept out in the
-   first place; this is the belt to that boundary's braces. */
-const forCloud = (s) => JSON.parse(JSON.stringify(s));
-
-async function pushNow() {
-  if (!user) return;
-  await Fs.setDoc(docRef(), { data: forCloud(window.svGet()), updatedAt: localTs() || Date.now() });
-  clearSyncError();
-}
-
-/* Called by save() on every local change; debounced so rapid edits batch up. */
-window.cloudPush = () => {
-  if (!user) return;
-  clearTimeout(pushTimer);
-  pushTimer = setTimeout(() => { pushTimer = null; pushNow().catch(setSyncError); }, 1200);
-};
-
-/* Skips the debounce. "Delete all data" calls this so the cleared state reaches
-   the cloud before the tab can be closed — otherwise the next sign-in would pour
-   everything straight back. */
-window.cloudFlush = () => {
-  if (!user) return;
-  clearTimeout(pushTimer);
-  pushTimer = null;
-  pushNow().catch(setSyncError);
-};
-
-/* The debounce means "edit, then close the tab inside 1.2s" would leave the
-   push scheduled but never sent — localStorage has the change, the cloud
-   doesn't, and the other devices stay stale until the NEXT edit on this one.
-   Flush a pending push the moment the page is hidden; pagehide too, for the
-   paths that skip visibilitychange. Best-effort by nature — a request this
-   late in a page's life can still be cut off — but the next edit or sign-in
-   re-sends regardless, so nothing is ever lost, only late. Ported from
-   Flow Metrics (Team Dashboard). */
-const flushPush = () => {
-  if (!user || !pushTimer) return;
-  clearTimeout(pushTimer);
-  pushTimer = null;
-  pushNow().catch(() => { /* page is going away — nowhere left to report */ });
-};
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') flushPush();
-});
-addEventListener('pagehide', flushPush);
-</script>
+     Two consequences worth knowing before anyone is tempted to put it back: the
+     backup dialog is the ONLY way to move data between devices now, and the
+     leftover `sv-sync-uid` / `sv-updated` keys are cleared at boot rather than
+     left lying about (see clearSyncLeftovers). Flow Metrics, the sibling app,
+     had the identical module removed in the same sweep. -->
 
 <!-- ── Offline ────────────────────────────────────────────────────────────────
      Registering sw.js is the whole of the offline feature on this side; the
