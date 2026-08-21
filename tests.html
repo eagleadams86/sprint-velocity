@@ -376,7 +376,7 @@ t('a clean copy prunes nothing, so boot never saves for no reason', () => {
   w.sanitizeIds(w.coerceShape({
     version: 1,
     teams: [{ id: 't1', name: 'A', artId: null }],
-    arts: [], pis: [{ id: 'p1', name: 'PI 1', sprintCount: 6 }],
+    arts: [], pis: [{ id: 'p1', name: 'PI 1' }],
     sprints: [{ id: 's1', teamId: 't1', piId: 'p1', sprintNumber: 1,
       startDate: '2026-06-01', endDate: '2026-06-12', status: 'auto',
       committed: 30, committedCompleted: 28, totalCompleted: 31, added: 3,
@@ -426,9 +426,95 @@ t('a hostile ART id is replaced and the teams on it follow', () => {
 t('the "no ART" filter sentinel survives the boundary intact', () => {
   const NONE = w.__svTestHooks.ART_NONE;
   ok(!/^[A-Za-z0-9_-]{1,64}$/.test(NONE), 'the sentinel is not a legal id, so nothing can collide with it');
-  const out = w.sanitizeIds({ teams: [], arts: [], pis: [], sprints: [],
+  /* A team with no ART, because that is what the sentinel is FOR — see the test
+     below, where the group being empty is the thing that invalidates it. */
+  const out = w.sanitizeIds({ teams: [{ id: 't1', name: 'A' }], arts: [], pis: [], sprints: [],
                               settings: { artFilter: NONE } });
   eq(out.settings.artFilter, NONE, 'it is not swapped for a fresh id, nor cleared as an orphan');
+});
+t('but a sentinel with no un-grouped team left to match is cleared', () => {
+  /* The picker only offers "No ART" while some team is on none (see artToolbar), so
+     a stored sentinel with the group empty is a filter that cannot be selected back
+     out of: the select shows "All ARTs" because nothing matches its value, and the
+     page underneath says "No Teams On This ART". */
+  const out = w.sanitizeIds({
+    teams: [{ id: 't1', name: 'A', artId: 'a1' }],
+    arts: [{ id: 'a1', name: 'Payments' }], pis: [], sprints: [],
+    settings: { artFilter: w.__svTestHooks.ART_NONE },
+  });
+  eq(out.settings.artFilter, null, 'falls back to all teams rather than to nothing at all');
+});
+t('and a team un-grouped BY the boundary keeps the sentinel alive', () => {
+  /* Order matters: the dangling-ART pass runs first and puts this team back into
+     "No ART", so the sentinel it is paired with is meaningful by the time the
+     check above reads it. */
+  const out = w.sanitizeIds({
+    teams: [{ id: 't1', name: 'A', artId: 'aGONE' }],
+    arts: [], pis: [], sprints: [],
+    settings: { artFilter: w.__svTestHooks.ART_NONE },
+  });
+  eq(out.teams[0].artId, null);
+  eq(out.settings.artFilter, w.__svTestHooks.ART_NONE,
+    'the group is no longer empty, so the filter still means something');
+});
+
+/* ── A capacity adjustment is a SLOT, and a slot's PI is optional ───────────
+   `plans.piId` has been `idOrNull` since SCHEMA 4. Testing it for membership of
+   the PI list therefore deleted every adjustment a PI-less team saved — it held
+   for the session and was gone on reload, under a toast blaming a missing team
+   that was on the screen. */
+t('an adjustment on the unassigned track survives the boundary', () => {
+  const out = w.sanitizeIds(w.coerceShape({
+    teams: [{ id: 't1', name: 'A' }], arts: [], pis: [{ id: 'p1', name: 'PI 1' }],
+    sprints: [{ id: 's1', teamId: 't1', piId: null, sprintNumber: 12 }],
+    plans: [{ id: 'pl1', teamId: 't1', piId: null, sprintNumber: 13,
+              availability: 60, reason: 'leave' }],
+    objectives: [], settings: {},
+  }));
+  eq(out.plans.length, 1, 'a null piId is the unassigned track, not a broken reference');
+  eq(out.plans[0].piId, null);
+  eq(out.plans[0].availability, 60);
+  eq(w.sanitizeIds.droppedPlans, 0, 'and nothing was reported as lost');
+});
+t('an adjustment naming a PI that is gone is still dropped', () => {
+  const out = w.sanitizeIds(w.coerceShape({
+    teams: [{ id: 't1', name: 'A' }], arts: [], pis: [], sprints: [],
+    plans: [{ id: 'pl1', teamId: 't1', piId: 'pGONE', sprintNumber: 2,
+              availability: 60, reason: 'leave' }],
+    objectives: [], settings: {},
+  }));
+  eq(out.plans, [], 'that slot really can never be reached');
+  eq(w.sanitizeIds.droppedPlans, 1);
+});
+t('an adjustment whose TEAM is gone is dropped, and counted apart from the sprints', () => {
+  const out = w.sanitizeIds(w.coerceShape({
+    teams: [{ id: 't1', name: 'A' }], arts: [], pis: [], sprints: [],
+    plans: [{ id: 'pl1', teamId: 'ghost', piId: null, sprintNumber: 2,
+              availability: 60, reason: 'leave' }],
+    objectives: [], settings: {},
+  }));
+  eq(out.plans, []);
+  eq(w.sanitizeIds.droppedPlans, 1);
+  eq(w.sanitizeIds.dropped, 0,
+    'orphanNote() is a sentence about sprints and a team — a plan must not borrow it');
+});
+t('two adjustments spelling the same PI-less slot differently keep one', () => {
+  const out = w.sanitizeIds(w.coerceShape({
+    teams: [{ id: 't1', name: 'A' }], arts: [], pis: [], sprints: [],
+    plans: [{ id: 'a', teamId: 't1', piId: null, sprintNumber: 3, availability: 60, reason: 'leave' },
+            { id: 'b', teamId: 't1', piId: '', sprintNumber: 3, availability: 80, reason: 'leave' }],
+    objectives: [], settings: {},
+  }));
+  eq(out.plans.map(x => x.id), ['a'],
+    '"" and null are one slot, so the second would sit there invisible');
+});
+t('a PI carries no sprintCount — six to a PI is SPRINTS_PER_PI, and nothing reads a field', () => {
+  const out = w.sanitizeIds(w.coerceShape({
+    teams: [], arts: [], pis: [{ id: 'p1', name: 'PI 1', sprintCount: 6 }],
+    sprints: [], plans: [], objectives: [], settings: {},
+  }));
+  eq('sprintCount' in out.pis[0], false, 'an old saved copy is scrubbed of it at boot');
+  ok(w.sanitizeIds.pruned > 0, 'and the scrub is counted, so boot persists it');
 });
 
 group('teamsInArt + groupTeamsByArt — the ART grouping');
@@ -749,7 +835,7 @@ group('encodeShare / decodeShare — the share-link round trip');
 const SHARE_PAYLOAD = {
   v: 4, sharedAt: 1755000000000, label: 'Kestrel',
   teams: [{ id: 't1', name: 'Kestrel', artId: null }],
-  arts: [], pis: [{ id: 'p1', name: 'PI 1', sprintCount: 6 }],
+  arts: [], pis: [{ id: 'p1', name: 'PI 1' }],
   sprints: [{ id: 's1', teamId: 't1', piId: 'p1', sprintNumber: 1,
     startDate: '2026-06-01', endDate: '2026-06-12', status: 'auto',
     committed: 30, committedCompleted: 28, totalCompleted: 31, added: 3,
@@ -810,6 +896,77 @@ t('the PI business value travels too, or the link shows fewer figures than the s
   eq(out.objectives[0].plannedBv, 40);
   eq(out.objectives[0].stretchBv, 6, 'the stretch half survives, or the measure changes on arrival');
   ok(!('title' in out.objectives[0]), 'and still nothing but ids and numbers');
+});
+
+group('the share dialog’s Rolling 5 warning');
+/* Cutting a link below the rolling window changes the recipient's figures, so the
+   sender is warned which teams it hits. The count therefore has to apply EVERY
+   rule rollingSprints() applies, or the warning is about figures that match
+   perfectly well — or, worse, stays silent about ones that don't. */
+function shareNoteFixture(sprints) {
+  return {
+    teams: [{ id: 't1', name: 'No-PI Team' }],
+    arts: [], pis: [], objectives: [], plans: [],
+    sprints,
+    settings: { includeSprint6InRolling: false, includeInProgress: false },
+  };
+}
+const noteSprint = (n, extra) => Object.assign({
+  id: 's' + n, teamId: 't1', piId: null, sprintNumber: n,
+  committed: 20, committedCompleted: 18, totalCompleted: 20,
+  added: 0, removed: 0, carriedIn: 0, carriedOut: 0, addedThenRemoved: 0,
+}, extra || {});
+
+t('a PI-less sprint 6 counts, so five sprints raise no warning', () => {
+  /* It read `sprintNumber !== IP_SPRINT` and dropped this sprint from the count,
+     warning that a full window of five would arrive as four. */
+  const fx = shareNoteFixture([2, 3, 4, 5, 6].map(n => noteSprint(n)));
+  withState(fx, () => {
+    eq(w.rollingSprints('t1', false).length, 5, 'the recipient’s window really holds five');
+    eq(w.shareRollingNote(fx, { kind: 'n', n: 5 }), '',
+      'so there is nothing for the sender to be warned about');
+  });
+});
+t('an excluded sprint does shorten it, and now says so', () => {
+  /* The same mistake with the sign flipped: `excluded` was not checked at all, so
+     a team that really will average four at the far end went unmentioned. */
+  const fx = shareNoteFixture(
+    [2, 3, 4, 5, 6].map(n => noteSprint(n, n === 6 ? { excluded: true, excludeReason: 'incident' } : null)));
+  withState(fx, () => {
+    eq(w.rollingSprints('t1', false).length, 4);
+    const note = w.shareRollingNote(fx, { kind: 'n', n: 5 });
+    ok(note.includes('No-PI Team (4)'), 'the team and its real count are named: ' + note);
+  });
+});
+t('a sprint 6 INSIDE a PI is still left out of the count', () => {
+  const fx = shareNoteFixture([2, 3, 4, 5, 6].map(n => noteSprint(n)));
+  fx.pis = [{ id: 'p1', name: 'PI 1' }];
+  fx.sprints.forEach(sp => { sp.piId = 'p1'; });
+  withState(fx, () => {
+    eq(w.rollingSprints('t1', false).length, 4, 'the IP sprint stays out of the window');
+    ok(w.shareRollingNote(fx, { kind: 'n', n: 5 }).includes('No-PI Team (4)'),
+      'and the warning matches it');
+  });
+});
+t('a PI-less team’s adjustment goes into the link and survives the far end', async () => {
+  /* buildSharePayload gated the plan on `usedPis.has(pl.piId)`, which is true for a
+     null piId only when one of the trimmed sprints happened to be unassigned too —
+     so the adjustment fell out of the link for reasons that had nothing to do with
+     it, and the recipient's card quietly disagreed with the sender's screen. */
+  const fx = shareNoteFixture([12, 13, 14].map(n => noteSprint(n)));
+  fx.pis = [{ id: 'p1', name: 'PI 1' }];
+  fx.plans = [{ id: 'pl1', teamId: 't1', piId: null, sprintNumber: 15,
+                availability: 60, reason: 'leave' }];
+  let token;
+  withState(fx, () => {
+    const payload = w.buildSharePayload({ teamIds: ['t1'], includeAllTeams: false, scope: { kind: 'all' } });
+    eq(payload.plans.length, 1, 'the adjustment is in the payload');
+    token = payload;
+  });
+  const out = await w.decodeShare(await w.encodeShare(token));
+  eq(out.plans.length, 1, 'and still there once the recipient has decoded it');
+  eq(out.plans[0].piId, null);
+  eq(out.plans[0].availability, 60);
 });
 
 group('keepKnown — the 120-character label cap');
@@ -1030,6 +1187,93 @@ t('ties at the bottom are counted, not assumed to be all-but-one', () => {
     const t1 = w.nextSprintTarget('t1', false);
     approx(t1.reliableBase, 12);
     eq(t1.reliableMet, 4, 'all four cleared 12, so the card says 4 of 4 and not 3 of 4');
+  });
+});
+
+group('piCapacityCard — the ART’s two figures, and which way round they go');
+/* "Across the PI" is every team's recommendation; "If it has to hold" is meant to
+   be the cautious one beside it. It summed `reliable` for every team — including
+   the ones nextSprintTarget() flags `hasFloor: false` precisely because their
+   second-lowest result sits ABOVE their mean — so the cautious total could come
+   out LARGER than the central one, on the card an RTE plans a PI from. */
+function artCapacityFixture(teams) {
+  const sprints = [];
+  teams.forEach(([id, done]) => done.forEach((v, i) => sprints.push({
+    id: id + i, teamId: id, piId: 'p1', sprintNumber: i + 1,
+    committed: Math.max(v, 45), committedCompleted: v, totalCompleted: v,
+    added: 0, removed: 0, carriedIn: 0, carriedOut: 0, addedThenRemoved: 0,
+  })));
+  return {
+    teams: teams.map(([id], i) => ({ id, name: 'Team ' + (i + 1), artId: 'a1' })),
+    arts: [{ id: 'a1', name: 'ART One' }],
+    pis: [{ id: 'p1', name: 'PI 1' }],
+    plans: [], objectives: [], sprints,
+  };
+}
+/* Three ordinary teams pulled down by one bad sprint each — mean below their own
+   second-lowest, so no floor — beside one carried by a single big sprint, which is
+   the only one that has one. Nothing exotic: this is a normal ART. */
+const FLOOR_TRAP = [
+  ['t1', [10, 30, 32, 31, 29]],
+  ['t2', [12, 28, 30, 29, 31]],
+  ['t3', [8, 26, 28, 27, 29]],
+  ['t4', [4, 4, 4, 4, 10]],
+];
+/* The tile figures as the reader sees them. Read off the rendered markup rather
+   than recomputed here, so the assertion is about what the card SAYS — the whole
+   defect was a card printing two numbers the wrong way round. fmtNum groups
+   thousands, so digits only. */
+const tileFigures = (html) => {
+  const doc = new DOMParser().parseFromString('<div>' + html + '</div>', 'text/html');
+  return [...doc.querySelectorAll('.tile')].map(el => ({
+    label: el.querySelector('.label').textContent.trim(),
+    value: Number(el.querySelector('.value').textContent.replace(/[^0-9]/g, '')),
+  }));
+};
+t('three of the four teams have no floor at all, which is the trap', () => {
+  withState(artCapacityFixture(FLOOR_TRAP), () => {
+    const flags = w.svGet().teams.map(t => w.nextSprintTarget(t.id, false).hasFloor);
+    eq(flags, [false, false, false, true],
+      'a team dragged down by one bad sprint has no safer number to offer');
+  });
+});
+t('the cautious total can never exceed the central one', () => {
+  withState(artCapacityFixture(FLOOR_TRAP), () => {
+    const rows = w.svGet().teams.map(t => w.nextSprintTarget(t.id, false));
+    const slots = 5;
+    const total = rows.reduce((a, r) => a + r.recommended * slots, 0);
+    const floor = rows.reduce((a, r) => a + (r.hasFloor ? r.reliable : r.recommended) * slots, 0);
+    ok(floor <= total, 'floor ' + Math.round(floor) + ' vs total ' + Math.round(total));
+    const tiles = tileFigures(w.piCapacityCard(w.svGet().teams, false));
+    const across = tiles.find(x => x.label.startsWith('Across the PI'));
+    const hold = tiles.find(x => x.label.startsWith('If it has to hold'));
+    eq(across.value, Math.round(total));
+    eq(hold.value, Math.round(floor));
+    ok(hold.value <= across.value,
+      'the cautious tile read ' + hold.value + ' against ' + across.value + ' before this');
+  });
+});
+t('and the card says how many teams actually brought a floor', () => {
+  withState(artCapacityFixture(FLOOR_TRAP), () => {
+    const html = w.piCapacityCard(w.svGet().teams, false);
+    ok(html.includes('1 of 4 teams'), 'an exclusion is never silent, this one included');
+  });
+});
+t('with every team carrying a floor the label stays the plain one', () => {
+  const all = [['t1', [5, 5, 5, 5, 40]], ['t2', [6, 6, 6, 6, 44]]];
+  withState(artCapacityFixture(all), () => {
+    const flags = w.svGet().teams.map(t => w.nextSprintTarget(t.id, false).hasFloor);
+    eq(flags, [true, true]);
+    const html = w.piCapacityCard(w.svGet().teams, false);
+    ok(html.includes('each team at the commitment it has met in all but one sprint'));
+    eq(html.includes(' of 2 teams at the commitment'), false, 'nothing to qualify');
+  });
+});
+t('no team with a floor means no second tile at all', () => {
+  withState(artCapacityFixture([['t1', [10, 30, 32, 31, 29]]]), () => {
+    const html = w.piCapacityCard(w.svGet().teams, false);
+    eq(html.includes('If it has to hold'), false,
+      'a tile identical to the one beside it teaches nothing');
   });
 });
 
@@ -1677,6 +1921,37 @@ t('the note names the excluded sprints the window reached over, and no others', 
   });
 });
 
+t('exclusions bunched at the start are ALL named, not just the newest', () => {
+  /* The under-report the slice-based version left behind: with S1, S2 and S3 out
+     of seven, the window is four sprints and only S3 was named — so Rolling 5 and
+     All teams showed a short window with two of its three reasons missing. */
+  const fx = windowFixture();
+  [0, 1, 2].forEach(i => { fx.sprints[i].excluded = true; fx.sprints[i].excludeReason = 'rebaseline'; });
+  withState(fx, () => {
+    eq(w.rollingSprints('t1', false).map(s => s.id), ['w3', 'w4', 'w5', 'w6'],
+      'the window really is four sprints, not five');
+    eq(w.excludedInRange('t1', false).map(s => s.id), ['w0', 'w1', 'w2'],
+      'and every one it stepped over has to account for that');
+    /* One phrase per REASON, not per sprint — excludedNames() groups them, which is
+       why all three arrive in a single clause here. */
+    const names = w.excludedNames('t1', false);
+    ok(names.includes('S1, S2, S3 left out'), 'got: ' + names);
+  });
+});
+t('a full window still names only what it actually reached over', () => {
+  /* The other half of the same rule, and the one the walk must not break: with the
+     window full, anything older was never going to be counted, so naming it is
+     noise. Pinned beside the case above because the two pull in opposite
+     directions. */
+  const fx = windowFixture();
+  fx.sprints[0].excluded = true;          // long out of reach
+  fx.sprints[0].excludeReason = 'rebaseline';
+  withState(fx, () => {
+    eq(w.rollingSprints('t1', false).length, 5, 'a full window');
+    eq(w.excludedInRange('t1', false), [], 'so there is nothing to say');
+  });
+});
+
 group('the capacity boundary — percentages and reason codes');
 t('a percentage is clamped to the range the form offers, not merely checked', () => {
   const out = w.sanitizeIds(w.coerceShape({
@@ -1725,7 +2000,9 @@ t('a plan for a team or PI that is not in the payload is dropped, and counted', 
     settings: {}
   }));
   eq(out.plans.map(p => p.id), ['x1'], 'it could never be reached, so it would scale nothing for ever');
-  eq(w.sanitizeIds.dropped, 2, 'counted alongside orphaned sprints, so orphanNote() reports it');
+  eq(w.sanitizeIds.droppedPlans, 2, 'counted, so adjustmentNote() can report it');
+  eq(w.sanitizeIds.dropped, 0,
+    'and NOT on the sprint counter — orphanNote() says "sprints", and these are not sprints');
 });
 t('two adjustments for one slot cannot both survive the boundary', () => {
   const out = w.sanitizeIds(w.coerceShape({
@@ -2901,6 +3178,66 @@ t('a PI-less team gets a working capacity target and forecast', () => {
   });
 });
 
+/* ── The IP-sprint caveat is about a PI, so it cannot fire without one ──────
+   rollingSprints() has always counted a PI-less sprint 6 as an ordinary delivery
+   sprint (isIpSlot). nextSprintTarget() compared the bare number instead, so the
+   capacity card told a team with no PIs to scale its target down "for whatever IP
+   work is planned" — against a PI it hasn't got, and contradicting the Rolling 5
+   tab two clicks away. The demo hides it because Team Pipit starts at sprint 12. */
+function sixthSlotFixture(piId) {
+  const sp = (n) => ({ id: (piId || 'x') + n, teamId: 't1', piId, sprintNumber: n,
+    committed: 20, committedCompleted: 20, totalCompleted: 20,
+    added: 0, removed: 0, carriedIn: 0, carriedOut: 0, addedThenRemoved: 0 });
+  return {
+    teams: [{ id: 't1', name: 'A' }], arts: [], plans: [], objectives: [],
+    pis: piId ? [{ id: piId, name: 'PI 1' }] : [],
+    sprints: [sp(1), sp(2), sp(3), sp(4), sp(5)],
+  };
+}
+t('the sixth slot outside a PI raises no IP-sprint caveat', () => {
+  withState(sixthSlotFixture(null), () => {
+    const t1 = w.nextSprintTarget('t1', false);
+    eq(t1.slot.sprintNumber, 6, 'the next slot really is number six');
+    eq(t1.slot.piId, null, 'on the unassigned track');
+    eq(t1.isIpSprint, false, 'and six is only the IP sprint INSIDE a PI');
+    const card = w.targetCapacityCard(w.svGet().teams[0], false);
+    eq(/innovation/i.test(card), false, 'so the card must not tell them to scale down for IP work');
+  });
+});
+t('and the sixth slot inside one still does', () => {
+  withState(sixthSlotFixture('p1'), () => {
+    const t1 = w.nextSprintTarget('t1', false);
+    eq(t1.slot.sprintNumber, 6);
+    eq(t1.isIpSprint, true);
+    ok(/innovation/i.test(w.targetCapacityCard(w.svGet().teams[0], false)), 'and says so');
+  });
+});
+t('an adjustment saved for a PI-less slot is still there after a reload', () => {
+  /* The whole failure end to end, in the two calls a reload makes: the write path
+     builds the plan from targetSprintSlot(), and load() puts it back through the
+     boundary. It applied, then vanished. */
+  const fx = sixthSlotFixture(null);
+  /* The plan goes into the fixture, because availabilityFor() reads it out of the
+     live `state` — the same place the Adjust Capacity dialog writes it. */
+  fx.plans = [{ id: 'pl1', teamId: 't1', piId: null, sprintNumber: 6,
+                availability: 60, reason: 'leave' }];
+  withState(fx, () => {
+    const slot = w.targetSprintSlot('t1');
+    eq(slot.piId, null);
+    eq(slot.sprintNumber, 6, 'the slot the dialog would have aimed at');
+    eq(w.availabilityFor('t1', slot.piId, slot.sprintNumber).source, 'sprint',
+      'it is in force before the reload');
+    const saved = {
+      teams: w.svGet().teams, arts: [], pis: [], objectives: [],
+      sprints: w.svGet().sprints, plans: w.svGet().plans, settings: {},
+    };
+    const back = w.sanitizeIds(w.coerceShape(JSON.parse(JSON.stringify(saved))));
+    eq(back.plans.length, 1, 'and still in force after it');
+    eq(w.sanitizeIds.dropped, 0, 'with nothing reported as an orphaned sprint');
+    eq(w.sanitizeIds.droppedPlans, 0);
+  });
+});
+
 group('the sprint goal — the app’s one tri-state field');
 /* `goalMet` is true, false, or the key ABSENT because nobody recorded one. Absent
    is deliberately NOT the blank-means-zero rule the rest of the sprint form
@@ -2976,6 +3313,46 @@ t('so is a string, a number and anything else that is not a boolean', () => {
 t('an absent key stays absent, and is never created holding undefined', () => {
   const out = goalPayload();
   ok(!('goalMet' in out), 'by KEY, not by value — undefined would pass an === check either way');
+});
+
+group('the overwrite prompt — what it says is about to happen');
+/* It fires when a FINISHED sprint is about to be rewritten, and its whole job is
+   naming the change so an accidental save can be backed out of. `piById(null)` is
+   null, so a sprint being moved OUT of a PI — which the form's own "No PI" option
+   does — was described as moving "to another PI". */
+function overwriteMessage(existing, record) {
+  const realConfirm = w.confirm;
+  let seen = '';
+  w.confirm = (msg) => { seen = msg; return false; };
+  try { w.confirmOverwrite(existing, record); } finally { w.confirm = realConfirm; }
+  return seen;
+}
+const finished = { id: 's1', teamId: 't1', piId: 'p1', sprintNumber: 3, status: 'complete',
+  committed: 30, committedCompleted: 28, totalCompleted: 31 };
+
+t('moving a sprint OUT of a PI says so, rather than naming a PI it is not going to', () => {
+  withState({ teams: [{ id: 't1', name: 'A' }], arts: [], plans: [], objectives: [],
+              pis: [{ id: 'p1', name: 'PI 1' }], sprints: [finished] }, () => {
+    const msg = overwriteMessage(finished, Object.assign({}, finished, { piId: null }));
+    ok(msg.includes('Moving it to no PI'), 'got: ' + msg);
+  });
+});
+t('moving it to a real PI still names that PI', () => {
+  withState({ teams: [{ id: 't1', name: 'A' }], arts: [], plans: [], objectives: [],
+              pis: [{ id: 'p1', name: 'PI 1' }, { id: 'p2', name: 'PI 2' }], sprints: [finished] }, () => {
+    const msg = overwriteMessage(finished, Object.assign({}, finished, { piId: 'p2' }));
+    ok(msg.includes('Moving it to PI 2'), 'got: ' + msg);
+  });
+});
+t('and the same slot spelled two ways is not a move at all', () => {
+  /* Through piKey, so a form handing back '' for a sprint stored as null does not
+     read as a move and put a prompt in front of an ordinary edit. */
+  withState({ teams: [{ id: 't1', name: 'A' }], arts: [], plans: [], objectives: [],
+              pis: [], sprints: [] }, () => {
+    const out = Object.assign({}, finished, { piId: null });
+    const msg = overwriteMessage(out, Object.assign({}, out, { piId: '' }));
+    eq(msg.includes('Moving it'), false, 'got: ' + msg);
+  });
 });
 
 group('adoptState — the SCHEMA stamp on a copy from outside');

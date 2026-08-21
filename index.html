@@ -1626,6 +1626,16 @@ function orphanNote(n) {
     + `${n === 1 ? 'it points' : 'they point'} at isn’t in this data.`;
 }
 
+/* And for however many capacity adjustments went with them. Its own sentence
+   rather than a share of orphanNote()'s, for exactly the reason unassignedNote()
+   has one: the two say different things happened, and a plan is not a sprint. An
+   adjustment can only reach here orphaned if its TEAM is missing — a PI-less slot
+   is a real slot now — so the wording names the team and nothing else. */
+function adjustmentNote(n) {
+  return `${n} capacity adjustment${n === 1 ? '' : 's'} left out — the team `
+    + `${n === 1 ? 'it points' : 'they point'} at isn’t in this data.`;
+}
+
 /* The shape guard in front of every copy that arrives from outside — the saved
    copy, an imported file, a share link, the cloud document. sanitizeIds() below
    cleans the ids *inside* the lists; this makes sure the lists are lists at
@@ -1646,6 +1656,7 @@ function coerceShape(data) {
 
 function sanitizeIds(data) {
   sanitizeIds.dropped = 0;   // reset first: a caller must never read a stale count
+  sanitizeIds.droppedPlans = 0;   // capacity adjustments whose team was missing
   sanitizeIds.strippedNotes = 0;
   sanitizeIds.pruned = 0;    // stray keys dropped or wrong-typed values repaired
   sanitizeIds.unassigned = 0;  // sprints whose PI was missing, kept but un-grouped
@@ -1803,7 +1814,14 @@ function sanitizeIds(data) {
   data.teams = objects(data.teams).map(t => keepKnown(t, { id: 'id', name: 'label', artId: 'idOrNull',
     availability: 'pct', availabilityReason: 'reason' }));
   data.arts = objects(data.arts).map(a => keepKnown(a, { id: 'id', name: 'label' }));
-  data.pis = objects(data.pis).map(p => keepKnown(p, { id: 'id', name: 'label', sprintCount: 'num' }));
+  /* No `sprintCount`. A PI carried one from the day PIs were added and nothing
+     ever read it: six-to-a-PI is SPRINTS_PER_PI, and every view, picker and export
+     goes there. An allowlisted key nothing reads is a field the format claims to
+     support — it rode into every backup and every share link, and the next person
+     to want variable-length PIs would have found it sitting there looking
+     implemented. Dropped here, so an old saved copy is scrubbed at boot like any
+     other stray key. */
+  data.pis = objects(data.pis).map(p => keepKnown(p, { id: 'id', name: 'label' }));
   data.sprints = objects(data.sprints).map(s => keepKnown(s, Object.assign({
     /* `idOrNull`: null is a real answer here — the sprint is not in a PI. */
     id: 'id', teamId: 'id', piId: 'idOrNull',
@@ -1854,6 +1872,16 @@ function sanitizeIds(data) {
   list(data.teams).forEach(t => { if (t && t.artId && !artIds.has(t.artId)) t.artId = null; });
   const filter = data.settings && data.settings.artFilter;
   if (filter && filter !== ART_NONE && !artIds.has(filter)) data.settings.artFilter = null;
+  /* And the sentinel itself, which needs the same repair for the opposite reason.
+     ART_NONE names a group rather than an id, so no ART going missing can
+     invalidate it — what invalidates it is every team HAVING an ART, at which
+     point "teams in no ART" matches nothing and the picker stops offering the
+     option at all (see artToolbar). The stored value then survives every render,
+     the select falls back to showing "All ARTs" because nothing matches, and the
+     page underneath says "No Teams On This ART" — a control lying about the
+     filter it is applying. */
+  if (filter === ART_NONE && !list(data.teams).some(t => t && !t.artId))
+    data.settings.artFilter = null;
   /* After the remapping, never before it: a sprint whose team id was hostile has
      just been rewritten to the team's fresh id, and is not an orphan. */
   const ids = (arr) => new Set(list(arr).map(r => (r ? r.id : null)).filter(Boolean));
@@ -1884,24 +1912,43 @@ function sanitizeIds(data) {
     sanitizeIds.dropped = data.sprints.length - kept.length;
     data.sprints = kept;
   }
-  /* Planned adjustments hang off the same two ids and follow the same rule — a
-     plan for a deleted team or PI points at a slot that can never be reached, so
-     it would sit there for ever silently scaling nothing. It joins the same
-     count, so orphanNote() reports both together: what the user needs to know is
-     that the payload was damaged, not which of two lists took the hit. */
+  /* ── A planned adjustment follows the SPRINT rule, not the objective one ────
+     A plan names a SLOT, and a slot is a team plus a sprint number with the PI
+     OPTIONAL — exactly like the sprint it is planning. `plans.piId` has been typed
+     `idOrNull` since SCHEMA 4, and planFor() was widened in the same breath ("a
+     whole team can live out here, so capacity planning has to reach them"), so a
+     null here is a real answer meaning the unassigned track, not a broken
+     reference.
+
+     Testing it with `piIds.has(p.piId)` therefore DELETED every adjustment a
+     PI-less team ever saved: it applied for the rest of the session, was gone on
+     the next load, and the orphan toast blamed a missing team that was sitting
+     right there on the screen. Same shape as the sprint branch above and for the
+     same reason — don't throw away real data over a label that was never
+     required.
+
+     A missing TEAM is still fatal: a plan for a team that isn't in the payload
+     names a slot nothing can ever reach.
+
+     Counted apart from the sprints. orphanNote() is a sentence about sprints and
+     a plan is not one — see adjustmentNote(). */
   if (Array.isArray(data.plans)) {
     const seen = new Set();
     const kept = data.plans.filter(p => {
-      if (!p || !teamIds.has(p.teamId) || !piIds.has(p.piId)) return false;
+      if (!p || !teamIds.has(p.teamId)) return false;
+      if (p.piId && !piIds.has(p.piId)) return false;
       /* One adjustment per slot. Duplicates only arrive from a damaged or
          hand-edited payload — the write path upserts — but left in place the
          second copy is invisible and "Remove adjustment" would appear to fail. */
-      const key = p.teamId + ' ' + p.piId + ' ' + p.sprintNumber;
+      /* Through piKey, so this key names the slot the way planFor() looks it
+         up: `''` and `null` are the same slot, and keeping one of each would put
+         a second, invisible adjustment on it. */
+      const key = p.teamId + ' ' + piKey(p.piId) + ' ' + p.sprintNumber;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
     });
-    sanitizeIds.dropped += data.plans.length - kept.length;
+    sanitizeIds.droppedPlans = data.plans.length - kept.length;
     data.plans = kept;
   }
   /* Business value hangs off the same two ids, and is deduped the same way — the
@@ -1959,6 +2006,7 @@ window.svViewOnly = viewOnly;
    itself — one shown before there's anything to look at is gone by the time
    there is. Boot says it after the first paint instead. */
 let bootOrphans = 0;
+let bootDroppedPlans = 0;   // capacity adjustments whose team wasn't in the copy
 let bootUnassigned = 0;   // sprints the boundary un-grouped rather than dropped
 let bootStrippedNotes = 0;   // legacy free-text notes found in the saved copy
 let bootPruned = 0;          // stray keys or wrong-typed values found in it
@@ -2006,6 +2054,7 @@ function load() {
     if (!raw) return blankState();
     const parsed = sanitizeIds(coerceShape(JSON.parse(raw)));
     bootOrphans = sanitizeIds.dropped;
+    bootDroppedPlans = sanitizeIds.droppedPlans;
     bootUnassigned = sanitizeIds.unassigned;
     bootStrippedNotes = sanitizeIds.strippedNotes;
     bootPruned = sanitizeIds.pruned;
@@ -2165,6 +2214,17 @@ const isIpSlot = (s) => !!s.piId && s.sprintNumber === IP_SPRINT;
 
 function activeTeam() {
   return teamById(state.settings.activeTeamId) || state.teams[0] || null;
+}
+
+/* "Teams with no ART" stops being a group the moment every team has one, and the
+   picker stops offering it — so the stored sentinel has to go with it or the
+   filter is stuck on a group that cannot be selected back out of. Called from the
+   two places that can empty the group: assigning the last un-grouped team to an
+   ART, and deleting it. Deleting an ART already clears a filter naming it, one
+   handler along; this is that rule's other half. */
+function fixArtFilter() {
+  if (state.settings.artFilter === ART_NONE && !state.teams.some(t => !t.artId))
+    state.settings.artFilter = null;
 }
 
 /* ── ARTs ───────────────────────────────────────────────────────────────────
@@ -2741,17 +2801,33 @@ function excludedInRange(teamId, includeSix) {
   const counted = teamSprints(teamId)
     .filter(isCounted)
     .filter(s => includeSix || !isIpSlot(s));   // see rollingSprints
-  /* The window as it WOULD have been with nothing excluded. Anything excluded
-     inside it is a sprint the window reached over; anything older than it was
-     never going to be counted anyway, so naming it would be noise.
+  /* Walk back from the newest exactly as rollingSprints() fills the window, and
+     collect what gets stepped over on the way. Two earlier versions each named a
+     different subset:
 
-     This used to anchor on the oldest *kept* sprint and look forward from there,
-     which made the oldest sprint the one it could never name — exclude the first
-     of four and the window quietly went from four sprints to three with nothing
-     on Rolling 5 or All teams to say so. Both views read this one function, which
-     is why both went silent together while the Sprint and Current PI views (which
-     read `s.excluded` directly, per sprint) were fine. */
-  return counted.slice(-ROLLING_WINDOW).filter(s => s.excluded);
+     · anchoring on the oldest KEPT sprint and looking forward made the oldest
+       sprint the one it could never name — exclude the first of four and the
+       window quietly went four sprints to three with nothing on Rolling 5 or All
+       teams to say so. (Both views read this one function, which is why both went
+       silent together while the Sprint and Current PI views, which read
+       `s.excluded` per sprint, were fine.)
+     · anchoring on the last ROLLING_WINDOW *counted* sprints fixed that and still
+       under-reported whenever the exclusions clustered: with sprints 1–7 and S1,
+       S2, S3 all out, the window is four sprints and only S3 was named.
+
+     Walking it is the only version that can't drift from the window, because it
+     is the same walk. Two stops: ROLLING_WINDOW kept sprints, which is a full
+     window and means nothing older was ever reached — or ROLLING_WINDOW skipped
+     ones, because the window has that many slots and naming more is the wall of
+     text excludedNames() already groups by reason to avoid. */
+  const skipped = [];
+  let kept = 0;
+  for (let i = counted.length - 1; i >= 0; i--) {
+    if (kept >= ROLLING_WINDOW || skipped.length >= ROLLING_WINDOW) break;
+    if (counted[i].excluded) skipped.push(counted[i]);
+    else kept++;
+  }
+  return skipped.reverse();   // program order, the way every other list here reads
 }
 
 /* ── Metrics ────────────────────────────────────────────────────────────────
@@ -3341,7 +3417,13 @@ function nextSprintTarget(teamId, includeSix) {
     hasCommitment: committedAlready !== null && committedAlready > 0,
     overBy: (committedAlready !== null && committedAlready > 0)
       ? committedAlready - recommended : null,
-    isIpSprint: !!slot && slot.sprintNumber === IP_SPRINT
+    /* Through isIpSlot, never `sprintNumber === IP_SPRINT` on its own. Sprint 6
+       of a team that isn't running PIs is an ordinary delivery sprint —
+       rollingSprints() already counts it as one — and this said otherwise, so the
+       capacity card told a PI-less team to scale its target down "for whatever IP
+       work is planned" against a PI it hasn't got. One predicate, so no two
+       callers can disagree about what an IP sprint is. */
+    isIpSprint: !!slot && isIpSlot(slot)
   };
 }
 
@@ -5629,8 +5711,30 @@ function piCapacityCard(teams, includeSix) {
     .filter(r => r.t);
   if (!rows.length) return '';
   const total = rows.reduce((a, r) => a + r.t.recommended * slots, 0);
-  const floor = rows.reduce((a, r) => a + r.t.reliable * slots, 0);
-  const anyFloor = rows.some(r => r.t.hasFloor);
+  /* ── Only a team that HAS a floor contributes one ───────────────────────────
+     `reliable` is the second-lowest result in the window, and for a team dragged
+     down by a single bad sprint (10, 30, 32, 31, 29) that sits ABOVE its own mean.
+     nextSprintTarget() flags exactly that case as `hasFloor: false`, and the
+     per-team card then refuses to show the pair at all — "there is no safer number
+     to offer such a team", and clamping one would invent a figure nobody's sprints
+     support.
+
+     Summing `reliable` across every team ignored that and inverted the card: three
+     ordinary teams with one bad sprint each, beside one erratic team, put "If it
+     has to hold" at 435 against "Across the PI" 406. A conservative total larger
+     than the central one is not a cautious answer, it is a broken one — and this is
+     the card an RTE plans a PI on.
+
+     So a team without a floor contributes its RECOMMENDATION, which is the lowest
+     meaningful figure it has. That is the per-team card's own reasoning applied one
+     level up, not a clamp: nothing is invented, every team hands over a number it
+     already publishes, and the total can no longer exceed `total`. How many teams
+     actually brought a floor is said out loud below, per the rule that an
+     exclusion is never silent. */
+  const withFloor = rows.filter(r => r.t.hasFloor);
+  const floor = rows.reduce((a, r) =>
+    a + (r.t.hasFloor ? r.t.reliable : r.t.recommended) * slots, 0);
+  const anyFloor = withFloor.length > 0;
 
   return `<div class="card">
     <h2>What the Next PI Could Hold</h2>
@@ -5643,7 +5747,14 @@ function piCapacityCard(teams, includeSix) {
       ${tile('Across the PI', fmtNum(Math.round(total)), null,
         `points from ${plural(rows.length, 'team')}`, true, 'piCapacity')}
       ${anyFloor ? tile('If it has to hold', fmtNum(Math.round(floor)), null,
-        'each team at the commitment it has met in all but one sprint', false, 'piCapacity') : ''}
+        withFloor.length === rows.length
+          ? 'each team at the commitment it has met in all but one sprint'
+          /* Named rather than averaged over silently: the tile is a weaker claim
+             than its label suggests once some teams had no floor to give. */
+          : `${withFloor.length} of ${plural(rows.length, 'team')} at the commitment they have
+             met in all but one sprint — the rest have no floor below their average,
+             so they count at it`,
+        false, 'piCapacity') : ''}
     </div>
     ${outside.length ? `<p class="sub exnote" style="margin-top:14px">
       <span class="badge">⚑ Not counted here</span>
@@ -7038,9 +7149,16 @@ function confirmOverwrite(existing, record) {
   if (existing.goalMet !== record.goalMet)
     changes.push(`  • Sprint goal: ${goalWord(existing.goalMet)} → ${goalWord(record.goalMet)}`);
 
-  if (existing.piId !== record.piId || existing.sprintNumber !== record.sprintNumber) {
-    const to = piById(record.piId);
-    changes.unshift(`  • Moving it to ${to ? to.name : 'another PI'} · S${record.sprintNumber}`);
+  if (piKey(existing.piId) !== piKey(record.piId)
+      || existing.sprintNumber !== record.sprintNumber) {
+    /* Three destinations, not two. `piById(null)` is null, so a sprint being moved
+       OUT of a PI — which the PI picker's own "No PI" option does, and which is
+       half of what that control is for — was described as "Moving it to another
+       PI". The prompt exists to stop an accidental overwrite, so it has to be able
+       to name the thing that is about to happen. */
+    const to = record.piId ? piById(record.piId) : null;
+    const where = record.piId ? (to ? to.name : 'another PI') : 'no PI';
+    changes.unshift(`  • Moving it to ${where} · S${record.sprintNumber}`);
   }
   if (!changes.length) return true;      // nothing of substance changed
 
@@ -7609,6 +7727,7 @@ function renderManageTeamRows() {
     const t = teamById(sel.dataset.artOf);
     if (!t) return;
     t.artId = sel.value || null;
+    fixArtFilter();   // that may have been the last team in the "No ART" group
     /* The whole dialog: the ARTs table below counts the teams on each one, and it
        has just changed. A picker keeps its value across a render where a text box
        being typed in would not, so this one is safe to rebuild. */
@@ -7624,6 +7743,7 @@ function renderManageTeamRows() {
     state.objectives = state.objectives.filter(o => o.teamId !== t.id);
     if (state.settings.activeTeamId === t.id)
       state.settings.activeTeamId = state.teams[0] ? state.teams[0].id : null;
+    fixArtFilter();   // and it may have been the last team in the "No ART" group
     save(); renderManage(); render();
   });
 }
@@ -7824,8 +7944,7 @@ function addArt() {
 }
 
 function addPi() {
-  const p = addNamed(state.pis, 'pi', `PI ${state.pis.length + 1}`,
-    { sprintCount: SPRINTS_PER_PI });
+  const p = addNamed(state.pis, 'pi', `PI ${state.pis.length + 1}`);
   save(); renderManage(); render();
   focusNewRow('pi', p.id);
 }
@@ -7986,6 +8105,7 @@ F('importFile').onchange = (e) => {
       }
       const parsed = sanitizeIds(coerceShape(rawParsed));
       const orphans = sanitizeIds.dropped;
+      const droppedPlans = sanitizeIds.droppedPlans;
       const unassigned = sanitizeIds.unassigned;
       /* The counts quoted here are the ones that will actually arrive, so any
          sprint the boundary dropped is named before the user decides — not
@@ -7993,6 +8113,10 @@ F('importFile').onchange = (e) => {
       const msg = `Replace everything in this browser with ${parsed.teams.length} team(s) and `
         + `${parsed.sprints.length} sprint(s) from this file? Your current data will be lost.`
         + (orphans ? `\n\n${orphanNote(orphans)}` : '')
+        /* Unlike the boot toast this is a multi-line prompt, so it names every
+           loss rather than ranking them — the user is deciding whether to go
+           ahead, and a half-told story is the wrong thing to decide on. */
+        + (droppedPlans ? `\n\n${adjustmentNote(droppedPlans)}` : '')
         + (unassigned ? `\n\n${unassignedNote(unassigned)}` : '');
       if (!confirm(msg)) return;
       state = adoptState(parsed);
@@ -8195,7 +8319,13 @@ function buildSharePayload({ teamIds, includeAllTeams, scope }) {
        came from. Nothing identifying travels: a plan is two ids, two numbers and
        one of the fixed reason codes. Teams carry their standing figure in the
        `teams` list above for the same reason. */
-    plans: state.plans.filter(pl => teams.some(t => t.id === pl.teamId) && usedPis.has(pl.piId)),
+    /* `!pl.piId ||` because a plan on the unassigned track names no PI to leak,
+       and the whole point of the filter above is not publishing PI names. Leaving
+       it to `usedPis.has(null)` happening to be true — which it is only when one
+       of the trimmed sprints was itself unassigned — dropped a PI-less team's
+       adjustment out of the link for reasons that had nothing to do with it. */
+    plans: state.plans.filter(pl => teams.some(t => t.id === pl.teamId)
+      && (!pl.piId || usedPis.has(pl.piId))),
     /* Business value for the teams and PIs that made it through — three numbers
        and two ids, nothing identifying, exactly like a plan. It travels for the
        same reason: without it a shared link's Current PI and ART PI views would
@@ -8268,6 +8398,7 @@ async function openSharedView() {
   try {
     const p = await decodeShare(shareToken);
     const orphans = sanitizeIds.dropped;
+    const droppedPlans = sanitizeIds.droppedPlans;
     const unassigned = sanitizeIds.unassigned;
     shareMeta = { sharedAt: p.sharedAt, label: p.label, allTeams: !!p.allTeams, range: p.range };
     state = Object.assign(blankState(), {
@@ -8293,6 +8424,7 @@ async function openSharedView() {
     F('shareBar').innerHTML = shareBanner();
     render();
     if (orphans) toast(orphanNote(orphans));
+    else if (droppedPlans) toast(adjustmentNote(droppedPlans));
     else if (unassigned) toast(unassignedNote(unassigned));
   } catch (e) {
     console.warn('share link could not be read', e);
@@ -8473,10 +8605,21 @@ function andList(names) {
    disagree with, and renderTabs() won't offer the view at all. */
 function shareRollingNote(payload, scope) {
   if (!scope || scope.kind === 'all') return '';
+  /* Every filter rollingSprints() applies, in the same order and reading the same
+     predicates — this counts what the RECIPIENT's window will actually hold, so a
+     rule it gets wrong is a warning about figures that match perfectly well.
+
+     Both halves were wrong. `sprintNumber !== IP_SPRINT` left out a PI-less sprint
+     6, which is an ordinary delivery sprint the recipient's window will count (see
+     isIpSlot), so a team sending five sprints was warned its five would read as
+     four. And `excluded` was not checked at all, which is the same mistake with
+     the sign flipped: a team whose fifth sprint is deliberately left out really
+     does average four at the far end, and said nothing. */
   const short = payload.teams.map(t => ({
     name: t.name,
     n: payload.sprints.filter(s => s.teamId === t.id && isCounted(s)
-      && (state.settings.includeSprint6InRolling || s.sprintNumber !== IP_SPRINT)).length
+      && (state.settings.includeSprint6InRolling || !isIpSlot(s))
+      && !s.excluded).length
   })).filter(x => x.n > 0 && x.n < ROLLING_WINDOW);
   if (!short.length) return '';
   return `Rolling 5 will average fewer than ${ROLLING_WINDOW} sprints for `
@@ -8619,9 +8762,9 @@ function loadSample() {
   /* Three PIs, because a trend needs somewhere to go. Two points are a line and
      tell you nothing about whether a train is steadying or drifting; three are the
      fewest that read as a direction, which is what the PI trend tab is for. */
-  const pi0 = { id: uid(), name: 'PI 2026.1', sprintCount: 6 };
-  const piA = { id: uid(), name: 'PI 2026.2', sprintCount: 6 };
-  const piB = { id: uid(), name: 'PI 2026.3', sprintCount: 6 };
+  const pi0 = { id: uid(), name: 'PI 2026.1' };
+  const piA = { id: uid(), name: 'PI 2026.2' };
+  const piB = { id: uid(), name: 'PI 2026.3' };
   const a1 = { id: uid(), name: 'Payments ART' };
   const a2 = { id: uid(), name: 'Platform ART' };
   const t1 = { id: uid(), name: 'Team Kestrel', artId: a1.id };
@@ -8962,7 +9105,12 @@ if (viewOnly) {
   openSharedView();
 } else {
   render();
+  /* One toast, because toast() replaces whatever is on screen rather than
+     queueing — so these are ranked by how much they cost the reader, not shown
+     together. A dropped sprint outranks a dropped adjustment, which outranks a
+     sprint that only lost its grouping. */
   if (bootOrphans) toast(orphanNote(bootOrphans));
+  else if (bootDroppedPlans) toast(adjustmentNote(bootDroppedPlans));
   else if (bootUnassigned) toast(unassignedNote(bootUnassigned));
   /* Anything the boundary scrubbed — legacy sprint notes, a stray key, a value
      of the wrong type — is written back cleaned, so it's gone from localStorage

@@ -118,6 +118,13 @@ from [Rolling 5](#target-capacity-for-the-next-sprint), availability adjustments
 it can't drift from the card that explains the working. A second figure appears alongside it
 for the [reliable commitment](#two-figures-not-one) where teams have one.
 
+That second figure is only ever the *lower* of the two, which takes a little care across a
+train. A team dragged down by one bad sprint has no floor below its own average — see
+[Two figures, not one](#two-figures-not-one) — so it contributes its recommendation rather
+than a "reliable" number that sits above it. The tile says how many teams actually brought a
+floor when it isn't all of them, and the cautious total can never come out above the central
+one.
+
 A team that has never run a PI is left out and named — its capacity is on Rolling 5, where it
 lives.
 
@@ -765,8 +772,10 @@ at:
 
 - **ART PI** appears at all — the train's own page, described above.
 - **All teams** gains an **ART** picker across the top — *All ARTs*, each ART by name, and
-  *No ART* if any team is un-grouped. The ART PI view shares the same picker, so the scope
-  follows you between them. Everything below it follows: both comparison tables,
+  *No ART* if any team is un-grouped. Put the last un-grouped team on an ART and the *No ART*
+  option goes with it, so a filter left sitting on it falls back to *All ARTs* rather than
+  filtering to nothing behind a picker that no longer offers the option. The ART PI view
+  shares the same picker, so the scope follows you between them. Everything below it follows: both comparison tables,
   both **All teams** footer rows, the chart, and the count of sprints still in flight. Pick
   *Payments ART* and the footer row reads **All teams on Payments ART**, worked out across
   that ART's teams only.
