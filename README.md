@@ -114,8 +114,8 @@ few went and then decide what to sign up for next:
 
 | Team | Per sprint | Across 5 sprints |
 |---|---|---|
-| Kestrel | 36 | 178 |
-| Merlin | 23 ⚑ 90% | 113 |
+| Team Baseline | 36 | 178 |
+| Team Live Sprint | 23 ⚑ 90% | 113 |
 | … | | |
 
 It's each team's next-sprint target multiplied by the **delivery** sprints in a PI — five,
@@ -220,7 +220,7 @@ Where it shows up:
 This is the finding the field exists for, and neither number can make it alone. Rolling 5
 says so in plain words when the two clearly part company:
 
-> **◎ The points land, the goals don't** — Team Curlew finished 98% of what they committed
+> **◎ The points land, the goals don't** — Team Headroom finished 98% of what they committed
 > to, and met the sprint goal in only **2 of 5** sprints.
 
 A team hitting its commitment while missing what the sprints were *for* doesn't have an
@@ -229,8 +229,8 @@ keep reading green while that's true.
 
 The reverse gets said too, and it's the kinder half:
 
-> **◎ The goals land, the points don't** — Team Otter met the sprint goal in all 4 sprints in
-> this window, on 70% commitment completion.
+> **◎ The goals land, the points don't** — Team Overcommitted met the sprint goal in all 4
+> sprints in this window, on 70% commitment completion.
 
 They're delivering what the sprints were for; what's off is the estimate of how much fits in
 one. A run of amber commitment figures reads very differently once you know that.
@@ -553,28 +553,29 @@ running right now, plus one team that doesn't use PIs at all — so nothing in t
 screen you have to imagine.
 
 It lands you on that running sprint, because it's the one state the app can't show
-without real dates. The other four teams are one click away in the team picker, and each
-is there to show something different:
+without real dates. The other five teams are one click away in the team picker, and each is
+**named for the one thing it's there to show** — so the picker reads as a contents page
+rather than a list of names you'd have to open one by one:
 
 | Team | ART | What it's there to show |
 |---|---|---|
-| **Merlin** | Payments | A sprint **running right now** — done-so-far, pace ("day 6 of 14, slightly behind") and carried-in. Its commitment is well over the suggestion, which is the one finding still actionable mid-sprint. Also a **⚑ standing team availability**, and the only team with **no business value recorded** — its PI is still running, which is why. Records **no sprint goals** either, so the goals tile is absent rather than showing a zero. |
-| **Kestrel** | Payments | The ordinary team: green, landing about 90% of what it signs up for. Spans **all three PIs**, so the [PI trend](#across-pis) has a team behind every point. Carries a **⚖ scaled sprint** (someone joined after it) and a sprint with work **↩ brought in then removed again**. Its PI predictability is 90% — **inside the band**. Sprint goals **3 of 4**, with one sprint unrecorded — the only place the "no goal recorded" caption appears. |
-| **Otter** | Platform | The team the targets exist to catch — around 70% completion and swinging from 14 to 26 points. Has a **⚑ sprint left out** for a major incident, and its next slot is the **IP sprint**, so it carries that caveat too. 59% predictability — **under the band**. It's also the team where the [**reliable commitment**](#two-figures-not-one) differs from the average enough to matter: 20 or 17 — and where **◎ the goals land and the points don't**. |
-| **Curlew** | Platform | **↗ Room for more** — it clears its commitment then pulls extra work in, so it reads 98% commitment completion beside a **red 29% break-in**. The contradiction the [headroom note](#when-a-team-has-room-for-more) exists to resolve. It under-commits its objectives too: 113%, **over the band**, with the value coming partly from **stretch**. Steady enough that it gets **one** capacity figure rather than two — and it's the team where **◎ the points land and the goals don't**, at 2 of 5. |
-| **Wren** | *none* | A brand-new team: **thin history**, a **⚑ one-off availability** for leave, and a carryover that then **fills the whole figure** — no room for new work at all. Being in no ART, it's also the **No ART** group on *All teams* and *ART PI*. |
-| **Pipit** | *none* | The team that [**doesn't run PIs**](#pis-are-optional) — sprints numbered **12–16**, continuous, past the six a PI holds. No IP sprint, no Current PI tab, and it's named on *ART PI* as not being in that PI at all. Deliberately carries nothing else: every other finding already belongs to a team above. |
+| **Team Live Sprint** | Payments | A sprint **running right now** — done-so-far, pace ("day 6 of 14, slightly behind") and carried-in. Its commitment is well over the suggestion, which is the one finding still actionable mid-sprint. Also a **⚑ standing team availability**, and the only team with **no business value recorded** — its PI is still running, which is why. Records **no sprint goals** either, so the goals tile is absent rather than showing a zero. |
+| **Team Baseline** | Payments | The ordinary team: green, landing about 90% of what it signs up for. Spans **all three PIs**, so the [PI trend](#across-pis) has a team behind every point. Carries a **⚖ scaled sprint** (someone joined after it) and a sprint with work **↩ brought in then removed again**. Its PI predictability is 90% — **inside the band**. Sprint goals **3 of 4**, with one sprint unrecorded — the only place the "no goal recorded" caption appears. |
+| **Team Overcommitted** | Platform | The team the targets exist to catch — around 70% completion and swinging from 14 to 26 points. Has a **⚑ sprint left out** for a major incident, and its next slot is the **IP sprint**, so it carries that caveat too. 59% predictability — **under the band**. It's also the team where the [**reliable commitment**](#two-figures-not-one) differs from the average enough to matter: 20 or 17 — and where **◎ the goals land and the points don't**. |
+| **Team Headroom** | Platform | **↗ Room for more** — it clears its commitment then pulls extra work in, so it reads 98% commitment completion beside a **red 29% break-in**. The contradiction the [headroom note](#when-a-team-has-room-for-more) exists to resolve. It under-commits its objectives too: 113%, **over the band**, with the value coming partly from **stretch**. Steady enough that it gets **one** capacity figure rather than two — and it's the team where **◎ the points land and the goals don't**, at 2 of 5. |
+| **Team New Start** | *none* | A brand-new team: **thin history**, a **⚑ one-off availability** for leave, and a carryover that then **fills the whole figure** — no room for new work at all. Being in no ART, it's also the **No ART** group on *All teams* and *ART PI*. |
+| **Team No PI** | *none* | The team that [**doesn't run PIs**](#pis-are-optional) — sprints numbered **12–16**, continuous, past the six a PI holds. No IP sprint, no Current PI tab, and it's named on *ART PI* as not being in that PI at all. Deliberately carries nothing else: every other finding already belongs to a team above. |
 
 Two ARTs of two plus one team in neither is the arrangement where the *All teams* ART
 filter and its *No ART* group both actually do something.
 
 The business value is picked the same way — to make the *ART PI* view say something on a
-first run. **Platform ART is the [cancelling case](#when-the-average-hides-the-train)**: Otter
-at 59% and Curlew at 113% average to 86%, so the train reads on target while neither of its
-teams is, and the ⚑ note that catches it has something to catch. **Payments ART** is scored
-from one of its two teams, so the "not scored yet" note has a team to name. The two averaging
-methods land 1.7 points apart on Platform — don't tidy them into agreement, a demo where the
-two methods always match teaches that they always do.
+first run. **Platform ART is the [cancelling case](#when-the-average-hides-the-train)**: Team
+Overcommitted at 59% and Team Headroom at 113% average to 86%, so the train reads on target
+while neither of its teams is, and the ⚑ note that catches it has something to catch. **Payments
+ART** is scored from one of its two teams, so the "not scored yet" note has a team to name.
+The two averaging methods land 1.7 points apart on Platform — don't tidy them into agreement, a
+demo where the two methods always match teaches that they always do.
 
 The demo also seeds the **forecast** box with 120 points, so that card shows a worked answer
 the moment you reach it rather than an empty box — it holds no stored data, so seeding it
@@ -726,9 +727,9 @@ and a team that **under-committed** sit on opposite sides of the band and cancel
 out, so the train's average lands neatly inside it:
 
 ```
-Team Otter    20 of 34 business value   =   59%   ✕ below the band
-Team Curlew   34 of 30 business value   =  113%   ! above the band
-                              ART average =  86%   ✓ in the band
+Team Overcommitted   20 of 34 business value   =   59%   ✕ below the band
+Team Headroom        34 of 30 business value   =  113%   ! above the band
+                                   ART average =  86%   ✓ in the band
 ```
 
 Two teams that both missed, reading as a train that hit. So whenever the ART figure is inside
@@ -844,7 +845,7 @@ So where it makes a difference, the card shows two:
 | **Reliable commitment** | The largest commitment they met in **all but one** of the sprints in the window |
 
 ```
-Team Otter · last 4 sprints
+Team Overcommitted · last 4 sprints
   Recommended commitment   20   the average
   Reliable commitment      17   met in 3 of the last 4
 ```

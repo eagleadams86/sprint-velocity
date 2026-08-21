@@ -1426,33 +1426,35 @@ t('the roster is six teams, two ARTs of two, and two teams in neither', () => {
   withSample(() => {
     const st = w.svGet();
     eq(st.teams.map(t => t.name),
-      ['Team Kestrel', 'Team Merlin', 'Team Otter', 'Team Curlew', 'Team Wren', 'Team Pipit']);
+      ['Team Baseline', 'Team Live Sprint', 'Team Overcommitted', 'Team Headroom',
+       'Team New Start', 'Team No PI'],
+      'and each is named for the one thing it is there to show');
     eq(st.arts.map(a => w.teamsInArt(st.teams, a.id).length), [2, 2]);
     eq(w.teamsInArt(st.teams, w.__svTestHooks.ART_NONE).map(t => t.name),
-      ['Team Wren', 'Team Pipit'],
+      ['Team New Start', 'Team No PI'],
       'so the All teams picker has a "No ART" group to show');
   });
 });
-t('Pipit is the demo’s PI-less team, and its one job is to have no PI', () => {
+t('Team No PI is the demo’s PI-less team, and its one job is to have no PI', () => {
   withSample((id) => {
     /* A feature isn't finished until the demo reaches it, and "the app works with
-       no PI" is invisible from a demo where every team is in one. Pipit carries
+       no PI" is invisible from a demo where every team is in one. Team No PI carries
        nothing else on purpose — no ART, no scale, no exclusion, no dates, no
        goals, no business value — because every one of those findings already
        belongs to another team. */
-    const mine = w.teamSprints(id('Team Pipit'));
+    const mine = w.teamSprints(id('Team No PI'));
     eq(mine.every(s => s.piId === null), true, 'every sprint outside a PI');
     eq(mine.map(s => s.sprintNumber), [12, 13, 14, 15, 16],
       'numbered continuously, and past six — a 16th sprint cannot exist in a six-slot PI');
-    eq(w.rollingSprints(id('Team Pipit'), false).length, 5,
+    eq(w.rollingSprints(id('Team No PI'), false).length, 5,
       'a full window: the IP rule must not reach out here and take one');
-    ok(w.nextSprintTarget(id('Team Pipit'), false), 'the capacity target works without a PI');
-    eq(w.nextSprintTarget(id('Team Pipit'), false).slot.sprintNumber, 17);
+    ok(w.nextSprintTarget(id('Team No PI'), false), 'the capacity target works without a PI');
+    eq(w.nextSprintTarget(id('Team No PI'), false).slot.sprintNumber, 17);
   });
 });
-t('Curlew is the headroom case, and shows it on a first run', () => {
+t('Team Headroom is the headroom case, and shows it on a first run', () => {
   withSample(id => {
-    const t = w.nextSprintTarget(id('Team Curlew'), false);
+    const t = w.nextSprintTarget(id('Team Headroom'), false);
     eq(t.sprints, 5, 'a full window, with the IP sprint left out of it');
     eq(t.hasHeadroom, true);
     eq(t.headroomSprints, 4, 'four of the five — not a suspiciously clean five');
@@ -1460,40 +1462,40 @@ t('Curlew is the headroom case, and shows it on a first run', () => {
     eq(t.overCommitting, false, 'or the headroom finding would be suppressed');
   });
 });
-t('Curlew is the reading that needs the note: red break-in beside a cleared commitment', () => {
+t('Team Headroom: red break-in beside a cleared commitment — the note’s reading', () => {
   withSample(id => {
-    const rs = w.rollingSprints(id('Team Curlew'), false);
+    const rs = w.rollingSprints(id('Team Headroom'), false);
     eq(w.rag(w.avg(rs, 'breakInPct'), 'churn'), 'red');
     eq(w.rag(w.avg(rs, 'commitCompletePct'), 'completion'), 'green');
   });
 });
-t('Kestrel is the ordinary team — green, and no headroom finding', () => {
+t('Team Baseline is the ordinary team — green, and no headroom finding', () => {
   withSample(id => {
-    const t = w.nextSprintTarget(id('Team Kestrel'), false);
+    const t = w.nextSprintTarget(id('Team Baseline'), false);
     eq(t.headroomSprints, 0, 'it lands about 90% of the commitment, so nothing is cleared');
     eq(t.hasHeadroom, false);
-    eq(w.rag(w.avg(w.rollingSprints(id('Team Kestrel'), false), 'commitCompletePct'),
+    eq(w.rag(w.avg(w.rollingSprints(id('Team Baseline'), false), 'commitCompletePct'),
       'completion'), 'green');
   });
 });
-t('Kestrel carries a scaled sprint, and it is INSIDE the rolling window', () => {
+t('Team Baseline carries a scaled sprint, and it is INSIDE the rolling window', () => {
   withSample(id => {
-    const t = w.nextSprintTarget(id('Team Kestrel'), false);
+    const t = w.nextSprintTarget(id('Team Baseline'), false);
     eq(t.scaled, true, 'a scale outside the window is inert and would show nothing');
     eq(t.scales.map(sc => sc.sprintNumber), [4]);
     ok(t.planningBase > t.baseRecommended, 'and it has to actually move the planning figure');
   });
 });
-t('Kestrel carries work brought in then removed again, for the ↩ note', () => {
+t('Team Baseline carries work brought in then removed again, for the ↩ note', () => {
   withSample(id => {
-    const sp = w.teamSprints(id('Team Kestrel')).filter(s => w.metrics(s).addedThenRemoved > 0);
+    const sp = w.teamSprints(id('Team Baseline')).filter(s => w.metrics(s).addedThenRemoved > 0);
     eq(sp.length, 1);
     eq(w.metrics(sp[0]).addedThenRemoved, 3);
   });
 });
-t('Merlin has a sprint running RIGHT NOW, whenever the demo is opened', () => {
+t('Team Live Sprint has a sprint running RIGHT NOW, whenever the demo is opened', () => {
   withSample(id => {
-    const live = w.teamSprints(id('Team Merlin')).filter(s => w.sprintStatus(s) === 'active');
+    const live = w.teamSprints(id('Team Live Sprint')).filter(s => w.sprintStatus(s) === 'active');
     eq(live.length, 1, 'the dates are counted from today, so this can never go stale');
     eq(live[0].sprintNumber, 4);
     const pace = w.sprintPace(live[0]);
@@ -1502,9 +1504,9 @@ t('Merlin has a sprint running RIGHT NOW, whenever the demo is opened', () => {
     eq(pace.rag, 'yellow', 'slightly behind — a reading, not a flat "on track"');
   });
 });
-t("Merlin's live commitment is over the suggestion, which is the actionable finding", () => {
+t("Team Live Sprint commits over the suggestion — the actionable finding", () => {
   withSample(id => {
-    const t = w.nextSprintTarget(id('Team Merlin'), false);
+    const t = w.nextSprintTarget(id('Team Live Sprint'), false);
     eq(t.inFlight, true);
     eq(t.hasCommitment, true);
     eq(t.committedAlready, 32);
@@ -1514,34 +1516,34 @@ t("Merlin's live commitment is over the suggestion, which is the actionable find
 });
 t('the two availability levers are demonstrated one each — team, and one-off slot', () => {
   withSample(id => {
-    eq(w.nextSprintTarget(id('Team Merlin'), false).availabilitySource, 'team');
-    eq(w.nextSprintTarget(id('Team Wren'), false).availabilitySource, 'sprint');
+    eq(w.nextSprintTarget(id('Team Live Sprint'), false).availabilitySource, 'team');
+    eq(w.nextSprintTarget(id('Team New Start'), false).availabilitySource, 'sprint');
   });
 });
-t('Otter misses its commitment, swings, and is told that instead of headroom', () => {
+t('Team Overcommitted misses its commitment, swings, and is told that instead of headroom', () => {
   withSample(id => {
-    const t = w.nextSprintTarget(id('Team Otter'), false);
+    const t = w.nextSprintTarget(id('Team Overcommitted'), false);
     eq(t.hasHeadroom, false);
     eq(t.overCommitting, true);
     eq(t.steady, false, 'so the "delivery swings a fair bit" caveat has a team to fire on');
-    eq(w.rag(w.avg(w.rollingSprints(id('Team Otter'), false), 'commitCompletePct'),
+    eq(w.rag(w.avg(w.rollingSprints(id('Team Overcommitted'), false), 'commitCompletePct'),
       'completion'), 'red');
   });
 });
-t('Otter has a sprint left out, and its next slot is the IP sprint', () => {
+t('Team Overcommitted has a sprint left out, and its next slot is the IP sprint', () => {
   withSample(id => {
-    const left = w.teamSprints(id('Team Otter')).filter(s => s.excluded);
+    const left = w.teamSprints(id('Team Overcommitted')).filter(s => s.excluded);
     eq(left.length, 1);
     eq(left[0].sprintNumber, 4);
     eq(left[0].excludeReason, 'incident');
-    const t = w.nextSprintTarget(id('Team Otter'), false);
+    const t = w.nextSprintTarget(id('Team Overcommitted'), false);
     eq(t.sprints, 4, 'the excluded sprint is out of the window');
     eq(t.isIpSprint, true, 'the only place the IP-sprint caveat shows');
   });
 });
-t('Wren is the thin, half-available team whose carryover fills the whole figure', () => {
+t('Team New Start is the thin, half-available team whose carryover fills the whole figure', () => {
   withSample(id => {
-    const t = w.nextSprintTarget(id('Team Wren'), false);
+    const t = w.nextSprintTarget(id('Team New Start'), false);
     eq(t.thin, true);
     eq(t.sprints, 2);
     eq(t.availability, 50);
@@ -1549,16 +1551,18 @@ t('Wren is the thin, half-available team whose carryover fills the whole figure'
     eq(t.newWork, 0, 'no room to pull anything in');
   });
 });
-t('Otter is the demo’s reliable-commitment case, and Curlew and Wren are not', () => {
+t('Team Overcommitted is the reliable-commitment case, and the other two are not', () => {
   withSample((id) => {
-    const otter = w.nextSprintTarget(id('Team Otter'), false);
-    eq(otter.hasFloor, true, 'the swingy team is where the two figures differ enough to matter');
-    ok(otter.recommended - otter.reliable >= 2,
+    const overCommitted = w.nextSprintTarget(id('Team Overcommitted'), false);
+    eq(overCommitted.hasFloor, true,
+      'the swingy team is where the two figures differ enough to matter');
+    ok(overCommitted.recommended - overCommitted.reliable >= 2,
       'and they differ by enough to change what goes on the board');
-    ok(otter.spread > 60, 'so the fold-out’s wide-gap clause has somewhere to fire');
-    eq(w.nextSprintTarget(id('Team Curlew'), false).hasFloor, false,
+    ok(overCommitted.spread > 60, 'so the fold-out’s wide-gap clause has somewhere to fire');
+    eq(w.nextSprintTarget(id('Team Headroom'), false).hasFloor, false,
       'a steady team gets one figure — that IS the message');
-    eq(w.nextSprintTarget(id('Team Wren'), false).hasFloor, false, 'and two sprints is too thin');
+    eq(w.nextSprintTarget(id('Team New Start'), false).hasFloor, false,
+      'and two sprints is too thin');
   });
 });
 t('the demo shows the goal and the points DISAGREEING, in both directions', () => {
@@ -1570,18 +1574,21 @@ t('the demo shows the goal and the points DISAGREEING, in both directions', () =
       const rs = w.rollingSprints(id(name), false);
       return { goals: w.goalRecord(rs), commit: w.avg(rs, 'commitCompletePct') };
     };
-    const curlew = of('Team Curlew');
-    eq(w.rag(curlew.commit, 'completion'), 'green', 'Curlew’s points read as the best on the demo…');
-    ok(curlew.goals.met * 2 < curlew.goals.recorded,
+    const headroom = of('Team Headroom');
+    eq(w.rag(headroom.commit, 'completion'), 'green',
+      'Team Headroom’s points read as the best on the demo…');
+    ok(headroom.goals.met * 2 < headroom.goals.recorded,
       '…while it misses most of its goals — the ◎ "points land, goals don’t" note');
-    const otter = of('Team Otter');
-    eq(w.rag(otter.commit, 'completion'), 'red', 'Otter’s points read as the worst…');
-    eq(otter.goals.met, otter.goals.recorded, '…and it met every goal in the window — the note reversed');
+    const overCommitted = of('Team Overcommitted');
+    eq(w.rag(overCommitted.commit, 'completion'), 'red',
+      'Team Overcommitted’s points read as the worst…');
+    eq(overCommitted.goals.met, overCommitted.goals.recorded,
+      '…and it met every goal in the window — the note reversed');
   });
 });
 t('one demo team records goals for SOME of its sprints, not all or none', () => {
   withSample((id) => {
-    const g = w.goalRecord(w.rollingSprints(id('Team Kestrel'), false));
+    const g = w.goalRecord(w.rollingSprints(id('Team Baseline'), false));
     eq(g.missing.length, 1, 'so the tile’s "no goal recorded" caption has somewhere to appear');
     eq(g.recorded, 4);
     eq(g.met, 3, 'and a mixed record, so neither ◎ note fires on the ordinary team');
@@ -1589,7 +1596,7 @@ t('one demo team records goals for SOME of its sprints, not all or none', () => 
 });
 t('two teams record none at all, so the tile is absent rather than showing zero', () => {
   withSample((id) => {
-    ['Team Merlin', 'Team Wren', 'Team Pipit'].forEach(name => {
+    ['Team Live Sprint', 'Team New Start', 'Team No PI'].forEach(name => {
       eq(w.goalRecord(w.rollingSprints(id(name), false)).recorded, 0, name);
     });
   });
@@ -1599,7 +1606,7 @@ t('the demo seeds the forecast box, so a first run sees it working', () => {
     /* Not stored data — it is a question asked fresh each time — so the demo
        seeds it in memory. Without it, a first run reaches the card and finds an
        empty box with an instruction in it, which demonstrates nothing. */
-    const f = w.forecast(id('Team Otter'), Number(w.__svTestHooks.svForecastPoints()), false);
+    const f = w.forecast(id('Team Overcommitted'), Number(w.__svTestHooks.svForecastPoints()), false);
     ok(f && f.fast > 0, 'the seeded figure produces a real forecast');
     ok(f.slow > f.fast, 'and on the swingy team the two ends are apart, which is the point');
   });
@@ -1644,7 +1651,7 @@ t('the demo’s points and predictability disagree between the last two PIs', ()
 t('the demo lands on the running sprint', () => {
   withSample((id) => {
     const st = w.svGet();
-    eq(st.settings.activeTeamId, id('Team Merlin'));
+    eq(st.settings.activeTeamId, id('Team Live Sprint'));
     eq(st.settings.activeSprintNum, 4);
     eq(st.settings.view, 'sprint');
   });
@@ -1660,19 +1667,21 @@ t('four of the five teams are scored, one on each side of the band', () => {
     const st = w.svGet();
     const pct = (name) => w.bvFigures(
       w.__svTestHooks.objectivesFor(id(name), st.settings.activePiId)).pct;
-    eq(w.rag(pct('Team Kestrel'), 'predictability'), 'green', 'the ordinary team, in the band');
-    eq(w.rag(pct('Team Otter'), 'predictability'), 'red', 'under it — the team the targets catch');
-    eq(w.rag(pct('Team Curlew'), 'predictability'), 'yellow',
+    eq(w.rag(pct('Team Baseline'), 'predictability'), 'green', 'the ordinary team, in the band');
+    eq(w.rag(pct('Team Overcommitted'), 'predictability'), 'red',
+      'under it — the team the targets catch');
+    eq(w.rag(pct('Team Headroom'), 'predictability'), 'yellow',
       'OVER it — the headroom team under-commits its objectives too');
-    ok(pct('Team Curlew') > 100, 'which is only reachable because stretch is in the numerator');
-    eq(w.rag(pct('Team Wren'), 'predictability'), 'green', 'and it is in no ART, so that group has a figure');
+    ok(pct('Team Headroom') > 100, 'which is only reachable because stretch is in the numerator');
+    eq(w.rag(pct('Team New Start'), 'predictability'), 'green',
+      'and it is in no ART, so that group has a figure');
   });
 });
-t('Merlin is deliberately unscored — its PI is still running', () => {
+t('Team Live Sprint is deliberately unscored — its PI is still running', () => {
   withSample((id) => {
     const st = w.svGet();
     eq(w.__svTestHooks.hasBv(
-      w.__svTestHooks.objectivesFor(id('Team Merlin'), st.settings.activePiId)), false,
+      w.__svTestHooks.objectivesFor(id('Team Live Sprint'), st.settings.activePiId)), false,
       'so the ⚑ "not scored yet" note has a team to name on Payments ART');
   });
 });
@@ -1694,7 +1703,7 @@ t('Payments ART is scored from one of its two teams, and says so', () => {
     const payments = st.arts.find(a => a.name === 'Payments ART');
     const pred = w.artPredictability(w.teamsInArt(st.teams, payments.id), st.settings.activePiId);
     eq(pred.scored, 1);
-    eq(pred.missing.map(t => t.name), ['Team Merlin']);
+    eq(pred.missing.map(t => t.name), ['Team Live Sprint']);
   });
 });
 
@@ -2913,7 +2922,7 @@ t('the thousands separator is quoted, or the row silently gains a column', () =>
 t('quotes are doubled, newlines force quoting, and plain text is untouched', () => {
   eq(w.__svTestHooks.csvCell('He said "hi"'), '"He said ""hi"""');
   eq(w.__svTestHooks.csvCell('two\nlines'), '"two\nlines"');
-  eq(w.__svTestHooks.csvCell('Team Kestrel'), 'Team Kestrel');
+  eq(w.__svTestHooks.csvCell('Team Baseline'), 'Team Baseline');
   eq(w.__svTestHooks.csvCell(null), '');
 });
 t('the clipboard flavour is TAB separated, and carries the same guard', () => {
@@ -3327,7 +3336,7 @@ t('a PI-less team gets a working capacity target and forecast', () => {
    sprint (isIpSlot). nextSprintTarget() compared the bare number instead, so the
    capacity card told a team with no PIs to scale its target down "for whatever IP
    work is planned" — against a PI it hasn't got, and contradicting the Rolling 5
-   tab two clicks away. The demo hides it because Team Pipit starts at sprint 12. */
+   tab two clicks away. The demo hides it because Team No PI starts at sprint 12. */
 function sixthSlotFixture(piId) {
   const sp = (n) => ({ id: (piId || 'x') + n, teamId: 't1', piId, sprintNumber: n,
     committed: 20, committedCompleted: 20, totalCompleted: 20,

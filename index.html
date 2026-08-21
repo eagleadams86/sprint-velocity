@@ -8771,20 +8771,28 @@ F('shareOpenBtn').onclick = () => {
    you add one, add the data that shows it off here and name it in the roster
    below, the confirm text, the README table and the sample-data tests.
 
-   The roster, and the one thing each team is here to show:
+   The roster. Each team is NAMED FOR THE ONE THING IT IS HERE TO SHOW, so the
+   picker reads as a contents page and a reader who lands on a card knows which
+   finding they are looking at. Rename one and the name has to keep saying what
+   the team demonstrates — a bird or a colour would leave the demo teaching
+   nothing until you read the numbers.
 
-     Kestrel  Payments  the ordinary team — green, lands about 90% · ⚖ a scaled
-                        sprint · ↩ work brought in then removed again
-     Merlin   Payments  a sprint RUNNING RIGHT NOW (the only dated team, so the
-                        lifecycle, pace and the "actually committed" comparison
-                        have something behind them) · ⚑ a standing availability
-     Otter    Platform  the team the targets exist to catch — red, and swinging ·
-                        ⚑ a sprint left out · the IP-sprint caveat
-     Curlew   Platform  room for more — clears its commitment then pulls extra in,
-                        so it reads 98% complete beside RED break-in
-     Wren     no ART    a brand-new team — thin history · ⚑ a one-off availability
-                        whose carryover then fills the whole figure · the "no ART"
-                        group on All teams
+     Team Baseline       Payments  the ordinary team — green, lands about 90% ·
+                                   ⚖ a scaled sprint · ↩ work brought in then
+                                   removed again
+     Team Live Sprint    Payments  a sprint RUNNING RIGHT NOW (the only dated
+                                   team, so the lifecycle, pace and the "actually
+                                   committed" comparison have something behind
+                                   them) · ⚑ a standing availability
+     Team Overcommitted  Platform  the team the targets exist to catch — red, and
+                                   swinging · ⚑ a sprint left out · the IP-sprint
+                                   caveat
+     Team Headroom       Platform  room for more — clears its commitment then
+                                   pulls extra in, so it reads 98% complete
+                                   beside RED break-in
+     Team New Start      no ART    a brand-new team — thin history · ⚑ a one-off
+                                   availability whose carryover then fills the
+                                   whole figure · the "no ART" group on All teams
 
    Two ARTs of two, plus one team in neither, is the arrangement where the All
    teams filter and its "no ART" group both do something. Every figure below is
@@ -8794,8 +8802,9 @@ function loadSample() {
   if (!confirm(
       'Load the demo? Six sample teams — five on two ARTs across two PIs of history, one '
     + 'running right now, and one team that doesn\'t use PIs at all.\n\n'
-    + 'Each team shows something different — a live sprint, a target adjusted for leave, '
-    + 'a sprint left out of the averages, and a team with room to commit to more.\n\n'
+    + 'Each team is named for the one thing it shows: a sprint running live, a steady '
+    + 'baseline, a team committing to more than it lands, one with headroom to commit to '
+    + 'more, a brand-new team, and a team that runs no PIs at all.\n\n'
     + 'It is added alongside anything you already have, and you can delete it later.')) return;
 
   /* Three PIs, because a trend needs somewhere to go. Two points are a line and
@@ -8806,16 +8815,17 @@ function loadSample() {
   const piB = { id: uid(), name: 'PI 2026.3' };
   const a1 = { id: uid(), name: 'Payments ART' };
   const a2 = { id: uid(), name: 'Platform ART' };
-  const t1 = { id: uid(), name: 'Team Kestrel', artId: a1.id };
-  /* Merlin's standing availability is the TEAM lever; Wren's below is the one-off
-     SLOT lever. One team each, because the capacity card names which of the two
-     set the figure and that sentence is only demonstrable if both exist. */
-  const t2 = { id: uid(), name: 'Team Merlin', artId: a1.id,
+  const t1 = { id: uid(), name: 'Team Baseline', artId: a1.id };
+  /* Team Live Sprint's standing availability is the TEAM lever; Team New
+     Start's below is the one-off SLOT lever. One team each, because the capacity
+     card names which of the two set the figure and that sentence is only
+     demonstrable if both exist. */
+  const t2 = { id: uid(), name: 'Team Live Sprint', artId: a1.id,
                availability: 90, availabilityReason: 'support' };
-  const t3 = { id: uid(), name: 'Team Otter', artId: a2.id };
-  const t4 = { id: uid(), name: 'Team Curlew', artId: a2.id };
-  const t5 = { id: uid(), name: 'Team Wren' };
-  /* ── Pipit: the team that doesn't run PIs at all ──────────────────────────
+  const t3 = { id: uid(), name: 'Team Overcommitted', artId: a2.id };
+  const t4 = { id: uid(), name: 'Team Headroom', artId: a2.id };
+  const t5 = { id: uid(), name: 'Team New Start' };
+  /* ── Team No PI: the team that doesn't run PIs at all ────────────────────
      Its one job is to show that the app works with no PI, and it deliberately
      carries nothing else — no ART, no scale, no exclusion, no dates, no goals, no
      business value. Every one of those findings already belongs to another team,
@@ -8826,17 +8836,17 @@ function loadSample() {
      six-slot PI. S12 also proves the IP rule stays out of it — sprint 6 means
      nothing on this track, and if the rule ever leaked back the window would be
      the wrong size on a team whose numbers don't even reach 6. */
-  const t6 = { id: uid(), name: 'Team Pipit' };
+  const t6 = { id: uid(), name: 'Team No PI' };
   state.pis.push(pi0, piA, piB);
   state.arts.push(a1, a2);
   state.teams.push(t1, t2, t3, t4, t5, t6);
 
   /* Everything is dateless unless a sprint asks for dates, because a sprint with
      no dates resolves COMPLETE — which is what keeps four of the five teams fully
-     in the averages. Merlin is the exception and has to be: an in-flight sprint is
-     the one state you cannot fake without real dates, and they are counted from
-     today so the demo is still live whenever it is opened, not stale from the day
-     this was written. */
+     in the averages. Team Live Sprint is the exception and has to be: an
+     in-flight sprint is the one state you cannot fake without real dates, and
+     they are counted from today so the demo is still live whenever it is opened,
+     not stale from the day this was written. */
   const day = 86400000;
   const iso = (offset) => {
     const d = new Date(Date.now() + offset * day);
@@ -8854,8 +8864,9 @@ function loadSample() {
     }, extra || {});
 
   state.sprints.push(
-    /* Kestrel — the ordinary team. Around 90% of the commitment lands every
-       sprint: green, unremarkable, and the baseline the other four read against.
+    /* Team Baseline — the ordinary team, and the baseline the other four read
+       against. Around 90% of the commitment lands every sprint: green, and
+       unremarkable, which is the whole of what the name promises.
        S4 is scaled to 133% for planning (a fourth person joined after it) and sits
        INSIDE the rolling window on purpose — a scale outside it is inert, so
        putting it further back would show nothing. S2 carries work that came in
@@ -8877,35 +8888,36 @@ function loadSample() {
     mk(t1.id, piB.id, 2, 40, 36, 6, 3, 3, 40, { addedThenRemoved: 3, goalMet: false }),
     mk(t1.id, piB.id, 3, 38, 34, 3, 0, 4, 36, { goalMet: true }),
 
-    /* Merlin — the live one. S4 started five days ago and has eight to run, so it
-       is ◐ In progress: the Sprint view shows done-so-far, pace (day 6 of 14,
-       slightly behind) and carried-in, none of which any other team can show. Its
-       32-point commitment is well over the suggestion, which is the one finding
-       on the capacity card that is still actionable — there is time to descope. */
+    /* Team Live Sprint — the live one. S4 started five days ago and has eight to
+       run, so it is ◐ In progress: the Sprint view shows done-so-far, pace (day 6
+       of 14, slightly behind) and carried-in, none of which any other team can
+       show. Its 32-point commitment is well over the suggestion, which is the
+       one finding on the capacity card that is still actionable — there is time
+       to descope. */
     mk(t2.id, piB.id, 1, 26, 24, 4, 0, 2, 27, dated(-47)),
     mk(t2.id, piB.id, 2, 28, 26, 3, 1, 2, 28, dated(-33)),
     mk(t2.id, piB.id, 3, 26, 25, 5, 0, 2, 29, dated(-19)),
     mk(t2.id, piB.id, 4, 32, 11, 2, 0, 1, 13, dated(-5)),
 
-    /* Otter — the team the targets exist to catch. Around 70% completion, and
-       swinging from 14 to 26 points delivered, which trips the "delivery swings a
-       fair bit" caveat. S4 was a major incident and is left OUT of the averages,
-       so the ⚑ sprints-left-out notice has something to name. Ending at S5 puts
-       the next slot on the IP sprint, which is the third caveat on this one card
-       and the only place that one shows. */
+    /* Team Overcommitted — the team the targets exist to catch. Around 70%
+       completion, and swinging from 14 to 26 points delivered, which trips the
+       "delivery swings a fair bit" caveat. S4 was a major incident and is left
+       OUT of the averages, so the ⚑ sprints-left-out notice has something to
+       name. Ending at S5 puts the next slot on the IP sprint, which is the third
+       caveat on this one card and the only place that one shows. */
     mk(t3.id, piB.id, 1, 30, 26, 9, 4, 6, 30, { goalMet: true }),
     mk(t3.id, piB.id, 2, 28, 14, 8, 2, 4, 20, { goalMet: true }),
     mk(t3.id, piB.id, 3, 26, 22, 4, 1, 8, 25, { goalMet: true }),
     mk(t3.id, piB.id, 4, 30, 12, 3, 6, 4, 18, { excluded: true, excludeReason: 'incident', goalMet: false }),
     mk(t3.id, piB.id, 5, 28, 17, 6, 2, 9, 22, { goalMet: true }),
 
-    /* Curlew — room for more. The commitment is cleared nearly every sprint and
-       5-9 points of work are pulled in on top of it each time, so it reads 98%
-       commitment completion beside a RED 29% break-in: the contradiction the
-       headroom note exists to resolve. The mean commitment sits close enough to
-       the mean delivered that the over-commitment finding stays off, which the
-       note needs. S2 lands at 92% on purpose, so it reads "4 of the last 5"
-       rather than a suspiciously clean five. */
+    /* Team Headroom — room for more. The commitment is cleared nearly every
+       sprint and 5-9 points of work are pulled in on top of it each time, so it
+       reads 98% commitment completion beside a RED 29% break-in: the
+       contradiction the headroom note exists to resolve. The mean commitment sits
+       close enough to the mean delivered that the over-commitment finding stays
+       off, which the note needs. S2 lands at 92% on purpose, so it reads "4 of
+       the last 5" rather than a suspiciously clean five. */
     mk(t4.id, piA.id, 4, 22, 22, 8, 0, 2, 29, { goalMet: false }),
     mk(t4.id, piA.id, 5, 24, 23, 6, 0, 0, 28, { goalMet: true }),
     mk(t4.id, piA.id, 6, 12, 11, 0, 0, 1, 11, { goalMet: false }),
@@ -8913,17 +8925,18 @@ function loadSample() {
     mk(t4.id, piB.id, 2, 26, 24, 5, 0, 0, 27, { goalMet: false }),
     mk(t4.id, piB.id, 3, 24, 24, 7, 0, 2, 30, { goalMet: true }),
 
-    /* Wren — brand new, and two sprints is not a history: it trips the thin-data
-       caveat. Nine points carry out of S2, and with the team only half available
-       next sprint that carryover FILLS the whole adjusted figure — there is no
-       room for new work at all, which is the most actionable thing the capacity
-       card can say and needs both levers pointing the same way to produce. */
+    /* Team New Start — brand new, and two sprints is not a history: it trips the
+       thin-data caveat. Nine points carry out of S2, and with the team only half
+       available next sprint that carryover FILLS the whole adjusted figure —
+       there is no room for new work at all, which is the most actionable thing
+       the capacity card can say and needs both levers pointing the same way to
+       produce. */
     mk(t5.id, piB.id, 1, 20, 14, 2, 0, 0, 15),
     mk(t5.id, piB.id, 2, 20, 11, 3, 2, 6, 13),
 
-    /* Pipit — no PI at all. Ordinary, steady figures on purpose: this team is the
-       control, and the only thing it demonstrates is that none of the machinery
-       needs a PI. `null`, never absent — see the boundary. */
+    /* Team No PI — no PI at all. Ordinary, steady figures on purpose: this team
+       is the control, and the only thing it demonstrates is that none of the
+       machinery needs a PI. `null`, never absent — see the boundary. */
     mk(t6.id, null, 12, 21, 19, 2, 0, 1, 20),
     mk(t6.id, null, 13, 22, 20, 3, 0, 2, 22),
     mk(t6.id, null, 14, 20, 18, 1, 1, 2, 19),
@@ -8931,7 +8944,7 @@ function loadSample() {
     mk(t6.id, null, 16, 22, 20, 3, 0, 2, 23)
   );
 
-  /* The one-off lever, against the slot Wren is about to plan. */
+  /* The one-off lever, against the slot Team New Start is about to plan. */
   state.plans.push({ id: uid(), teamId: t5.id, piId: piB.id, sprintNumber: 3,
                      availability: 50, reason: 'leave' });
 
@@ -8940,26 +8953,31 @@ function loadSample() {
      recorded" is the state most sprints are really in and the tile has to be able
      to say how many it left out.
 
-     · Curlew  2 of 5 goals met on 98% commitment completion → the ◎ "the points
-               land, the goals don't" note. The team that already reads as the
-               best on every points figure is the one planning the wrong work,
-               which is the whole argument for recording this at all — and it is
-               the same team the headroom note is about, so its card carries both.
-     · Otter   4 of 4 in the window, on 70% completion → the ◎ note the other way
-               round: the team the targets catch is delivering what the sprints
-               were for. Its excluded S4 is the one goal it missed, so the window
-               and the PI table disagree — which is correct, and the ⚑ says why.
-     · Kestrel 3 of 4, an ordinary mixed record, so neither note fires on the team
-               that is meant to read as unremarkable — and its S4 has NO goal while
-               the other four do, which is the only place the tile's "1 sprint in
-               the window has no goal recorded" caption appears. Most real teams
-               will be part-way like this rather than all-or-nothing.
-     · Merlin and Wren record none, so the "no goal recorded" caption has somewhere
-               to appear and the Sprint view's goal tile is absent on some teams.
+     · Team Headroom       2 of 5 goals met on 98% commitment completion → the ◎
+                           "the points land, the goals don't" note. The team that
+                           already reads as the best on every points figure is
+                           the one planning the wrong work, which is the whole
+                           argument for recording this at all — and it is the
+                           same team the headroom note is about, so its card
+                           carries both.
+     · Team Overcommitted  4 of 4 in the window, on 70% completion → the ◎ note
+                           the other way round: the team the targets catch is
+                           delivering what the sprints were for. Its excluded S4
+                           is the one goal it missed, so the window and the PI
+                           table disagree — which is correct, and the ⚑ says why.
+     · Team Baseline       3 of 4, an ordinary mixed record, so neither note fires
+                           on the team that is meant to read as unremarkable — and
+                           its S4 has NO goal while the other four do, which is
+                           the only place the tile's "1 sprint in the window has
+                           no goal recorded" caption appears. Most real teams will
+                           be part-way like this rather than all-or-nothing.
+     · Team Live Sprint and Team New Start record none, so the "no goal recorded"
+                           caption has somewhere to appear and the Sprint view's
+                           goal tile is absent on some teams.
 
-     Don't tidy Curlew's into a healthier record: a demo where the goals always
-     agree with the points teaches that they always do, and the field would then
-     have nothing to show for itself. */
+     Don't tidy Team Headroom's into a healthier record: a demo where the goals
+     always agree with the points teaches that they always do, and the field would
+     then have nothing to show for itself. */
   /* (The forecast box is seeded further down, at the settings — it holds no
      stored data, so it is not part of this payload.) */
 
@@ -8968,19 +8986,25 @@ function loadSample() {
      band — the point being that predictability is a two-sided measure and a demo
      that only ever shows teams under the band teaches it as a one-sided one.
 
-     · Kestrel  36 of 40  =  90%  — green, in the band, the ordinary team again.
-     · Otter    20 of 34  =  59%  — red UNDER. The team the targets exist to
-                                    catch misses on objectives as well as points.
-     · Curlew   34 of 30  = 113%  — amber OVER, and the same finding its headroom
-                                    note makes in points: it commits to less than
-                                    it delivers. 28 committed plus 6 of stretch,
-                                    so the stretch asymmetry is visible in a row.
-     · Wren     15 of 18  =  83%  — green, and in NO ART, so the "No ART" group on
-                                    this view has a figure of its own.
-     · Merlin   not scored        — its PI is still running, which is the honest
-                                    reason a team has no objectives yet, and it is
-                                    what puts the ⚑ "not scored" note on Payments
-                                    ART with a team named in it.
+     · Team Baseline       36 of 40  =  90%  — green, in the band, the ordinary
+                                               team again.
+     · Team Overcommitted  20 of 34  =  59%  — red UNDER. The team the targets
+                                               exist to catch misses on objectives
+                                               as well as points.
+     · Team Headroom       34 of 30  = 113%  — amber OVER, and the same finding
+                                               its headroom note makes in points:
+                                               it commits to less than it
+                                               delivers. 28 committed plus 6 of
+                                               stretch, so the stretch asymmetry
+                                               is visible in a row.
+     · Team New Start      15 of 18  =  83%  — green, and in NO ART, so the "No
+                                               ART" group on this view has a
+                                               figure of its own.
+     · Team Live Sprint    not scored        — its PI is still running, which is
+                                               the honest reason a team has no
+                                               objectives yet, and it is what puts
+                                               the ⚑ "not scored" note on Payments
+                                               ART with a team named in it.
 
      That leaves Payments ART worked out from one of its two teams (the note says
      so) and Platform ART from both: mean 86%, pooled 84% — the two methods
@@ -9021,8 +9045,8 @@ function loadSample() {
      first run reaches the card and finds an empty box with an instruction in it,
      which demonstrates nothing; with it, every team's Rolling 5 shows a worked
      forecast the moment you get there. 120 points is chosen to land differently
-     on different teams: inside the PI for nobody, 6 sprints for Merlin, 7 to 8
-     for Otter with its swings pulling the two ends apart. */
+     on different teams: inside the PI for nobody, 6 sprints for Team Live Sprint,
+     7 to 8 for Team Overcommitted with its swings pulling the two ends apart. */
   forecastPoints = '120';
 
   state.settings.activeTeamId = t2.id;
@@ -9030,7 +9054,7 @@ function loadSample() {
   state.settings.activeSprintNum = 4;
   state.settings.view = 'sprint';
   save(); render();
-  toast('Demo loaded — six teams, each showing something different');
+  toast('Demo loaded — six teams, each named for what it shows');
 }
 
 /* ═════════════════════════════ Theme & chrome ═════════════════════════════ */

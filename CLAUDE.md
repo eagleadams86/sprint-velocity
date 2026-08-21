@@ -264,7 +264,7 @@ but Charles had ever actually signed in.)
   and capacity plans die either way (both are defined by the PI) and the dialog says so.
   It also **discloses the one place the ordering rule bites backwards**: kept sprints move
   *before* any remaining PIs, because unassigned is the oldest track.
-- **The demo's Team Pipit exists to show the app working with no PI, and carries nothing
+- **The demo's Team No PI exists to show the app working with no PI, and carries nothing
   else.** Sprints 12–16 — continuous, past six, and a 16th that could not exist in a
   six-slot PI. No ART, no scale, no exclusion, no dates, no goals, no business value: every
   one of those findings already belongs to another team, and a second owner would blur which
@@ -483,13 +483,14 @@ but Charles had ever actually signed in.)
   leave, which is the same rule the `spread`/`steady` bullet above already states. The
   fold-out quotes `planningBase` rather than "the figure above", because on an adjusted team
   the tile shows the adjusted number and the two would disagree.
-- **The demo reaches the floor through Otter (20 vs 17) and Kestrel, and deliberately not
-  through an ADJUSTED team.** Merlin is the only team with a standing availability and its
-  three-sprint window puts the second-lowest exactly on the mean, so `hasFloor` is false
-  there. Bending Merlin's figures to reach the adjusted foot-string would disturb the live
-  sprint, its pace reading and its over-commitment finding — all pinned — to demonstrate a
-  formatting branch the Recommended tile already demos on Wren ("50% of 13"). The adjusted
-  floor is covered by a test instead. That was a decision, not an oversight.
+- **The demo reaches the floor through Team Overcommitted (20 vs 17) and Team Baseline, and
+  deliberately not through an ADJUSTED team.** Team Live Sprint is the only team with a standing
+  availability and its three-sprint window puts the second-lowest exactly on the mean, so
+  `hasFloor` is false there. Bending Team Live Sprint's figures to reach the adjusted
+  foot-string would disturb the live sprint, its pace reading and its over-commitment finding
+  — all pinned — to demonstrate a formatting branch the Recommended tile already demos on
+  Team New Start ("50% of 13"). The adjusted floor is covered by a test instead. That was a
+  decision, not an oversight.
 - **`forecast()` runs the capacity numbers backwards, and uses the SAME rate — committed
   points finished, never velocity.** Velocity counts break-in, which by definition is not the
   piece of work being forecast, so forecasting at it assumes the whole sprint goes to this
@@ -540,23 +541,28 @@ but Charles had ever actually signed in.)
   demonstrates it, a line in the roster comment above `loadSample()`, a row in the README's
   demo table, and a test in the sample-data group — that group exists precisely because
   these are ordinary-looking figures a later edit would tidy, and tidying them leaves a
-  first run with nothing to look at. Every number in there is load-bearing: Kestrel's scale
-  sits inside the rolling window (outside it a scale is inert), Otter ends at S5 so the
-  next slot is the IP sprint, Curlew's S2 lands at 92% so the note reads "4 of the last 5",
-  Wren's carryover exceeds its halved figure. **The business value is picked the same way**:
-  one team inside the band, one under, one over (Curlew, whose objectives are under-committed
-  just as its points are), one team unscored so the ⚑ note has something to name, and
-  Platform ART arranged as the cancelling case so the "average is hiding this" note fires on
-  a first run. A demo whose predictability figures are all healthy teaches a two-sided
-  measure as a one-sided one. **The sprint goals are picked the same way and must not be
-  tidied into agreement with the points**: Curlew reads best on every points figure and meets
-  2 of 5 goals (the ◎ note), Otter reads worst and meets all of them (the note reversed),
-  Kestrel is mixed with one sprint unrecorded (the only home for the "no goal recorded"
-  caption), and Merlin and Wren record none so the tile can be absent. A demo where the goals
-  always agree with the points teaches that they always do, and the field would have nothing
-  to show for itself. Merlin is the ONLY dated team, and its dates
-  are counted from `Date.now()` so the running sprint is still running whenever the demo is
-  opened; everything else is dateless because a dateless sprint resolves complete.
+  first run with nothing to look at. **Each demo team is NAMED FOR THE ONE THING IT SHOWS**
+  — Team Baseline, Team Live Sprint, Team Overcommitted, Team Headroom, Team New Start, Team
+  No PI — so the picker reads as a contents page and a reader who lands on a card already
+  knows which finding they are looking at; a new demo team gets a name of the same kind, and
+  renaming one back to a bird or a place would leave the demo teaching nothing until you had
+  read every one of its numbers. Every number in there is load-bearing: Team Baseline's scale
+  sits inside the rolling window (outside it a scale is inert), Team Overcommitted ends at S5
+  so the next slot is the IP sprint, Team Headroom's S2 lands at 92% so the note reads "4 of
+  the last 5", Team New Start's carryover exceeds its halved figure. **The business value is picked
+  the same way**: one team inside the band, one under, one over (Team Headroom, whose objectives
+  are under-committed just as its points are), one team unscored so the ⚑ note has something to
+  name, and Platform ART arranged as the cancelling case so the "average is hiding this" note
+  fires on a first run. A demo whose predictability figures are all healthy teaches a two-sided
+  measure as a one-sided one. **The sprint goals are picked the same way and must not be tidied
+  into agreement with the points**: Team Headroom reads best on every points figure and meets 2
+  of 5 goals (the ◎ note), Team Overcommitted reads worst and meets all of them (the note
+  reversed), Team Baseline is mixed with one sprint unrecorded (the only home for the "no goal
+  recorded" caption), and Team Live Sprint and Team New Start record none so the tile can be
+  absent. A demo where the goals always agree with the points teaches that they always do, and
+  the field would have nothing to show for itself. Team Live Sprint is the ONLY dated team, and
+  its dates are counted from `Date.now()` so the running sprint is still running whenever the
+  demo is opened; everything else is dateless because a dateless sprint resolves complete.
 - **The headroom note is a `.badge` line, and its amber is NOT a RAG band.** It takes the
   same badge-led `.sub.exnote` shape as the "sprints left out" notes, for the same reason
   `excludedLine()` gives: it started life last on the card, after the fold-out and beside
