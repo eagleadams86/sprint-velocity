@@ -848,10 +848,13 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
     of), the never-guess-by-timestamp reconciliation, the empty-copy-never-wins rule, the
     `serverAt` ordering and the surfaced-not-logged failure reporting. All in one commit in
     `git log`.
-  - **Data written before the removal still sits in Firestore.** Removing the client does
-    not delete it. `DATA_DELETION.md` is still the live runbook and says so; retiring it
-    means deleting the collection or the project, and dropping the promise in
-    `privacy.html` in the same commit.
+  - **The Firestore data was deleted too, 2026-08-20**, by hand in the console — removing a
+    client deletes nothing server-side, so this was a separate deliberate step. The
+    `sprintvelocity` collection is empty, and `DATA_DELETION.md` was removed with the data it
+    described (a runbook that confidently describes something that no longer exists deletes
+    the wrong thing). The project `sprintvelocity-141b7` itself still exists; deleting it
+    outright is a further step nobody has taken, and would also kill the API key GitHub's
+    secret scanner flags on this repo.
 - **The Rolling 5 velocity chart carries a dashed `linearTrend()` line** (ordinary least
   squares, ported from Team Dashboard; nulls skipped). It's drawn muted — a reading of the
   bars, not a new series — and `linearTrend()` is a pure function pinned by tests.html.

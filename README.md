@@ -1184,13 +1184,12 @@ browser can still be running an older cached copy of the app while another devic
 on. A backup file from a newer version is refused the same way, and a share link from one
 tells the reader the link is fine and their copy of the app is behind.
 
-**Deletion requests** — the app no longer syncs anything anywhere, but data written before
-2026-08-20 still sits in Firestore, so [privacy.html](privacy.html) still promises that
-emailing the address there gets it deleted. [`DATA_DELETION.md`](DATA_DELETION.md) is the
-runbook: how to map an email address to the right Firestore document (the document ID is the
-Firebase Auth UID, and nothing inside the document identifies anyone), what order to delete
-in, and which copies are genuinely beyond reach. It stays until the collection or the project
-itself is deleted, and says so.
+**Deletion requests** — there is nothing left to delete. The app stopped syncing on
+2026-08-20 and the Firestore collection was emptied by hand the same day, so no copy of
+anyone's data exists on the server side. `DATA_DELETION.md` was the runbook for a deletion
+request and was removed with the data it described: a runbook that confidently describes
+something that no longer exists is worse than none. `git log` has it if the history is ever
+wanted.
 
 ## Working Offline
 
@@ -1334,10 +1333,10 @@ personally identifying thing this app ever wrote down — and keeping it after r
 feature that needed it would be keeping an identifier for no reason. Pinned by a test that
 plants both keys, boots the app and checks they are gone.
 
-**Data written before the removal still exists in Firestore.** Removing the client does not
-delete what the server holds. [`DATA_DELETION.md`](DATA_DELETION.md) is the runbook for a
-deletion request and is still live for exactly that reason; `privacy.html` still tells anyone
-who used sync how to ask.
+**The data written before the removal was deleted too**, on the same day — removing the
+client deletes nothing server-side, so the `sprintvelocity` collection was emptied by hand in
+the Firebase console as a separate deliberate step. `privacy.html` says so rather than
+promising deletion on request, and `DATA_DELETION.md` went with the data it described.
 
 **If it is ever wanted back**, `git log` has the whole module in one commit — including the
 Google Identity Services workaround for corporate networks that block
