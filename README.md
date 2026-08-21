@@ -17,7 +17,13 @@ sibling app for weekly flow metrics, sharing this app's look and behaviour — t
 header, button tabs, tiles, ⓘ help dialogs, theme picker and footer. **Each app's footer
 carries a button link to the other**, at the right-hand end of the row that holds the
 **Privacy policy** and **How it works** links. If a chrome rule changes in
-one app, it should change in the other too.
+one app, it should change in the other too — with one noted exception, **what a tile is drawn
+on**. Flow Metrics puts its tiles on the same surface as its cards; this app keeps them a shade
+apart, because here that background carries meaning (neutral, green, amber, red, and the hero's
+card surface, where Flow Metrics has one state and no targets) and because these tiles sit
+*inside* a card where Flow Metrics' sit on the page — so the same change would dissolve them into
+the box around them. The 4px-to-6px **left edge** that came with that change in Flow Metrics did
+cross over: it is a mark rather than a fill, and it reads the same in both.
 
 ---
 

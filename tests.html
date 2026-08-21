@@ -2402,6 +2402,39 @@ t('a list of one has nowhere to go in either direction', () => {
   eq(w.__svTestHooks.reorderById(l, 'only', 1), false);
 });
 
+group('the tile’s left edge');
+
+/* 6px, matching Flow Metrics, where the same edge went up when its tiles moved
+   onto the card surface and it became the only thing telling a tile from a card.
+   Here it is a mirror of a chrome rule rather than a fix for anything, and the
+   background it sits on deliberately did NOT come with it — see the note above
+   `.tile` in index.html for why the two apps part company on that.
+
+   Pinned as a RELATIONSHIP, not at 6px, exactly as the sibling pins it: the
+   number is a judgement and may be tuned again, but an edge that has stopped
+   outweighing the border it sits in has stopped being an edge.
+
+   Probed on a detached element rather than a rendered view: this suite boots an
+   app with no teams, so there is no tile on screen to measure, and a probe reads
+   the same stylesheet either way. */
+t('the left edge outweighs the other three, so it reads as a mark', () => {
+  const probe = w.document.createElement('div');
+  probe.className = 'tile';
+  w.document.body.appendChild(probe);
+  try {
+    const cs = w.getComputedStyle(probe);
+    const left = parseFloat(cs.borderLeftWidth), rest = parseFloat(cs.borderTopWidth);
+    ok(left > rest * 2, 'left ' + cs.borderLeftWidth + ' against ' + cs.borderTopWidth);
+    /* And the RAG states still take that width from `.tile` rather than setting
+       their own, so a tuned edge can never apply to four tiles out of five. */
+    probe.className = 'tile red';
+    eq(w.getComputedStyle(probe).borderLeftWidth, cs.borderLeftWidth,
+      'a RAG tile takes the same edge — it sets the colour, never the width');
+  } finally {
+    probe.remove();
+  }
+});
+
 group('the manage dialog — rows are edited in place');
 /* Rename buttons and their prompt() are gone: a name is edited in the row it
    sits in, and Delete is the same × Flow Metrics uses. Pinned because the shape

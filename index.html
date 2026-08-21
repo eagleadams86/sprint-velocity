@@ -375,9 +375,30 @@ select.ctl:hover { border-color: var(--text-muted); }
    back to each tile laying itself out, which is what it did before. */
 .tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   grid-template-rows: repeat(3, auto); }
+/* The left edge is 6px, matching Flow Metrics — the shared-chrome rule, applied
+   to the half of its tile change that transfers. Charles asked for the edge and
+   only the edge (2026-08-21).
+
+   WHAT DELIBERATELY DID NOT COME WITH IT is the background. Flow Metrics moved
+   its tiles onto `--surface`, the ground its cards and tables are on, and this
+   app keeps `--bg-card-alt`. Two reasons, and the second is the one that
+   settles it:
+
+   • This tile's background CARRIES MEANING. It is a five-value scale — neutral,
+     green, amber, red, and the hero's card surface — where Flow Metrics has one,
+     because Flow Metrics has no targets to be good or bad against. The neutral
+     is the ground the other four are read against.
+   • THESE TILES SIT INSIDE A CARD; Flow Metrics' sit on the page. Give them the
+     card's own background and the only edge left is the 1px `--border`, a
+     hairline chosen to be quiet — so the same declaration that unifies that app
+     would dissolve these into the box around them. Rendered both ways before
+     deciding, in all four themes.
+
+   Don't "finish the job" by mirroring the background too without reading that.
+   The edge is shared; what the edge is drawn on is not. */
 .tile {
   display: grid; grid-row: span 3; grid-template-rows: subgrid; align-content: start;
-  border: 1px solid var(--border); border-left-width: 4px;
+  border: 1px solid var(--border); border-left-width: 6px;
   border-radius: var(--radius-sm); padding: 12px 14px; background: var(--bg-card-alt);
 }
 /* The label row carries the ⓘ button on its right. It's a flex row rather than the

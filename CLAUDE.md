@@ -867,6 +867,24 @@ but Charles had ever actually signed in.)
 - **The Rolling 5 velocity chart carries a dashed `linearTrend()` line** (ordinary least
   squares, ported from Team Dashboard; nulls skipped). It's drawn muted — a reading of the
   bars, not a new series — and `linearTrend()` is a pure function pinned by tests.html.
+- **THE TILE'S LEFT EDGE IS 6px, AND ITS BACKGROUND DELIBERATELY DID NOT FOLLOW (2026-08-21).**
+  Flow Metrics moved its tiles onto `--surface` — the ground its cards and tables are on — and
+  widened the left edge from 4px to 6px in the same change, because once the fill no longer told
+  a tile from a card, the edge had to. Charles asked for **the edge and only the edge** here.
+  Two reasons the background stayed, and the second is the one that settles it:
+  - **This tile's background carries meaning.** It is a five-value scale — neutral, green, amber,
+    red, and the hero's `--bg-card` — where Flow Metrics has one state, because Flow Metrics has
+    no targets to be good or bad against. The neutral is the ground the other four are read
+    against.
+  - **These tiles sit INSIDE a card; Flow Metrics' sit on the page.** Give them the card's own
+    background and the only edge left is the 1px `--border`, a hairline chosen to be quiet — the
+    same declaration that unifies that app dissolves these into the box around them. Both states
+    were rendered in all four themes before deciding.
+  A mirror-and-fix-the-hero option was costed and not taken: the hero would need a new cue (a
+  6px `--focus-border` edge is the readiest), and so would the neutrals, which is a redesign of
+  this app's tile rather than a copy of the sibling's. The edge is pinned in tests.html as a
+  RELATIONSHIP — heavier than the other three borders, and the same width on a RAG tile, which
+  sets the colour and never the width — not at 6px, so the number stays tunable.
 - **The chrome is shared with Team Dashboard** (the `claude-team-dashboard` repo; the app
   itself is titled **Flow Metrics** on screen — display-only rename, every identifier still
   says team-dashboard) — sticky header, brand mark, button tabs, tiles, ⓘ help,
