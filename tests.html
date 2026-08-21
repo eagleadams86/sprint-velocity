@@ -2270,6 +2270,117 @@ t('the halt clears this app’s caches before reloading, and only this app’s',
    whole frame and THROWS, which would take the rest of the suite down with it.
    What is asserted is that the guard exists, that it sits before the code that
    would strip or swallow it, and that it reuses the one write chokepoint. */
+group('Booting with a saved copy — the path nothing else here exercises');
+/* Every other test in this file calls the app's functions AFTER it has booted,
+   with the whole file initialised. That misses the one thing the app does more
+   often than anything else: read your saved data at startup.
+
+   It matters because `let state = load()` sits several hundred lines ABOVE the
+   domain helpers, so anything sanitizeIds() reaches for down there is still in its
+   temporal dead zone. A `piKey()` call added to the plans dedupe threw a
+   ReferenceError on every boot that had a capacity adjustment saved — load()'s own
+   catch turned it into a blank state, the app opened on the welcome card as though
+   the data were gone, and the next save would have written the blank over it. 291
+   green tests said nothing, because by the time they ran piKey was initialised.
+
+   So these boot a REAL iframe with a copy already in localStorage, which is the
+   only way to see it. The developer's own local data is snapshotted and put back
+   afterwards — the suite's read-only promise covers this key too, and unlike the
+   dead sync keys the sync test writes, sv-data is the real thing. */
+function bootWithSavedCopy(saved) {
+  const before = localStorage.getItem('sv-data');
+  localStorage.setItem('sv-data', JSON.stringify(saved));
+  const f = document.createElement('iframe');
+  f.setAttribute('data-sv-tests', '');
+  f.setAttribute('aria-hidden', 'true');
+  f.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;border:0;left:-9999px';
+  return new Promise((resolve) => { f.onload = resolve; f.src = 'index.html'; document.body.appendChild(f); })
+    .then(() => {
+      /* Read before the restore, so a failing assertion can't leave the fixture in
+         place — and the restore runs whether the assertions pass or not. */
+      const got = f.contentWindow.svGet();
+      const snapshot = JSON.parse(JSON.stringify({ teams: got.teams, pis: got.pis,
+        sprints: got.sprints, plans: got.plans, objectives: got.objectives, arts: got.arts }));
+      f.remove();
+      return snapshot;
+    })
+    .finally(() => {
+      if (before === null) localStorage.removeItem('sv-data');
+      else localStorage.setItem('sv-data', before);
+    });
+}
+const savedCopy = (extra) => Object.assign({
+  version: w.__svTestHooks.SCHEMA,
+  teams: [{ id: 't1', name: 'Kestrel' }],
+  arts: [],
+  pis: [{ id: 'p1', name: 'PI 1' }],
+  sprints: [{ id: 's1', teamId: 't1', piId: 'p1', sprintNumber: 1,
+    committed: 30, committedCompleted: 28, totalCompleted: 31, added: 3,
+    removed: 0, carriedIn: 2, carriedOut: 2, addedThenRemoved: 0 }],
+  plans: [], objectives: [],
+  settings: { activeTeamId: 't1', activePiId: 'p1', view: 'sprint' },
+}, extra || {});
+
+t('a saved copy is actually there after a reload', async () => {
+  const got = await bootWithSavedCopy(savedCopy());
+  eq(got.teams.length, 1, 'the app booted onto the welcome card instead of your data');
+  eq(got.sprints.length, 1);
+  eq(got.sprints[0].committed, 30, 'and the figures came back as they were saved');
+});
+t('and so is one holding a capacity adjustment', async () => {
+  /* The exact shape that threw: the plans dedupe is only reached when a plan
+     survives the team and PI checks, so a copy with no adjustments booted fine and
+     hid the fault. */
+  const got = await bootWithSavedCopy(savedCopy({
+    plans: [{ id: 'pl1', teamId: 't1', piId: 'p1', sprintNumber: 2,
+      availability: 60, reason: 'leave' }],
+  }));
+  eq(got.teams.length, 1, 'the whole saved copy was lost, not just the adjustment');
+  eq(got.plans.length, 1);
+  eq(got.plans[0].availability, 60);
+});
+t('and one whose adjustment is on the unassigned track', async () => {
+  const got = await bootWithSavedCopy(savedCopy({
+    sprints: [{ id: 's1', teamId: 't1', piId: null, sprintNumber: 12,
+      committed: 20, committedCompleted: 18, totalCompleted: 20 }],
+    plans: [{ id: 'pl1', teamId: 't1', piId: null, sprintNumber: 13,
+      availability: 60, reason: 'leave' }],
+  }));
+  eq(got.sprints.length, 1);
+  eq(got.plans.length, 1, 'the PI-less adjustment survives a real boot, not just sanitizeIds()');
+  eq(got.plans[0].piId, null);
+});
+t('nothing on the boot path reaches a const declared below it', async () => {
+  /* The rule the fault broke, checked directly rather than only through its
+     symptoms — a future edit to sanitizeIds() has the same trap waiting. Names
+     declared after `let state = load()` are in their temporal dead zone while it
+     runs, so calling one throws and the catch hands back a blank state. */
+  const bootAt = APP_SRC.indexOf('let state = load();');
+  ok(bootAt > -1, 'boot line has moved — recheck this test');
+  const below = APP_SRC.slice(bootAt);
+  const late = new Set();
+  const decl = /^(?:const|let)\s+([A-Za-z_$][\w$]*)\s*=/gm;
+  let m;
+  while ((m = decl.exec(below))) late.add(m[1]);
+  /* sanitizeIds' body, comments stripped so its own prose about piKey doesn't
+     count as a use. */
+  const start = APP_SRC.indexOf('function sanitizeIds(data) {');
+  let depth = 0, i = start, seen = false;
+  while (i < APP_SRC.length) {
+    const ch = APP_SRC[i];
+    if (ch === '{') { depth++; seen = true; }
+    else if (ch === '}') { depth--; if (seen && depth === 0) break; }
+    i++;
+  }
+  const body = APP_SRC.slice(start, i + 1)
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/\/\/[^\n]*/g, ' ')
+    /* String literals too: `kind === 'num'` is not a use of the `num` helper. */
+    .replace(/'[^'\n]*'|"[^"\n]*"/g, ' ');
+  const used = [...late].filter(n => new RegExp('(?<![\\w$.])' + n + '\\b').test(body));
+  eq(used, [], 'sanitizeIds() must not reference these — write the rule out instead');
+});
+
 group('A copy from a newer build');
 
 t('a blank state is stamped with the format this build understands', () => {

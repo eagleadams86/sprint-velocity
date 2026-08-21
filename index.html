@@ -1675,6 +1675,19 @@ function coerceShape(data) {
   return d;
 }
 
+/* ⚠️ THIS RUNS BEFORE THE REST OF THE FILE EXISTS. load() calls it from `let state
+   = load()`, which sits several hundred lines above the domain helpers — so every
+   `const` below that line (piKey, teamById, isIpSlot, todayISO …) is still in its
+   temporal dead zone here, and referring to one throws a ReferenceError that
+   load()'s own catch turns into a blank state over a perfectly good saved copy.
+
+   Only three kinds of name are safe in this function: the constants at the very
+   top of the file (SCHEMA, ID_OK, REASONS, ART_NONE, MAX_SPRINT_NO, BV_MAX, uid),
+   hoisted `function` declarations, and its own locals. When a rule here needs
+   something a helper below already expresses, WRITE IT OUT — `(x || null)` rather
+   than `piKey(x)`. The suite cannot catch this: it calls sanitizeIds() long after
+   boot, when every const is initialised. Only a real boot with data in
+   localStorage does, which is what the "booting with a saved copy" group is for. */
 function sanitizeIds(data) {
   sanitizeIds.dropped = 0;   // reset first: a caller must never read a stale count
   sanitizeIds.droppedPlans = 0;   // capacity adjustments whose team was missing
@@ -1961,10 +1974,15 @@ function sanitizeIds(data) {
       /* One adjustment per slot. Duplicates only arrive from a damaged or
          hand-edited payload — the write path upserts — but left in place the
          second copy is invisible and "Remove adjustment" would appear to fail. */
-      /* Through piKey, so this key names the slot the way planFor() looks it
-         up: `''` and `null` are the same slot, and keeping one of each would put
-         a second, invisible adjustment on it. */
-      const key = p.teamId + ' ' + piKey(p.piId) + ' ' + p.sprintNumber;
+      /* `|| null` names the slot the way planFor()'s piKey() does: '', null and an
+         absent key are one slot, and keeping one of each would put a second,
+         invisible adjustment on it.
+
+         Written out rather than CALLING piKey(), which is the whole point of the
+         warning at the top of this function: piKey is a `const` several hundred
+         lines below `let state = load()`, so at boot it is still in its temporal
+         dead zone and the call throws — taking the entire saved copy with it. */
+      const key = p.teamId + ' ' + (p.piId || null) + ' ' + p.sprintNumber;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
