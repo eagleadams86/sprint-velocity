@@ -21,13 +21,18 @@
      http://localhost (python3 -m http.server 8012); file:// iframes are blocked
      in some browsers. Nothing here writes localStorage or calls save().
 
-     But the iframe boots the real app, which is not nothing: on an origin that
-     has signed in, the sync module would start a live Firestore session inside
-     an invisible frame. Two guards, and both are needed. The iframe carries
-     data-sv-tests, which index.html checks so sync never initialises in the
-     harness. And the gate at the foot of this script refuses to create the
+     But the iframe boots the real app, which is not nothing: it reads and can
+     write this origin's sv-* keys, and on the published site those are somebody's
+     real teams. So the gate at the foot of this script refuses to create the
      iframe at all off localhost — GitHub Pages publishes this file next to the
-     app, so "somewhere else" is a page anyone can open. */
+     app, so "somewhere else" is a page anyone can open.
+
+     The iframe also carries data-sv-tests. That was how index.html's sync module
+     knew to stay off in the harness — without it, an origin that had ever signed
+     in would have started a live Firestore session inside an invisible frame.
+     Sync was removed on 2026-08-20 and nothing reads the attribute now; it is
+     kept because it is the harness's only way to say "this is a test frame", and
+     the next thing that must not run in one will want it. */
   body { background: var(--bg); color: var(--text-primary); margin: 0;
          font: 14px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
   .wrap { max-width: 860px; margin: 0 auto; padding: 28px 20px 60px; }
@@ -53,7 +58,7 @@
   <h1>Sprint Velocity — Pure-Function Tests</h1>
   <p class="sub">Runs against the real <code>index.html</code> in a hidden iframe. Read-only:
     nothing is saved — and it only runs on <code>localhost</code>, where that iframe can't be
-    your signed-in copy of the app.</p>
+    the copy of the app holding your own data.</p>
   <div id="summary">Loading app…</div>
   <table><tbody id="out"></tbody></table>
 </div>
@@ -1881,6 +1886,95 @@ t('the page declares worker-src and registration is guarded three ways', () => {
     'registration must wait for load rather than compete with first paint');
 });
 
+/* ══════════════════════════════════════════════════════════════════════════
+   Sync was removed on 2026-08-20, in the same sweep as Flow Metrics. This app
+   holds figures copied out of a work Jira, and the point of removing it is that
+   the ONLY copy of them is now the one in this browser — so "the code is gone"
+   is not the assertion worth making. The assertion worth making is that the
+   page cannot reach the network AT ALL, stated the way a browser enforces it.
+
+   Written against the source rather than against behaviour on purpose: a
+   sign-in that silently fails to start would pass a behavioural test just as
+   well as a sign-in that isn't there.
+   ══════════════════════════════════════════════════════════════════════════ */
+/* index.html with EVERY comment removed — HTML and JS, block and line — so the
+   checks below read the app's code rather than its prose. Stripped to a FIXED
+   POINT rather than in one pass, because `<!--<!-- x -->` leaves a bare `<!--`
+   behind: a half-stripped source would quietly let a word through and take the
+   tripwire with it. Each pass strictly shortens the string, so it terminates.
+
+   Comments are exempt on purpose: the note where the sync module used to be
+   names Firebase, Firestore and the old hooks, so that somebody grepping this
+   repo for "firebase" lands on the explanation rather than on nothing. A
+   comment cannot open a socket, and the CSP test is what actually guarantees
+   that — these make a paste-back loud. */
+function appCode() {
+  const stripAll = (src, re) => {
+    let prev;
+    do { prev = src; src = src.replace(re, ''); } while (src !== prev);
+    return src;
+  };
+  return stripAll(stripAll(APP_SRC, /<!--[\s\S]*?-->/g), /\/\*[\s\S]*?\*\//g)
+    .replace(/^\s*\/\/.*$/gm, '');
+}
+
+t('the CSP names no external origin at all', () => {
+  const csp = APP_SRC.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/)[1];
+  /* THE test. Not "no Firebase" — no off-origin ANYTHING. A policy that admits
+     one host is a policy that will admit a second, and the whole value of this
+     one is that the list is empty and visibly so. */
+  ok(!/https?:\/\//.test(csp), 'the CSP must name no external origin — not one host, anywhere: ' + csp);
+  ok(/default-src 'none'/.test(csp), "default-src must be 'none', so anything unlisted is refused");
+  ok(/connect-src 'none'/.test(csp),
+    "connect-src must be spelled out as 'none' rather than left to the default — it is the "
+    + 'one directive that would carry work data off the device');
+  ok(/frame-src 'none'/.test(csp), 'nothing may be framed — the sign-in popup is gone');
+});
+
+t('no Firebase, Google or Firestore identifier survives in the app’s code', () => {
+  const code = appCode();
+  const words = [/firebase/i, /firestore/i, /gstatic/i, /googleapis/i, /accounts\.google/i,
+                 /gsi\/client/i, /signInWith/i, /apiKey/i, /GOOGLE_CLIENT_ID/,
+                 /onSnapshot/, /setDoc/];
+  const leaks = words.filter(re => re.test(code)).map(String);
+  eq(leaks.join(', '), '', 'these sync identifiers are still in the app’s code');
+  ok(!/<script[^>]*type=["']module["']/.test(code),
+    'no module script — the sync module was the only one, and dynamic import() came with it');
+  ok(!/\bimport\s*\(/.test(code), 'nothing may be imported at runtime');
+});
+
+t('the sign-in button and the cloud hooks are gone', () => {
+  /* A leftover window.cloudPush would be a silent no-op; a leftover button
+     would not. */
+  const code = appCode();
+  ok(!/id="syncBtn"/.test(code), 'there must be no sign-in button in the markup');
+  ok(!/cloudPush|cloudFlush|svSignedIn|svAdopt|svCounts/.test(code),
+    'and no cloud hooks left behind for a caller to find');
+  ok(!/syncChoiceDialog/.test(code),
+    'the which-copy-do-you-want dialog went with it');
+});
+
+t('booting the app deletes the keys sync left behind', () => {
+  /* Deleted, not merely unread. sv-sync-uid is a Google account id — the only
+     personally identifying thing this app ever wrote down — and keeping it
+     after removing the feature that needed it would be keeping an identifier
+     for no reason. */
+  localStorage.setItem('sv-sync-uid', 'left-over-account-id');
+  localStorage.setItem('sv-updated', '1755000000000');
+  const f = document.createElement('iframe');
+  f.setAttribute('data-sv-tests', '');
+  f.setAttribute('aria-hidden', 'true');
+  f.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;border:0;left:-9999px';
+  return new Promise((resolve) => { f.onload = resolve; f.src = 'index.html'; document.body.appendChild(f); })
+    .then(() => {
+      eq(localStorage.getItem('sv-sync-uid'), null,
+        'the Google account id sync left in localStorage must be cleared at boot');
+      eq(localStorage.getItem('sv-updated'), null, 'and the timestamp key nothing reads any more');
+      ok(!!f.contentWindow.svGet, 'while the app itself boots perfectly normally');
+      f.remove();
+    });
+});
+
 t('the halt clears this app’s caches before reloading, and only this app’s', () => {
   /* A plain reload can be answered by the worker out of the same stale cache
      that caused the halt, so the Reload button takes the worker out first. */
@@ -1916,14 +2010,14 @@ t('the halt fires above the current version and not at or below it', () => {
   ok(halts(S + 1), 'must halt on data from a newer build');
 });
 
-t('the halt refuses to write and takes the sync module down with it', () => {
+t('the halt refuses to write, and stops the worker registering too', () => {
   /* It reuses viewOnly rather than inventing a second flag, so the promise is
      only as good as that flag still being the write chokepoint. */
   ok(/viewOnly = true;\n  window\.svViewOnly = true;/.test(APP_SRC),
     'haltForNewerData must set viewOnly and its window mirror, the existing no-write guards');
   ok(/if \(viewOnly\) return;/.test(APP_SRC), 'save\(\) must still be a no-op under viewOnly');
-  ok(/!window\.svViewOnly && !inTestHarness/.test(APP_SRC),
-    'the sync module must still refuse to start under svViewOnly');
+  ok(/if \(window\.svViewOnly\) return;/.test(APP_SRC),
+    'and the service-worker block must still refuse to register under it');
 });
 
 t('load() checks before the try whose catch would hand back a blank state', () => {
@@ -1941,22 +2035,12 @@ t('load() checks before the try whose catch would hand back a blank state', () =
   ok(coerceAt > -1 && guardAt < coerceAt, 'the guard must run before coerceShape/sanitizeIds');
 });
 
-t('svAdopt stores the newer copy verbatim, then halts instead of adopting', () => {
-  /* Not exercised live: the real svAdopt writes this browser's sv-data and the
-     halt throws with its card over the frame. Pinned as source instead — the
-     guard, the verbatim store, then the halt, all before sanitizeIds. */
-  const at = APP_SRC.indexOf('window.svAdopt =');
-  ok(at > -1, 'svAdopt has moved — recheck this test');
-  const body = APP_SRC.slice(at, APP_SRC.indexOf('window.svCounts'));
-  const guard = body.search(/\(\(incoming && incoming\.version\) \|\| 1\) > SCHEMA/);
-  const store = body.indexOf('JSON.stringify(incoming)');
-  const halt = body.indexOf('haltForNewerData(incoming.version)');
-  const coerce = body.indexOf('sanitizeIds(coerceShape(incoming))');
-  ok(guard > -1, 'svAdopt must refuse a version newer than this build');
-  ok(store > guard && halt > store,
-    'the newer copy must be stored VERBATIM before the halt — sanitizing would lose its fields');
-  ok(coerce > -1 && halt < coerce, 'the halt must fire before sanitizeIds ever sees it');
-});
+/* svAdopt() had a test of its own here: it stored a newer copy VERBATIM before
+   halting, because a document arriving from another device really was the newest
+   copy in existence and belonged in localStorage for the fresh build to read. It
+   went with sync on 2026-08-20, along with the only reason for that behaviour.
+   Two doors are left for a copy from a newer build — boot's load(), and Restore
+   from a file — and both are pinned above and below. */
 
 t('the Restore path refuses a backup from a newer build, without halting', () => {
   /* The handler is FileReader UI all the way down, so pin the source. Nothing

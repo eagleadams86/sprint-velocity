@@ -65,16 +65,13 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   block at equal specificity and would repaint all themes. (Note: in the pack's theme.css
   the `:root` palette is Midnight, not Light.)
 - **Everything in the header row is written into the markup at its final size** — the theme
-  options, the sync button's signed-out label, and `hidden` on the team picker. The header
-  paints well before the script at the foot of the page runs, so anything filled in by JS
-  grows on screen: empty selects went 40px → 120px, and the sync button appeared only once
-  the Firebase SDK had come over the network, which re-wrapped the row onto a second line
-  and shoved the whole page down 42px. Starting hidden costs nothing; growing does. If you
-  add header chrome, give it its final width in the HTML.
-- The sync button is therefore **visible by default and hidden on failure**, not the other
-  way round. The shared-view path hides it from the classic script (which runs during
-  parse) rather than leaving it to the deferred module, so a visitor never sees a sign-in
-  button blink in and out.
+  options and `hidden` on the team picker. The header paints well before the script at the
+  foot of the page runs, so anything filled in by JS grows on screen: empty selects went
+  40px → 120px. The worst case was the sign-in button, which appeared only once the Firebase
+  SDK had come over the network and re-wrapped the row onto a second line, shoving the whole
+  page down 42px; that button went with sync on 2026-08-20, and the rule it taught stays.
+  Starting hidden costs nothing; growing does. If you add header chrome, give it its final
+  width in the HTML.
 - `chart.min.js` is a **vendored third-party build — do not hand-edit.**
 - **`metrics()` and `rag()` in `index.html` are the only places the numbers are
   calculated.** Every tile, table and chart reads from them. Thresholds change in one spot.
@@ -114,8 +111,9 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   not a clause, and re-measure against ~210px.
 - **The three working dialogs — sprint form, Teams & PIs, Adjust Capacity — are all 1100px**,
   Money Map's Preferences width. Back up, Delete and the help sheet stay narrow: they are a few
-  lines each, and Money Map keeps its short ones narrow for the same reason. Share and the sync
-  chooser are still on the 880px base — widen them only if asked.
+  lines each, and Money Map keeps its short ones narrow for the same reason. Share is still
+  on the 880px base — widen it only if asked. (The sync chooser shared that base until sync
+  was removed.)
 - **A `.grid-fields` control is capped at 260px, and that cap is what makes a wide dialog
   survivable.** `auto-fit` hands a short row all the width there is: at 1100px the three
   Commitment fields took 336px each for a two-digit number, and the lone reason picker in
@@ -166,7 +164,8 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   `keepKnown` kind: `'tribool'` keeps a value only when `typeof v === 'boolean'`, where
   `'bool'` would coerce a `null` into `false` and silently record a missed goal. The form
   writes it in `buildSprintRecord()` **after** the object literal, so "not recorded" is the
-  key's ABSENCE — never `null`, never `undefined` (the one value Firestore refuses outright).
+  key's ABSENCE — never `null`, never `undefined` (which `JSON.stringify` drops silently, so
+  the key would read as "never set" rather than announcing itself).
   Same shape as `capacityScale`, which deletes rather than storing its no-op. `confirmOverwrite`
   compares it separately, because `OVERWRITE_FIELDS` goes through `num()` and would read both
   `false` and absent as 0.
@@ -374,10 +373,11 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
 - **An orphaned objective is `pruned`, not `dropped`, and the distinction is the toast.** An
   orphaned sprint moves a rolling average with nothing on screen behind it, which is what
   `orphanNote()` exists to announce; business value is only ever read for a team and PI both
-  on the page, so an orphan changes no figure and is inert bytes riding along in the cloud
+  on the page, so an orphan changes no figure and is inert bytes riding along in the saved
   copy. Plumbing gets a silent boot `save()`, not a sentence.
-- **`adoptState()` stamps `version: SCHEMA`, and that is load-bearing.** All three paths that
-  replace `state` from outside (boot's `load()`, Restore, `svAdopt()`) go through it, and
+- **`adoptState()` stamps `version: SCHEMA`, and that is load-bearing.** Both paths that
+  replace `state` from outside (boot's `load()` and Restore) go through it — there was a
+  third, `svAdopt()`, until sync was removed — and
   each has already refused anything stamped newer. Letting the incoming `version` win instead
   means a browser that upgrades, opens a copy saved by the old build and saves it back writes
   the OLD number over data now holding new fields — and the next older build to read it sails
@@ -693,7 +693,7 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   (so they come and go as you switch teams), and with no teams at all the whole row goes
   rather than leaving a lone Sprint tab over the welcome card. If the stored view's tab has
   just been hidden it falls back to `sprint`, corrected **in memory** — a render must never
-  `save()`, which would push to the cloud. **A shared view keeps its own rule for All
+  `save()`, which would write over the stored copy. **A shared view keeps its own rule for All
   teams** (`shareMeta.allTeams`, which the sender opts into and which already requires two
   teams): that check moved out of `openSharedView()` into `renderTabs()`, so don't
   reinstate it there.
@@ -751,17 +751,17 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   of the service worker.** The allowlists above DELETE any key they don't know, which is
   exactly right for a hostile payload and exactly wrong for a copy written by a NEWER
   build: an older tab would strip the fields it has never heard of, render what's left,
-  and push the stripped copy back to Firestore on the next edit — another device's work
-  gone silently. So `version` (`SCHEMA`, currently **4** — `objectives` took it off 1, `goalMet` to 3,
-  optional `piId` to 4) rides into localStorage, the cloud
-  document and every backup file, and four boundaries compare it:
-  - `load()` and `svAdopt()` call **`haltForNewerData()`** — a full-screen card, no
-    render, and a `throw` that aborts the rest of the script block so nothing can save
-    over the newer copy. It reuses `viewOnly` (and `window.svViewOnly`) rather than
-    inventing a second flag, so `save()` is already a no-op and the sync module already
-    refuses to start. `svAdopt()` writes the newer document to localStorage **verbatim**
-    before halting — that copy is the newest one there is, and the fresh build will read
-    it on the next load.
+  and SAVE the stripped copy on the next edit — the missing fields gone silently. So
+  `version` (`SCHEMA`, currently **4** — `objectives` took it off 1, `goalMet` to 3,
+  optional `piId` to 4) rides into localStorage and every backup file, and these boundaries
+  compare it:
+  - `load()` calls **`haltForNewerData()`** — a full-screen card, no render, and a `throw`
+    that aborts the rest of the script block so nothing can save over the newer copy. It
+    reuses `viewOnly` (and `window.svViewOnly`) rather than inventing a second flag, so
+    `save()` is already a no-op and the service-worker block registers nothing. (`svAdopt()`
+    was the second caller and wrote the newer document to localStorage **verbatim** before
+    halting, because a copy arriving from another device really was the newest there was;
+    both went with sync on 2026-08-20.)
   - `load()`'s check is deliberately OUTSIDE the `try` whose `catch` returns
     `blankState()`: that catch is right for corrupt JSON and catastrophic here, because a
     blank state the app then saves overwrites the good copy with nothing.
@@ -773,8 +773,8 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
     than sending the reader off to chase a fresh link.
   **The `piId`-optional bump is the sharpest case this repo has had**: a SCHEMA-3 build
   reading a copy that holds unassigned sprints runs the old orphan filter, `piIds.has(null)`
-  is false, and it DELETES every one of them — then pushes the deletion to Firestore. A whole
-  pre-PI history gone from opening one stale cached tab. That is exactly what
+  is false, and it DELETES every one of them — then saves that. A whole pre-PI history gone
+  from opening one stale cached tab. That is exactly what
   `haltForNewerData()` is for, and without the bump it never fires.
   **Bump `SCHEMA` in the same commit that adds or repurposes a saved field, widen the
   allowlists in that same commit, and check `adoptState()` still stamps the new number** — a bump without the allowlist change protects a field
@@ -782,24 +782,20 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   All four boundaries are pinned in tests.html.
 - **`sanitizeIds()` must never invent a key, and `cleanKey()` is why.** `x.id = clean(x.id)`
   on an **absent** key looks harmless and isn't: `clean()` returns what it was given, and
-  the assignment creates the key holding `undefined`. `JSON.stringify` drops that, so
-  localStorage and every export look perfect — but `setDoc()` walks the *live* object and
-  Firestore rejects the whole document over one `undefined`, with `invalid-argument`. That
-  is what shipping `settings.artFilter` did on 2026-08-12: every browser holding a copy
-  saved before ARTs existed stopped syncing until something happened to set the field, and
-  the local copy gave no sign of it. Add an optional field and it goes through `cleanKey()`
-  too. Pinned in tests.html by *key*, not by value — `x === undefined` passes either way.
-- **`pushNow()` sends the state through JSON, exactly as `save()` writes it locally**
-  (`forCloud()`), so the two copies are the same bytes by construction rather than nearly
-  so. Don't "simplify" it back to passing `state` straight to `setDoc()`: that asymmetry —
-  localStorage silently dropping what Firestore refuses outright — is the whole mechanism
-  of the bug above.
-- **`invalid-argument` does not mean "too big".** Firestore reports both an oversized
-  document and an unstorable value under that one code, and `describeSyncError()` used to
-  assume the first, so an app bug told the user to export a backup and **delete a PI**.
-  The size wording now appears only when Firestore's own message mentions size; anything
-  else says the fault is in the app and asks for nothing to be deleted. A remedy that
-  destroys data must never be the guess.
+  the assignment creates the key holding `undefined`. `JSON.stringify` drops that silently,
+  so the key reads as "never set" on the next load rather than announcing itself.
+  **This was far worse when the app synced**, and the history is worth keeping: `setDoc()`
+  walked the *live* object and Firestore rejected the whole document over one `undefined`
+  with `invalid-argument`, which is what shipping `settings.artFilter` did on 2026-08-12 —
+  every browser holding a copy saved before ARTs existed stopped syncing until something
+  happened to set the field, and the local copy gave no sign of it. Sync is gone; the rule
+  is not. Add an optional field and it goes through `cleanKey()` too. Pinned in tests.html
+  by *key*, not by value — `x === undefined` passes either way.
+- **Retired with sync, but the lesson generalises.** `describeSyncError()` learned that
+  `invalid-argument` did not mean "too big" — Firestore reported both an oversized document
+  and an unstorable value under that one code, and assuming the first meant an app bug told
+  the user to export a backup and **delete a PI**. Whenever error copy here suggests a
+  remedy: a remedy that destroys data must never be the guess.
 - **The same boundary drops orphans.** After the remapping (never before it — a remapped
   sprint isn't an orphan), a sprint whose `teamId` or `piId` names nothing in the same
   payload is removed, and the count left on `sanitizeIds.dropped`. Nothing threw without
@@ -809,50 +805,53 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   correctly, so this only arrives from a hand-edited or damaged payload. **Only the TEAM half
   still drops** — the PI half un-groups instead, see the PI-optional rule above. All four
   callers **say so** (`orphanNote()` / `unassignedNote()`), per the never-silent-exclusion rule: the import names it in
-  its confirm, before the user commits; the share view and `svAdopt()` toast after
-  `render()`; `load()` hands the count to `bootOrphans` because a toast raised during parse
-  is gone before there's anything to look at.
+  its confirm, before the user commits; the share view toasts after `render()`; `load()`
+  hands the count to `bootOrphans` because a toast raised during parse is gone before
+  there's anything to look at.
 - Charts resolve their colours from CSS custom properties at construction time, so a theme
   switch has to rebuild them (`render()` does this). Chart animation is deliberately off.
-- Optional cross-device sync is ported from PAPTrack: Google sign-in + one Firestore doc
-  per user at `sprintvelocity/{uid}`, backed by the `sprintvelocity-141b7` Firebase project.
-  `FIREBASE_CONFIG` controls it; set it to `null` to force fully-local mode. The config is
-  a public client config, not a secret — access is enforced by the Firestore rules. The
-  first-sign-in "which copy do you want to keep?" dialog is load-bearing; don't replace it
-  with timestamp guessing. Underneath it, **an empty copy never beats a copy with data in
-  it**, whichever is newer — the dialog only fires when both sides hold data, so without
-  that rule a fresh browser's empty push (stamped `now`) silently emptied the device that
-  had the sprints. Keep both halves; the guard is what makes the dialog's narrow trigger
-  safe.
-- **Sync failures are surfaced, not logged.** `syncError` + `setSyncError()`/`clearSyncError()`
-  drive `updateUI()`, so the button reads "⚠️ Not syncing" and the privacy note carries the
-  cause and the remedy; `describeSyncError()` maps Firestore codes to plain English. Every
-  catch site feeds it — the debounced push, `startSync()`, and the `onSnapshot` **error
-  callback** (a listener that errors is dropped by Firestore and never fires again, so
-  without that second argument another device's updates just stop arriving). A successful
-  `pushNow()` is the only thing that clears it, which is why there's deliberately no retry
-  button: transient causes are retried by the SDK, permanent ones (oversized doc, rules)
-  aren't fixed by pressing anything, and the next save recovers the state on its own. The
-  toast fires on the *transition* only, never per retry. Sizing context: 6 teams × 1 year
-  of numbers-and-dates sprints is well under 100 KB against Firestore's 1 MiB, so the cap
-  is decades away — the visibility is the point, not a size guard.
-- Firebase authorized domain is `eagleadams86.github.io`, so sync works at this
-  `/sprint-velocity/` path unchanged.
-- **Sign-in goes through Google Identity Services, not Firebase's popup** — the flow proven
-  in Team Dashboard, because corporate filters block individual `firebaseapp.com` hostnames
-  unpredictably (per hostname, not the domain — a sibling working proves nothing). A popup
-  straight to accounts.google.com returns an OAuth token, exchanged for the same Firebase
-  session via `signInWithCredential`. `GOOGLE_CLIENT_ID` (top of the sync module) is this
-  project's OAuth web client — it is NOT part of `FIREBASE_CONFIG`, and the client's
-  Authorized JavaScript origins must list the serving origin (port included) or Google
-  refuses with origin_mismatch. The CSP carries accounts.google.com in
-  script-src/connect-src/frame-src; the old popup fallback and its firebaseapp.com
-  frame-src / apis.google.com entries were retired 2026-08-07 once the client ID landed.
-  Auth is built with `initializeAuth`, **not `getAuth`** — `getAuth()` always wires in
-  `browserPopupRedirectResolver`, which Safari/iOS/mobile initialise at startup, pulling in
-  apis.google.com/js/api.js for the popup-redirect gapi iframe nothing here reads (it showed
-  up only as a CSP console error). Don't go back to `getAuth()` to "fix" a popup/redirect
-  call — pass the resolver to that call instead. Same change in Team Dashboard.
+- **Cross-device sync was REMOVED on 2026-08-20 — don't put it back without asking.**
+  Google sign-in + one Firestore doc per user at `sprintvelocity/{uid}`, project
+  `sprintvelocity-141b7`, went at Charles's request, in the same sweep as the identical
+  module in Flow Metrics. This app holds figures copied out of a work Jira, and the answer
+  to "where does that live" is now "one browser, and nowhere else".
+  - **It was removed, not disabled.** The module, `#syncBtn`, the which-copy dialog,
+    `firestore.rules`, `svAdopt()`, `svCounts()`, `cloudPush`/`cloudFlush`/`svSignedIn` and
+    every Google address in the CSP went together. Setting `FIREBASE_CONFIG = null` would
+    have left the code, the origins and the CSP in place — which is not the same claim.
+  - **The pins are in `tests.html`.** A CSP naming no host at all and `connect-src 'none'`
+    spelled out; no module script; no `import(`; a word-list tripwire over `appCode()` —
+    the app source with every comment stripped **to a fixed point**, because a one-pass
+    strip leaves `<!--` behind and a half-stripped source would let a word through. Comments
+    are exempt deliberately: the note where the module used to be names Firebase so a grep
+    lands somewhere useful. Plus a live boot proving the leftover keys are deleted. If you
+    are reinstating sync, those tests are the specification of what you are undoing.
+  - **`clearSyncLeftovers()` deletes `sv-sync-uid` and `sv-updated` on every load.**
+    `sv-sync-uid` is a Google account id, the only personally identifying thing this app
+    ever wrote down; leaving it after removing the feature would be keeping an identifier
+    for nothing.
+  - **`svGet` survives; `svAdopt` and `svCounts` did not.** tests.html reads the live state
+    through `svGet`, which is worth keeping — a suite that asks the app what it holds beats
+    one reaching into a closure. `svAdopt` had no caller but sync (Restore builds its own
+    state), so it went, and with it the "store a newer copy verbatim before halting"
+    behaviour: that made sense only when the incoming copy was genuinely the newest in
+    existence. Boot's `load()` is now the only caller of `haltForNewerData()`.
+  - **The `undefined` rule STAYS even though its original reason went.** `cleanKey` never
+    creates a key holding `undefined` because Firestore refused the whole document over one
+    — that is how `settings.artFilter` stopped sync for every browser with a pre-ARTs copy.
+    Firestore is gone; the rule is not, because `JSON.stringify` drops an undefined
+    silently, so such a field reads as "never set" on the next load instead of announcing
+    itself. Same for `goalMet` and `capacityScale` deleting rather than storing a no-op.
+  - **What was lost with it, and would have to be rebuilt**: the Google Identity Services
+    workaround for corporate filters that block `firebaseapp.com` **per hostname** (proven
+    in Team Dashboard first, measured, and not something a fresh implementation would think
+    of), the never-guess-by-timestamp reconciliation, the empty-copy-never-wins rule, the
+    `serverAt` ordering and the surfaced-not-logged failure reporting. All in one commit in
+    `git log`.
+  - **Data written before the removal still sits in Firestore.** Removing the client does
+    not delete it. `DATA_DELETION.md` is still the live runbook and says so; retiring it
+    means deleting the collection or the project, and dropping the promise in
+    `privacy.html` in the same commit.
 - **The Rolling 5 velocity chart carries a dashed `linearTrend()` line** (ordinary least
   squares, ported from Team Dashboard; nulls skipped). It's drawn muted — a reading of the
   bars, not a new series — and `linearTrend()` is a pure function pinned by tests.html.
@@ -888,7 +887,8 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   so the subtitle wraps inside a narrow one beside the title instead of running on below it.
 - **Only numbers and dates are ever saved — there is deliberately NO free-text field in the
   data (2026-08-12).** The figures come out of Charles's work Jira, and the copy in GitHub-
-  hosted localStorage and Google's Firestore has to stay clean of anything sensitive, so the
+  hosted localStorage — one browser origin shared with every other app on the account — has
+  to stay clean of anything sensitive, so the
   old per-sprint `notes` object (four "Why?" textareas) was **removed on purpose — don't add
   a comment/notes field back**. `sanitizeIds()` enforces this as a **whitelist, not a
   blocklist** (added 2026-08-13): `keepKnown()` rebuilds every team/ART/PI/sprint/settings
@@ -899,16 +899,16 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   which never persist because `save()` is a no-op there. `notes` is still counted separately
   in `sanitizeIds.strippedNotes` (it gets the boot toast — a person's own writing went
   away); everything else lands in `sanitizeIds.pruned` (a silent boot `save()`, so the scrub
-  reaches localStorage immediately and the cloud on the next sync). Rebuilt objects only
-  ever gain keys that are present and valid, so the boundary can never create a key holding
-  `undefined` — the Firestore rule below. **A new stored field must be added to the
+  reaches localStorage immediately). Rebuilt objects only ever gain keys that are present
+  and valid, so the boundary can never create a key holding `undefined` — the `cleanKey`
+  rule above. **A new stored field must be added to the
   `keepKnown` spec or it will be silently stripped** — that's the point, and the same-named
   test in tests.html pins it. The only free-text left is the short team/ART/PI names. The
   sprint form's one disclosure is `#jiraBlock`, closed on every `openSprint()`.
   **The capacity levers' reason codes are a fixed enum (`REASONS`) and must never become a
   text box.** "Why did we drop that sprint?" is the obvious place for someone to reach for
   free text later, and it is exactly where a ticket key or a colleague's name would ride into
-  the cloud. The `'reason'` kind in `keepKnown()` pins the value to the list and an unknown
+  a saved copy, a backup or a share link. The `'reason'` kind in `keepKnown()` pins the value to the list and an unknown
   code becomes `'other'`; labels render from the map, never from the stored value. The
   `'pct'` kind clamps 0–200 rather than merely checking finiteness, because the figure
   MULTIPLIES the recommendation and an unbounded one would put nonsense on the planning card. Sibling
@@ -1000,8 +1000,8 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   boxes without saving — the pre-auto-save behaviour, and the toast says so.
 - **Read-only share links** put the data in the URL fragment (`#share=<marker>.<base64url>`,
   marker 1 = `deflate-raw`, 0 = plain JSON for browsers without `CompressionStream`). Nothing
-  after `#` is sent to a server, which is the whole reason this needs no Firestore rules, no
-  account and no network. `buildSharePayload()` emits a **trimmed copy** — chosen teams only,
+  after `#` is sent to a server, which is the whole reason this needs no account and no
+  network. `buildSharePayload()` emits a **trimmed copy** — chosen teams only,
   only the PIs their sprints reference, and never anything
   identifying. Don't shortcut it to serialising `state`. It carries **only the ARTs the
   included teams are on** (the same rule as `usedPis`) and deliberately **not** the sender's
@@ -1031,11 +1031,13 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   thousands of characters. With several encodes in flight, checking the sequence only at the
   end would let a stale search finish over a fresh one.
 - **`save()` is the view-mode chokepoint.** `viewOnly` makes it a no-op, and because it's the
-  one place that writes localStorage *and* calls `cloudPush()`, that single guard is what
-  guarantees a shared link can't overwrite the viewer's own data — often another SM in the same
-  browser. The sync module is gated separately via `window.svViewOnly`: if it initialised,
-  `onAuthStateChanged` → `startSync()` → `svAdopt()` would replace the shared payload with the
-  viewer's cloud copy and push it straight back. Keep both guards.
+  one place that writes localStorage, that single guard is what guarantees a shared link
+  can't overwrite the viewer's own data — often another SM in the same browser.
+  `window.svViewOnly` mirrors the flag for the service-worker block, which is a script of
+  its own; keep both. (It was load-bearing for a third reason until 2026-08-20: without it
+  the sync module would initialise in a shared view and `onAuthStateChanged` →
+  `startSync()` → `svAdopt()` would replace the shared payload with the viewer's cloud copy
+  and push it straight back.)
 - UI state still moves in memory in view mode (tabs, team picker, toggles) — it just isn't
   persisted. Rows that open the sprint editor lose both handler and `.clickable` class via
   `wireEditRows()`; All-teams rows stay live because switching team is navigation, not editing.
@@ -1048,10 +1050,11 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
   A failed decode shows an error card and **never** falls through to their own data.
 - **`privacy.html` is the privacy policy** (static page, midnight theme, linked from the app
   footer via `.privacy-links` — deliberately a separate element from `#privacyNote`, whose
-  textContent the sync code rewrites). Other SMs sign in with their own Google accounts, so
-  it exists for them: what Firestore holds, that rules confine each account to its own data,
-  that share links upload nothing, and the deletion contact. If sync, share links, or what
-  the app stores ever changes, update it and its effective date in the same commit.
+  textContent the shared-view path rewrites). Other SMs use this app with their own data, so
+  it exists for them: what is stored, that it stays in their browser, that share links
+  upload nothing, and — for anyone who used sync before 2026-08-20 — the deletion contact.
+  Effective date is **2026-08-20**, moved when sync was removed. If share links or what the
+  app stores ever change, update it and its date in the same commit.
 - **README.md is the index** — keep it current whenever the app meaningfully changes.
 - After changes: **browser-test locally first** (`python3 -m http.server 8012`, or the
   desktop app's preview pane via `.claude/launch.json`), then commit, push, verify the

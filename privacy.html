@@ -40,7 +40,7 @@
 <div class="wrap">
   <a class="back" href="index.html">← Back to Sprint Velocity</a>
   <h1>Sprint Velocity — Privacy Policy</h1>
-  <p class="meta">Effective August 18, 2026</p>
+  <p class="meta">Effective August 20, 2026</p>
 
   <p>Sprint Velocity is built to work entirely in your browser. This page explains exactly
   what data exists, where it goes, and who can see it.</p>
@@ -60,22 +60,14 @@
 
   <h2>Where That Data Lives</h2>
   <div class="card">
-    <p><strong>In your browser (always).</strong> Everything is stored in your browser's
-    local storage on your own device. This is the only copy that exists if you never use the
-    two optional features below. Clearing the site's browser data deletes it.</p>
+    <p><strong>In your browser. That is the only place.</strong> Everything is stored in
+    your browser's local storage on your own device. There is no server, no database and no
+    account — the app has nowhere to send your data even if it wanted to. Clearing the
+    site's browser data deletes it.</p>
     <p><strong>A copy of the app itself, so it opens offline.</strong> The page, its
     stylesheet, its chart library and its icon are kept on your device — the same public
     files anyone can read on GitHub, and nothing else. Your sprint figures are never put
-    there, nor is anything that arrives from sync. Clearing the site's browser data
-    removes it along with everything else.</p>
-  </div>
-  <div class="card">
-    <p><strong>Google sign-in / Firestore (optional, off until you choose it).</strong>
-    If you tap "Sign in to sync", your sprint data is stored in a Firebase/Firestore
-    database operated by the developer so the same data can appear on your other devices,
-    and Firebase Authentication records your Google account's email address and display
-    name. Access rules restrict every account to its own data — other signed-in users
-    cannot read yours. This only happens if you sign in; the app never does it on its own.</p>
+    there. Clearing the site's browser data removes it along with everything else.</p>
   </div>
   <div class="card">
     <p><strong>Share links (nothing is uploaded).</strong> A read-only share link carries
@@ -86,19 +78,38 @@
     how much history goes with them, and a link only ever carries names, numbers, dates and the fixed reason codes.</p>
   </div>
 
+  <h2>Google Sign-In and Sync Were Removed on August 20, 2026</h2>
+  <p>Until that date the app offered an optional "Sign in to sync", which stored your sprint
+  data in a Firebase/Firestore database operated by the developer and recorded your Google
+  account's email address in Firebase Authentication. <strong>That feature is gone.</strong>
+  The code, the sign-in button and every Google address were removed together, and the
+  page's Content-Security-Policy now names no external origin at all — which is what makes
+  this page's claims checkable rather than a promise. Any account id the old feature left in
+  your browser is deleted the next time you open the app.</p>
+  <p>If you used sync before that date, a copy of your data may still exist in that
+  database. Email <a href="mailto:eagleadams86@gmail.com">eagleadams86@gmail.com</a> and it,
+  along with the account record holding your email address, will be deleted.</p>
+  <p>To use the app on more than one device now, use <strong>Back up</strong> to download a
+  file and restore it on the other device.</p>
+
   <h2>What Sprint Velocity Does Not Do</h2>
   <ul>
     <li>No analytics or usage-tracking scripts</li>
     <li>No advertising or ad networks</li>
     <li>No selling or sharing data with third parties</li>
+    <li>No third-party code of any kind — the chart library is a copy kept in the
+      repository and served from the same address as the page itself</li>
+    <li>No network connections at all: the page's Content-Security-Policy sets
+      <code>connect-src 'none'</code>, so the browser itself refuses to let this page open
+      one — not to Google, not to the developer, not anywhere</li>
   </ul>
 
   <h2>Your Choices</h2>
-  <p>You can edit or delete anything in the app at any time. Signing out stops all syncing
-  and leaves the local copy in charge. To have your synced copy deleted from the
-  developer's Firestore database, email
-  <a href="mailto:eagleadams86@gmail.com">eagleadams86@gmail.com</a> and it will be
-  removed.</p>
+  <p>You can edit or delete anything in the app at any time — <strong>Back up → Start
+  again</strong> removes everything, and clearing the site's browser data does the same.
+  That is the whole of it: there is no other copy to chase. If you used sync before
+  August 20, 2026, email <a href="mailto:eagleadams86@gmail.com">eagleadams86@gmail.com</a>
+  and the copy left over from then will be deleted.</p>
 
   <h2>Changes to This Policy</h2>
   <p>If this policy changes, the updated version will be posted here with a new effective

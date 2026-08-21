@@ -48,8 +48,7 @@ That's why PI objectives are three numbers and not a list of titled objectives, 
 sprint goal is a yes/no rather than the goal itself: a title or a goal statement is exactly
 the sort of text this rule exists to keep out.
 (Earlier versions had optional per-sprint "Why?" notes; the feature was removed, and any
-notes in a previously saved copy are scrubbed the next time the app opens, locally and from
-the synced copy.)
+notes in a previously saved copy are scrubbed the next time the app opens.)
 
 This is why the two capacity levers below — [adjusting for a sprint that isn't
 normal](#adjusting-for-a-sprint-that-isnt-normal) and [leaving a sprint out of the
@@ -1060,7 +1059,7 @@ Four, shared with every other app in this family and listed alphabetically in th
 dropdown: Dark, Light, **Midnight** (deep indigo/navy — the default) and Sepia. (Forest,
 Solarized and Synthwave were retired in August 2026; if you had one selected you'll now
 see Midnight.) Your choice is remembered
-in this browser and isn't part of your data, so it doesn't sync between devices and a
+in this browser and isn't part of your data, so it never goes into a backup file and a
 shared link never carries the sender's theme.
 
 Every one of them meets WCAG AA contrast on every piece of text — the figures, the RAG
@@ -1149,8 +1148,10 @@ that's the one to keep, and the only one that can be restored.
 
 ## Your Data
 
-`localStorage` in your own browser is the source of truth. **No account is needed and no
-data leaves your machine** unless you choose to sign in.
+`localStorage` in your own browser is the source of truth, and since
+[sync was removed](#cross-device-sync-was-removed-2026-08-20) it is the **only** copy.
+**No account is needed and no data leaves your machine** — the page's CSP names no external
+origin at all, so the browser itself refuses to let it try.
 
 What's saved per sprint is the seven figures, its dates, its status, and — if you've set
 one — whether it's left out of the rolling average and which of the fixed reasons applies.
@@ -1159,8 +1160,8 @@ slot. Nothing else.
 
 The names you type — teams, ARTs and PIs — are **capped at 120 characters as they're
 written**, not only on the way back in: the object you name is the one that reaches
-`localStorage` and the cloud, so the cap is applied as you type as well as at the boundary
-that reads a saved, imported or synced copy. Percentages and reason codes
+`localStorage`, so the cap is applied as you type as well as at the boundary that reads a
+saved, imported or shared copy. Percentages and reason codes
 pass that same boundary, so a hand-edited file can't widen either.
 
 **Back up & restore** — the *Back up* button exports everything as a JSON file
@@ -1170,10 +1171,10 @@ backup, for moving between browsers, or for handing a colleague a starting point
 **Starting again** — folded away at the foot of the same dialog, under *Start again*, is
 **Delete all data**. It's behind a fold on purpose: the one irreversible action in the app
 shouldn't sit a mis-click away from Export. Pressing it opens a confirmation of its own that
-says exactly how much is going ("This deletes 2 teams, 1 PI and 3 recorded sprints"), warns
-you when you're signed in that the copy in your Google account goes too — your other devices
-ask before clearing themselves — and offers the same JSON export as a last chance to keep any
-of it. Your theme survives; it lives under its own key rather than with the data.
+says exactly how much is going ("This deletes 2 teams, 1 PI and 3 recorded sprints") and
+offers the same JSON export as a last chance to keep any of it. There is no "…and every
+device you own" line any more: since sync was removed there is exactly one copy, and it is
+the one in this browser. Your theme survives; it lives under its own key rather than with the data.
 
 **If one device is behind** — every saved copy carries the data format the app that wrote
 it understood. A copy written by a *newer* version than the one you're running won't be
@@ -1183,19 +1184,21 @@ browser can still be running an older cached copy of the app while another devic
 on. A backup file from a newer version is refused the same way, and a share link from one
 tells the reader the link is fine and their copy of the app is behind.
 
-**Deletion requests** — [privacy.html](privacy.html) promises that emailing the address
-there gets a user's synced copy deleted. [`DATA_DELETION.md`](DATA_DELETION.md) is the
-runbook for doing it: how to map an email address to the right Firestore document (the
-document ID is the Firebase Auth UID, and nothing inside the document identifies anyone),
-what order to delete in, and which copies are genuinely beyond reach.
+**Deletion requests** — the app no longer syncs anything anywhere, but data written before
+2026-08-20 still sits in Firestore, so [privacy.html](privacy.html) still promises that
+emailing the address there gets it deleted. [`DATA_DELETION.md`](DATA_DELETION.md) is the
+runbook: how to map an email address to the right Firestore document (the document ID is the
+Firebase Auth UID, and nothing inside the document identifies anyone), what order to delete
+in, and which copies are genuinely beyond reach. It stays until the collection or the project
+itself is deleted, and says so.
 
 ## Working Offline
 
 The app keeps a copy of itself on your device, so it opens with no network at all — on a
 train, on hotel wifi, or when the work VPN is being difficult. Your teams and sprints were
 always local, so once the page itself loads everything works: adding sprints, the charts,
-the targets, export. Sync is the one thing that can't — it needs the network by definition,
-and picks up again on its own when you're back.
+the targets, export, share links, backup and restore. There is no longer any part of the app
+that needs the network — sync was the one exception, and it is gone.
 
 What's kept is only the app's own public files — the page, the stylesheet, the chart
 library and the icon, the same files anyone can read on GitHub. **Nothing of yours is ever
@@ -1262,7 +1265,7 @@ match yours has a visible reason. They aren't told how much history sits behind 
 
 **The data rides inside the link itself**, compressed into the part after the `#`. Browsers
 never send that part to a server, so the figures go straight from your browser to theirs —
-GitHub Pages, Firebase and Google never see them. Nothing is uploaded, no account is involved,
+GitHub Pages never sees them, and there is no one else in the path at all. Nothing is uploaded, no account is involved,
 and opening a link cannot touch data the recipient already has saved in their own browser.
 
 Two things to know:
@@ -1276,9 +1279,8 @@ A link you receive is treated as untrusted, because by definition it came from s
 else. Names have always been escaped before they reach the page; the ids that hold the
 data together are now checked too, and anything that isn't a plain id is replaced with a
 fresh one before the link renders. Without that, an id crafted to look like markup could
-run code in your browser when you opened the link — reaching your own saved data and your
-sign-in, neither of which the read-only guard covers. The same check runs on an imported
-backup file and on the copy that comes down from sync.
+run code in your browser when you opened the link — reaching your own saved data, which the
+read-only guard does not cover. The same check runs on an imported backup file.
 
 The same boundary now also guards the *shape* of what arrives: a payload whose team, PI or
 sprint list isn't a list at all — or holds entries that aren't records — is coerced to a
@@ -1291,119 +1293,58 @@ PI which isn't in the file is left out, because it would otherwise count towards
 average while being impossible to open or even see — a figure moving with no sprint behind
 it. The app's own *Delete PI* and *Delete Team* buttons tidy up after themselves, so this
 only comes up with a hand-edited or damaged file. When it happens you're told how many
-sprints were left out and why: an import says so before you commit to it, and a link or a
-synced copy says so once it opens.
+sprints were left out and why: an import says so before you commit to it, and a link says so
+once it opens.
 
 Links run to a few hundred characters for a typical team. If one gets long enough that a mail
 client might break it across two lines, the dialog says so and points at the two things that
 shorten it — fewer teams, or less history.
 
-## Cross-Device Sync (Firebase, Free Tier — Optional)
+## Cross-Device Sync Was Removed (2026-08-20)
 
-Sync is **enabled** in this deployment, backed by the `sprintvelocity-141b7` Firebase
-project — the `FIREBASE_CONFIG` object at the bottom `<script type="module">` block of
-`index.html` points at it. Signing in is entirely optional: the app is fully usable, and
-fully local, without it. Setting that constant back to `null` returns it to local-only mode
-and hides all sync UI.
+This app used to offer optional Google sign-in, which mirrored your data to a Firestore
+database in the `sprintvelocity-141b7` Firebase project. **It is gone.** Not disabled behind a
+`null` config — removed: the module, the sign-in button, the which-copy-do-you-want dialog,
+the `firestore.rules` file, `svAdopt()`/`svCounts()`/`cloudPush`/`cloudFlush`/`svSignedIn`
+and every Google address in the Content-Security-Policy went in one commit. Flow Metrics, the
+sibling app, had the identical module removed in the same sweep.
 
-### Why Sign-In Doesn't Use Firebase's Popup
+**Why.** This app holds figures copied out of a work Jira. Sync meant a copy of them sat in a
+personal Firebase project, which is a place work data has no particular business being — and
+the feature was carrying a fair amount of complexity for it: a hostname-blocking workaround,
+a reconciliation dialog, an empty-copy-never-wins rule, a server-clock ordering scheme, and a
+whole class of failure ("looks fine, hasn't pushed for weeks") that had to be surfaced in the
+UI because it couldn't be prevented. Removing it deleted all of that at once.
 
-Corporate web filters block individual `firebaseapp.com` hostnames unpredictably — the block
-is per hostname, not the domain, so a sibling app working is no evidence this one will (the
-sibling Team Dashboard's README tabulates three projects measured on one network on one day:
-two blocked, one fine). Firebase's `signInWithPopup` opens its popup at
-`<project>.firebaseapp.com/__/auth/handler`, so that block kills sign-in outright.
+**What replaces it.** **Back up** downloads a file; **Restore** reads one back. That is how
+you move data between devices now, and it has the property sync never had: you can see
+exactly what moved, and it goes nowhere you didn't put it.
 
-Sign-in therefore goes through **Google Identity Services**, the flow proven in Team
-Dashboard: a popup straight to `accounts.google.com` returns an OAuth token that Firebase
-exchanges for the same session via `signInWithCredential`. Same Google account, same
-Firestore data, same rules — only the doorway differs. The old popup flow (and its
-`firebaseapp.com` frame-src and `apis.google.com` CSP entries) is retired.
+**What the removal is worth checking against.** The claim is not "the Firebase code is gone"
+— it is that the page cannot reach the network at all. The CSP at the top of `index.html`
+names **no external origin**, and spells out `connect-src 'none'` rather than leaving it to
+the default, because that is the directive that would carry work data off the device.
+`tests.html` pins both, plus a word-list tripwire over the app's code (comments stripped to a
+fixed point, so the note explaining the removal can still name Firebase and be findable by
+grep) so a paste-back of the old module fails loudly rather than shipping.
 
-The sync module builds auth with `initializeAuth`, not `getAuth`, so `apis.google.com` is never
-even requested. `getAuth()` always wires in `browserPopupRedirectResolver`, and on Safari, iOS
-and mobile browsers the SDK initialises that resolver during startup — which loads
-`apis.google.com/js/api.js` to build the gapi iframe that carries `signInWithPopup` and
-`signInWithRedirect` results back to the page. This app calls neither, so nothing consumed it;
-the visible symptom was a CSP error in the console on phones and in Safari, and nothing else.
-Token refresh, sign-out and the cross-tab session all run elsewhere in the SDK and never touch
-the resolver. Dropping it costs `signInWithPopup`/`signInWithRedirect`/phone sign-in, which now
-raise `auth/argument-error`; if one is ever wanted, pass `browserPopupRedirectResolver` to that
-call rather than reverting to `getAuth()`.
+**Leftovers are deleted, not merely unread.** `clearSyncLeftovers()` runs on every load and
+removes `sv-sync-uid` and `sv-updated`. The first of those is a Google account id — the only
+personally identifying thing this app ever wrote down — and keeping it after removing the
+feature that needed it would be keeping an identifier for no reason. Pinned by a test that
+plants both keys, boots the app and checks they are gone.
 
-`GOOGLE_CLIENT_ID` at the top of the sync module is what this flow needs beyond
-`FIREBASE_CONFIG`. It comes from
-[console.cloud.google.com](https://console.cloud.google.com) → APIs & Services →
-Credentials → the OAuth 2.0 Client ID named *Web client (auto created by Google Service)*,
-whose **Authorized JavaScript origins** must list `https://eagleadams86.github.io` (and the
-exact localhost origin you serve from, port included) — an unlisted origin makes Google
-refuse with `origin_mismatch` before sign-in starts.
+**Data written before the removal still exists in Firestore.** Removing the client does not
+delete what the server holds. [`DATA_DELETION.md`](DATA_DELETION.md) is the runbook for a
+deletion request and is still live for exactly that reason; `privacy.html` still tells anyone
+who used sync how to ask.
 
-To recreate the setup from scratch (e.g. in a fork):
+**If it is ever wanted back**, `git log` has the whole module in one commit — including the
+Google Identity Services workaround for corporate networks that block
+`<project>.firebaseapp.com` **per hostname**, which was real, was measured, and would be
+needed again. Putting it back means putting the CSP origins back too, and the tests above
+will say so.
 
-1. At [console.firebase.google.com](https://console.firebase.google.com), create a project
-   (Analytics not needed)
-2. **Build → Authentication → Get started → Google** — enable the Google sign-in provider
-3. **Authentication → Settings → Authorized domains** — add `eagleadams86.github.io`
-4. **Build → Firestore Database → Create database** (production mode), then paste these **Rules**:
-   ```
-   rules_version = '2';
-   service cloud.firestore {
-     match /databases/{database}/documents {
-       match /sprintvelocity/{uid} {
-         allow read, write: if request.auth != null && request.auth.uid == uid;
-       }
-     }
-   }
-   ```
-5. **Project settings → Your apps → Add app → Web** — copy the `firebaseConfig` object and
-   paste it as the value of `FIREBASE_CONFIG` in `index.html`
-
-The same rules are kept as a checked-in copy in [`firestore.rules`](firestore.rules) — the
-console is what's live, the file is the audit trail; if the rules ever change in the
-console, update the file to match (same pattern as the paptrack-ios repo).
-
-The config object is not a secret; access is controlled by the rules above, which restrict
-every user to their own document. Each person who signs in — you or a colleague — gets
-their own private data. Sharing the app means sharing the URL, not the data.
-
-**How sync behaves:** `localStorage` stays in charge. The **first** time a given Google
-account signs in on a browser, if both the browser and the cloud already hold data, a
-dialog asks which to keep rather than guessing by timestamp — that guesswork once wiped a
-browser's data in the sibling PAPTrack app. After that first reconciliation (tracked per
-account via `sv-sync-uid`), and for live updates pushed from another device, whichever side
-changed most recently wins. Signing out or losing connectivity just leaves the local copy
-in charge.
-
-**When sync stops working, it says so.** Every failure used to end in the browser console,
-which nobody has open — so the button went on showing your name and the note went on
-promising your data was reaching your other devices, while nothing had left the browser for
-weeks. The button now reads **⚠️ Not syncing**, and the note at the foot of the page says
-what went wrong and what to do about it. Nothing is ever lost when this happens: this
-browser stays the source of truth and the cloud only mirrors it. There's no retry button
-on purpose — Google already retries the temporary causes, the permanent ones wouldn't be
-fixed by pressing anything, and the state clears itself the moment a save gets through.
-
-**How much can it hold?** One Firestore document per user, capped at 1 MiB. Now that a
-sprint is nothing but numbers and dates, six teams through a full year — four PIs, 144
-sprints — comes to well under 100 KB, so decades of history fit before the cap is anywhere
-in sight. If you ever do reach it, the app tells you rather than failing quietly,
-and the fix is to export a backup and delete a PI you no longer need.
-
-That advice is now only given when the size is genuinely the problem. Firestore reports an
-oversized document and a value it can't store under the same error code, and the app used
-to assume the first — so a bug of its own once told a user to delete a PI. A remedy that
-destroys data is never the guess: anything that isn't demonstrably about size now says the
-fault is in the app, and asks for nothing to be deleted.
-
-Underneath that, one rule holds everywhere: **an empty copy never beats a copy with data
-in it**, whichever looks newer. Signing in on a browser with nothing in it yet puts an
-empty copy in the cloud stamped with the current time, and without that rule the device
-holding your actual sprints — stamped whenever you last edited it — would treat the empty
-copy as newer and empty itself. Clearing everything deliberately still reaches your other
-devices, but it asks before it takes effect on each one.
-
----
 
 ## Architecture
 
@@ -1424,10 +1365,10 @@ GitHub Pages (static hosting, this repo, main branch)
     ├── chart.min.js  vendored Chart.js UMD build — no CDN, no network needed
     ├── sw.js         service worker: keeps the files above on your device
     └── sw-kill.js    the escape hatch, if sw.js ever needs uninstalling
-            ├── all state ──► browser localStorage (source of truth, works offline)
-            ├── signed in ──► Firestore doc sprintvelocity/{uid} (optional;
-            │                 newer-wins by updatedAt with the empty-never-beats-data
-            │                 guard; live onSnapshot updates)
+            ├── all state ──► browser localStorage (the source of truth, and the
+            │                 only copy — sync was removed on 2026-08-20)
+            ├── backup    ──► a JSON file you download and restore yourself; the
+            │                 only way to move data between devices
             └── shared    ──► the URL fragment itself (#share=…), read-only, never
                               uploaded and never written back to localStorage
 ```
@@ -1437,21 +1378,18 @@ No server of our own. No build, no dependencies to install, no npm.
 [`privacy.html`](https://eagleadams86.github.io/sprint-velocity/privacy.html) spells out
 what the app stores and where — linked from the app's footer, beside a **How it works** link
 to this README (GitHub renders it on the repo's front page), for anyone who wants more than
-the in-app ⓘ dialogs. Fellow Scrum Masters sign in
-with their own Google accounts, so the policy exists for them as much as for the author:
-what Firestore holds, that access rules confine each account to its own data, that share
-links upload nothing, and how to have a synced copy deleted.
+the in-app ⓘ dialogs. Fellow Scrum Masters use this app with their own data, so the policy
+exists for them as much as for the author: what is stored, that it stays in their browser,
+that share links upload nothing, and — for anyone who used sync before it was removed — how
+to have the leftover copy deleted.
 
-A Content Security Policy `<meta>` tag in `index.html` pins the page down as defence in
-depth: scripts only from this origin, Firebase's CDN (`www.gstatic.com`) and Google's
-sign-in client (`accounts.google.com`); network calls only to the Firebase endpoints sync
-uses and `accounts.google.com`; workers only from this origin (`worker-src 'self'`, for
-`sw.js`); and the only frame allowed is
-`accounts.google.com`, the Google Identity Services popup. **`apis.google.com` and
-`<project>.firebaseapp.com` are deliberately absent** — the Firebase auth helper frame went
-when sign-in moved to Google Identity Services, and the sync module uses `initializeAuth`
-so the SDK never asks for the gapi iframe either (see [Why Sign-In Doesn't Use Firebase's
-Popup](#why-sign-in-doesnt-use-firebases-popup)). If a new external endpoint is ever added,
+A Content Security Policy `<meta>` tag in `index.html` **names no external origin at all**.
+Since sync was removed there is nothing for it to allow: no CDN, no Google, no analytics.
+`default-src 'none'` is therefore the real rule rather than a formality, and each directive
+is an exception it has to earn — including `connect-src 'none'`, spelled out rather than left
+to the default because it is the one directive that would carry work data off the device, and
+`worker-src 'self'` for `sw.js`, spelled out rather than resolved through the fallback chain.
+If a new external endpoint is ever added,
 it has to be added to the CSP too or the browser will (deliberately) block it.
 
 ## Working on It Locally
@@ -1479,12 +1417,9 @@ are blocked in some browsers.
 
 **It only runs on localhost, and enforces that itself.** The test code writes nothing, but
 the iframe boots the real app — and GitHub Pages publishes `tests.html` next to it, at
-`/sprint-velocity/tests.html`, where that iframe would be your signed-in copy: sync would
-start inside an invisible frame, and the "another device cleared its data" dialog could fire
-where nobody can answer it. Two guards. The iframe carries `data-sv-tests`, which the sync
-module checks so it never initialises in the harness; and a gate at the foot of `tests.html`
-checks `location.hostname` and, anywhere but `localhost` / `127.0.0.1` / `[::1]`, never
-creates the iframe at all — it explains why and says how to run the suite properly. CI
+`/sprint-velocity/tests.html`, where that iframe would be reading and writing somebody's real
+teams. A gate at the foot of `tests.html` checks `location.hostname` and, anywhere but
+`localhost` / `127.0.0.1` / `[::1]`, never creates the iframe at all — it explains why and says how to run the suite properly. CI
 reaches the page on `localhost:8012`, so it is unaffected.
 
 ![tests](https://github.com/eagleadams86/sprint-velocity/actions/workflows/tests.yml/badge.svg)
@@ -1505,9 +1440,9 @@ top of `index.html`.
 ## Ownership and Licence
 
 Sprint Predictability is an independent personal project by Charles Adams — built on personally owned
-hardware, with a personally paid-for Claude subscription, in a personal GitHub account, and
-syncing (when you turn it on) through a Firebase project he owns. No employer equipment,
-funding or code went into it.
+hardware, with a personally paid-for Claude subscription, in a personal GitHub account. No
+employer equipment, funding or code went into it, and since 2026-08-20 it has no server or
+database behind it either: your data stays in your own browser.
 
 It holds no employer information either, and that is a property of the design rather than a
 promise: there is no free-text field anywhere in the app, and the storage whitelist admits
