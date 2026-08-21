@@ -5,8 +5,10 @@ carryover and velocity across multiple teams. Deployed via GitHub Pages:
 https://eagleadams86.github.io/sprint-velocity/
 
 Charles uses this as a Scrum Master across several teams, and shares the **URL** with
-fellow SMs — each person signs in with their own Google account and sees only their own
-data. There is deliberately no shared-workspace/multi-SM-editing model.
+fellow SMs — each person's data stays in their own browser. There is deliberately no
+shared-workspace/multi-SM-editing model. (It used to say "each person signs in with their
+own Google account"; sync was removed on 2026-08-20, and the Auth list confirmed nobody
+but Charles had ever actually signed in.)
 
 - The app is **one file — `index.html`** (no build step), alongside `theme.css` and a
   vendored `chart.min.js`. Keep it that way: no npm, no bundler, no CDN calls.
@@ -852,9 +854,16 @@ data. There is deliberately no shared-workspace/multi-SM-editing model.
     client deletes nothing server-side, so this was a separate deliberate step. The
     `sprintvelocity` collection is empty, and `DATA_DELETION.md` was removed with the data it
     described (a runbook that confidently describes something that no longer exists deletes
-    the wrong thing). The project `sprintvelocity-141b7` itself still exists; deleting it
-    outright is a further step nobody has taken, and would also kill the API key GitHub's
-    secret scanner flags on this repo.
+    the wrong thing).
+  - **Charles's account was the ONLY one that ever signed in**, confirmed from the Firebase
+    Authentication list on 2026-08-20. The premise this repo was built on — fellow Scrum
+    Masters signing in with their own Google accounts, each getting a private doc — never
+    actually happened. So no third party's data was ever in that database, the deletion cost
+    nobody anything, and `privacy.html` no longer carries a deletion-request route because it
+    would be offering a service to an empty set. Read the older docs with that in mind.
+  - The project `sprintvelocity-141b7` and Charles's own Auth row still exist. Deleting the
+    project outright is a further step nobody has taken; it would also kill the API key
+    GitHub's secret scanner flags on this repo.
 - **The Rolling 5 velocity chart carries a dashed `linearTrend()` line** (ordinary least
   squares, ported from Team Dashboard; nulls skipped). It's drawn muted — a reading of the
   bars, not a new series — and `linearTrend()` is a pure function pinned by tests.html.
