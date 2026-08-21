@@ -548,9 +548,9 @@ you land back on **Sprint**.
 
 The welcome card offers **Load sample data** beside *Add your first team*. It isn't
 filler: it's the app's demo, and the rule is that **every feature has to be reachable
-from it**. Six teams — five across two ARTs with history over three PIs and one
-running right now, plus one team that doesn't use PIs at all — so nothing in the app is a
-screen you have to imagine.
+from it**. Six teams — four across two ARTs with history over three PIs, one of them
+running right now, plus a team on no ART and a team that doesn't use PIs at all — so
+nothing in the app is a screen you have to imagine.
 
 It lands you on that running sprint, because it's the one state the app can't show
 without real dates. The other five teams are one click away in the team picker, and each is
@@ -566,7 +566,7 @@ rather than a list of names you'd have to open one by one:
 | **Team New Start** | *none* | A brand-new team: **thin history**, a **⚑ one-off availability** for leave, and a carryover that then **fills the whole figure** — no room for new work at all. Being in no ART, it's also the **No ART** group on *All teams* and *ART PI*. |
 | **Team No PI** | *none* | The team that [**doesn't run PIs**](#pis-are-optional) — sprints numbered **12–16**, continuous, past the six a PI holds. No IP sprint, no Current PI tab, and it's named on *ART PI* as not being in that PI at all. Deliberately carries nothing else: every other finding already belongs to a team above. |
 
-Two ARTs of two plus one team in neither is the arrangement where the *All teams* ART
+Two ARTs of two plus two teams in neither is the arrangement where the *All teams* ART
 filter and its *No ART* group both actually do something.
 
 The business value is picked the same way — to make the *ART PI* view say something on a
@@ -584,7 +584,7 @@ costs nothing and it lands differently on each team.
 The running sprint's dates are counted from the day you load it, not baked in, so the
 demo is still live whenever it's opened rather than stale from the day it was written.
 Everything else is dateless on purpose — a sprint with no dates resolves as complete,
-which is what keeps the other four teams fully in the averages.
+which is what keeps the other five teams fully in the averages.
 
 The sample-data tests pin every finding in that table, so tidying the numbers can't
 quietly leave a first run with nothing to look at. **Adding a feature means adding the

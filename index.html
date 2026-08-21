@@ -713,11 +713,12 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
 /* A two-sentence definition stretched across 880px is unreadable, so the help
    sheet is narrowed to a comfortable measure. */
 #helpDialog { max-width: 46ch; }
-/* 880px is the SPRINT FORM's width — it buys eight fields on two tidy rows, and
-   nothing else in the app needs it. Backing up is two buttons and three short
-   paragraphs, which at 880px read as one long line each and sit oddly beside the
-   same dialog in Flow Metrics and Golf Handicap. 560px is what those two use, and
-   this app shares its chrome with Flow Metrics. */
+/* 880px is the BASE dialog width above — what Share and the PI-delete question
+   use. Backing up is two buttons and three short paragraphs, which at 880px read
+   as one long line each and sit oddly beside the same dialog in Flow Metrics and
+   Golf Handicap. 560px is what those two use, and this app shares its chrome with
+   Flow Metrics. (The sprint form was on the base width until the three working
+   dialogs went to 1100px — see below.) */
 #dataDialog, #clearDialog { max-width: 560px; }
 /* Narrower than the sprint form for the same reason Back up is: this dialog's
    widest row is a sprint label, a small number box and a percent sign. At 880px
@@ -2575,6 +2576,24 @@ function findSprint(teamId, piId, num) {
     s.teamId === teamId && piKey(s.piId) === want && s.sprintNumber === num) || null;
 }
 
+/* ── The next free slot on a team's UNASSIGNED track ────────────────────────
+   One past the highest number out there, or 1 when nothing is. Three callers want
+   this same answer and must not be able to disagree about it: the sprint-number
+   picker offers it as "the next one", unassignPiSprints() appends onto it when a
+   PI's sprints are kept, and targetSprintSlot() aims at it when a team runs off
+   the end of its last PI.
+
+   Slot 1 is emphatically NOT the answer. Since a PI became optional the
+   unassigned track is a team's PRE-PI HISTORY, so slot 1 out there is usually a
+   real sprint recorded long ago — aiming next sprint's plan at it hands the
+   recommendation whatever that old sprint's availability said. */
+function nextUnassignedSlot(teamId) {
+  const used = state.sprints
+    .filter(s => s.teamId === teamId && !s.piId)
+    .map(s => s.sprintNumber);
+  return Math.min(MAX_SPRINT_NO, (used.length ? Math.max(...used) : 0) + 1);
+}
+
 /* ── Planned capacity adjustments ───────────────────────────────────────────
    A `plans` entry is a one-off: it says this particular slot isn't a normal
    sprint (leave, public holidays, a shorter sprint) and by how much. The team's
@@ -3253,9 +3272,17 @@ function targetSprintSlot(teamId) {
   if (last.sprintNumber < SPRINTS_PER_PI)
     return Object.assign(base, { piId: last.piId, sprintNumber: last.sprintNumber + 1 });
   const nextPi = state.pis[piIndex(last.piId) + 1];
+  /* No PI after this one yet, so the next sprint has nowhere to be filed but the
+     unassigned track — and this used to name slot 1 out there. That was harmless
+     while `piId: null` meant "we can't say"; since 2026-08-20 it names the team's
+     PRE-PI HISTORY, where slot 1 is usually a real sprint. Aiming at it handed
+     next sprint's availability and its Adjust Capacity plan to a sprint recorded
+     before the first PI existed — two things in one slot, which is exactly what
+     unassignPiSprints() renumbers to prevent. Append past whatever is out there,
+     by the same rule. */
   return Object.assign(base, nextPi
     ? { piId: nextPi.id, sprintNumber: 1 }
-    : { piId: null, sprintNumber: 1 });
+    : { piId: null, sprintNumber: nextUnassignedSlot(teamId) });
 }
 
 /* How much the team should commit to next sprint, from the rolling window.
@@ -4384,8 +4411,9 @@ function sprintNumbers(teamId, piId, current) {
      wherever the picker happens to be sitting, or a team with nothing yet would be
      offered a sprint 2 it can't have reached. `current` is added separately, so a
      stored position always has an option to select even if the sprint behind it
-     has since been deleted. */
-  const top = Math.min(MAX_SPRINT_NO, (mine.length ? Math.max(...mine) : 0) + 1);
+     has since been deleted. Through the shared helper, because targetSprintSlot()
+     aims at this same slot and the two must agree on which one it is. */
+  const top = nextUnassignedSlot(teamId);
   const list = new Set(mine);
   for (let n = 1; n <= top; n++) list.add(n);
   if (current) list.add(Number(current));
@@ -4601,7 +4629,10 @@ function renderSprintView() {
 function wireSprintSelectors(piId, numSel) {
   const piEl = document.getElementById('piSel');
   const numEl = document.getElementById('numSel');
-  if (piEl) piEl.onchange = () => { state.settings.activePiId = piEl.value; save(); render(); };
+  /* Through piKey, so the stored value is a real null and not the `''` the
+     none-option hands back — `activePiId` is typed `idOrNull` at the boundary,
+     and one way of saying "no PI" is the whole point of that helper. */
+  if (piEl) piEl.onchange = () => { state.settings.activePiId = piKey(piEl.value); save(); render(); };
   if (numEl) numEl.onchange = () => {
     state.settings.activeSprintNum = Number(numEl.value); save(); render();
   };
@@ -6007,8 +6038,12 @@ function renderArtPiView() {
           rag(artCommitPct, 'completion'),
           `${fmtNum(artDone)} of ${fmtNum(artCommitted)} committed points, pooled`,
           false, 'artTotalRow')}
-        ${tile('Total delivered', fmtNum(artVelocity), null,
-          `points completed across ${plural(shown.length, 'team')}`, false, 'piDelivered')}
+        ${/* `rows`, not `shown`: artVelocity is summed over the teams that have a
+             sprint in THIS PI, and the ones the view has just named in notInPiNote
+             contribute nothing to it. Counting them in the caption is the silent
+             exclusion the note two lines above exists to prevent. */
+          tile('Total delivered', fmtNum(artVelocity), null,
+          `points completed across ${plural(rows.length, 'team')}`, false, 'piDelivered')}
       </div>
     </div>
 
@@ -6074,7 +6109,10 @@ function renderArtPiView() {
         harder on it. The <strong>ART predictability</strong> tile above is the other method:
         each team's own measure, averaged, every team counting once. That is the one SAFe
         defines, which is why it gets the tile.${
-        pred.scored && pred.scored < shown.length
+        /* Against the rows on the page, not every team on the ART: a team with
+           no sprint in this PI isn't in the table at all, so saying the figures
+           cover fewer teams than it shows would be counting the wrong absence. */
+        pred.scored && pred.scored < rows.length
           ? ` Both cover the ${plural(pred.scored, 'team')} that ${
               pred.scored === 1 ? 'has' : 'have'} been scored.` : ''}</p>
     </div>`;
@@ -6693,8 +6731,10 @@ function closeOnBackdropClick(dlg) {
   });
 }
 
-/* Every dialog except the sync reconciliation one, which deliberately refuses to
-   be dismissed — picking which copy of your data to keep has to be a choice. */
+/* Every dialog here. The share dialog is wired the same way where it is built,
+   further down, because that is where its element is looked up. (This list used
+   to carry an exception for the sync reconciliation dialog, which refused to be
+   dismissed; it went with sync on 2026-08-20.) */
 ['sprintDialog', 'manageDialog', 'dataDialog', 'clearDialog', 'helpDialog', 'adjustDialog',
  'bvDialog', 'delPiDialog'].forEach(id => closeOnBackdropClick(F(id)));
 
@@ -7490,9 +7530,14 @@ F('adjustSaveBtn').onclick = () => {
   const pct = adjustPct();
   const reason = F('a_reason').value;
   const team = teamById(teamId);
+  /* Through piKey on BOTH sides, the same as planFor() and findSprint(). A bare
+     `===` reads '', null and an absent key as three different slots, so a plan
+     stored as null and a slot arriving as undefined would fail to match — and
+     "Remove adjustment" would look like a button that does nothing. */
   const drop = () => {
     state.plans = state.plans.filter(pl =>
-      !(pl.teamId === teamId && pl.piId === piId && pl.sprintNumber === sprintNumber));
+      !(pl.teamId === teamId && piKey(pl.piId) === piKey(piId)
+        && pl.sprintNumber === sprintNumber));
   };
 
   if (F('a_keep').checked) {
@@ -7535,8 +7580,9 @@ F('adjustRemoveBtn').onclick = () => {
   if (!adjusting) return;
   const { teamId, piId, sprintNumber } = adjusting;
   const team = teamById(teamId);
-  state.plans = state.plans.filter(pl =>
-    !(pl.teamId === teamId && pl.piId === piId && pl.sprintNumber === sprintNumber));
+  state.plans = state.plans.filter(pl =>      // piKey on both sides, see drop() above
+    !(pl.teamId === teamId && piKey(pl.piId) === piKey(piId)
+      && pl.sprintNumber === sprintNumber));
   /* Remove means remove — a one-off sitting on top of a standing figure would
      otherwise "remove" back to the standing figure, which reads as the button
      not working. Both go, and so do the sprint scales shown in the same dialog:
@@ -7915,10 +7961,7 @@ function unassignPiSprints(piId) {
   });
   let moved = 0;
   byTeam.forEach((mine, teamId) => {
-    const taken = state.sprints
-      .filter(x => x.teamId === teamId && !x.piId)
-      .map(x => x.sprintNumber);
-    let next = (taken.length ? Math.max(...taken) : 0) + 1;
+    let next = nextUnassignedSlot(teamId);
     /* In the PI's own order, so the sequence they had inside it survives. */
     mine.sort((a, b) => a.sprintNumber - b.sprintNumber).forEach(s => {
       s.piId = null;
@@ -8794,13 +8837,14 @@ F('shareOpenBtn').onclick = () => {
                                    availability whose carryover then fills the
                                    whole figure · the "no ART" group on All teams
 
-   Two ARTs of two, plus one team in neither, is the arrangement where the All
-   teams filter and its "no ART" group both do something. Every figure below is
+   Two ARTs of two, plus TWO teams in neither — Team New Start and Team No PI — is
+   the arrangement where the All teams filter and its "no ART" group both do
+   something. Every figure below is
    load-bearing; the sample-data tests pin each finding so tidying the numbers
    can't quietly leave a first run with nothing to look at. */
 function loadSample() {
   if (!confirm(
-      'Load the demo? Six sample teams — five on two ARTs across two PIs of history, one '
+      'Load the demo? Six sample teams — four on two ARTs across three PIs of history, one '
     + 'running right now, and one team that doesn\'t use PIs at all.\n\n'
     + 'Each team is named for the one thing it shows: a sprint running live, a steady '
     + 'baseline, a team committing to more than it lands, one with headroom to commit to '
@@ -8842,7 +8886,7 @@ function loadSample() {
   state.teams.push(t1, t2, t3, t4, t5, t6);
 
   /* Everything is dateless unless a sprint asks for dates, because a sprint with
-     no dates resolves COMPLETE — which is what keeps four of the five teams fully
+     no dates resolves COMPLETE — which is what keeps the other five teams fully
      in the averages. Team Live Sprint is the exception and has to be: an
      in-flight sprint is the one state you cannot fake without real dates, and
      they are counted from today so the demo is still live whenever it is opened,

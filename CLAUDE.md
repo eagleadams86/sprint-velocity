@@ -232,6 +232,16 @@ but Charles had ever actually signed in.)
     returns null. `sameBand()` is the guard.
   - **Don't make `objectives` PI-optional.** PI business value is defined per team **per
     PI**; there is no such thing as unassigned business value, and `piId` there stays `'id'`.
+  - **Don't aim a new slot at unassigned S1.** `piId: null` used to mean "we can't say
+    where the next sprint goes" — which is what `targetSprintSlot()` returned when a team
+    ran off the end of its last PI with no next one created. It now names a REAL track, and
+    slot 1 out there is usually the oldest sprint the team has, so the capacity card aimed
+    at it: `availabilityFor()` handed next sprint the availability recorded against a
+    sprint from before the first PI, and Adjust Capacity would have written a second plan
+    onto the same slot. `nextUnassignedSlot()` is the one answer — one past the highest
+    number already out there — and all three callers read it: the sprint-number picker
+    ("the next one"), `unassignPiSprints()` (appending a deleted PI's sprints) and
+    `targetSprintSlot()`. Found and fixed 2026-08-21; pinned in tests.html.
   - **Don't reinstate the PI-orphan drop.** See the next bullet.
 - **A sprint whose PI is missing is UN-GROUPED, not dropped — and that reverses an older
   rule in this file.** The drop was right while a PI was compulsory: an orphan moved a
@@ -597,14 +607,18 @@ but Charles had ever actually signed in.)
   comparison tables (`excludedTag()`) plus `excludedTeamsLine()` above the chart drawn from
   those same windows. **Say what it does NOT touch too** — the PI totals still count an
   excluded sprint, and a reader who sees a ⚑ will otherwise assume they don't.
-  **`excludedInRange()` is `counted.slice(-ROLLING_WINDOW).filter(excluded)` — the window as
-  it WOULD have been with nothing excluded — and it must stay that shape.** It first anchored
-  on the oldest *kept* sprint and looked forward from there, which by construction made the
-  oldest sprint the one it could never name: exclude the first of four and the window went
-  from four sprints to three with nothing on Rolling 5 or All teams to say so, while Sprint
-  and Current PI (which read `s.excluded` per sprint) were fine. Both window-based views read
-  this one function, so both went silent together — if a report says "it shows in some views
-  and not others", this is the seam. Pinned by the oldest-sprint test in tests.html.
+  **`excludedInRange()` WALKS THE WINDOW BACKWARDS, the same walk `rollingSprints()` fills
+  it with, and it must stay that shape.** Three versions, each naming a different subset:
+  anchoring on the oldest *kept* sprint and looking forward made the oldest sprint the one it
+  could never name — exclude the first of four and the window went from four sprints to three
+  with nothing on Rolling 5 or All teams to say so, while Sprint and Current PI (which read
+  `s.excluded` per sprint) were fine. `counted.slice(-ROLLING_WINDOW).filter(excluded)` fixed
+  that and still under-reported whenever the exclusions clustered: with sprints 1–7 and S1, S2
+  and S3 all out, the window is four sprints and only S3 got named. Walking it is the only
+  version that cannot drift from the window, because it *is* the window's own walk; it stops
+  at `ROLLING_WINDOW` kept sprints or `ROLLING_WINDOW` skipped ones. Both window-based views
+  read this one function, so both go silent together — if a report says "it shows in some
+  views and not others", this is the seam. Pinned by the oldest-sprint test in tests.html.
   **The Agile Operations Dashboard reconciliation claim is now CONDITIONAL wherever an
   exclusion can reach it.** A sprint left out here is still in the Dashboard's total until it
   is unselected there too, so "matches the Agile Operations Dashboard" becomes "…when S1 is

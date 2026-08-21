@@ -2821,6 +2821,48 @@ t('the average can sit in the band while NO team does — the cancelling case', 
   });
 });
 
+t('the ART PI captions count the teams the figures actually cover', () => {
+  /* "Total delivered" is summed over the teams with a sprint in the SELECTED PI,
+     and its caption said `shown.length` — every team on the ART, including the
+     ones the view had just named as not being in this PI at all. A figure over
+     three teams captioned "across 4 teams" is the silent exclusion the note two
+     lines above it exists to prevent. */
+  const sp = (teamId, n) => ({ id: teamId + n, teamId, piId: 'p1', sprintNumber: n,
+    committed: 20, committedCompleted: 18, totalCompleted: 19,
+    added: 0, removed: 0, carriedIn: 0, carriedOut: 2, addedThenRemoved: 0 });
+  const st = w.svGet();
+  const keep = { pi: st.settings.activePiId, team: st.settings.activeTeamId,
+                 art: st.settings.artFilter, view: st.settings.view };
+  try {
+    withState({
+      teams: [{ id: 't1', name: 'In the PI', artId: 'a1' },
+              { id: 't2', name: 'Not in it', artId: 'a1' }],
+      arts: [{ id: 'a1', name: 'ART' }], pis: [{ id: 'p1', name: 'PI 1' }],
+      plans: [], objectives: [],
+      /* t2 has a sprint, just not in p1 — so it is `shown` but not a row. */
+      sprints: [sp('t1', 1), { ...sp('t2', 1), piId: null }]
+    }, () => {
+      st.settings.activePiId = 'p1';
+      st.settings.activeTeamId = 't1';
+      st.settings.artFilter = 'a1';
+      w.renderArtPiView();
+      const html = w.document.getElementById('views').innerHTML;
+      ok(/points completed across 1 team\b/.test(html),
+        'the caption names the one team behind the total');
+      eq(/points completed across 2 teams/.test(html), false,
+        'and not the one the view has just said is not in this PI');
+      ok(/Not in this PI/.test(html), 'which the note beside it says out loud');
+    });
+  } finally {
+    st.settings.activePiId = keep.pi;
+    st.settings.activeTeamId = keep.team;
+    st.settings.artFilter = keep.art;
+    st.settings.view = keep.view;
+    /* Put the app's own page back — this one wrote a fixture's view into it. */
+    w.render();
+  }
+});
+
 group('the business-value boundary — numbers only, and bounded');
 t('business value is clamped and rounded, never taken as given', () => {
   const out = w.sanitizeIds(w.coerceShape({
@@ -3275,6 +3317,62 @@ t('a PI-less team counts on past six instead of rolling into the first PI', () =
     eq(slot.piId, null, 'still on the unassigned track');
     eq(slot.sprintNumber, 7, 'and simply the next number');
   });
+});
+t('running off the end of the last PI does not land on the team’s oldest slot', () => {
+  /* The fallback for "no PI after this one" named slot 1 of the unassigned track.
+     That was harmless while `piId: null` meant "we can't say"; once a PI became
+     optional it names the team's PRE-PI HISTORY, where slot 1 is a real sprint —
+     so the capacity card aimed at it, picked up that old sprint's availability,
+     and Adjust Capacity would have written a second plan onto the same slot. */
+  const sp = (piId, n) => ({ id: 's' + piId + n, teamId: 't1', piId, sprintNumber: n,
+    committed: 20, committedCompleted: 18, totalCompleted: 18,
+    added: 0, removed: 0, carriedIn: 0, carriedOut: 2, addedThenRemoved: 0 });
+  withState({
+    teams: [{ id: 't1', name: 'A' }], arts: [], objectives: [],
+    pis: [{ id: 'p1', name: 'PI 1' }],
+    sprints: [sp(null, 1), sp(null, 2), sp(null, 3), sp('p1', 5), sp('p1', 6)],
+    /* The adjustment that used to be picked up: it belongs to the pre-PI S1. */
+    plans: [{ id: 'pl1', teamId: 't1', piId: null, sprintNumber: 1,
+              availability: 40, reason: 'leave' }]
+  }, () => {
+    const slot = w.targetSprintSlot('t1');
+    eq(slot.piId, null, 'the unassigned track is the only place left to file it');
+    eq(slot.sprintNumber, 4, 'one past the highest number already out there');
+    eq(w.findSprint('t1', slot.piId, slot.sprintNumber), null,
+      'so the slot being planned is empty, not a sprint recorded years ago');
+    eq(w.nextSprintTarget('t1', false).availabilitySource, null,
+      'and the old sprint\u2019s 40% is not applied to next sprint');
+  });
+});
+t('and a team with no pre-PI history still gets slot 1 out there', () => {
+  const sp = (n) => ({ id: 's' + n, teamId: 't1', piId: 'p1', sprintNumber: n,
+    committed: 20, committedCompleted: 18, totalCompleted: 18,
+    added: 0, removed: 0, carriedIn: 0, carriedOut: 2, addedThenRemoved: 0 });
+  withState({
+    teams: [{ id: 't1', name: 'A' }], arts: [], plans: [], objectives: [],
+    pis: [{ id: 'p1', name: 'PI 1' }], sprints: [sp(5), sp(6)]
+  }, () => {
+    eq(w.targetSprintSlot('t1').sprintNumber, 1, 'nothing is out there to append past');
+  });
+});
+t('nextUnassignedSlot is the one answer all three callers read', () => {
+  /* The picker offers it, unassignPiSprints() appends onto it and
+     targetSprintSlot() aims at it — three callers that must not disagree. */
+  const sp = (n) => ({ id: 's' + n, teamId: 't1', piId: null, sprintNumber: n,
+    committed: 20, committedCompleted: 18, totalCompleted: 18,
+    added: 0, removed: 0, carriedIn: 0, carriedOut: 2, addedThenRemoved: 0 });
+  withState({
+    teams: [{ id: 't1', name: 'A' }], arts: [], plans: [], objectives: [],
+    pis: [], sprints: [sp(12), sp(13)]
+  }, () => {
+    eq(w.nextUnassignedSlot('t1'), 14, 'one past the highest');
+    eq(w.sprintNumbers('t1', null, 13).slice(-1)[0], 14, 'which is what the picker offers');
+    eq(w.targetSprintSlot('t1').sprintNumber, 14, 'and what the capacity card plans');
+  });
+  withState({
+    teams: [{ id: 't1', name: 'A' }], arts: [], plans: [], objectives: [],
+    pis: [], sprints: []
+  }, () => eq(w.nextUnassignedSlot('t1'), 1, 'and 1 when the track is empty'));
 });
 t('the two tracks are separate coordinate spaces, so nothing measures across', () => {
   const sameBand = H().sameBand;
