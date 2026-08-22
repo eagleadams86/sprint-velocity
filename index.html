@@ -845,6 +845,13 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
    while they hold nothing, margin included. */
 .warn:empty, .sub:empty { display: none; }
 .empty { text-align: center; padding: 40px 20px; color: var(--text-secondary); }
+/* The welcome card, and only it: every other empty state here is `.card.empty`
+   on one element, so this nested form matches nothing else. An empty state is
+   nothing but centred sentences — there is no table under it whose position a
+   wrapped line would cost — and a CENTRED line is the hard one to read back,
+   because both ends move and the eye has nothing to return to. 80ch, centred in
+   whatever the card is. Money Map's rule and its number. */
+.card > .empty { max-width: 80ch; margin-left: auto; margin-right: auto; }
 .empty h2 { color: var(--text-primary); }
 /* The toast is a POPOVER, so that it can be seen over an open modal dialog —
    the reasoning is on toast() itself. Half of what follows undoes the UA's own
@@ -1093,6 +1100,20 @@ main:focus { outline: none; }
          that is all this holds: a button promising settings and opening eight
          numbers is a smaller lie than a menu, but still one. -->
     <button class="btn small" id="targetsBtn" type="button" title="Set the RAG targets every figure is judged against"><span aria-hidden="true">⚙</span> Targets</button>
+    <!-- ── The family's header order ───────────────────────────────────────────
+         Every app in the family lays this row out the same way, so a control is
+         in the same place whichever one you have open. Right to left, because
+         the row is right-aligned and the right-hand end is the fixed one:
+
+           theme · Share · Back up · ⚙ settings · ☰ manage · the record picker ·
+           zoom · find · everything else
+
+         An app skips whatever it hasn't got and the rest close up. The THEME
+         PICKER IS ALWAYS LAST — it is the one control that changes nothing but
+         how the page looks, so it sits at the far end, out of the way of the
+         controls that do something. -->
+    <button class="btn small" id="dataBtn" type="button" title="Back up, restore or clear your data"><span aria-hidden="true">⇩</span> Back up</button>
+    <button class="btn small" id="shareBtn" type="button" title="Create a read-only link to show someone your figures"><span aria-hidden="true">↗</span> Share</button>
     <label class="sr-only" for="themeSel">Theme</label>
     <!-- The four unified themes, listed alphabetically (matches the other apps).
          Midnight is pre-selected to match the theme the boot script in <head> has
@@ -1105,8 +1126,6 @@ main:focus { outline: none; }
       <option value="midnight" selected>✦ Midnight</option>
       <option value="sepia">📜 Sepia</option>
     </select>
-    <button class="btn small" id="dataBtn" type="button" title="Back up, restore or clear your data"><span aria-hidden="true">⇩</span> Back up</button>
-    <button class="btn small" id="shareBtn" type="button" title="Create a read-only link to show someone your figures"><span aria-hidden="true">↗</span> Share</button>
   </div>
 </header>
 
@@ -5096,7 +5115,8 @@ function renderTabs() {
   };
   /* Nothing to look at yet, so the whole row goes rather than leaving a lone
      Sprint tab hovering over the welcome card. */
-  document.querySelector('.tabs').hidden = !state.teams.length;
+  const noTabsYet = !state.teams.length;
+  document.querySelector('.tabs').hidden = noTabsYet;
   document.querySelectorAll('.tab').forEach(t => { t.hidden = !shown[t.dataset.view]; });
 
   /* A view can't stay on screen once its tab has gone. The stored value is
@@ -5112,7 +5132,16 @@ function renderTabs() {
        view below costs one press rather than four. */
     t.tabIndex = on ? 0 : -1;
   });
-  viewsEl.setAttribute('aria-labelledby', 'tab-' + view);
+  /* The panel is labelled by its tab — unless the row is hidden, in which case
+     naming it after a control nobody can see would be reading out a word that is
+     not on the screen. Money Map's rule, and its wording. */
+  if (noTabsYet) {
+    viewsEl.removeAttribute('aria-labelledby');
+    viewsEl.setAttribute('aria-label', 'Getting started');
+  } else {
+    viewsEl.removeAttribute('aria-label');
+    viewsEl.setAttribute('aria-labelledby', 'tab-' + view);
+  }
   return view;
 }
 
@@ -5153,24 +5182,40 @@ function renderWelcome() {
       </div></div>`;
     return;
   }
+  /* The family's welcome card, to the shape Money Map settled on: what the app
+     IS, then where the figures go, then the three ways in, then a line for each
+     of them in the button's own words. A reader deciding whether this is the
+     thing they want is deciding off the first paragraph, so it says what gets
+     worked out rather than promising "insight"; the second is the privacy claim
+     the footer three inches below already makes, and the two must never
+     disagree. Each button's explanation is its own paragraph so a reader can
+     find the one they are hovering over.
+
+     The tab row is already gone by here — renderTabs() drops the whole row while
+     there are no teams — so this card is the only thing on the page. */
   viewsEl.innerHTML = `
-    <div class="card empty">
-      <h2>Track How Predictable Your Teams Are</h2>
-      <p>Record what each team committed to, what they finished, and what changed mid-sprint.
-         The app works out commitment completion, break-in, carryover and velocity, and flags
-         each against your targets.</p>
-      <div class="row" style="justify-content:center;margin-top:18px">
-        <button class="btn primary" id="welcomeAddBtn">Add your first team</button>
-        <button class="btn" id="welcomeSampleBtn">Load sample data</button>
-      </div>
-      <p class="muted" style="font-size:13px;margin-top:20px">
-        Targets: commitment completion <strong>≥${tgt().completionGreen}%</strong> green, down to
-        ${tgt().completionRed}% yellow, below that red · break-in, removed and carryover each
-        <strong>≤${tgt().churnGreen}%</strong> green, up to ${tgt().churnRed}% yellow, above that red.
-        <strong>⚙ Targets</strong> in the header sets all eight to your own.</p>
-    </div>`;
+    <div class="card"><div class="empty">
+      <h2>Welcome to Sprint Predictability</h2>
+      <p>A record of how predictable your teams are: what each one committed to, what it
+        actually finished, and what changed mid-sprint. It works out commitment completion,
+        break-in, removed work, carryover and velocity, flags every figure against targets
+        you set, and rolls the same numbers up to a PI and an ART.</p>
+      <p>Everything you enter stays in this browser. Nothing is uploaded — there is no
+        account and no server.</p>
+      <p style="margin-top:16px">
+        <button class="btn primary" id="welcomeAddBtn">Start Fresh</button>
+        <button class="btn" id="welcomeSampleBtn">Load Sample Data</button>
+        <button class="btn" id="welcomeRestoreBtn">Restore a Backup</button></p>
+      <p><strong>Start Fresh</strong> adds your first team and opens Teams &amp; PIs, where you
+        name it and set up the PIs you run — if you run any.</p>
+      <p><strong>Load Sample Data</strong> fills every tab with six invented teams, each named
+        for the one thing it shows, so you can see what the app does before typing anything of
+        your own. The figures are made up.</p>
+      <p><strong>Restore a Backup</strong> reads a Sprint Predictability export.</p>
+    </div></div>`;
   document.getElementById('welcomeAddBtn').onclick = () => { openManage(); addTeam(); };
   document.getElementById('welcomeSampleBtn').onclick = loadSample;
+  document.getElementById('welcomeRestoreBtn').onclick = () => openModal(F('dataDialog'));
 }
 
 /* ── Which sprint numbers a picker offers ───────────────────────────────────

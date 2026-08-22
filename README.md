@@ -578,13 +578,34 @@ sprint, and step aside again if you switch to a team you haven't recorded anythi
 views would be the same page under different headings; **ART PI** appears once you have an ART
 with a team on it; **PI trend** once two PIs have something recorded in them, because one point
 is a position rather than a direction. With no teams at all there are no tabs — just the
-welcome card. If the view you were on goes away, you land back on **Sprint**.
+[welcome card](#the-first-thing-you-see). If the view you were on goes away, you land back on **Sprint**.
+
+### The First Thing You See
+
+With no teams yet there are no tabs and no team picker — just one card in the middle of
+the page:
+
+> **Welcome to Sprint Predictability**
+>
+> A record of how predictable your teams are: what each one committed to, what it actually
+> finished, and what changed mid-sprint…
+>
+> **Start Fresh** · **Load Sample Data** · **Restore a Backup**
+
+**Start Fresh** adds your first team and opens *Teams & PIs*, where you name it and set up
+the PIs you run — [if you run any](#pis-are-optional). **Load Sample Data** loads the demo
+below. **Restore a Backup** opens the same *Back Up & Restore* dialog the ⇩ button does.
+
+Every app in the family opens on this same card, in the same words and the same order —
+what the app is, where the figures go, the three ways in, then a line for each button. The
+second paragraph is the privacy claim the footer also makes, and the two must never
+disagree: this app has no sync and no account, so it says so outright.
 
 ### The Demo — Trying It Without Typing Anything In
 
-The welcome card offers **Load sample data** beside *Add your first team*. It isn't
-filler: it's the app's demo, and the rule is that **every feature has to be reachable
-from it**. Six teams — four across two ARTs with history over three PIs, one of them
+The welcome card offers **Load Sample Data** beside *Start Fresh* and *Restore a Backup*.
+It isn't filler: it's the app's demo, and the rule is that **every feature has to be
+reachable from it**. Six teams — four across two ARTs with history over three PIs, one of them
 running right now, plus a team on no ART and a team that doesn't use PIs at all — so
 nothing in the app is a screen you have to imagine.
 
@@ -611,7 +632,7 @@ of these figures could easily leave three of the four unreachable on a first run
 routes into [bulk import](#getting-a-history-in) are their own demo: *Download a template*
 comes out of whichever team you are on, and *Paste an example* fills the box with two rows you
 can edit. The one new thing the sample data cannot demonstrate is a changed
-[target](#setting-your-own-targets) — so the welcome card names the ⚙ button instead.
+[target](#setting-your-own-targets), which is what the ⚙ button in the header is for.
 
 The business value is picked the same way — to make the *ART PI* view say something on a
 first run. **Platform ART is the [cancelling case](#when-the-average-hides-the-train)**: Team
