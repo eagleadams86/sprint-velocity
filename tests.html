@@ -2237,6 +2237,9 @@ t('nothing private can reach the cache', () => {
 });
 
 t('the worker touches nothing cross-origin', () => {
+  /* Guarded before the negations. Every assertion below is a NOT, and a NOT over
+     an empty string passes — a file that failed to load would report green here. */
+  ok(SW_SRC, 'sw.js did not load — the negations below would all pass on an empty string');
   const code = stripComments(SW_SRC);
   ok(!/https?:\/\//.test(code),
     'sw.js names an off-origin URL in executable code — it must only ever see this origin');
@@ -2386,6 +2389,9 @@ t('the sign-in button and the cloud hooks are gone', () => {
   /* A leftover window.cloudPush would be a silent no-op; a leftover button
      would not. */
   const code = appCode();
+  /* Guarded before the negations: all three are NOTs, and a NOT over an empty
+     string passes — an app that failed to load would report green here. */
+  ok(code, 'index.html did not load — the three negations below all pass on an empty string');
   ok(!/id="syncBtn"/.test(code), 'there must be no sign-in button in the markup');
   ok(!/cloudPush|cloudFlush|svSignedIn|svAdopt|svCounts/.test(code),
     'and no cloud hooks left behind for a caller to find');
