@@ -1670,6 +1670,7 @@ GitHub Pages (static hosting, this repo, main branch)
     ├── manifest…     the install manifest — name, scope, icons, window
     ├── icon-*.png    the install icons, from the same script as the favicon
     ├── chart.min.js  vendored Chart.js UMD build — no CDN, no network needed
+    ├── package.json  not a build step — the manifest Dependabot scans
     ├── sw.js         service worker: keeps the files above on your device
     └── sw-kill.js    the escape hatch, if sw.js ever needs uninstalling
             ├── all state ──► browser localStorage (the source of truth, and the
@@ -1681,6 +1682,17 @@ GitHub Pages (static hosting, this repo, main branch)
 ```
 
 No server of our own. No build, no dependencies to install, no npm.
+
+**Why there is a `package.json` in a repo with no build step.** It is not a package and it
+installs nothing — it exists so Dependabot has a manifest to scan. Its only entry is the
+Chart.js that is *vendored* as `chart.min.js` beside the app, pinned exactly, and CI passes
+`--omit=dev` so npm never downloads it. Dependabot cannot re-vendor a file, so a version-bump
+PR would otherwise raise the manifest while the app went on serving the old bytes; a test pins
+the two to the same version, which makes a manifest-only bump fail and turns the PR into the
+right instruction — update the file too, in all four repos that carry it. This repo was the
+one of those four that had no manifest until 2026-08-22: it shipped the same Chart.js bytes as
+its three siblings with nothing watching them, so an advisory would have reached those three
+and not this one.
 
 [`privacy.html`](https://eagleadams86.github.io/sprint-velocity/privacy.html) spells out
 what the app stores and where — linked from the app's footer, beside a **How it works** link

@@ -102,6 +102,18 @@ but Charles had ever actually signed in.)
   Starting hidden costs nothing; growing does. If you add header chrome, give it its final
   width in the HTML.
 - `chart.min.js` is a **vendored third-party build — do not hand-edit.**
+- **`package.json` exists ONLY so Dependabot has a manifest to scan** (added 2026-08-22).
+  Not a package, not a build step, nothing is ever installed from it — CI passes `--omit=dev`
+  precisely so npm does not download the library this repo already vendors. This repo was the
+  **fourth** carrier of the identical Chart.js 4.4.1 bytes and the only one with no manifest,
+  so a Chart.js advisory reached lottery, team-dashboard and financial-plan and reached
+  nothing here — in one of the two apps holding figures copied out of a work Jira. Dependabot
+  cannot re-vendor a file, so a version-bump PR would raise the manifest while the app went on
+  serving the old bytes; a test pins the manifest against the vendored file, which makes a
+  manifest-only bump FAIL and turns the PR into the right instruction: update the file too, in
+  all four repos that carry it (lottery, team-dashboard, financial-plan, sprint-velocity). A
+  second test pins `--omit=dev` in the workflow, because dropping it would quietly start
+  downloading the vendored library on every run and nothing else would notice.
 - **`metrics()` and `rag()` in `index.html` are the only places the numbers are
   calculated.** Every tile, table and chart reads from them. Thresholds change in one spot.
 - **The eight RAG boundaries are SETTINGS, not constants** (2026-08-22). `TARGET_DEFAULTS`

@@ -93,7 +93,7 @@ function ok(cond, note) { if (!cond) throw new Error(note || 'expected truthy');
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 351;
+const EXPECTED = 354;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -4375,6 +4375,63 @@ function showLatestRun() {
     })
     .catch(() => { td.textContent = 'Could not reach GitHub to check the latest CI run.'; });
 }
+
+group('package.json — the manifest Dependabot scans');
+
+/* This repo vendors Chart.js and, until 2026-08-22, was the ONE of the four
+   that carried it with no manifest beside it. The other three — lottery,
+   team-dashboard and financial-plan — have had a package.json since the
+   pattern was set, so a Chart.js advisory reached Dependabot for those three
+   and reached nothing here. Same bytes, same version, silently unwatched, in
+   one of the two apps that hold figures copied from work.
+
+   The manifest exists only so Dependabot has something to read. Nothing is
+   ever installed from it — CI passes `--omit=dev` precisely so npm does not
+   helpfully download the library this app already vendors — and the bytes that
+   ship are `chart.min.js` beside index.html.
+
+   That arrangement has one specific way of going wrong: Dependabot cannot
+   re-vendor a file. A version-bump PR would raise the manifest to 4.5.0 while
+   the app went on serving 4.4.1, and the repo would then state a version it
+   does not run. This is what stops that being quiet — a manifest-only bump
+   fails here, which turns the PR into the correct instruction ("a newer
+   Chart.js exists; now update the FILE too, in all four repos that carry it")
+   instead of a false record. It is the theme pack's rule in another repo: a
+   generated artefact has to match its source. */
+t('the manifest exists, and names the version the vendored file actually is', async () => {
+  const [pkgRes, libRes] = await Promise.all([bustFetch('package.json'), bustFetch('chart.min.js')]);
+  ok(pkgRes.ok, 'a manifest exists for Dependabot to scan');
+  ok(libRes.ok, 'and the library it names is vendored beside it');
+  const PKG_SRC = await pkgRes.text(), LIB_SRC = await libRes.text();
+  const pinned = (PKG_SRC.match(/"chart\.js"\s*:\s*"([^"]+)"/) || [])[1];
+  ok(pinned, 'the manifest declares chart.js');
+  ok(/^\d+\.\d+\.\d+$/.test(pinned || ''),
+    'it is pinned exactly, so it can be checked against a file — got ' + pinned);
+  ok(LIB_SRC.includes('"' + pinned + '"'),
+    'the vendored bundle is that same version — manifest says ' + pinned
+    + ', so re-vendor chart.min.js, and the sibling repos with it');
+});
+t('the manifest can never be installed from, or reach npm', async () => {
+  const pkg = JSON.parse(await (await bustFetch('package.json')).text());
+  eq(pkg.private, true, 'the manifest is private, so it can never reach npm');
+  ok(!pkg.scripts, 'it declares no scripts — this repo has no build step');
+  ok(!pkg.dependencies, "the entry is a devDependency, which CI's --omit=dev skips");
+  eq(Object.keys(pkg.devDependencies || {}).length, 1,
+    'and it names one thing only: the vendored library');
+});
+/* The manifest is only watched if CI never installs from it. A workflow that
+   dropped --omit=dev would quietly start downloading Chart.js on every run —
+   the exact thing the vendoring exists to avoid — and nothing else here would
+   notice. */
+t('CI installs with --omit=dev, so npm never fetches what this repo vendors', async () => {
+  const res = await bustFetch('.github/workflows/tests.yml');
+  ok(res.ok, 'the tests workflow is readable');
+  const yml = await res.text();
+  const install = (yml.match(/^\s*npm install .*$/m) || [''])[0];
+  ok(/--omit=dev/.test(install),
+    'the npm install passes --omit=dev, or CI downloads the vendored library — got: '
+    + install.trim());
+});
 
 /* ── Select-on-focus versus a number field’s spin arrows ──────────────────────
    Clicking a box selects what is in it, which takes cancelling the mouseup —

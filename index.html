@@ -6525,7 +6525,6 @@ function wireRollingToolbar() {
 function renderHistoryView() {
   const team = activeTeam();
   const all = teamSprints(team.id);
-  const includeSix = !!state.settings.includeSprint6InRolling;
   /* Deliberately NOT rollingSprints(): the two rolling toggles narrow a window,
      and this view is the one place with no window to narrow. Every sprint the
      team has is here, in order, including the ones the averages leave out — each
@@ -6533,7 +6532,6 @@ function renderHistoryView() {
   const counted = all.filter(isCounted);
   const excluded = all.filter(s => s.excluded);
   const open = all.filter(s => sprintStatus(s) !== 'complete');
-  const ipInWindow = all.filter(s => isIpSlot(s));
 
   const labels = all.map(sprintLabel);
   const commits = all.map(s => isCounted(s) ? metrics(s).commitCompletePct : null);
