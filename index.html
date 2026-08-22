@@ -806,7 +806,10 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
    Golf Handicap. 560px is what those two use, and this app shares its chrome with
    Flow Metrics. (The sprint form was on the base width until the three working
    dialogs went to 1100px — see below.) */
-#dataDialog, #clearDialog { max-width: 560px; }
+/* THE SAME WIDTH AS MONEY MAP'S BACK UP WINDOW: 700px, its --dialog-w-narrow.
+   Asked for on 2026-08-22, alongside the share windows — these were all 560px,
+   so the same dialog opened narrower here than in the app beside it. */
+#dataDialog, #clearDialog { max-width: 700px; }
 /* Narrower than the sprint form for the same reason Back up is: this dialog's
    widest row is a sprint label, a small number box and a percent sign. At 880px
    the two panels below ran the full width one under the other and the window was
@@ -819,7 +822,11 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
    Adjust Capacity are the three you actually do work in; Back up, Delete and the
    help sheet stay narrow because they are a few lines each, and Money Map keeps
    its short ones narrow for the same reason. */
-#sprintDialog, #manageDialog, #adjustDialog { max-width: 1100px; }
+/* THE SAME WIDTH AS MONEY MAP'S, which is the family's share window: 1100px,
+   its --dialog-w-wide. Asked for on 2026-08-22 — these were 880, 820, 820 and
+   560 across five pages, so the same action opened a different-sized window in
+   every app. */
+#sprintDialog, #manageDialog, #adjustDialog, #shareDialog { max-width: 1100px; }
 /* Stacked, the first panel sits directly under the intro line — `.formpanel:first-of-type`
    used to zero this and the left panel is a fieldset now. */
 .adjustcols > *:first-child { margin-top: 0; }
@@ -1532,7 +1539,7 @@ main:focus { outline: none; }
     the JSON above it <em>adds to</em> what is here rather than replacing it, and it shows you
     every row before it writes anything.</p>
   <div class="row">
-    <button class="btn" id="importSprintsBtn" type="button"><span aria-hidden="true">☰</span> Import a sprint history…</button>
+    <button class="btn" id="importSprintsBtn" type="button"><span aria-hidden="true">⬆︎</span> Import a sprint history…</button>
   </div>
   <details class="danger-zone">
     <summary>Start Again</summary>
