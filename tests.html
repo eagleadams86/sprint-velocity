@@ -2218,7 +2218,10 @@ t('the cache list holds only files that are already public', () => {
   const shell = [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]);
   /* Exact equality, not "contains". A new entry has to be added here too, which
      is the moment to ask whether the file is genuinely public. */
-  eq(shell.slice().sort(), ['./', 'chart.min.js', 'favicon.ico', 'privacy.html', 'theme.css'],
+  eq(shell.slice().sort(),
+    ['./', 'apple-touch-icon.png', 'chart.min.js', 'favicon.ico', 'icon-192.png',
+     'icon-512-maskable.png', 'icon-512.png', 'manifest.webmanifest', 'privacy.html',
+     'theme.css'],
     'the offline shell list changed');
 });
 
@@ -4169,6 +4172,81 @@ t('a plain toast still takes no pointer events, and one with a button does', () 
     el.classList.add('hasaction');
     eq(w.getComputedStyle(el).pointerEvents, 'auto');
   } finally { el.className = had; }
+});
+
+group('installing it — the manifest, its icons and the directive that admits them');
+/* The app was offline-capable for months before it was installable (2026-08-22),
+   which is the wrong way round: an INSTALLED copy is the one most likely to be
+   opened with no network at all. Every assertion here is about the four things
+   that have to agree — the manifest, the files it names, the links in the head,
+   and the CSP directive without which the browser never fetches any of it. */
+t('the head links a manifest, an apple-touch-icon and a theme colour', () => {
+  ok(/<link rel="manifest" href="manifest\.webmanifest">/.test(APP_SRC),
+    'the page links a manifest, or nothing offers to install it');
+  ok(/<link rel="apple-touch-icon" href="apple-touch-icon\.png">/.test(APP_SRC),
+    'and an apple-touch-icon, which Safari prefers over the manifest’s own');
+  ok(/<meta name="theme-color" content="#0a0e1a">/.test(APP_SRC),
+    'with a theme-color for the installed window’s title bar, holding the default theme’s '
+    + 'background as a literal because it has to be right before any script runs');
+});
+t('the CSP spells out manifest-src, or "Install app" silently stops appearing', () => {
+  const csp = APP_SRC.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/)[1];
+  ok(/manifest-src 'self'/.test(csp),
+    "under default-src 'none' a manifest is covered by no other directive, so the fetch is "
+    + 'refused and nothing says why: ' + csp);
+  ok(!/manifest-src[^;]*https?:/.test(csp), 'and it admits no off-origin host either');
+});
+t('the theme picker repaints that colour from the pack, never from a literal', () => {
+  /* The literal in the head is only ever right for Midnight. applyTheme() is the
+     one place the theme is applied, so the repaint belongs there — and it reads
+     --bg, so this app never names a colour the pack does not own. */
+  ok(/function paintThemeColor\(\)/.test(APP_SRC) && /cssVar\('--bg'\)/.test(APP_SRC),
+    'paintThemeColor() must read the pack’s --bg');
+  const applyTheme = APP_SRC.match(/function applyTheme\(\)[\s\S]*?\n}/)[0];
+  ok(/paintThemeColor\(\)/.test(applyTheme),
+    'and applyTheme() must call it, or a Light window keeps a midnight title bar');
+});
+t('the manifest itself is a real one, scoped to this app and no wider', async () => {
+  const res = await bustFetch('manifest.webmanifest');
+  ok(res.ok, 'manifest.webmanifest is missing');
+  const MAN = await res.json();
+  eq(MAN.scope, './', 'the scope is this app’s own directory');
+  eq(MAN.start_url, './', 'and so is the start url');
+  /* The named case, and the reason scope is relative: every one of these apps is
+     served from ONE origin, so a scope of "/" would capture the siblings into this
+     app's window. */
+  ok(MAN.scope !== '/' && MAN.id.indexOf('sprint-velocity') >= 0,
+    'never a scope of "/" — the family shares an origin, and that would swallow the siblings');
+  eq(MAN.display, 'standalone', 'it installs as an app window rather than a browser tab');
+  eq(MAN.icons.map(i => i.purpose).sort(), ['any', 'any', 'maskable'],
+    'two unmasked icons and one maskable — a launcher crops the maskable to its own outline');
+});
+t('every file the manifest names exists, and is cached for offline', async () => {
+  const MAN = await (await bustFetch('manifest.webmanifest')).json();
+  const m = SW_SRC.match(/const SHELL = \[([\s\S]*?)\]/);
+  const shell = [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]);
+  /* A 404 in this list is the failure that shows up as a blank icon on somebody’s
+     home screen and nowhere else. */
+  for (const icon of MAN.icons) {
+    const res = await fetch(icon.src, { method: 'HEAD' });
+    ok(res.ok, 'the manifest names ' + icon.src + ' and the file is there');
+    ok(shell.includes(icon.src), 'and it is cached for offline — ' + icon.src);
+  }
+  ok(shell.includes('manifest.webmanifest'),
+    'the manifest itself is cached too: a launcher re-reads it to draw the window');
+  const apple = await bustFetch('apple-touch-icon.png', { method: 'HEAD' });
+  ok(apple.ok, 'and apple-touch-icon.png exists, which only the head links');
+});
+t('the icon script still writes every file the manifest and the head name', async () => {
+  /* The four PNGs are generated, not hand-drawn, so the names live in two places
+     that must agree. Renaming one in make_favicon.py and nowhere else is a 404
+     nobody sees until an install. */
+  const res = await bustFetch('make_favicon.py');
+  ok(res.ok, 'make_favicon.py is missing — the icons would have no source');
+  const py = await res.text();
+  for (const name of ['icon-192.png', 'icon-512.png', 'icon-512-maskable.png',
+                      'apple-touch-icon.png'])
+    ok(py.indexOf(name) >= 0, 'make_favicon.py no longer writes ' + name);
 });
 
 /* ── Runner ───────────────────────────────────────────────────────────────── */

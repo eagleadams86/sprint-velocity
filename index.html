@@ -14,7 +14,16 @@
        script-src 'self' 'unsafe-inline'  the app's own code, and the theme
                                           bootstrap that runs before first paint
        style-src  'self' 'unsafe-inline'  theme.css and inline style attributes
-       img-src    'self' data:            the favicon and the SVG data: icon
+       img-src    'self' data:            the favicon, the install icons and the
+                                          SVG data: icon
+       manifest-src 'self'                manifest.webmanifest, and it HAS to be
+                                          spelled out: a manifest is not covered
+                                          by img-src or by any other directive
+                                          here, so under `default-src 'none'` the
+                                          fetch is refused and "Install app"
+                                          silently stops appearing. It buys
+                                          nothing but a static JSON file on this
+                                          origin — a manifest executes nothing
        worker-src 'self'                  sw.js, which is what makes it offline
        connect-src 'none'                 stated OUTRIGHT rather than left to the
                                           default, because this is the directive
@@ -35,7 +44,7 @@
      not announce itself.
 
      Note: frame-ancestors is ignored in a meta tag; it needs a real header. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; worker-src 'self'; frame-src 'none'; base-uri 'none'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; manifest-src 'self'; worker-src 'self'; frame-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sprint Predictability · Charlie’s Epic Sprint Planner</title>
 <meta name="description" content="Track sprint predictability across teams: commitment completion, break-in, carryover, and velocity.">
@@ -48,6 +57,33 @@
      step. img-src allows data: URIs, so the SVG costs no extra request. -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'> <defs><linearGradient id='g' x1='10' y1='52' x2='54' y2='12' gradientUnits='userSpaceOnUse'> <stop offset='0' stop-color='%23818cf8'/><stop offset='1' stop-color='%23a5b4fc'/></linearGradient></defs> <rect width='64' height='64' rx='14' fill='%230a0e1a'/> <circle cx='14' cy='52' r='20' fill='%23141c33'/> <path d='M42.93 18.98 A17 17 0 1 1 24.82 16.59' fill='none' stroke='url(%23g)' stroke-width='6' stroke-linecap='round'/> <circle cx='42.93' cy='18.98' r='6.5' fill='%23a5b4fc'/> <circle cx='42.93' cy='18.98' r='2.4' fill='%230a0e1a'/> </svg>">
 <link rel="alternate icon" href="favicon.ico?v=1">
+<!-- Installing the app. The manifest is what turns Chrome's "Install page as
+     app" into a real app window with this name and icon rather than a bare
+     shortcut, and Safari's Add to Dock and iOS's Add to Home Screen read it too.
+     All of them need FILES: the SVG data URI above and favicon.ico are no use to
+     any of them, which is why make_favicon.py emits PNGs of the same mark.
+     apple-touch-icon is Safari's own preference and is listed separately from
+     the manifest's icons.
+
+     The app was offline-capable for months before it was installable, which is
+     the wrong way round: an INSTALLED copy is the one most likely to be opened
+     with no network at all, and sw.js caches these files for exactly that.
+
+     `scope` is the manifest's own directory (it is "./" in the file), and that
+     matters more here than it looks: every one of these apps is served from the
+     SAME origin, and a scope of "/" would capture Flow Metrics and Money Map
+     into this app's window. Nothing here changes what any page on the origin can
+     already reach — an installed app shares the browser's storage — so
+     installing is a window, not a sandbox. -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<!-- The installed window's title bar takes its colour from here. It holds the
+     manifest's midnight to start with, because that is the default theme and
+     this has to be right before any script runs; applyTheme() rewrites it from
+     the theme pack's own --bg whenever the theme changes, so a Light window
+     doesn't keep a midnight bar above it. No colour is invented — it is read
+     back out of theme.css. -->
+<meta name="theme-color" content="#0a0e1a">
 <script>
   /* Apply the saved theme before first paint so there's no light flash. The list
      is repeated here rather than shared with THEMES below because this has to run
@@ -264,10 +300,31 @@ button, select, input, textarea { font: inherit; color: inherit; }
    name was plain text. */
 #manageDialog input[type=text] { width: 100%; max-width: 320px; }
 #manageDialog td:first-child { min-width: 150px; }
-select, input[type=text], input[type=number], input[type=date], textarea {
+/* THE TYPE LIST IS THE THEME PACK'S OWN, not one grown here a field at a time.
+   It has to be a whitelist — a checkbox handed a surface, a border and padding
+   stops being a checkbox — but a whitelist grown by hand is a field that arrives
+   silently unstyled: Golf Handicap shipped a `type=search` box wearing the
+   browser's own grey rounded shape beside three fields wearing the theme's, and
+   nothing failed, it just looked wrong. So the list is the one the pack already
+   enumerates in its coarse-pointer rule, which answers the same question ("is
+   this a thing you type into?") in the one place that should be answering it.
+   ADDING A TYPE TO ONE MEANS ADDING IT TO THE OTHER.
+   SV is the design lead for this chrome: the same list is in Flow Metrics, Money
+   Map and Golf Handicap. PAPTrack and the dashboard style fields by CONTAINER
+   and by class instead, which has no equivalent gap, so they are deliberately
+   left alone. */
+select, textarea,
+input[type=text], input[type=number], input[type=date], input[type=month],
+input[type=search], input[type=tel], input[type=url], input[type=email],
+input[type=password] {
   background: var(--bg-card); border: 1px solid var(--input-border);
   border-radius: var(--radius-sm); padding: 7px 9px;
 }
+/* A search field is drawn natively with its own inset shape, which ignores the
+   border and radius above — the same move the pack makes for date fields, and
+   for the same reason. It takes Chromium's native × with it; a search box that
+   has no other way to clear itself should offer one. */
+input[type=search] { -webkit-appearance: none; appearance: none; }
 textarea { width: 100%; resize: vertical; min-height: 64px; }
 :focus-visible { outline: 2px solid var(--focus-border); outline-offset: 2px; }
 
@@ -10653,6 +10710,24 @@ function applyTheme() {
   const t = themeId();
   document.documentElement.setAttribute('data-theme', t);
   F('themeSel').value = t;
+  paintThemeColor();
+}
+
+/* The installed window's title bar. The literal in the <head> is only ever right
+   for Midnight — it has to be there because it must be correct before any script
+   runs — so every theme change repaints it, and always from the pack's own `--bg`
+   rather than from a colour of this app's own. Called from applyTheme(), which is
+   the one place the theme is applied, so a Light window can never keep a midnight
+   bar above it.
+
+   No prefers-color-scheme listener, and that is a deliberate difference from Flow
+   Metrics rather than a gap: this app's picker offers four fixed themes and no
+   Auto, so nothing can change the palette without applyTheme() running. Add an
+   Auto option and this needs the listener the sibling has. */
+function paintThemeColor() {
+  const meta = document.querySelector('meta[name="theme-color"]');
+  const bg = cssVar('--bg');
+  if (meta && bg) meta.setAttribute('content', bg);
 }
 
 F('themeSel').onchange = (e) => {

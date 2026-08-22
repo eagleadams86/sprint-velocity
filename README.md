@@ -1409,6 +1409,35 @@ request and was removed with the data it described: a runbook that confidently d
 something that no longer exists is worse than none. `git log` has it if the history is ever
 wanted.
 
+## Installing It
+
+**Install it as an app** and it gets its own window, its own icon and no browser chrome:
+Chrome and Edge offer *Install page as app*, Safari has *Add to Dock*, and iOS has *Add to
+Home Screen*. On a phone that is the difference between a bookmark and something on the home
+screen beside everything else.
+
+It was offline-capable for months before it was installable, which is the wrong way round —
+an **installed** copy is the one most likely to be opened with no network at all. So the
+manifest and its icons are cached with the rest of the app: a launcher re-reads them to draw
+the window, and without them a cold offline start shows a blank icon and can drop out of its
+own window back into a browser tab.
+
+Two details worth knowing:
+
+- **The icons are drawn by the same script as the favicon.** `make_favicon.py` writes
+  `favicon.ico` and four PNGs from one set of shapes, so the mark on your home screen is the
+  mark in the tab rather than a second drawing that can drift from it. The maskable one is
+  full bleed with square corners, because an Android launcher crops it to whatever outline it
+  likes — the script's own comments carry the sum showing the mark survives that crop.
+- **It installs scoped to this app, not to the account.** Every one of these apps is served
+  from one origin (`eagleadams86.github.io`), so a scope of `/` would pull Flow Metrics and
+  Money Map into this app's window. The scope is this app's own directory. Installing changes
+  nothing about what any page on that origin can already reach — an installed app shares the
+  browser's storage, so this is a window, not a sandbox.
+
+The installed window's title bar takes the theme's own background colour, and follows the
+theme picker.
+
 ## Working Offline
 
 The app keeps a copy of itself on your device, so it opens with no network at all — on a
@@ -1418,7 +1447,8 @@ the targets, export, share links, backup and restore. There is no longer any par
 that needs the network — sync was the one exception, and it is gone.
 
 What's kept is only the app's own public files — the page, the stylesheet, the chart
-library and the icon, the same files anyone can read on GitHub. **Nothing of yours is ever
+library, the icons and the [install manifest](#installing-it), the same files anyone can read
+on GitHub. **Nothing of yours is ever
 put there**, which matters more than it sounds: every one of these apps shares a single
 browser origin, so that cache is not private to this app.
 
@@ -1603,16 +1633,21 @@ The icon — a sprint cycle opening at the commitment point, on the midnight til
 the whole app family wears — is drawn by `make_favicon.py` (Pillow). The inline
 SVG in the page is what browsers show in the tab and what the header wears;
 `favicon.ico` is the fallback a browser fetches from the site root on its own,
-and what a bookmark uses. The script keeps the two the same picture rather than
-leaving a binary nobody can review in a diff. Re-run it with
+and what a bookmark uses. The same script writes the four **install icons** the
+[manifest](#installing-it) and the `apple-touch-icon` link name, so all six
+pictures are one drawing rather than a set that can drift. It keeps them the same
+rather than leaving binaries nobody can review in a diff. Re-run it with
 `python3 make_favicon.py`, then bump the `?v=` on every `favicon.ico` reference
-— browsers hold on to an icon for a long time.
+— browsers hold on to an icon for a long time — and bump `sw.js`'s `CACHE`
+constant, which is how the install icons are versioned instead.
 
 ```
 GitHub Pages (static hosting, this repo, main branch)
     ├── index.html    the whole app — markup, styles, logic, no build step
     ├── theme.css     shared design tokens (generated in the claude-theme-pack repo)
     ├── favicon.ico   the tab icon's fallback, drawn by make_favicon.py
+    ├── manifest…     the install manifest — name, scope, icons, window
+    ├── icon-*.png    the install icons, from the same script as the favicon
     ├── chart.min.js  vendored Chart.js UMD build — no CDN, no network needed
     ├── sw.js         service worker: keeps the files above on your device
     └── sw-kill.js    the escape hatch, if sw.js ever needs uninstalling
@@ -1638,8 +1673,11 @@ A Content Security Policy `<meta>` tag in `index.html` **names no external origi
 Since sync was removed there is nothing for it to allow: no CDN, no Google, no analytics.
 `default-src 'none'` is therefore the real rule rather than a formality, and each directive
 is an exception it has to earn — including `connect-src 'none'`, spelled out rather than left
-to the default because it is the one directive that would carry work data off the device, and
-`worker-src 'self'` for `sw.js`, spelled out rather than resolved through the fallback chain.
+to the default because it is the one directive that would carry work data off the device,
+`worker-src 'self'` for `sw.js`, spelled out rather than resolved through the fallback chain,
+and `manifest-src 'self'`, which has to be named because a manifest is covered by no other
+directive: without it the browser refuses the fetch and *Install app* simply stops appearing,
+with nothing on screen to say why.
 If a new external endpoint is ever added,
 it has to be added to the CSP too or the browser will (deliberately) block it.
 
@@ -1709,9 +1747,10 @@ holder. [NOTICE](NOTICE) records this in full.
 
 ## What Arrived on 2026-08-22
 
-Seven gaps, closed in one pass. Each has its own section above; together they are the
-difference between an app built around one Scrum Master's numbers and one somebody else can
-pick up:
+Seven gaps, closed in one pass, plus the install manifest that made this the last app in the
+family you could not put on a home screen. Each has its own section above; together they are
+the difference between an app built around one Scrum Master's numbers and one somebody else
+can pick up:
 
 | | |
 |---|---|
@@ -1722,6 +1761,7 @@ pick up:
 | [**Import a history**](#getting-a-history-in) | A spreadsheet of sprints pastes in one go, previewed row by row |
 | [**Undo**](#your-data) | Deleting a sprint, team, PI or ART can be taken back |
 | [**On paper**](#on-paper) | The page prints as a document rather than a screenshot of an app |
+| [**Installable**](#installing-it) | A manifest and its icons, so it gets its own window and its own place on a home screen |
 
 ## The Landmarks (2026-08-21)
 

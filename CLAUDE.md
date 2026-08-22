@@ -1010,6 +1010,39 @@ but Charles had ever actually signed in.)
   mirrors the notes' 19px indent. `.brand` carries the `margin-right: auto` that pushes the
   header controls right again, and `.applink` still needs `display: inline-flex` because
   `.btn.small` pins its height with `min-height`, which an inline box ignores.
+- **It is INSTALLABLE, and the manifest is four files agreeing with each other** (2026-08-22,
+  the day after Flow Metrics; this app was the last of the family without one). `manifest.webmanifest`,
+  `<link rel="manifest">`, `<link rel="apple-touch-icon">`, `<meta name="theme-color">`, the four
+  PNGs `make_favicon.py` now writes, the `manifest-src 'self'` directive and five new entries in
+  `sw.js`'s `SHELL` — change one and check the others. Five things are load-bearing:
+  - **`manifest-src 'self'` has to be SPELLED OUT.** A manifest is covered by no other
+    directive, so under `default-src 'none'` the fetch is refused and "Install app" silently
+    stops appearing — nothing errors, nothing shows, and it works perfectly on a browser you
+    are not testing with. It admits a static JSON file on this origin and nothing else.
+  - **`scope` is `./`, never `/`.** Every app in the family is served from ONE origin, so an
+    absolute scope would capture Flow Metrics and Money Map into this app's installed window.
+    The same reasoning as the service worker's scope, and the test asserts it by name.
+  - **The manifest and its icons are on the offline SHELL.** An installed copy is the one most
+    likely to be opened with no network at all, and a launcher re-reads both to draw the
+    window; without them a cold offline start shows a blank icon and can drop out of
+    standalone. They are files already public in this repo, so the origin-wide-cache rule is
+    unchanged — and the justification for them is written ABOVE the array, not between its
+    entries, because the suite pulls every quoted string out of that array and an apostrophe
+    in a comment inside it would hand the check a fake entry.
+  - **Three icons, three jobs.** The `any` pair and `favicon.ico` are ROUNDED (nothing masks
+    them); the maskable is FULL BLEED with square corners (a launcher crops it, so rounding
+    would round a picture about to be rounded again); `apple-touch-icon.png` is square and
+    OPAQUE (Apple masks it, and a rounded source leaves a pale seam inside the curve). The
+    maskable safe zone is radius 25.6 in the 64 viewport and this mark reaches 23.5 — the
+    commitment dot sits ON the ring, so 17 + 6.5. Widen the ring or enlarge the dot and
+    re-check that sum; the docstring carries it.
+  - **`theme-color` is a literal in the head and repainted by `applyTheme()`.** The literal has
+    to be there because it must be right before any script runs, and it is only ever right for
+    Midnight — so `paintThemeColor()` rewrites it from the pack's own `--bg`, never from a
+    colour of this app's own. **No `prefers-color-scheme` listener here, unlike Flow Metrics**,
+    and that difference is deliberate: this picker offers four fixed themes and no Auto, so
+    nothing can change the palette without `applyTheme()` running. Add an Auto option and this
+    needs the sibling's listener.
 - **Each app wears its own mark in the header, from the same family tile** — midnight page,
   soft disc in the corner, one gradient stroke in the accent, the same shapes Money Map and
   PAPTrack use. Here it's the sprint cycle; Flow Metrics has three weeks of bars. It is
@@ -1493,6 +1526,24 @@ page out of five is not a convention.
   — it is navigation, not the document — but "outside main" is not the same as "outside every
   landmark", which is where it sat: axe-core's `region` rule found it on all six privacy pages
   at once. The `<nav>` carries an `aria-label` naming where it goes back to.
+- **The base field rule's TYPE LIST is the theme pack's own** (2026-08-22). `select,
+  textarea, input[type=text|number|date|month|search|tel|url|email|password]` — the same
+  list the pack enumerates in its coarse-pointer rule. It has to stay a whitelist (a
+  checkbox handed a surface, a border and padding stops being a checkbox), but a whitelist
+  grown by hand is a field that arrives silently UNSTYLED, wearing the browser's own box
+  beside fields wearing the theme's. Nothing fails and nothing logs. It has happened twice
+  in this family in opposite directions: Flow Metrics was missing `date`, Golf Handicap was
+  missing `search`. Borrowing the pack's list is what stops it being a fresh discovery each
+  time, since it answers the same question ("is this a thing you type into?") in the one
+  place that should. **Adding a type to one means adding it to the other.**
+  `input[type=search]` also takes `appearance: none`, like the pack's date fields, because
+  the native inset shape ignores the border and radius — that removes Chromium's native ×
+  too, so a search box with no other way to clear itself should offer one.
+  **Sprint Predictability is the design lead**; Flow Metrics, Money Map and Golf Handicap
+  carry the identical list. PAPTrack and the dashboard style fields by CONTAINER
+  (`.field input`) and by class (`.ctl`) instead — element selectors, which have no
+  equivalent gap — and the lottery pages style their few fields per component. Those three
+  are deliberately NOT converted; don't "finish the job" by giving them a type list.
 - **Decorative glyphs on buttons are `aria-hidden` everywhere, not just in the header.** The
   header row got the treatment on 2026-08-21 and the rest of the app did not, so a screen
   reader still read "downwards black arrow, Export JSON" in every dialog. Around 50 buttons
