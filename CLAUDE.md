@@ -1236,6 +1236,18 @@ but Charles had ever actually signed in.)
   desktop app's preview pane via `.claude/launch.json`), then commit, push, verify the
   Pages deploy, and spot-check live. Any local server + browser works — don't hunt for a
   specific tool.
+- **`tests.html` busts its own cache, on the frames AND on the source fetches (2026-08-22),
+  and that is not tidiness.** `const BUST = '?t=' + Date.now()` goes on every hidden
+  `iframe.src` and through `bustFetch()` on every read of a file this repo ships. The frame
+  cache and the HTTP cache are different caches and they can disagree: in the lottery repo
+  the same harness reported **all-green against a page three features out of date**, because
+  the source-level tests were reading the file off the server while the frames ran a copy the
+  browser had cached. Nothing errored; the new code was simply never run. A suite that can
+  pass against a build which exists nowhere is worse than no suite — it turns "untested" into
+  "verified". **If a test passes when you expected it to fail, check
+  `document.getElementById('app').contentWindow` has the function you just wrote before
+  believing anything.** The GitHub API call at the foot of the file is deliberately left
+  un-busted: it is somebody else's endpoint, not a file we ship.
 - **`tests.html` pins the pure functions — open it (same local server) and check "All N
   tests pass" whenever you touch the Jira parser, `metrics()`/`rag()`/`fmtPct()`,
   `avg()`/`pooled()`, `sanitizeIds()` or `sprintStatus()`.** It loads the real

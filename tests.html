@@ -232,6 +232,21 @@ const TRAILING_DASH = [
 /* ── Tests ────────────────────────────────────────────────────────────────── */
 let w; // the app iframe's window
 
+/* One cache-buster for this run, on every hidden frame AND every fetch of a
+   file this repo ships. The two are different caches and they can disagree:
+   on 2026-08-22 the lottery repo's suite reported all-green against a page
+   three features out of date, because its source-level tests were reading the
+   file off the server while its frames ran a copy the browser had cached.
+   Nothing errored and nothing looked wrong — the new code was simply never
+   run. A suite that can pass against a build which exists nowhere is worse
+   than no suite, because it turns "untested" into "verified".
+
+   `no-store` on the fetches as well as the query, since a query alone is only
+   a hint. The GitHub API call at the foot of this file is deliberately left
+   alone: it is somebody else's endpoint, not a file we ship. */
+const BUST = '?t=' + Date.now();
+const bustFetch = (f, init) => fetch(f + BUST, Object.assign({ cache: 'no-store' }, init || {}));
+
 group('sanitizeIds — the untrusted-id boundary');
 t('hostile ids are replaced and every reference rewritten through the same map', () => {
   const evil = 'x"><img src=q onerror=alert(1)>';
@@ -2155,7 +2170,7 @@ let SW_SRC = null, KILL_SRC = null, APP_SRC = null;
 const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
 t('sw.js, its kill switch and the app all read back as text', async () => {
-  const [a, b, c] = await Promise.all([fetch('sw.js'), fetch('sw-kill.js'), fetch('index.html')]);
+  const [a, b, c] = await Promise.all([bustFetch('sw.js'), bustFetch('sw-kill.js'), bustFetch('index.html')]);
   ok(a.ok, 'sw.js is missing');
   ok(b.ok, 'sw-kill.js is missing — the escape hatch has to exist BEFORE it is needed');
   ok(c.ok, 'index.html is missing');
@@ -2170,7 +2185,7 @@ t('sw.js, its kill switch and the app all read back as text', async () => {
    with no way back to what it documents and no statement of who wrote it. The
    privacy link itself is deliberately absent: you are standing on that page. */
 t('the privacy page carries the family footer', async () => {
-  const res = await fetch('privacy.html');
+  const res = await bustFetch('privacy.html');
   ok(res.ok, 'privacy.html is missing — the app footer links straight at it');
   const src = await res.text();
   ok(/>How it works</.test(src),
@@ -2386,7 +2401,7 @@ t('booting the app deletes the keys sync left behind', () => {
   f.setAttribute('data-sv-tests', '');
   f.setAttribute('aria-hidden', 'true');
   f.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;border:0;left:-9999px';
-  return new Promise((resolve) => { f.onload = resolve; f.src = 'index.html'; document.body.appendChild(f); })
+  return new Promise((resolve) => { f.onload = resolve; f.src = 'index.html' + BUST; document.body.appendChild(f); })
     .then(() => {
       eq(localStorage.getItem('sv-sync-uid'), null,
         'the Google account id sync left in localStorage must be cleared at boot');
@@ -2438,7 +2453,7 @@ function bootWithSavedCopy(saved) {
   f.setAttribute('data-sv-tests', '');
   f.setAttribute('aria-hidden', 'true');
   f.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;border:0;left:-9999px';
-  return new Promise((resolve) => { f.onload = resolve; f.src = 'index.html'; document.body.appendChild(f); })
+  return new Promise((resolve) => { f.onload = resolve; f.src = 'index.html' + BUST; document.body.appendChild(f); })
     .then(() => {
       /* Read before the restore, so a failing assertion can't leave the fixture in
          place — and the restore runs whether the assertions pass or not. */
@@ -4179,7 +4194,7 @@ if (LOCAL_HOSTS.includes(location.hostname)) {
   frame.setAttribute('aria-hidden', 'true');
   frame.style.cssText = 'position:absolute;width:1px;height:1px;opacity:0;pointer-events:none';
   frame.addEventListener('load', () => setTimeout(run, 150), { once: true }); // let boot finish
-  frame.src = 'index.html';           /* set before append: one load event, the real one */
+  frame.src = 'index.html' + BUST;    /* set before append: one load event, the real one */
   document.body.appendChild(frame);
 } else {
   const s = document.getElementById('summary');
