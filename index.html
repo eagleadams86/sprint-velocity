@@ -852,6 +852,13 @@ legend { font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .04
    because both ends move and the eye has nothing to return to. 80ch, centred in
    whatever the card is. Money Map's rule and its number. */
 .card > .empty { max-width: 80ch; margin-left: auto; margin-right: auto; }
+/* The welcome card's heading is the PAGE TITLE on the one screen it appears on,
+   so it takes the ramp's page-title step rather than the browser's own h2
+   default. All five apps rendered this at 24px — the same by accident, off
+   `1.5em` of a 16px root, which is not a step on the scale and would drift the
+   moment anything touched the root. Declared, and the same declaration in every
+   app. */
+.card > .empty h2 { font-size: var(--fs-xl); }
 .empty h2 { color: var(--text-primary); }
 /* The toast is a POPOVER, so that it can be seen over an open modal dialog —
    the reasoning is on toast() itself. Half of what follows undoes the UA's own
