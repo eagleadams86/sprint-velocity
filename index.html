@@ -10720,10 +10720,13 @@ function applyTheme() {
    the one place the theme is applied, so a Light window can never keep a midnight
    bar above it.
 
-   No prefers-color-scheme listener, and that is a deliberate difference from Flow
-   Metrics rather than a gap: this app's picker offers four fixed themes and no
-   Auto, so nothing can change the palette without applyTheme() running. Add an
-   Auto option and this needs the listener the sibling has. */
+   Under **Auto** the palette changes with nobody touching the picker — the reader's
+   phone goes dark at sunset and theme.css follows on its own, in a media query. The
+   prefers-color-scheme listener at the foot of this file, which exists for the
+   charts, covers the title bar too because it calls applyTheme(): ONE call site, so
+   the bar and the charts can never disagree about which palette is in force. Don't
+   give this its own listener — wire anything else that follows the theme into
+   applyTheme() instead. */
 function paintThemeColor() {
   const meta = document.querySelector('meta[name="theme-color"]');
   const bg = cssVar('--bg');

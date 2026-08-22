@@ -1039,10 +1039,12 @@ but Charles had ever actually signed in.)
   - **`theme-color` is a literal in the head and repainted by `applyTheme()`.** The literal has
     to be there because it must be right before any script runs, and it is only ever right for
     Midnight — so `paintThemeColor()` rewrites it from the pack's own `--bg`, never from a
-    colour of this app's own. **No `prefers-color-scheme` listener here, unlike Flow Metrics**,
-    and that difference is deliberate: this picker offers four fixed themes and no Auto, so
-    nothing can change the palette without `applyTheme()` running. Add an Auto option and this
-    needs the sibling's listener.
+    colour of this app's own. Under **Auto** the palette moves with nobody touching the
+    picker, and the `prefers-color-scheme` listener at the foot of the file — added the same
+    morning, for the charts — covers the title bar too, because it calls `applyTheme()`. That
+    is the point of putting the repaint THERE: one call site, so the bar and the charts cannot
+    disagree about which palette is in force. Anything else that has to follow the theme goes
+    into `applyTheme()` as well, not into a second listener.
 - **Each app wears its own mark in the header, from the same family tile** — midnight page,
   soft disc in the corner, one gradient stroke in the accent, the same shapes Money Map and
   PAPTrack use. Here it's the sprint cycle; Flow Metrics has three weeks of bars. It is
