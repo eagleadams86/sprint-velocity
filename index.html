@@ -593,6 +593,9 @@ th .tile-help, td .tile-help { vertical-align: 1px; }
    gets a little more than the word space it follows. */
 /* Neutral sibling of .badge — .badge is amber because it always means "in flight",
    and a heading tag that just names a source shouldn't borrow that alarm. */
+/* A LABEL, NOT A CONTROL. Same call as `.pill` below and for the same reason:
+   read, never pressed, so it keeps `--border-strong` and stayed out of the
+   control-border sweep of 2026-08-22. Make one clickable and it moves. */
 .tag { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px;
   font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0; vertical-align: 2px;
   border: 1px solid var(--border-strong); color: var(--text-secondary);
