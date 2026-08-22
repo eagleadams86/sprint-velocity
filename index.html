@@ -206,7 +206,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text-primary);
-  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font: var(--fw-normal) var(--fs-base)/var(--lh-base) var(--font-sans);
   -webkit-font-smoothing: antialiased;
 }
 /* 1500px to match Team Dashboard — the two apps share one page width. */
@@ -225,7 +225,7 @@ header {
 /* An <h1>, so the page has a top-level heading — hence the margin reset. The auto
    right margin is what pushes the control cluster to the right edge; it moved back
    onto .brand on 2026-08-20, when the .applink left the header for the footer. */
-.brand { font-size: 17px; font-weight: 700; letter-spacing: -.01em;
+.brand { font-size: var(--fs-md); font-weight: 700; letter-spacing: -.01em;
   margin: 0 auto 0 0; }
 .brand span { color: var(--text-muted); font-weight: 500; }
 /* The mark from the browser tab, worn in the header too. Width and height are on
@@ -266,7 +266,7 @@ button, select, input, textarea { font: inherit; color: inherit; }
 /* Shared height for the header chrome. A native <select> ignores line-height, so
    it sizes ~3px shorter than a button with identical padding and font — pinning
    the height on both is the only way to keep the row even. */
-.btn.small { padding: 4px 9px; font-size: 13px; min-height: var(--chrome-h); }
+.btn.small { padding: 4px 9px; font-size: var(--fs-xs); min-height: var(--chrome-h); }
 /* Destructive buttons. Same shape as every other button — only the colour differs,
    from the existing --err token, so nothing here diverges from the theme pack.
    Mirrored in Flow Metrics, Money Map, PAPTrack and Golf Handicap. */
@@ -287,7 +287,7 @@ button, select, input, textarea { font: inherit; color: inherit; }
    greyed colour, so nothing here invents a palette value. */
 .icon-btn { appearance: none; background: none; border: 1px solid var(--border-strong);
   color: var(--text-muted); border-radius: var(--radius-sm); cursor: pointer;
-  width: 30px; height: 30px; font-size: 14px; line-height: 1; }
+  width: 30px; height: 30px; font-size: var(--fs-sm); line-height: 1; }
 .icon-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
 .icon-btn.danger:hover { color: var(--err); border-color: var(--err); }
 .icon-btn:disabled { opacity: .45; cursor: not-allowed; }
@@ -345,7 +345,7 @@ select.ctl:hover { border-color: var(--text-muted); }
 #teamSel, #themeSel {
   background: var(--bg-card-alt); color: var(--text-primary);
   border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
-  padding: 4px 9px; font-size: 13px; font-weight: inherit; cursor: pointer;
+  padding: 4px 9px; font-size: var(--fs-xs); font-weight: inherit; cursor: pointer;
   min-height: var(--chrome-h);
 }
 #teamSel:hover, #themeSel:hover { border-color: var(--text-muted); }
@@ -405,7 +405,7 @@ select.ctl:hover { border-color: var(--text-muted); }
   background: var(--bg-card); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 18px; margin-bottom: 18px; box-shadow: var(--shadow);
 }
-.card > h2 { margin: 0 0 4px; font-size: 16px; letter-spacing: -.01em; }
+.card > h2 { margin: 0 0 4px; font-size: var(--fs-md); letter-spacing: -.01em; }
 /* A card whose heading shares its line with a control — Target Capacity and its
    Adjust button. The heading then sits inside a flex row rather than directly in
    the card, so `.card > h2` stops matching it and it falls back to the browser's
@@ -414,7 +414,7 @@ select.ctl:hover { border-color: var(--text-muted); }
    sub-heading below keeps its spacing and the heading still sits level with the
    button beside it. */
 .card > .row.cardhead { margin: 0 0 4px; }
-.card > .row.cardhead > h2 { margin: 0; font-size: 16px; letter-spacing: -.01em; }
+.card > .row.cardhead > h2 { margin: 0; font-size: var(--fs-md); letter-spacing: -.01em; }
 /* `.sub` is the app's secondary-text class, and its look must not depend on where
    it sits. The size and colour were scoped to `.card > .sub` — a DIRECT child of a
    card — so all 21 of the `.sub` paragraphs inside dialogs matched nothing and fell
@@ -423,7 +423,7 @@ select.ctl:hover { border-color: var(--text-muted); }
    became obvious once Adjust Capacity grew enough prose to notice. The MARGIN stays
    card-scoped — dialogs set their own spacing inline, and hoisting it would move
    every one of them. */
-.sub { color: var(--text-secondary); font-size: 13px; }
+.sub { color: var(--text-secondary); font-size: var(--fs-xs); }
 .card > .sub { margin: 0 0 16px; }
 /* Tiles share the parent's rows via subgrid, so the label, the number and the
    caption each line up straight across a row of tiles. Without it a label that
@@ -461,7 +461,7 @@ select.ctl:hover { border-color: var(--text-muted); }
 /* The label row carries the ⓘ button on its right. It's a flex row rather than the
    button being floated or absolutely positioned, so a label that wraps pushes the
    button along with it and the row keeps the height subgrid is lining up on. */
-.tile .label { font-size: 12px; color: var(--text-secondary); text-transform: uppercase;
+.tile .label { font-size: var(--fs-xs); color: var(--text-secondary); text-transform: uppercase;
   letter-spacing: .04em; font-weight: 600;
   display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
 /* Sized to the label's own line so adding it never makes the row taller. The margin
@@ -471,7 +471,7 @@ select.ctl:hover { border-color: var(--text-muted); }
   margin-left: 7px;
   flex: none; width: 16px; height: 16px; padding: 0; border-radius: 50%;
   border: 1px solid var(--border-strong); background: transparent;
-  color: var(--text-secondary); font-size: 11px; font-weight: 700; line-height: 1;
+  color: var(--text-secondary); font-size: var(--fs-xs); font-weight: 700; line-height: 1;
   font-family: inherit; text-transform: none; cursor: pointer;
 }
 /* A tile label is a flex row with its own gap that pins the button to the far right,
@@ -492,8 +492,8 @@ label.row:has(> input[type=checkbox]), .checkline { min-height: 24px; align-item
 /* In table cells the button sits on the text baseline rather than the cap line, which
    reads as sunk next to the small type. */
 th .tile-help, td .tile-help { vertical-align: 1px; }
-.tile .value { font-size: 26px; font-weight: 700; letter-spacing: -.02em; margin-top: 2px; }
-.tile .foot { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+.tile .value { font-size: var(--fs-xl); font-weight: 700; letter-spacing: -.02em; margin-top: 2px; }
+.tile .foot { font-size: var(--fs-xs); color: var(--text-secondary); margin-top: 2px; }
 /* RAG state. Colour is never the only signal: every tile also carries a glyph and
    an aria-label spelling the status out (WCAG 1.4.1 use of colour).
    The tint fill is load-bearing, not decoration. A 4px rule and a line of digits are
@@ -508,11 +508,11 @@ th .tile-help, td .tile-help { vertical-align: 1px; }
 .tile.green  .value { color: var(--green); }
 .tile.yellow .value { color: var(--amber); }
 .tile.red    .value { color: var(--red); }
-.glyph { font-size: 15px; font-weight: 700; margin-left: 6px; vertical-align: 2px; }
+.glyph { font-size: var(--fs-base); font-weight: 700; margin-left: 6px; vertical-align: 2px; }
 /* The one number on the page someone acts on, so it gets the weight. */
 .tile.hero { background: var(--bg-card); border-color: var(--focus-border);
   border-left-color: var(--focus-border); }
-.tile.hero .value { font-size: 40px; }
+.tile.hero .value { font-size: var(--fs-display); }
 .tile.hero .label { color: var(--text-primary); }
 /* An in-flight sprint is easy to misread as a bad one, so say so up front. */
 .card.banner { border-left: 4px solid var(--amber); background: var(--bg-card-alt); }
@@ -523,46 +523,46 @@ th .tile-help, td .tile-help { vertical-align: 1px; }
 #jiraBlock { border: 1px solid var(--border); border-radius: var(--radius-sm);
   padding: 10px 12px; background: var(--bg-card-alt); }
 #jiraBlock { margin-bottom: 14px; }
-#jiraBlock > summary { cursor: pointer; font-weight: 600; font-size: 14px; }
-#jiraBlock textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px; min-height: 90px; }
+#jiraBlock > summary { cursor: pointer; font-weight: 600; font-size: var(--fs-sm); }
+#jiraBlock textarea { font-family: var(--font-mono);
+  font-size: var(--fs-xs); min-height: 90px; }
 /* The bulk-import box gets the Jira paste's monospace treatment for the same
    reason: what goes in it is columns, and columns that don't line up are the
    whole way you spot a paste that has gone in one cell out. Deliberately no
    font-size floor here — pack rule 10 holds the 16px iOS floor for every control
    in the app, and a local re-assertion is the partial patch the note at the foot
    of this stylesheet warns about. */
-#importText { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+#importText { font-family: var(--font-mono);
   min-height: 120px; white-space: pre; overflow-wrap: normal; overflow-x: auto; }
-#importDialog table { font-size: 13px; }
+#importDialog table { font-size: var(--fs-xs); }
 /* Why a row can't be used, in the cell where the row is. It is the same red the
    .warn line uses — and like every other colour in this app it is never the only
    signal: the cell holds the whole sentence. */
-.warntext { color: var(--err); font-size: 12px; }
+.warntext { color: var(--err); font-size: var(--fs-xs); }
 
 #jiraPreview { margin-top: 12px; }
-#jiraPreview table { font-size: 13px; }
+#jiraPreview table { font-size: var(--fs-xs); }
 #jiraPreview td.n { font-weight: 700; width: 1%; white-space: nowrap; }
-#jiraPreview td.why { color: var(--text-secondary); text-align: left; font-size: 12px; }
+#jiraPreview td.why { color: var(--text-secondary); text-align: left; font-size: var(--fs-xs); }
 /* The two comparison tables in All teams run the same sprints through two
    different averages. Nobody guesses that from looking, so the difference gets
    its own boxed note under the second one rather than a line of small print. */
 .methodnote { border: 1px solid var(--border); border-radius: var(--radius-sm);
   padding: 12px 14px; margin-top: 16px; background: var(--bg-card-alt);
-  font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
-.methodnote h3 { margin: 0 0 6px; font-size: 13px; color: var(--text-primary); }
+  font-size: var(--fs-xs); color: var(--text-secondary); line-height: 1.5; }
+.methodnote h3 { margin: 0 0 6px; font-size: var(--fs-xs); color: var(--text-primary); }
 .methodnote p { margin: 0 0 8px; }
 .methodnote p:last-child { margin-bottom: 0; }
 .methodnote strong { color: var(--text-primary); }
-.note-ok   { color: var(--green); font-size: 13px; font-weight: 600; }
-.note-warn { color: var(--amber); font-size: 13px; font-weight: 600; }
-.note-err  { color: var(--err);   font-size: 13px; font-weight: 600; }
+.note-ok   { color: var(--green); font-size: var(--fs-xs); font-weight: 600; }
+.note-warn { color: var(--amber); font-size: var(--fs-xs); font-weight: 600; }
+.note-err  { color: var(--err);   font-size: var(--fs-xs); font-weight: 600; }
 /* A pill hard up against the text it qualifies reads as part of the sentence, so it
    gets a little more than the word space it follows. */
 /* Neutral sibling of .badge — .badge is amber because it always means "in flight",
    and a heading tag that just names a source shouldn't borrow that alarm. */
 .tag { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px;
-  font-size: 11px; font-weight: 600; letter-spacing: 0; vertical-align: 2px;
+  font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0; vertical-align: 2px;
   border: 1px solid var(--border-strong); color: var(--text-secondary);
   background: var(--bg-card-alt); white-space: nowrap; }
 /* The reconciliation tag stops being a two-word label once it has to carry a
@@ -570,7 +570,7 @@ th .tile-help, td .tile-help { vertical-align: 1px; }
    the side of a phone. Only the conditional form gets this. */
 .tag.cond { white-space: normal; }
 .badge { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--fs-xs);
   font-weight: 700; border: 1px solid var(--amber); color: var(--amber);
   background: var(--amber-bg); white-space: nowrap; }
 /* The 6px is for a badge that FOLLOWS text — after a sprint name in a table row,
@@ -597,7 +597,7 @@ th .tile-help, td .tile-help { vertical-align: 1px; }
    the longest value fmtPct() can produce ("100.0%") and 14px is the glyph slot below;
    tabular figures keep the digits themselves from shifting. */
 .pill { display: inline-block; box-sizing: content-box; min-width: calc(6ch + 14px);
-  padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 700;
+  padding: 1px 8px; border-radius: 999px; font-size: var(--fs-xs); font-weight: 700;
   border: 1px solid; text-align: center; font-variant-numeric: tabular-nums; }
 .pill.green  { color: var(--green); background: var(--green-bg); border-color: var(--green); }
 .pill.yellow { color: var(--amber); background: var(--amber-bg); border-color: var(--amber); }
@@ -607,7 +607,7 @@ th .tile-help, td .tile-help { vertical-align: 1px; }
    signal. Fixed-width slot because the three glyphs are different widths, and the
    pill centres its contents: without it the percentage shifts sideways from row to
    row depending on which status it happens to be. */
-.pill .glyph { font-size: 11px; margin-left: 3px; vertical-align: 0;
+.pill .glyph { font-size: var(--fs-xs); margin-left: 3px; vertical-align: 0;
   display: inline-block; width: 11px; text-align: center; }
 
 /* ── Tables ─────────────────────────────────────────────────────────────── */
@@ -635,7 +635,7 @@ th .tile-help, td .tile-help { vertical-align: 1px; }
    it is only ever visible on the phone. Mirrored in Flow Metrics, Money Map and Golf
    Handicap. */
 .tablewrap { overflow-x: auto; position: relative; }
-table { border-collapse: collapse; width: 100%; font-size: 14px;
+table { border-collapse: collapse; width: 100%; font-size: var(--fs-sm);
   font-variant-numeric: tabular-nums; }
 th, td { text-align: right; padding: 10px 12px; border-bottom: 1px solid var(--border); }
 th:first-child, td:first-child { text-align: left; }
@@ -647,7 +647,7 @@ td:has(.badge) { white-space: nowrap; }
    over three lines and drops the circle onto a fourth on its own, orphaned from the
    words it belongs to. */
 td:has(.tile-help), th:has(.tile-help) { white-space: nowrap; }
-th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
+th { font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .04em;
   color: var(--text-secondary); font-weight: 600; white-space: nowrap;
   vertical-align: bottom; border-bottom-color: var(--border-strong); }
 /* A metric column holds nothing but a fixed-width pill, so header and pill centre on
@@ -690,7 +690,7 @@ tr.clickable { cursor: pointer; }
    row-header cell rather than a column of its own: Comparison 2 already carries nine
    columns, and the label is a caption for the name above it, not another figure to
    read across. Muted and small so it groups the rows without competing with them. */
-.artname { display: block; font-size: 12px; font-weight: 400; color: var(--text-secondary); }
+.artname { display: block; font-size: var(--fs-xs); font-weight: 400; color: var(--text-secondary); }
 tfoot td, tfoot th { font-weight: 700; border-top: 2px solid var(--border-strong);
   border-bottom: none; }
 /* A tfoot carrying more than one row: the second and any after it take a light rule
@@ -708,21 +708,21 @@ td.muted, .muted { color: var(--text-muted); }
    out-shout the figures they are describing. */
 td.trend { white-space: nowrap; color: var(--text-secondary); }
 .spark { vertical-align: middle; margin-right: 5px; }
-.trendword { font-size: 12px; font-variant-numeric: tabular-nums; }
+.trendword { font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
 
 /* ── Charts ─────────────────────────────────────────────────────────────── */
 .chartbox { position: relative; height: 320px; margin-top: 8px; }
 .chartbox.short { height: 260px; }
 .charts2 { display: grid; gap: 18px; grid-template-columns: 1fr; }
 @media (min-width: 900px) { .charts2 { grid-template-columns: 1fr 1fr; } }
-figcaption { font-size: 13px; color: var(--text-secondary); margin-bottom: 6px; }
+figcaption { font-size: var(--fs-xs); color: var(--text-secondary); margin-bottom: 6px; }
 details.datatable { margin-top: 10px; }
-details.datatable summary { cursor: pointer; font-size: 13px; color: var(--text-secondary); }
+details.datatable summary { cursor: pointer; font-size: var(--fs-xs); color: var(--text-secondary); }
 /* "Start again" inside the backup dialog. Folded away deliberately: the one
    irreversible action in the app should take a deliberate open, not sit a
    mis-click away from Export. Same pattern in the sibling apps. */
 details.danger-zone { margin-top: 18px; border-top: 1px solid var(--border); padding-top: 12px; }
-details.danger-zone > summary { cursor: pointer; font-size: 13px; font-weight: 600;
+details.danger-zone > summary { cursor: pointer; font-size: var(--fs-xs); font-weight: 600;
   color: var(--text-secondary); }
 details.danger-zone > summary:hover { color: var(--text-primary); }
 
@@ -731,7 +731,7 @@ details.danger-zone > summary:hover { color: var(--text-primary); }
    column width is a floor, so it drops back to one when there isn't room for two
    rather than squeezing the line length. Paragraphs stay whole across the break. */
 .explain { columns: 2 34ch; column-gap: 40px;
-  font-size: 14px; color: var(--text-secondary); margin-top: 10px; }
+  font-size: var(--fs-sm); color: var(--text-secondary); margin-top: 10px; }
 .explain p { margin: 0 0 10px; break-inside: avoid; }
 .explain p:last-child { margin-bottom: 0; }
 
@@ -751,7 +751,7 @@ details.danger-zone > summary:hover { color: var(--text-primary); }
 .sprint-bar > .row { flex: 1; min-width: 0; }
 .sprint-bar > .row > select { max-width: 100%; }
 .sprint-bar > .btn { flex: none; }
-label.field { display: block; font-size: 13px; color: var(--text-secondary);
+label.field { display: block; font-size: var(--fs-xs); color: var(--text-secondary);
   font-weight: 600; margin-bottom: 4px; }
 .grid-fields { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
 /* Fields line up on their boxes, not their labels. A cell is a full-height column
@@ -830,16 +830,16 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
   .adjustcols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .adjustcols > fieldset { margin: 0; }
 }
-dialog h3 { margin: 0 0 12px; font-size: 17px; }
+dialog h3 { margin: 0 0 12px; font-size: var(--fs-md); }
 /* Every block in the sprint form is a raised panel a shade lighter than the dialog,
    with the input boxes inside it a shade darker again. That two-tone is what makes
    the fields read as sitting *in* a section rather than floating on a flat sheet. */
 fieldset, .formpanel { border: 1px solid var(--border); border-radius: var(--radius-sm);
   padding: 12px; margin: 14px 0 0; background: var(--bg-card-alt); }
 .formpanel:first-of-type { margin-top: 0; }
-legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
+legend { font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .04em;
   color: var(--text-secondary); font-weight: 700; padding: 0 6px; }
-.warn { color: var(--err); font-size: 13px; margin-top: 10px; }
+.warn { color: var(--err); font-size: var(--fs-xs); margin-top: 10px; }
 /* Live regions have to stay in the accessibility tree to be able to announce, so the
    ones that come and go are emptied rather than hidden — this is what collapses them
    while they hold nothing, margin included. */
@@ -863,7 +863,7 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
   position: fixed; left: 50%; right: auto; top: auto; bottom: 24px;
   margin: 0; transform: translateX(-50%);
   background: var(--btn-bg); color: var(--btn-text); border: 0; padding: 10px 18px;
-  border-radius: 999px; font-size: 14px; font-weight: 600; z-index: 100;
+  border-radius: 999px; font-size: var(--fs-sm); font-weight: 600; z-index: 100;
   opacity: 0; pointer-events: none; overflow: visible; transition: opacity .2s;
   display: flex; align-items: center; gap: 12px; max-width: min(92vw, 640px);
 }
@@ -882,7 +882,7 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
 #toastAction {
   flex: none; background: transparent; color: inherit;
   border: 1px solid currentColor; border-radius: 999px;
-  padding: 4px 12px; font-size: 13px; font-weight: 700; cursor: pointer;
+  padding: 4px 12px; font-size: var(--fs-xs); font-weight: 700; cursor: pointer;
 }
 /* No hover tint: mixing one would mean a colour that is in neither the pack nor this
    file. The border is what says it is a control, and the focus ring is the app's own. */
@@ -894,7 +894,7 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
    No max-width: these are short single lines, and capping them wrapped the note
    mid-sentence while half the page sat empty. They wrap only when the window is
    genuinely too narrow. */
-.privacy { font-size: 12px; color: var(--text-muted);
+.privacy { font-size: var(--fs-xs); color: var(--text-muted);
   margin: 28px 0 0; padding-left: 19px; }
 .privacy-links { margin-top: 6px; }
 .privacy-links a { color: var(--text-muted); }
@@ -992,7 +992,7 @@ footer .applink { margin: 0 19px 0 auto; }
   display: flex; gap: 10px 14px; align-items: baseline; flex-wrap: wrap;
   border: 1px solid var(--border-strong); border-left: 4px solid var(--focus-border);
   border-radius: var(--radius); background: var(--bg-card-alt);
-  padding: 11px 14px; margin-bottom: 16px; font-size: 13px;
+  padding: 11px 14px; margin-bottom: 16px; font-size: var(--fs-xs);
 }
 .viewbar strong { font-weight: 700; }
 .viewbar .muted { color: var(--text-secondary); }
@@ -1011,13 +1011,13 @@ footer .applink { margin: 0 19px 0 auto; }
 @media (min-width: 760px) {
   #shareDialog .share-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
 }
-.checkline { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+.checkline { display: flex; gap: 8px; align-items: center; font-size: var(--fs-sm); }
 .checkline input { flex: none; }
 #shareLink {
-  width: 100%; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px; color: var(--text-secondary);
+  width: 100%; font-family: var(--font-mono);
+  font-size: var(--fs-xs); color: var(--text-secondary);
 }
-.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px;
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: var(--fs-xs);
   color: var(--text-secondary); margin-top: 8px; }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px;
   margin-right: 5px; vertical-align: 0; }
@@ -1348,7 +1348,7 @@ main:focus { outline: none; }
 
     <fieldset>
       <legend>Rolling 5</legend>
-      <label class="row" style="gap:8px;cursor:pointer;font-size:14px">
+      <label class="row" style="gap:8px;cursor:pointer;font-size:var(--fs-sm)">
         <input type="checkbox" id="f_excluded">
         Leave this sprint out of the rolling 5
       </label>
@@ -1385,18 +1385,18 @@ main:focus { outline: none; }
 <!-- ── Teams & PIs ───────────────────────────────────────────────────────── -->
 <dialog id="manageDialog" aria-labelledby="manageDialogTitle">
   <h3 id="manageDialogTitle">Teams, ARTs &amp; PIs</h3>
-  <div class="row spread"><strong style="font-size:14px">Teams</strong>
+  <div class="row spread"><strong style="font-size:var(--fs-sm)">Teams</strong>
     <button class="btn small" id="addTeamBtn">+ Add team</button></div>
   <div class="tablewrap"><table aria-label="Teams"><tbody id="teamRows"></tbody></table></div>
-  <div class="row spread" style="margin-top:20px"><strong style="font-size:14px">ARTs</strong>
+  <div class="row spread" style="margin-top:20px"><strong style="font-size:var(--fs-sm)">ARTs</strong>
     <button class="btn small" id="addArtBtn">+ Add ART</button></div>
-  <p class="sub muted" style="font-size:12px;margin:4px 0 0">An Agile Release Train groups teams
+  <p class="sub muted" style="font-size:var(--fs-xs);margin:4px 0 0">An Agile Release Train groups teams
     together. It's a label only — every figure is still worked out per team — and the
     <strong>All teams</strong> view gains a filter for it. Teams need not be on one.</p>
   <div class="tablewrap"><table aria-label="Agile Release Trains"><tbody id="artRows"></tbody></table></div>
-  <div class="row spread" style="margin-top:20px"><strong style="font-size:14px">Program Increments</strong>
+  <div class="row spread" style="margin-top:20px"><strong style="font-size:var(--fs-sm)">Program Increments</strong>
     <button class="btn small" id="addPiBtn">+ Add PI</button></div>
-  <p class="sub muted" style="font-size:12px;margin:4px 0 0">Each PI holds 6 sprints. They're listed
+  <p class="sub muted" style="font-size:var(--fs-xs);margin:4px 0 0">Each PI holds 6 sprints. They're listed
     oldest first — that order is what the rolling window walks back through.</p>
   <div class="tablewrap"><table aria-label="Program Increments"><tbody id="piRows"></tbody></table></div>
   <div class="row" style="justify-content:flex-end;margin-top:18px">
@@ -1429,7 +1429,7 @@ main:focus { outline: none; }
         <input type="number" id="t_completionRed" min="0" max="200" step="1" inputmode="numeric">
       </div>
     </div>
-    <p class="sub muted" style="font-size:12px;margin:6px 0 0">Between the two is amber.</p>
+    <p class="sub muted" style="font-size:var(--fs-xs);margin:6px 0 0">Between the two is amber.</p>
   </fieldset>
 
   <fieldset style="margin-top:14px">
@@ -1444,7 +1444,7 @@ main:focus { outline: none; }
         <input type="number" id="t_churnRed" min="0" max="200" step="1" inputmode="numeric">
       </div>
     </div>
-    <p class="sub muted" style="font-size:12px;margin:6px 0 0">All three share one pair — they are
+    <p class="sub muted" style="font-size:var(--fs-xs);margin:6px 0 0">All three share one pair — they are
       the same measure of a plan not holding, read three ways.</p>
   </fieldset>
 
@@ -1468,7 +1468,7 @@ main:focus { outline: none; }
         <input type="number" id="t_predOverRed" min="1" max="400" step="1" inputmode="numeric">
       </div>
     </div>
-    <p class="sub muted" style="font-size:12px;margin:6px 0 0">Above the ceiling is a finding too:
+    <p class="sub muted" style="font-size:var(--fs-xs);margin:6px 0 0">Above the ceiling is a finding too:
       a train that reliably lands well over it committed to less than it could deliver.</p>
   </fieldset>
 
@@ -1541,7 +1541,7 @@ main:focus { outline: none; }
   <div class="row" style="gap:8px;flex-wrap:wrap">
     <button class="btn small" id="importTemplateBtn" type="button"><span aria-hidden="true">⬇</span> Download a template</button>
     <button class="btn small" id="importSampleBtn" type="button">Paste an example</button>
-    <span class="muted" style="font-size:13px">The template carries the headings, and this
+    <span class="muted" style="font-size:var(--fs-xs)">The template carries the headings, and this
       team's sprints if it has any — so the shape is a file rather than a paragraph.</span>
   </div>
 
@@ -1549,7 +1549,7 @@ main:focus { outline: none; }
   <textarea id="importText" rows="8" spellcheck="false"
     aria-describedby="importCols"
     placeholder="team	pi	sprint	start	end	committed	committed completed	total completed	added	removed	carried in	carried out	goal"></textarea>
-  <p class="sub muted" id="importCols" style="font-size:12px;margin:6px 0 0">
+  <p class="sub muted" id="importCols" style="font-size:var(--fs-xs);margin:6px 0 0">
     <strong>sprint</strong> is the only column you must have. <strong>team</strong> and
     <strong>pi</strong> name rows that already exist — leave them out and everything lands on
     the team you are looking at, with no PI. The rest —
@@ -1607,7 +1607,7 @@ main:focus { outline: none; }
         </div>
       </div>
       <div class="row" style="margin-top:10px;gap:6px;flex-wrap:wrap">
-        <span class="muted" style="font-size:13px">Quick set:</span>
+        <span class="muted" style="font-size:var(--fs-xs)">Quick set:</span>
         <button type="button" class="btn small" data-pct="90">90%</button>
         <button type="button" class="btn small" data-pct="80">80%</button>
         <button type="button" class="btn small" data-pct="75">75%</button>
@@ -1627,26 +1627,26 @@ main:focus { outline: none; }
         the sprint's own recorded figures stay exactly as they are everywhere else in the app.</p>
       <div id="a_scaleRows"></div>
       <div class="row" style="margin-top:12px;gap:8px;flex-wrap:wrap;align-items:center">
-        <span class="muted" style="font-size:13px">Team size:</span>
+        <span class="muted" style="font-size:var(--fs-xs)">Team size:</span>
         <label class="sr-only" for="a_peopleThen">People on the team during that sprint</label>
         <input type="number" id="a_peopleThen" min="1" max="99" step="1" inputmode="numeric"
                style="width:64px" placeholder="then">
-        <span class="muted" style="font-size:13px" aria-hidden="true">→</span>
+        <span class="muted" style="font-size:var(--fs-xs)" aria-hidden="true">→</span>
         <label class="sr-only" for="a_peopleNow">People on the team now</label>
         <input type="number" id="a_peopleNow" min="1" max="99" step="1" inputmode="numeric"
                style="width:64px" placeholder="now">
-        <span class="muted" style="font-size:13px">for</span>
+        <span class="muted" style="font-size:var(--fs-xs)">for</span>
         <label class="sr-only" for="a_peopleSprint">Which sprint to scale</label>
         <select id="a_peopleSprint" style="width:auto"></select>
         <button type="button" class="btn small" id="a_peopleApply">Set %</button>
-        <span class="muted" id="a_peopleOut" style="font-size:13px"></span>
+        <span class="muted" id="a_peopleOut" style="font-size:var(--fs-xs)"></span>
       </div>
     </fieldset>
     </div>
 
     <fieldset>
       <legend>How Long For</legend>
-      <label class="row" style="gap:8px;cursor:pointer;font-size:14px">
+      <label class="row" style="gap:8px;cursor:pointer;font-size:var(--fs-sm)">
         <input type="checkbox" id="a_keep">
         Keep this for later sprints too
       </label>
@@ -1729,7 +1729,7 @@ main:focus { outline: none; }
 
 <dialog id="helpDialog" aria-labelledby="helpTitle">
   <h3 id="helpTitle"></h3>
-  <p id="helpBody" style="margin:0;font-size:14px"></p>
+  <p id="helpBody" style="margin:0;font-size:var(--fs-sm)"></p>
   <p id="helpTarget" class="sub muted" style="margin:12px 0 0"></p>
   <div class="row" style="justify-content:flex-end;margin-top:18px">
     <button class="btn primary" id="helpCloseBtn">Got it</button>
@@ -2679,7 +2679,7 @@ function haltForNewerData(found) {
   card.setAttribute('style', 'max-width:34em;border:1px solid var(--border,#262f4a);'
     + 'border-radius:12px;padding:24px 26px;background:var(--surface,#121829)');
   const h = document.createElement('h1');
-  h.setAttribute('style', 'margin:0 0 12px;font-size:20px');
+  h.setAttribute('style', 'margin:0 0 12px;font-size:var(--fs-lg)');
   h.textContent = 'This Data Was Saved by a Newer Version';
   const p1 = document.createElement('p');
   p1.setAttribute('style', 'margin:0 0 12px');
@@ -5406,18 +5406,18 @@ function renderSprintView() {
         </div>
       </figure>
       <div class="row" style="margin-top:12px">
-        <span class="muted" style="font-size:13px">Also this sprint:
+        <span class="muted" style="font-size:var(--fs-xs)">Also this sprint:
           <strong>${fmtNum(m.carriedIn)}</strong> points carried in ·
           <strong>${fmtNum(m.added)}</strong> added ·
           <strong>${fmtNum(m.removed)}</strong> removed</span>
       </div>
-      ${num(m.carriedOut) > carriedFromCommit ? `<p class="muted" style="font-size:13px;margin:8px 0 0">→
+      ${num(m.carriedOut) > carriedFromCommit ? `<p class="muted" style="font-size:var(--fs-xs);margin:8px 0 0">→
         The bar shows the <strong>${fmtNum(carriedFromCommit)}</strong> carried-out
         point${carriedFromCommit === 1 ? '' : 's'} that came from the commitment. The other
         <strong>${fmtNum(num(m.carriedOut) - carriedFromCommit)}</strong> of the
         <strong>${fmtNum(m.carriedOut)}</strong> going to the next sprint broke in after the
         sprint started, so it was never part of the commitment this bar breaks apart.</p>` : ''}
-      ${m.addedThenRemoved ? `<p class="muted" style="font-size:13px;margin:8px 0 0">↩
+      ${m.addedThenRemoved ? `<p class="muted" style="font-size:var(--fs-xs);margin:8px 0 0">↩
         <strong>${fmtNum(m.addedThenRemoved)}</strong> point${m.addedThenRemoved === 1 ? '' : 's'}
         came into the sprint after it started and then went back out again. That work is
         deliberately left out of both break-in and removed — it never joined the commitment,
@@ -5527,7 +5527,7 @@ function renderPiView() {
           <select id="piSel2" class="ctl">${state.pis.map(p =>
             `<option value="${esc(p.id)}"${p.id === piId ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
         </div>
-        <span class="muted" style="font-size:13px">${closed.length} of ${SPRINTS_PER_PI} sprints
+        <span class="muted" style="font-size:var(--fs-xs)">${closed.length} of ${SPRINTS_PER_PI} sprints
           ${countedRunning.length ? 'counted' : 'complete'}${
           countedRunning.length ? ' (including ' + countedRunning.map(x => 'S' + x.sprintNumber).join(', ')
             + ', still running)' : ''}${
@@ -6093,7 +6093,7 @@ function forecastCard(team, includeSix) {
   return `<div class="card">
     <div class="row spread cardhead">
       <h2>How Long Would It Take?${helpBtn('forecast', 'the forecast')}</h2>
-      <label class="row" style="gap:8px;font-size:14px">
+      <label class="row" style="gap:8px;font-size:var(--fs-sm)">
         <span>Story points</span>
         <input type="number" id="forecastPoints" min="0" step="1" inputmode="numeric"
           style="width:110px" value="${esc(forecastPoints)}" placeholder="e.g. 120">
@@ -6358,19 +6358,19 @@ function rollingToolbar(includeSix, ipApplies) {
   const inProg = !!state.settings.includeInProgress;
   return `<div class="card toolbarcard">
     ${ipApplies === false ? '' : `<div class="row spread">
-      <label class="row" style="gap:8px;cursor:pointer;font-size:14px">
+      <label class="row" style="gap:8px;cursor:pointer;font-size:var(--fs-sm)">
         <input type="checkbox" id="incSix"${includeSix ? ' checked' : ''}>
         Include sprint 6 (IP) in the rolling average
       </label>
-      <span class="muted" style="font-size:13px">Off by default — the IP sprint is for innovation
+      <span class="muted" style="font-size:var(--fs-xs)">Off by default — the IP sprint is for innovation
         and planning, not delivery.</span>
     </div>`}
     <div class="row spread"${ipApplies === false ? '' : ' style="margin-top:10px"'}>
-      <label class="row" style="gap:8px;cursor:pointer;font-size:14px">
+      <label class="row" style="gap:8px;cursor:pointer;font-size:var(--fs-sm)">
         <input type="checkbox" id="incProgress"${inProg ? ' checked' : ''}>
         Count sprints that are still running
       </label>
-      <span class="muted" style="font-size:13px">Off by default — their figures aren't final.
+      <span class="muted" style="font-size:var(--fs-xs)">Off by default — their figures aren't final.
         Useful on the last day of a sprint, when you'd rather plan on today's numbers.</span>
     </div>
   </div>`;
@@ -6899,7 +6899,7 @@ function renderArtPiView() {
      it. Built HERE, above the early returns, because both of those cards tell the
      reader to change one of these two pickers — an empty state that names a
      control and then withholds it is a dead end. */
-  const piPicker = `<label class="row" style="gap:8px;font-size:14px">
+  const piPicker = `<label class="row" style="gap:8px;font-size:var(--fs-sm)">
       <span>PI</span>
       <select id="piSel3" title="Which Program Increment these figures cover">${state.pis.map(p =>
         `<option value="${esc(p.id)}"${p.id === piId ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
@@ -7209,7 +7209,7 @@ function artToolbar(shownCount, hiddenCount, extra) {
     if (controls) return `<div class="card toolbarcard">
       <div class="row spread">
         <div class="row" style="gap:14px;flex-wrap:wrap">${controls}</div>
-        <span class="muted" style="font-size:13px">${note}</span>
+        <span class="muted" style="font-size:var(--fs-xs)">${note}</span>
       </div>
     </div>`;
     return viewOnly ? '' : `<div class="card toolbarcard">
@@ -7223,7 +7223,7 @@ function artToolbar(shownCount, hiddenCount, extra) {
   return `<div class="card toolbarcard">
     <div class="row spread">
       <div class="row" style="gap:14px;flex-wrap:wrap">
-        <label class="row" style="gap:8px;font-size:14px">
+        <label class="row" style="gap:8px;font-size:var(--fs-sm)">
           <span>ART</span>
           <select id="artFilter" title="Show only the teams on one ART">
             ${opt('', 'All ARTs')}
@@ -7233,7 +7233,7 @@ function artToolbar(shownCount, hiddenCount, extra) {
         </label>
         ${controls}
       </div>
-      <span class="muted" style="font-size:13px">${
+      <span class="muted" style="font-size:var(--fs-xs)">${
         hiddenCount
           ? `Showing ${shownCount} of ${plural(state.teams.length, 'team')} — the other
              ${hiddenCount} ${hiddenCount === 1 ? 'is' : 'are'} in none of the figures below.`
@@ -8092,7 +8092,7 @@ F('jiraParseBtn').onclick = () => {
     </tbody></table></div>
     <div class="row" style="margin-top:12px">
       <button type="button" class="btn primary" id="jiraApplyBtn">Use these numbers</button>
-      <span class="muted" style="font-size:12px">Fills the boxes below and saves the sprint —
+      <span class="muted" style="font-size:var(--fs-xs)">Fills the boxes below and saves the sprint —
         only Cancel puts it back as it was.</span>
     </div>`;
 
@@ -8540,13 +8540,13 @@ function openAdjust(teamId, includeSix) {
 function renderScaleRows() {
   F('a_scaleRows').innerHTML = adjusting.window.map((w, i) => `
     <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center;margin-top:${i ? 6 : 0}px">
-      <span style="font-size:14px;min-width:11ch">${esc(w.label)}</span>
-      <span class="muted" style="font-size:13px;min-width:9ch">finished ${fmtNum(w.done)}</span>
+      <span style="font-size:var(--fs-sm);min-width:11ch">${esc(w.label)}</span>
+      <span class="muted" style="font-size:var(--fs-xs);min-width:9ch">finished ${fmtNum(w.done)}</span>
       <label class="sr-only" for="a_scale_${i}">Scale ${esc(w.label)} (%)</label>
       <input type="number" id="a_scale_${i}" data-scale-id="${esc(w.id)}" value="${w.scale}"
              min="0" max="200" step="1" inputmode="numeric" style="width:76px">
-      <span class="muted" style="font-size:13px">%</span>
-      <span class="muted" id="a_scaled_${i}" style="font-size:13px"></span>
+      <span class="muted" style="font-size:var(--fs-xs)">%</span>
+      <span class="muted" id="a_scaled_${i}" style="font-size:var(--fs-xs)"></span>
     </div>`).join('');
   F('a_peopleSprint').innerHTML = adjusting.window.map((w, i) =>
     `<option value="${i}">${esc(w.label)}</option>`).join('');
