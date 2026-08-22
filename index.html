@@ -900,7 +900,18 @@ main:focus { outline: none; }
          waited on a network round trip; sync was removed on 2026-08-20.) -->
     <label class="sr-only" for="teamSel">Team</label>
     <select id="teamSel" title="Which team you're looking at" hidden></select>
-    <button class="btn small" id="manageBtn" type="button" title="Add or rename teams, group them into ARTs, and manage PIs">Teams &amp; PIs</button>
+    <!-- Every button in this row wears a glyph in front of its word, the way Money
+         Map's does. They are plain text characters, not emoji and not an icon
+         font — one more file to fetch is the last thing a header painted this
+         early needs, and a text glyph inherits the theme's colour for free, so it
+         can never become the thing that carries a meaning by hue. Each is
+         aria-hidden: a screen reader announcing "downwards white arrow, Back up"
+         is noise, and the word beside it is already the whole label. The glyphs
+         are Money Map's own where the button exists there — ⇩ Back up, ↗ Share,
+         ⚙ for settings — so the same action looks the same in every app. ☁️ Sign
+         in to sync keeps its emoji: the sync module rewrites that label as the
+         state changes, and it is the one control here about somewhere else. -->
+    <button class="btn small" id="manageBtn" type="button" title="Add or rename teams, group them into ARTs, and manage PIs"><span aria-hidden="true">☰</span> Teams &amp; PIs</button>
     <label class="sr-only" for="themeSel">Theme</label>
     <!-- The four unified themes, listed alphabetically (matches the other apps).
          Midnight is pre-selected to match the theme the boot script in <head> has
@@ -912,8 +923,8 @@ main:focus { outline: none; }
       <option value="midnight" selected>✦ Midnight</option>
       <option value="sepia">📜 Sepia</option>
     </select>
-    <button class="btn small" id="dataBtn" type="button" title="Back up, restore or clear your data">Back up</button>
-    <button class="btn small" id="shareBtn" type="button" title="Create a read-only link to show someone your figures">Share</button>
+    <button class="btn small" id="dataBtn" type="button" title="Back up, restore or clear your data"><span aria-hidden="true">⇩</span> Back up</button>
+    <button class="btn small" id="shareBtn" type="button" title="Create a read-only link to show someone your figures"><span aria-hidden="true">↗</span> Share</button>
   </div>
 </header>
 

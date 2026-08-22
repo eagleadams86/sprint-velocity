@@ -10,6 +10,7 @@ shared-workspace/multi-SM-editing model. (It used to say "each person signs in w
 own Google account"; sync was removed on 2026-08-20, and the Auth list confirmed nobody
 but Charles had ever actually signed in.)
 
+- **The header buttons wear a glyph in front of the word** (2026-08-21) — plain text characters, NOT emoji and not an icon font: one more file to fetch is the last thing a header painted this early needs, and a text glyph inherits the theme's colour for free, so it can never become the thing that carries a meaning by hue. Each is `aria-hidden` — the word beside it is already the whole label. The glyphs are Money Map's own where the same button exists there (`⇩` Back up, `↗` Share, `⚙` settings), so one action looks the same in every app, and `☰` is the list/manage one the three list-managing apps share. Added to Sprint Predictability, Flow Metrics, Golf Handicap and PAPTrack in the same commit.
 - The app is **one file — `index.html`** (no build step), alongside `theme.css` and a
   vendored `chart.min.js`. Keep it that way: no npm, no bundler, no CDN calls.
 - `theme.css` is a **copy of the generated file from `~/claude-theme-pack`** (private
