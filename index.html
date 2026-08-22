@@ -858,7 +858,20 @@ legend { font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .04
    `1.5em` of a 16px root, which is not a step on the scale and would drift the
    moment anything touched the root. Declared, and the same declaration in every
    app. */
-.card > .empty h2 { font-size: var(--fs-xl); }
+/* MARGIN 0, and that is the other half of lining these up. The h2 kept the
+   browser's own ~0.83em top margin in three apps and had it zeroed in a fourth,
+   so the same welcome heading started 59px down the card in one app and 81px in
+   another. At 0 it sits exactly at the card's padding, and the first paragraph's
+   own 1em top margin is the gap under it — one number, in one place, five apps. */
+.card > .empty h2 { font-size: var(--fs-xl); margin: 0; }
+/* THE WELCOME CARD IS ONE COMPONENT ACROSS FIVE APPS, so its box is pinned here
+   rather than left to whatever each app's ordinary `.card` happens to use. Those
+   differ on purpose — 18px in the three planners, 16px in Golf Handicap, 14px on
+   PAPTrack's dense supply cards — and the welcome heading was landing 58px, 56px
+   and 54px from the top of the card in three different apps as a result. Same
+   number everywhere now, so the title starts at the same place on the page
+   whichever one you open. */
+.card.welcome { padding: 18px; }
 .empty h2 { color: var(--text-primary); }
 /* The toast is a POPOVER, so that it can be seen over an open modal dialog —
    the reasoning is on toast() itself. Half of what follows undoes the UA's own
@@ -5201,7 +5214,7 @@ function renderWelcome() {
      The tab row is already gone by here — renderTabs() drops the whole row while
      there are no teams — so this card is the only thing on the page. */
   viewsEl.innerHTML = `
-    <div class="card"><div class="empty">
+    <div class="card welcome"><div class="empty">
       <h2>Welcome to Sprint Predictability</h2>
       <p>A record of how predictable your teams are: what each one committed to, what it
         actually finished, and what changed mid-sprint. It works out commitment completion,
