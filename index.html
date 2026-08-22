@@ -776,6 +776,30 @@ details.danger-zone > summary:hover { color: var(--text-primary); }
 label.field { display: block; font-size: var(--fs-xs); color: var(--text-secondary);
   font-weight: 600; margin-bottom: 4px; }
 .grid-fields { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+/* ── Flow Metrics' settings-window furniture, shared ────────────────────────
+   The three windows that hold app-wide SETTINGS — Flow Metrics' Settings,
+   Sprint Predictability's Targets and Golf Handicap's League Handicap — are the
+   same kind of screen and now look it (2026-08-22). Flow Metrics' is the shape:
+   a heading, a sentence under it, then two columns of labelled fields.
+
+   `.manage-head` is the section heading, `.manage-note` the sentence under it,
+   and `.grid.two` the field pair. `auto-fit` with a 260px floor rather than a
+   flat `1fr 1fr`, so a narrow window stacks them instead of squeezing two
+   half-width number boxes side by side; `align-items: end` so a one-line label
+   and a two-line label still put their inputs on the same line. */
+.manage-head { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text-primary); }
+.manage-note { color: var(--text-secondary); font-size: var(--fs-xs); margin: 4px 0 0; }
+.grid.two { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  align-items: end; }
+.grid.two > div { display: flex; flex-direction: column; justify-content: flex-end; }
+/* The label carries its own size and ink here rather than relying on a bare
+   `label` rule: Flow Metrics has one, these two apps style labels through
+   `label.field` / `.field > label` instead, and a field wrapper that is a plain
+   <div> in this grid would otherwise fall back to body text. Same three values
+   Flow Metrics' `label` rule gives. */
+.grid.two > div > label { flex: 0 0 auto; display: block; font-size: var(--fs-xs);
+  color: var(--text-secondary); font-weight: var(--fw-semibold); margin-bottom: 4px; }
+.grid.two > div > input, .grid.two > div > select { width: 100%; }
 /* Fields line up on their boxes, not their labels. A cell is a full-height column
    with the control pushed to the bottom, so a label that wraps onto two lines
    ("Committed points completed") doesn't shunt its box below its neighbours'. */
@@ -841,7 +865,13 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
    its --dialog-w-wide. Asked for on 2026-08-22 — these were 880, 820, 820 and
    560 across five pages, so the same action opened a different-sized window in
    every app. */
-#sprintDialog, #manageDialog, #adjustDialog, #shareDialog { max-width: 1100px; }
+/* The same width as Flow Metrics' Settings window, which is the family's
+   settings screen: 1100px. These three hold the app-wide settings and now share
+   a shape — heading, note, two columns of labelled fields — so they share the
+   width that shape needs. At 880px and 560px the field pairs were stacking into
+   one column while Flow Metrics' sat side by side. */
+#sprintDialog, #manageDialog, #adjustDialog, #shareDialog,
+#targetsDialog { max-width: 1100px; }
 /* Stacked, the first panel sits directly under the intro line — `.formpanel:first-of-type`
    used to zero this and the left panel is a fieldset now. */
 .adjustcols > *:first-child { margin-top: 0; }
@@ -1496,14 +1526,16 @@ main:focus { outline: none; }
      the wiring reads these boxes by `t_` + its key. -->
 <dialog id="targetsDialog" aria-labelledby="targetsTitle">
   <h3 id="targetsTitle">Targets</h3>
-  <p class="sub">Every ✓ / ! / ✕ in the app, every colour, every “off target” sentence and every
+  <p class="manage-note">Every ✓ / ! / ✕ in the app, every colour, every “off target” sentence and every
     chart band is judged against these. They start where a SAFe train usually sets them — change
     them to your own and the whole app follows, in this browser. They travel in a
     <strong>share link</strong> too, so whoever you send figures to reads them the way you do.</p>
 
-  <fieldset>
-    <legend>Commitment completion — higher is better</legend>
-    <div class="grid-fields">
+  <div class="row spread" style="margin-top:16px">
+    <strong class="manage-head">Commitment completion — higher is better</strong>
+  </div>
+  <p class="manage-note">Between the two is amber.</p>
+  <div class="grid two" style="margin-top:var(--sp-5)">
       <div>
         <label class="field" for="t_completionGreen">On target at or above (%)</label>
         <input type="number" id="t_completionGreen" min="1" max="200" step="1" inputmode="numeric">
@@ -1513,12 +1545,13 @@ main:focus { outline: none; }
         <input type="number" id="t_completionRed" min="0" max="200" step="1" inputmode="numeric">
       </div>
     </div>
-    <p class="sub muted" style="font-size:var(--fs-xs);margin:6px 0 0">Between the two is amber.</p>
-  </fieldset>
 
-  <fieldset style="margin-top:14px">
-    <legend>Break-in, removed and carryover — lower is better</legend>
-    <div class="grid-fields">
+  <div class="row spread" style="margin-top:20px">
+    <strong class="manage-head">Break-in, removed and carryover — lower is better</strong>
+  </div>
+  <p class="manage-note">All three share one pair — they are
+      the same measure of a plan not holding, read three ways.</p>
+  <div class="grid two" style="margin-top:var(--sp-5)">
       <div>
         <label class="field" for="t_churnGreen">On target at or below (%)</label>
         <input type="number" id="t_churnGreen" min="0" max="200" step="1" inputmode="numeric">
@@ -1528,13 +1561,13 @@ main:focus { outline: none; }
         <input type="number" id="t_churnRed" min="0" max="200" step="1" inputmode="numeric">
       </div>
     </div>
-    <p class="sub muted" style="font-size:var(--fs-xs);margin:6px 0 0">All three share one pair — they are
-      the same measure of a plan not holding, read three ways.</p>
-  </fieldset>
 
-  <fieldset style="margin-top:14px">
-    <legend>PI predictability — a band, missable from either side</legend>
-    <div class="grid-fields">
+  <div class="row spread" style="margin-top:20px">
+    <strong class="manage-head">PI predictability — a band, missable from either side</strong>
+  </div>
+  <p class="manage-note">Above the ceiling is a finding too:
+      a train that reliably lands well over it committed to less than it could deliver.</p>
+  <div class="grid two" style="margin-top:var(--sp-5)">
       <div>
         <label class="field" for="t_predLow">Band floor (%)</label>
         <input type="number" id="t_predLow" min="1" max="400" step="1" inputmode="numeric">
@@ -1552,9 +1585,6 @@ main:focus { outline: none; }
         <input type="number" id="t_predOverRed" min="1" max="400" step="1" inputmode="numeric">
       </div>
     </div>
-    <p class="sub muted" style="font-size:var(--fs-xs);margin:6px 0 0">Above the ceiling is a finding too:
-      a train that reliably lands well over it committed to less than it could deliver.</p>
-  </fieldset>
 
   <!-- A live region, so a rule broken while typing is spoken as well as shown. Save
        is disabled alongside it: a target set that contradicts itself would colour
