@@ -93,7 +93,7 @@ function ok(cond, note) { if (!cond) throw new Error(note || 'expected truthy');
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 355;
+const EXPECTED = 356;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -2283,6 +2283,23 @@ t('the worker is network-first, so cached code needs a failed network', () => {
     'a same-origin error reply with a cached copy in hand must serve the cache');
 });
 
+/* IN-PAGE NAVIGATION HAS TO TAKE FOCUS WITH IT. Pressing a team's name in All teams
+   rebuilds #views, which destroys the button that was pressed; without focusView() the
+   focus falls to <body> and a keyboard or screen-reader user is returned to the top of
+   the document with nothing announced. Neither axe nor any suite can see that, so the
+   source is the guard. */
+t('switching team from a row moves focus into the new view', () => {
+  ok(/function focusView\(fromKeyboard\)/.test(APP_SRC), 'the helper has to exist');
+  const gos = APP_SRC.match(/state\.settings\.view = '(pi|rolling)';[\s\S]{0,220}?\}/g) || [];
+  ok(gos.length >= 2, 'both All-teams tables navigate this way');
+  ok(gos.every((g) => /focusView\(fromKeyboard\)/.test(g)),
+    'every row that navigates must hand focus on — one that forgets drops the user at <body>');
+  ok(/btn\.onclick = \(e\) => \{ e\.stopPropagation\(\); go\(e\.detail === 0\); \};/.test(APP_SRC),
+    'the modality has to reach it: detail 0 is a keypress, non-zero a pointer');
+  ok(/\.landing:focus \{ outline: none/.test(APP_SRC) &&
+     /\.landing\.ring-focus:focus \{ outline: 2px solid var\(--focus-border\)/.test(APP_SRC),
+    'the landing heading is quiet by default and rings only for the keyboard');
+});
 t('a dialog focused as a container does not ring itself', () => {
   /* openModal focuses the dialog on a coarse pointer so opening a form does not drag
      the on-screen keyboard up with it. That also makes the dialog match :focus-visible,

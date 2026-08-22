@@ -336,6 +336,17 @@ textarea { width: 100%; resize: vertical; min-height: 64px; }
    A fine pointer never takes that path, which is why no desktop ever shows it — found
    on an iPhone. Fixed across the whole family in one pass; PAPTrack led. */
 dialog:focus { outline: none; }
+/* WHERE FOCUS GOES AFTER AN IN-PAGE NAVIGATION (2026-08-22). Pressing a team's name in
+   All teams switches team AND view and rebuilds #views from scratch, which destroys the
+   button that was just pressed — so focus fell to <body>, the top of the document, and a
+   keyboard or screen-reader user was silently returned to the start with nothing said
+   about where they had arrived. `focusView()` moves focus to the heading of the view
+   that replaced it instead.
+   The ring is OPT IN and keyboard-only, the same rule as `dialog:focus` above: a screen
+   reader on a touch device still needs the focus to MOVE, but somebody who tapped a team
+   name does not need a heading to light up. */
+.landing:focus { outline: none; }
+.landing.ring-focus:focus { outline: 2px solid var(--focus-border); outline-offset: 2px; }
 
 /* ── Tabs ───────────────────────────────────────────────────────────────── */
 /* Pickers that sit in a toolbar next to a button are chrome, not form fields, so
@@ -5068,6 +5079,24 @@ const pctAxis = (title) => Object.assign(gridOpts(), {
 
 const viewsEl = document.getElementById('views');
 
+/* Move focus into the view that has just replaced what the user was standing on.
+   `fromKeyboard` comes from the click event's `detail` — 0 when a button was activated
+   with Enter or Space, non-zero for a real mouse or finger. Focus moves either way, so a
+   screen reader announces the new view on a phone too; only the visible ring is
+   conditional. tabIndex is set here rather than in the rendered markup, so the heading is
+   only a focus target for the moment it is landed on and never joins the tab order. */
+function focusView(fromKeyboard) {
+  const h = viewsEl.querySelector('h2, h3');
+  if (!h) return;
+  h.tabIndex = -1;
+  h.classList.add('landing');
+  if (fromKeyboard) {
+    h.classList.add('ring-focus');
+    h.addEventListener('blur', () => h.classList.remove('ring-focus'), { once: true });
+  }
+  h.focus();
+}
+
 /* Table rows that open the sprint editor. A shared view has nothing to open, so
    the handler isn't wired and the class goes with it — a pointer cursor over a
    row that does nothing when clicked reads as a broken page. Rows that merely
@@ -7272,14 +7301,17 @@ function renderArtPiView() {
      at — that is where the objectives are recorded and where the row's figures
      come from, so it's the page anyone following up on a row actually wants. */
   viewsEl.querySelectorAll('tr.clickable').forEach(tr => {
-    const go = () => {
+    /* render() rebuilds #views, so the name that was pressed no longer exists when this
+       returns — focus has to be put somewhere deliberate or it falls to <body>. */
+    const go = (fromKeyboard) => {
       state.settings.activeTeamId = tr.dataset.id;
       state.settings.view = 'pi';
       save(); render();
+      focusView(fromKeyboard);
     };
-    tr.onclick = go;
+    tr.onclick = () => go(false);          /* a row is only ever clicked, never focused */
     const btn = tr.querySelector('.rowbtn');
-    if (btn) btn.onclick = (e) => { e.stopPropagation(); go(); };
+    if (btn) btn.onclick = (e) => { e.stopPropagation(); go(e.detail === 0); };
   });
 
   if (scoredRows.length) {
@@ -7741,15 +7773,17 @@ function renderTeamsView() {
     </div>`;
 
   viewsEl.querySelectorAll('tr.clickable').forEach(tr => {
-    const go = () => {
+    /* Same as All teams above: render() destroys the button that was pressed. */
+    const go = (fromKeyboard) => {
       state.settings.activeTeamId = tr.dataset.id;
       state.settings.view = 'rolling';
       if (viewOnly) focusLatestSprint(tr.dataset.id);
       save(); render();
+      focusView(fromKeyboard);
     };
-    tr.onclick = go;
+    tr.onclick = () => go(false);
     const btn = tr.querySelector('.rowbtn');
-    if (btn) btn.onclick = (e) => { e.stopPropagation(); go(); };
+    if (btn) btn.onclick = (e) => { e.stopPropagation(); go(e.detail === 0); };
   });
   wireArtToolbar();
   wireRollingToolbar();
