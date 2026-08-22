@@ -849,8 +849,17 @@ dialog h3 { margin: 0 0 12px; font-size: var(--fs-md); }
    with the input boxes inside it a shade darker again. That two-tone is what makes
    the fields read as sitting *in* a section rather than floating on a flat sheet. */
 fieldset, .formpanel { border: 1px solid var(--border); border-radius: var(--radius-sm);
-  padding: 12px; margin: 14px 0 0; background: var(--bg-card-alt); }
-.formpanel:first-of-type { margin-top: 0; }
+  padding: 12px; margin: 0; background: var(--bg-card-alt); }
+/* ── The gap between stacked panels, and only between them ──────────────────
+   Money Map's rule, adopted here on 2026-08-22 so the share window's spacing
+   matches it. An ADJACENT-SIBLING rule rather than a margin on every panel
+   cancelled on the first one: `.formpanel:first-of-type` zeroes the first
+   fieldset among its SIBLINGS, which inside the share dialog is Your Link —
+   the other two are nested in `.share-choices` and so are not its siblings. The
+   panel that needed the gap was the one losing it. This says the thing directly:
+   a panel that FOLLOWS another panel, or follows the side-by-side row, is
+   spaced from it; a panel that follows nothing is not. */
+.formpanel + .formpanel, .share-choices + .formpanel { margin-top: 20px; }
 legend { font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .04em;
   color: var(--text-secondary); font-weight: 700; padding: 0 6px; }
 .warn { color: var(--err); font-size: var(--fs-xs); margin-top: 10px; }
@@ -1043,7 +1052,33 @@ footer .applink { margin: 0 19px 0 auto; }
    the panels stretch to the taller of them, so the pair reads as one row.
    Mirrored in Team Dashboard and Golf Handicap. */
 @media (min-width: 760px) {
-  #shareDialog .share-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+  /* ── The two choice panels, side by side ─────────────────────────────────────
+   Money Map's treatment, ported here whole on 2026-08-22 after Charles found
+   this dialog out of step with it in two visible ways.
+
+   MARGIN-TOP: 0 ON THE NESTED PANELS, and this is the one that mattered.
+   `.formpanel:first-of-type` above zeroes the top margin of the first fieldset
+   among its siblings — which, inside this dialog, is YOUR LINK: the other two
+   are nested inside `.share-choices`, so they are not siblings of it. So the
+   panel that needed the 14px lost it and the two that did not, kept it. Your
+   Link ended up flush against the row above it (measured: 0px) while the right
+   panel sat 14px out of step at the top. Zeroing it HERE, on the nested pair,
+   puts both back the right way round.
+
+   FLEX COLUMN, so the checklist inside can fill the panel. Grid items stretch
+   to the taller of the row by default, but the panel stretching is not the same
+   as its CONTENTS filling it: the list stopped at its own height and left the
+   right panel 14px shorter than the left (measured: 262 vs 248). */
+#shareDialog .share-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+#shareDialog .share-choices > .formpanel {
+  margin-top: 0; display: flex; flex-direction: column; }
+/* The team list fills its panel rather than stopping at 200px. `flex: 1` takes
+   whatever slack the other panel leaves, and `min-height: 0` is what lets it
+   shrink again — a flex item's default `min-height: auto` refuses to go below
+   its content, so without it a long list would push the panel taller instead of
+   scrolling inside it. The 200px cap stays for the stacked case, where nothing
+   holds the panel open. */
+#shareDialog .share-choices .checklist { max-height: none; flex: 1 1 auto; min-height: 0; }
 }
 .checkline { display: flex; gap: 8px; align-items: center; font-size: var(--fs-sm); }
 .checkline input { flex: none; }
