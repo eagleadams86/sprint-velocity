@@ -1373,6 +1373,9 @@ with its sprints, its capacity adjustments and its business value, field for fie
 deleted with *Keep the sprints* comes back with the grouping restored rather than nineteen
 sprints to re-file by hand.
 
+The countdown pauses while the toast has keyboard focus, so tabbing to the button doesn't
+race it.
+
 The confirmation before the delete **stays** anyway. There is only ever one toast on screen —
 a second replaces the first — so Undo is an offer rather than a guarantee, and an offer isn't
 enough to justify deleting a team's history on one click. It is one step back, not a history:

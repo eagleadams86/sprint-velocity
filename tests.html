@@ -4129,6 +4129,33 @@ t('a range with one end says which end it has', () => {
   eq(w.fmtDateRange('', ''), '—');
 });
 
+group('the toast’s Undo button wears the toast’s own colours');
+/* The toast is an inverted pill (--btn-bg behind --btn-text), so a control inside it
+   styled for the page BEHIND it lands at 2.5:1 — axe caught exactly that. The fix has
+   to be the pack's own pair, never a new colour: `inherit` IS --btn-text, and the
+   outline is currentColor. A regression here would be a hard-coded hex creeping in. */
+t('it takes its colour from the toast rather than naming one', () => {
+  const btn = w.document.getElementById('toastAction');
+  ok(btn, 'the button exists in the markup rather than being built per toast');
+  const css = w.getComputedStyle(btn);
+  const toastColour = w.getComputedStyle(w.document.getElementById('toast')).color;
+  eq(css.color, toastColour, 'inherited, so it can only ever be --btn-text');
+  eq(css.borderTopColor, toastColour, 'and so is the outline');
+  ok(/rgba\(0, 0, 0, 0\)|transparent/.test(css.backgroundColor),
+    'no fill of its own: ' + css.backgroundColor);
+});
+t('a plain toast still takes no pointer events, and one with a button does', () => {
+  const el = w.document.getElementById('toast');
+  const had = el.className;
+  try {
+    el.classList.remove('hasaction');
+    eq(w.getComputedStyle(el).pointerEvents, 'none',
+      'two and a half seconds of swallowing clicks on the page under it');
+    el.classList.add('hasaction');
+    eq(w.getComputedStyle(el).pointerEvents, 'auto');
+  } finally { el.className = had; }
+});
+
 /* ── Runner ───────────────────────────────────────────────────────────────── */
 
 /* The localhost gate. Booting the app is itself the side effect worth guarding:

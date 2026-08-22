@@ -1128,7 +1128,15 @@ but Charles had ever actually signed in.)
   the real way back, and a 10-second Undo would quietly make it the easiest destructive thing
   in the app. `toast(msg, action)` gained the button: `pointer-events` go to `auto` and the
   timeout to 10s ONLY when there is one, because a plain toast swallowing a click on whatever
-  is under it for 2.6 seconds is worse than the toast.
+  is under it for 2.6 seconds is worse than the toast. **The countdown pauses while the toast
+  holds focus** (`focusin`/`focusout` → `toast._go()`) — a keyboard reader has to tab to that
+  button, and a timer that expires while they are standing on it is worse than not offering
+  one. And **`#toastAction` wears the TOAST's colours, not a button's**: the toast is an
+  inverted pill (`--btn-bg` behind `--btn-text`), so an ordinary `.btn` in it is styled for
+  the page behind it and axe measured 2.5:1 in Midnight and 3.3:1 in Light. `color: inherit`
+  plus a `currentColor` outline is the pack's own pair and clears its gate by construction —
+  the rule being that a contrast fix REUSES an existing token and never invents one, or the
+  palette drifts a patch at a time. A test pins that it names no colour of its own.
 - **Every dialog sets `overscroll-behavior: contain`, and it is not cosmetic.** A scroll
   container that has run out of scroll hands the rest of the gesture to its parent, so
   reaching the foot of a dialog carried straight on into the page behind it — the app

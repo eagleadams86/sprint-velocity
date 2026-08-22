@@ -808,7 +808,21 @@ legend { font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
    plain toast sits over the page for two and a half seconds and swallowing a click
    on whatever is underneath it is worse than the toast itself. */
 #toast.hasaction { pointer-events: auto; }
-#toastAction { flex: none; }
+/* The toast is an INVERTED pill — --btn-bg behind --btn-text — so an ordinary .btn
+   dropped into it is wearing colours chosen for the page BEHIND it, and axe caught it
+   at 2.5:1 in Midnight and 3.3:1 in Light. It takes the toast's own pair instead:
+   `inherit` is --btn-text, which is the pack's own partner for --btn-bg and clears the
+   pack's contrast gate by construction. **No new colour** — a contrast fix reuses an
+   existing token rather than inventing one, or the palette drifts one patch at a time.
+   The outline is `currentColor` for the same reason. */
+#toastAction {
+  flex: none; background: transparent; color: inherit;
+  border: 1px solid currentColor; border-radius: 999px;
+  padding: 4px 12px; font-size: 13px; font-weight: 700; cursor: pointer;
+}
+/* No hover tint: mixing one would mean a colour that is in neither the pack nor this
+   file. The border is what says it is a control, and the focus ring is the app's own. */
+#toastAction:hover { text-decoration: underline; }
 /* The footer notes line up with the text *inside* the last card, not with the
    card's outer edge: 18px of card padding + its 1px border. Centred, they read
    as a separate block floating under the page; left-aligned to the copy above
@@ -4517,6 +4531,18 @@ function toast(msg, action) {
      settles it and the transition runs. */
   void el.offsetWidth;
   el.classList.add('show');
+  toast._ms = action ? 10000 : 2600;
+  toast._go();
+}
+
+/* Starts (or restarts) the countdown. Its own function because the toast has to be
+   able to WAIT: a reader working by keyboard has to tab to the Undo button, and a
+   ten-second timer that expires while they are standing on it is worse than not
+   offering one. Focus pauses it and blur restarts it, so the offer lasts as long as
+   somebody is actually considering it. */
+toast._go = () => {
+  const el = document.getElementById('toast');
+  clearTimeout(toast._t);
   toast._t = setTimeout(() => {
     el.classList.remove('show');
     el.classList.remove('hasaction');
@@ -4524,8 +4550,11 @@ function toast(msg, action) {
     /* Leaves the top layer once it has faded, so a spent toast is never parked
        above whatever opens next. Matches the .2s opacity transition. */
     toast._hide = setTimeout(() => dropToast(el), 250);
-  }, action ? 10000 : 2600);
-}
+  }, toast._ms || 2600);
+};
+
+document.getElementById('toast').addEventListener('focusin', () => clearTimeout(toast._t));
+document.getElementById('toast').addEventListener('focusout', () => toast._go());
 window.toast = toast;
 
 /* ═══════════════════════════════ Charts ═══════════════════════════════════
