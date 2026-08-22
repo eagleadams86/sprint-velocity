@@ -4246,13 +4246,27 @@ function sprintLabel(s) {
   return (pi ? pi.name : 'PI?') + ' · S' + s.sprintNumber;
 }
 
-/* "17 Aug", in whatever order the reader's locale writes dates. */
-const fmtDate = (d) => new Date(d + 'T00:00:00').toLocaleDateString(undefined,
-  { day: 'numeric', month: 'short' });
+/* "17 Aug", in whatever order the reader's locale writes dates — and '' rather than
+   the string "Invalid Date" for a box nobody filled in. `new Date('T00:00:00')` is
+   not an error, it is a Date that prints those two words, and they turn up wherever
+   the value came from a form rather than from the cadence arithmetic. */
+const fmtDate = (d) => {
+  if (!d) return '';
+  const dt = new Date(d + 'T00:00:00');
+  return isNaN(dt.getTime()) ? ''
+    : dt.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+};
 
-/* "4 Aug – 17 Aug". */
+/* "4 Aug – 17 Aug", or one end of it. A half-dated sprint is a real state — the form
+   saves what you typed — and it surfaced the day the History view put a Dates column
+   next to every sprint a team has: "Invalid Date – 17 Aug" is the app looking broken
+   over a blank box. */
 function fmtDateRange(a, b) {
-  return fmtDate(a) + ' – ' + fmtDate(b);
+  const from = fmtDate(a), to = fmtDate(b);
+  if (from && to) return from + ' – ' + to;
+  if (from) return 'from ' + from;
+  if (to) return 'to ' + to;
+  return '—';
 }
 
 /* ── A direction, small enough to sit in a table cell ──────────────────
@@ -10721,7 +10735,7 @@ if (viewOnly) {
    window properties; this exposes the consts the tests need. Nothing in the
    app reads it. */
 window.__svTestHooks = { raisesKeyboard, reorderById,
-  fmtPct, ART_NONE, b64urlEncode, REASONS, AVAILABILITY_REASONS, EXCLUDE_REASONS, isCounted,
+  fmtPct, fmtDate, ART_NONE, b64urlEncode, REASONS, AVAILABILITY_REASONS, EXCLUDE_REASONS, isCounted,
   /* The targets themselves, so the suite pins every boundary against the app's own
      numbers rather than against eight copied out of them — and `tgt` rather than a
      snapshot, because half the point of the setting is that the answer moves. */

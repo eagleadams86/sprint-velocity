@@ -4113,6 +4113,22 @@ t('the provenance line says the view, the scope and the day — and never twice'
   ok(/printed .*\d{4}/.test(line), 'and the year is there — this ends up in a folder: ' + line);
 });
 
+group('fmtDate — a blank box is not "Invalid Date"');
+/* `new Date('T00:00:00')` is not an error, it is a Date that prints those two words,
+   and a half-dated sprint is a real state the form will save. It surfaced when the
+   History view put a Dates column beside every sprint a team has. */
+t('an empty or unparseable date is nothing at all', () => {
+  eq(w.__svTestHooks.fmtDate(''), '');
+  eq(w.__svTestHooks.fmtDate(null), '');
+  eq(w.__svTestHooks.fmtDate('not a date'), '');
+});
+t('a range with one end says which end it has', () => {
+  ok(w.fmtDateRange('2026-08-04', '2026-08-17').indexOf('–') > 0);
+  ok(/^from /.test(w.fmtDateRange('2026-08-04', '')), w.fmtDateRange('2026-08-04', ''));
+  ok(/^to /.test(w.fmtDateRange('', '2026-08-17')), w.fmtDateRange('', '2026-08-17'));
+  eq(w.fmtDateRange('', ''), '—');
+});
+
 /* ── Runner ───────────────────────────────────────────────────────────────── */
 
 /* The localhost gate. Booting the app is itself the side effect worth guarding:
