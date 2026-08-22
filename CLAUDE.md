@@ -13,6 +13,32 @@ but Charles had ever actually signed in.)
 - **The header buttons wear a glyph in front of the word** (2026-08-21) — plain text characters, NOT emoji and not an icon font: one more file to fetch is the last thing a header painted this early needs, and a text glyph inherits the theme's colour for free, so it can never become the thing that carries a meaning by hue. Each is `aria-hidden` — the word beside it is already the whole label. The glyphs are Money Map's own where the same button exists there (`⇩` Back up, `↗` Share, `⚙` settings), so one action looks the same in every app, and `☰` is the list/manage one the three list-managing apps share. Added to Sprint Predictability, Flow Metrics, Golf Handicap and PAPTrack in the same commit.
 - The app is **one file — `index.html`** (no build step), alongside `theme.css` and a
   vendored `chart.min.js`. Keep it that way: no npm, no bundler, no CDN calls.
+- **The print stylesheet takes furniture OFF; it never re-lays-out** (2026-08-22). A print
+  design that rearranges anything is a second design to keep in step with the first, and it
+  always falls behind — so `@media print` hides controls (`.tabs`, the header's buttons and
+  selects, `[data-export]`, `.tile-help`, `.toolbarcard`, dialogs, the toast), flattens
+  `.rowbtn` to plain text (hiding it would empty every table's first column) and does nothing
+  else to the layout. **`printForPaper()` swaps `data-theme` to `light` for the length of the
+  job and re-renders**, which is how these rules own not one colour of their own: they borrow
+  the pack's Light palette rather than becoming a print palette that would need keeping in
+  step with `tokens.json`. The re-render is not optional — the charts are CANVASES painted
+  from `cssVar()` reads at draw time, so swapping the tokens under them would print a Midnight
+  chart on a white page. Two listeners (`beforeprint`, and a `print` media-query change for
+  the WebKit paths that don't fire it) because neither covers every browser; the swap is
+  idempotent and `_was` is captured only on the way in, so both firing costs nothing and
+  cannot lose the theme the reader chose. `print-color-adjust: exact` is then asked for BY
+  NAME on the elements whose background carries meaning — tiles, pills, badges, chart boxes —
+  rather than with `*`: browsers drop background colour to save ink, which is right for
+  decoration and wrong for the RAG tints and the shaded threshold bands. It still reads
+  without any of them, because every figure carries its ✓ / ! / ✕ — and
+  `html, body { background: #fff }` is the floor for a browser that fires neither signal, so
+  the worst case is a themed page rather than a full-bleed Midnight one. `#printMeta` is
+  written on every render rather than from the print hook (one fewer thing to be wrong:
+  whatever is on screen is what comes out) and is the only print-ONLY content on the page. **The scope controls can be
+  hidden because every caption already spells out what they did** — "with sprint 6 excluded",
+  "includes S3, still running", which ART, which sprints are left out. If a new control ever
+  changes a figure WITHOUT the page saying so in prose, that rule breaks and the control has
+  to stay on paper.
 - `theme.css` is a **copy of the generated file from `~/claude-theme-pack`** (private
   repo eagleadams86/claude-theme-pack), the source of truth for the palette of ALL apps —
   don't diverge it; palette changes go through the pack's `tokens.json` + contrast gate.
@@ -78,6 +104,22 @@ but Charles had ever actually signed in.)
 - `chart.min.js` is a **vendored third-party build — do not hand-edit.**
 - **`metrics()` and `rag()` in `index.html` are the only places the numbers are
   calculated.** Every tile, table and chart reads from them. Thresholds change in one spot.
+- **The eight RAG boundaries are SETTINGS, not constants** (2026-08-22). `TARGET_DEFAULTS`
+  holds the shipped eight; `tgt()` merges `state.settings.targets` over them and is called at
+  the moment a figure is judged — **never snapshotted into a const**, which is the whole point:
+  a ⓘ opened after a target changed has to read the new one, so the three `TARGET_*` help
+  sentences became FUNCTIONS and `openHelp()` calls `h.target` if it is callable. Anything new
+  that states a threshold in words, a caption, an `aria-label` or a chart band reads `tgt()`
+  too — grep for `tgt()` before writing a number. `TARGET_FIELDS` owns the per-field range and
+  is what both the dialog and the boundary validate against, so a new target means one entry
+  there and nothing else. **Only the difference from the default is stored**, so a browser
+  that never opened the dialog and one reset with *Back to the defaults* hold the same thing
+  and a later change to a default reaches both. `targetProblems()` refuses a self-contradicting
+  set (green under its own red, a band ceiling under its floor) — those are shape rules, not
+  taste: rag() would otherwise have a branch nothing can reach. Targets **travel in a share
+  link** (numbers only) because a figure the sender flagged amber arriving green is worse than
+  not sharing, and the ⚙ button is hidden in a shared view — not because it would write, but
+  because it would RE-JUDGE somebody else's figures.
 - **Two averaging methods, both deliberate.** `avg()` is the mean of each sprint's own
   percentage (every sprint equal); `pooled()` sums the points and divides once (bigger sprints
   weigh more). The All teams view shows both — Comparison 1 uses `avg()`, Comparison 2 uses
@@ -183,14 +225,30 @@ but Charles had ever actually signed in.)
   row**, not a tenth column: that table already scrolls sideways on a phone, and six rows is
   countable by eye. The Sprint view shows a tile only when there IS an answer — an unanswered
   question is not a metric, the same rule the PI predictability tile follows.
-- **`goalGap` is the finding the field exists for, and neither number can make it alone.** A
-  team hitting its commitment while missing what the sprints were FOR is planning the wrong
+- **`goalGapKind()` is the finding the field exists for, and neither number can make it alone.**
+  A team hitting its commitment while missing what the sprints were FOR is planning the wrong
   work, and every points figure on the page keeps reading green while that is true; the
   reverse is worth saying too and is the kinder half. It needs two answered sprints and fires
   only on a clear disagreement (points green + goals under half, or points red + goals all
   met), so an ordinary mixed record stays quiet. **Prose and a glyph, never a colour** — the
   finding is precisely that the colour-coded tiles beside it answer a different question, so
   painting it would be its own contradiction. Same rule as the headroom and cancelling notes.
+  It was an IIFE inside the Rolling 5 view until 2026-08-22, when **All teams** gained a
+  Sprint goals column and needed the same finding: one function now, because two copies of a
+  rule this particular drift the first time either is tuned. Note it reads `rag()`, so it
+  follows the targets — "the points land" is a target judgement, not a fixed 85%.
+- **All teams shows a DIRECTION as well as a level** (2026-08-22). Every figure on that page
+  is an average, and a team climbing 60→85 prints the same number as one sliding 95→85 —
+  opposite findings, one cell. `trendCell()` draws `sparkline()` plus the change in words, off
+  the same `linearTrend()` fit the Rolling 5 chart uses, so one bad sprint at an end cannot
+  flip it; `MIN_TREND_POINTS` is 3 because two points are a slope. Three things about it are
+  load-bearing: the sparkline is **colourless** (the pill beside it already carries the RAG,
+  and two colour languages in adjacent cells teach a reader to trust neither), the direction
+  is a **word** (so nothing is lost without colour vision), and that word is **visible text**
+  — `cellText()` strips `aria-hidden`, so the SVG and the arrow leave the CSV and "up 12" is
+  all that lands in the file. Words rather than "+12" because `csvCell()` has to defuse a cell
+  opening with `+`. No trend on the footer row: a line through every team's sprints pooled is
+  a shape with no team behind it.
 - The one surviving `null` is a **percentage with `committed === 0`** — no denominator, so it
   renders as `—` and `avg()` skips it. Keep that; don't turn it into 0%.
 - **Sprint lifecycle:** `sprintStatus()` resolves planned/active/complete from the dates,
@@ -574,6 +632,17 @@ but Charles had ever actually signed in.)
   the field would have nothing to show for itself. Team Live Sprint is the ONLY dated team, and
   its dates are counted from `Date.now()` so the running sprint is still running whenever the
   demo is opened; everything else is dateless because a dateless sprint resolves complete.
+  **The 2026-08-22 features were fitted to the same rule.** Team Baseline and Team Headroom
+  each have nine sprints, which is what gives the demo two teams with a **History** tab — and
+  both are arranged so the whole-history direction disagrees with the five-sprint one (up 11
+  vs level; up 14 vs down 1), because that disagreement is the argument for the view and a
+  demo where the two agree would teach that they always do. The **Trend** column needs all
+  four of its answers present, and gets them: up, down, level, and Team New Start's two
+  sprints reading `—`. Two of the seven can't be demonstrated with data — a changed
+  **target** (so the welcome card names the ⚙ button instead) and the **importer** (whose
+  own two buttons, *Download a template* and *Paste an example*, are its demo, and the
+  template is generated from whichever team you are on so it round-trips through
+  `parseImport()`; a test asserts that it does).
 - **The headroom note is a `.badge` line, and its amber is NOT a RAG band.** It takes the
   same badge-led `.sub.exnote` shape as the "sprints left out" notes, for the same reason
   `excludedLine()` gives: it started life last on the card, after the fold-out and beside
@@ -713,13 +782,25 @@ but Charles had ever actually signed in.)
   **Current PI** needs a PI *and* a sprint of the active team's inside one, **PI trend** needs
   two PIs with something in them, **Rolling 5**
   needs at least one recorded sprint *for the active team*
-  (so they come and go as you switch teams), and with no teams at all the whole row goes
+  (so they come and go as you switch teams), **History** needs MORE than `ROLLING_WINDOW`
+  sprints for that team — below that it would be Rolling 5 under another heading, and a tab
+  that duplicates its neighbour teaches a reader the tabs don't mean anything —
+  and with no teams at all the whole row goes
   rather than leaving a lone Sprint tab over the welcome card. If the stored view's tab has
   just been hidden it falls back to `sprint`, corrected **in memory** — a render must never
   `save()`, which would write over the stored copy. **A shared view keeps its own rule for All
   teams** (`shareMeta.allTeams`, which the sender opts into and which already requires two
   teams): that check moved out of `openSharedView()` into `renderTabs()`, so don't
   reinstate it there.
+- **History is the view with NO window, and that is its whole definition** (2026-08-22).
+  Every other per-team view looks through one — five sprints, or six — which left a team with
+  three PIs behind it holding eighteen sprints nothing could show sprint by sprint (PI trend
+  flattens them to one point per PI). It deliberately does **not** call `rollingSprints()`:
+  the two rolling toggles narrow a window and this view has none, so every sprint is listed,
+  with the in-flight and left-out ones drawn and marked rather than dropped. Its Direction
+  tile is `trendChange()` over the whole run, and the demo is built so it disagrees with the
+  five-sprint figure on both long-history teams — that disagreement IS the argument for the
+  view, and a test pins it so tidying those numbers can't quietly remove it.
 - **The sprint button is `.primary` only while it says "Add Sprint".** On an empty slot it's
   the one thing to do on the page, so it matches "Add your first team" and "Add a PI"; once
   the sprint exists it says "Edit Sprint" and drops back to a plain `.btn`, because it is
@@ -775,9 +856,9 @@ but Charles had ever actually signed in.)
   exactly right for a hostile payload and exactly wrong for a copy written by a NEWER
   build: an older tab would strip the fields it has never heard of, render what's left,
   and SAVE the stripped copy on the next edit — the missing fields gone silently. So
-  `version` (`SCHEMA`, currently **4** — `objectives` took it off 1, `goalMet` to 3,
-  optional `piId` to 4) rides into localStorage and every backup file, and these boundaries
-  compare it:
+  `version` (`SCHEMA`, currently **5** — `objectives` took it off 1, `goalMet` to 3,
+  optional `piId` to 4, `settings.targets` to 5) rides into localStorage and every backup
+  file, and these boundaries compare it:
   - `load()` calls **`haltForNewerData()`** — a full-screen card, no render, and a `throw`
     that aborts the rest of the script block so nothing can save over the newer copy. It
     reuses `viewOnly` (and `window.svViewOnly`) rather than inventing a second flag, so
@@ -803,6 +884,13 @@ but Charles had ever actually signed in.)
   allowlists in that same commit, and check `adoptState()` still stamps the new number** — a bump without the allowlist change protects a field
   the boundary then strips anyway. UI-only state (theme, active tab) needs no bump.
   All four boundaries are pinned in tests.html.
+  **`settings.targets` took it to 5 on 2026-08-22, and it is the case that shows where the
+  "UI state needs no bump" line actually falls**: a target looks like a preference, sits in
+  `settings` next to `view`, and still earns the bump — because it is SAVED and because an
+  older build that stripped it would go on judging every figure in the file against 85/15/20
+  while the tiles said otherwise. Wrong colours on a portfolio slide is quiet enough to be
+  worth halting for. The theme is the counter-example and still needs no bump: it lives under
+  its own key and changes nothing about the data.
 - **`sanitizeIds()` must never invent a key, and `cleanKey()` is why.** `x.id = clean(x.id)`
   on an **absent** key looks harmless and isn't: `clean()` returns what it was given, and
   the assignment creates the key holding `undefined`. `JSON.stringify` drops that silently,
@@ -956,6 +1044,17 @@ but Charles had ever actually signed in.)
   `keepKnown` spec or it will be silently stripped** — that's the point, and the same-named
   test in tests.html pins it. The only free-text left is the short team/ART/PI names. The
   sprint form's one disclosure is `#jiraBlock`, closed on every `openSprint()`.
+  **The bulk importer is the first thing that could have widened this and deliberately does
+  not** (2026-08-22). `parseImport()` takes a pasted spreadsheet, and the rule that shapes all
+  of it is that a `team` or `pi` cell is **looked up and then discarded**: it finds a row that
+  already exists and never creates one. So the only things that path can write are the same
+  figures, dates and tri-state goal the sprint form writes — a bulk importer able to create a
+  team from pasted text would be a free-text field with extra steps. `settings.targets` is the
+  one NESTED object crossing `keepKnown()`, and it gets the same treatment one level down:
+  only the eight keys `TARGET_FIELDS` names, each clamped to that field's range, everything
+  else counted in `pruned` and dropped. Note the `kind !== 'targets'` exemption on the general
+  pruned test — a rebuilt object is never `===` the one that came in, so without it every boot
+  would count itself a scrub and `save()`.
   **The capacity levers' reason codes are a fixed enum (`REASONS`) and must never become a
   text box.** "Why did we drop that sprint?" is the obvious place for someone to reach for
   free text later, and it is exactly where a ticket key or a colleague's name would ride into
@@ -1010,8 +1109,26 @@ but Charles had ever actually signed in.)
   than not offering one. It would also be wrong now, since `close` can't tell Cancel from the
   two exits that are supposed to keep the save.
 - The undo has to be **visible**: `setCancelLabel()` switches the button to "Cancel & Undo
-  Save" while a snapshot is held. It can't live in the toast — `toast()` is `textContent`-only
-  and `pointer-events: none`, so it can't hold a control.
+  Save" while a snapshot is held. It stays on the button rather than moving to the toast, and
+  the reason changed on 2026-08-22 — `toast()` CAN hold a control now (see the delete undo
+  below), but this undo belongs to a dialog that is still open and whose Cancel is the thing
+  the user is already reaching for. A toast that expires while the form is still on screen
+  would be worse than the button, not better.
+- **A delete can be taken back, and the toast is where the offer lives** (2026-08-22).
+  `undoable(fn)` stringifies the seven collections before `fn` runs and hands back a
+  `restore()`; `undoableToast()` wraps that with the re-render and a toast carrying an **Undo**
+  button. A **whole-state snapshot, not a hand-written inverse**: the four deletes reach four
+  collections and two settings between them, and an inverse per delete is a list somebody has
+  to remember to extend the next time one learns to tidy up after itself. Three deliberate
+  limits: it is **one step, not a stack** (what an undo history should survive — a reload? an
+  import? — has no obvious answer here, and a half-answered one is worse than none); the
+  **`confirm()` before each delete stays**, because one toast replaces the next so Undo is an
+  offer rather than a guarantee; and **Delete all data deliberately has none** — that one is
+  meant to be hard, it already says exactly how much is going and offers the backup that is
+  the real way back, and a 10-second Undo would quietly make it the easiest destructive thing
+  in the app. `toast(msg, action)` gained the button: `pointer-events` go to `auto` and the
+  timeout to 10s ONLY when there is one, because a plain toast swallowing a click on whatever
+  is under it for 2.6 seconds is worse than the toast.
 - **Every dialog sets `overscroll-behavior: contain`, and it is not cosmetic.** A scroll
   container that has run out of scroll hands the rest of the gesture to its parent, so
   reaching the foot of a dialog carried straight on into the page behind it — the app

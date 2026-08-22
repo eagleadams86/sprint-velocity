@@ -712,26 +712,38 @@ t('blank boxes read as 0, not NaN', () => {
 });
 
 group('rag + fmtPct — bands and the never-contradict-the-colour rule');
+/* Every assertion about a BOUNDARY runs inside withTargets(null, …) as of
+   2026-08-22, when the eight boundaries became settings. The suite boots the real
+   app against the real localStorage on this machine, so without it these tests
+   would judge by whatever targets the person running them happens to have set —
+   and fail, correctly and uselessly, on their own configuration. Pinning the
+   defaults is what makes them about the SHAPE of each scale again. */
 t('completion bands: ≥85 green, 75–<85 yellow, <75 red; null is none', () => {
-  eq(w.rag(85, 'completion'), 'green');
-  eq(w.rag(84.99, 'completion'), 'yellow');
-  eq(w.rag(75, 'completion'), 'yellow');
-  eq(w.rag(74.99, 'completion'), 'red');
-  eq(w.rag(null, 'completion'), 'none');
+  withTargets(null, () => {
+    eq(w.rag(85, 'completion'), 'green');
+    eq(w.rag(84.99, 'completion'), 'yellow');
+    eq(w.rag(75, 'completion'), 'yellow');
+    eq(w.rag(74.99, 'completion'), 'red');
+    eq(w.rag(null, 'completion'), 'none');
+  });
 });
 t('churn bands: ≤15 green, >15–≤20 yellow, >20 red', () => {
-  eq(w.rag(15, 'churn'), 'green');
-  eq(w.rag(15.01, 'churn'), 'yellow');
-  eq(w.rag(20, 'churn'), 'yellow');
-  eq(w.rag(20.01, 'churn'), 'red');
+  withTargets(null, () => {
+    eq(w.rag(15, 'churn'), 'green');
+    eq(w.rag(15.01, 'churn'), 'yellow');
+    eq(w.rag(20, 'churn'), 'yellow');
+    eq(w.rag(20.01, 'churn'), 'red');
+  });
 });
 t('fmtPct keeps a decimal when rounding would cross the band', () => {
-  const fmtPct = w.__svTestHooks.fmtPct;
-  eq(fmtPct(84.6, 'completion'), '84.6%'); // 85% next to a yellow flag would lie
-  eq(fmtPct(85.2, 'completion'), '85%');
-  eq(fmtPct(15.4, 'churn'), '15.4%');      // 15% next to a yellow flag would lie
-  eq(fmtPct(14.6, 'churn'), '15%');
-  eq(fmtPct(null, 'completion'), '—');
+  withTargets(null, () => {
+    const fmtPct = w.__svTestHooks.fmtPct;
+    eq(fmtPct(84.6, 'completion'), '84.6%'); // 85% next to a yellow flag would lie
+    eq(fmtPct(85.2, 'completion'), '85%');
+    eq(fmtPct(15.4, 'churn'), '15.4%');      // 15% next to a yellow flag would lie
+    eq(fmtPct(14.6, 'churn'), '15%');
+    eq(fmtPct(null, 'completion'), '—');
+  });
 });
 
 group('avg vs pooled — two deliberate methods');
@@ -1696,6 +1708,73 @@ t('four of the five teams are scored, one on each side of the band', () => {
     ok(pct('Team Headroom') > 100, 'which is only reachable because stretch is in the numerator');
     eq(w.rag(pct('Team New Start'), 'predictability'), 'green',
       'and it is in no ART, so that group has a figure');
+  });
+});
+t('the History tab has teams to appear on — and shows what Rolling 5 cannot', () => {
+  withSample((id, by) => {
+    const isCounted = w.__svTestHooks.isCounted;
+    const reach = w.svGet().teams.filter(t => w.teamSprints(t.id).length > w.__svTestHooks.ROLLING_WINDOW);
+    ok(reach.length >= 2, 'a first run has to be able to open the History tab: '
+      + reach.map(t => t.name).join(', '));
+    /* And it has to be worth opening. Both long-history teams read one way over
+       their whole run and another over the last five sprints — which is the entire
+       argument for a view with no window, and the sort of thing a later tidy-up of
+       these figures would quietly remove. */
+    const dirs = (name) => {
+      const all = w.teamSprints(id(name));
+      return {
+        whole: w.trendChange(all.map(s => isCounted(s) ? w.metrics(s).commitCompletePct : null)),
+        five: w.trendChange(w.rollingSprints(id(name), false).map(s => w.metrics(s).commitCompletePct))
+      };
+    };
+    const base = dirs('Team Baseline');
+    ok(base.whole > 5 && Math.abs(base.five) < 1,
+      'Team Baseline climbs across three PIs and reads level over the last five: '
+      + JSON.stringify(base));
+    const head = dirs('Team Headroom');
+    ok(head.whole > 5 && head.five < 0,
+      'and Team Headroom climbs over its history while sliding over the window: '
+      + JSON.stringify(head));
+  });
+});
+t('the Trend column has all three of its answers to give', () => {
+  withSample(() => {
+    const cells = w.svGet().teams.map(t =>
+      w.trendCell(w.rollingSprints(t.id, false).map(s => w.metrics(s).commitCompletePct)));
+    ok(cells.some(c => c.indexOf('up ') >= 0), 'a team on the way up');
+    ok(cells.some(c => c.indexOf('down ') >= 0), 'a team on the way down');
+    ok(cells.some(c => c.indexOf('level') >= 0), 'a team going nowhere');
+    ok(cells.some(c => c.indexOf('not enough sprints') >= 0),
+      'and Team New Start, too thin to have a direction at all');
+  });
+});
+t('the ◎ goals-versus-points finding appears in BOTH directions on All teams', () => {
+  withSample((id, by) => {
+    const kind = (name) => {
+      const rs = w.rollingSprints(id(name), false);
+      return w.goalGapKind(w.goalRecord(rs), w.avg(rs, 'commitCompletePct'));
+    };
+    eq(kind('Team Headroom'), 'points', 'the points land and the goals don’t');
+    eq(kind('Team Overcommitted'), 'goals', 'and the kinder half, on another team');
+    eq(kind('Team Baseline'), null, 'while the ordinary team stays quiet');
+  });
+});
+t('the import template comes out of a demo team as a real, re-importable file', () => {
+  withSample((id) => {
+    const st = w.svGet();
+    st.settings.activeTeamId = id('Team Baseline');
+    const rows = w.importTemplateRows();
+    eq(rows[0][2], 'sprint', 'the headings the parser answers to');
+    eq(rows.length, w.teamSprints(id('Team Baseline')).length + 1,
+      'and one row per sprint the team already has');
+    /* The round trip: what the template hands out has to be what the parser takes
+       back, or the one artefact meant to teach the format teaches the wrong one. */
+    const text = rows.map(r => r.join('\t')).join('\n');
+    const plan = w.parseImport(text, id('Team Baseline'));
+    eq(plan.fatal, '');
+    eq(plan.rows.filter(r => r.record).length, rows.length - 1, 'every row usable');
+    eq(plan.rows.every(r => r.action === 'overwrite'), true,
+      'and every one lands back on the sprint it came from');
   });
 });
 t('Team Live Sprint is deliberately unscored — its PI is still running', () => {
@@ -2780,24 +2859,26 @@ group('the predictability BAND — a figure can miss it from either side');
 /* Every other scale in this app is one-sided. This one is not, and the whole
    point is that well over 100% is a finding: the train committed to less than it
    could deliver, and every dependency planned around that commitment was wrong by
-   the difference. Pinned against the constants themselves, not against four
-   numbers copied out of them. */
+   the difference. Pinned against the app's OWN figures rather than against four
+   numbers copied out of them — and read through tgt(), because the band became a
+   setting on 2026-08-22 and a suite holding a copy of the old defaults would pass
+   while the app judged by something else entirely. */
 const P = () => w.__svTestHooks;
 t('inside the band is green, at both edges', () => {
-  eq(w.rag(P().PRED_BAND_LOW, 'predictability'), 'green');
-  eq(w.rag(P().PRED_BAND_HIGH, 'predictability'), 'green');
-  eq(w.rag(90, 'predictability'), 'green');
+  eq(w.rag(P().tgt().predLow, 'predictability'), 'green');
+  eq(w.rag(P().tgt().predHigh, 'predictability'), 'green');
+  withTargets(null, () => eq(w.rag(90, 'predictability'), 'green'));
 });
 t('under the band: amber, then red below the floor', () => {
-  eq(w.rag(P().PRED_BAND_LOW - 0.01, 'predictability'), 'yellow');
-  eq(w.rag(P().PRED_UNDER_RED, 'predictability'), 'yellow');
-  eq(w.rag(P().PRED_UNDER_RED - 0.01, 'predictability'), 'red');
+  eq(w.rag(P().tgt().predLow - 0.01, 'predictability'), 'yellow');
+  eq(w.rag(P().tgt().predUnderRed, 'predictability'), 'yellow');
+  eq(w.rag(P().tgt().predUnderRed - 0.01, 'predictability'), 'red');
 });
 t('over the band too — over-delivery is a finding, not a triumph', () => {
-  eq(w.rag(P().PRED_BAND_HIGH + 0.01, 'predictability'), 'yellow');
-  eq(w.rag(P().PRED_OVER_RED, 'predictability'), 'yellow',
+  eq(w.rag(P().tgt().predHigh + 0.01, 'predictability'), 'yellow');
+  eq(w.rag(P().tgt().predOverRed, 'predictability'), 'yellow',
     'a couple of stretch objectives landing is what stretch is for');
-  eq(w.rag(P().PRED_OVER_RED + 0.01, 'predictability'), 'red',
+  eq(w.rag(P().tgt().predOverRed + 0.01, 'predictability'), 'red',
     'too big to be stretch — the plan was wrong by that much');
 });
 t('nothing recorded is none, never 0', () => {
@@ -2811,10 +2892,12 @@ t('the spoken status says WHICH side, because "Off target" cannot', () => {
   eq(st(null), 'Not recorded');
 });
 t('fmtPct keeps a decimal at the band edges too, both of them', () => {
-  const fmtPct = P().fmtPct;
-  eq(fmtPct(79.6, 'predictability'), '79.6%', '80% beside an amber flag would lie');
-  eq(fmtPct(100.4, 'predictability'), '100.4%', 'and so would 100% beside one');
-  eq(fmtPct(90.2, 'predictability'), '90%', 'inside the band it rounds as usual');
+  withTargets(null, () => {
+    const fmtPct = P().fmtPct;
+    eq(fmtPct(79.6, 'predictability'), '79.6%', '80% beside an amber flag would lie');
+    eq(fmtPct(100.4, 'predictability'), '100.4%', 'and so would 100% beside one');
+    eq(fmtPct(90.2, 'predictability'), '90%', 'inside the band it rounds as usual');
+  });
 });
 
 group('artPredictability — the train figure, both methods');
@@ -3679,6 +3762,355 @@ t('a copy with no version at all is stamped too', () => {
 t('the objectives list survives adoption rather than being blanked', () => {
   const objectives = [{ id: 'o1', teamId: 't1', piId: 'p1', plannedBv: 10 }];
   eq(w.adoptState({ objectives }).objectives, objectives);
+});
+
+group('targets — the eight numbers, and whose they are');
+/* Until 2026-08-22 all eight lived as literals in the file. They are settings now,
+   which means two things have to hold and neither is obvious: every judgement in
+   the app has to read the SETTING rather than a copy of it, and a hand-edited or
+   shared copy has to be unable to put nonsense in one. */
+const TG = () => w.__svTestHooks;
+
+/* The suite is read-only, so a target is set for the length of one test and put
+   back in a finally, exactly as withState() does with the collections. */
+function withTargets(targets, fn) {
+  const st = w.svGet();
+  const before = st.settings.targets;
+  if (targets) st.settings.targets = targets; else delete st.settings.targets;
+  try { return fn(); }
+  finally {
+    if (before) st.settings.targets = before; else delete st.settings.targets;
+  }
+}
+
+t('with nothing set, the defaults are the SAFe-ish ones the app shipped with', () => {
+  withTargets(null, () => {
+    eq(TG().tgt(), { completionGreen: 85, completionRed: 75, churnGreen: 15, churnRed: 20,
+                     predLow: 80, predHigh: 100, predUnderRed: 70, predOverRed: 120 });
+  });
+});
+t('a partial setting falls back key by key', () => {
+  withTargets({ completionGreen: 95 }, () => {
+    eq(TG().tgt().completionGreen, 95);
+    eq(TG().tgt().churnGreen, 15, 'the other seven still come from the defaults');
+  });
+});
+t('rag() judges by the setting, not by 85 and 15', () => {
+  withTargets({ completionGreen: 95, churnGreen: 5 }, () => {
+    eq(w.rag(90, 'completion'), 'yellow', '90% is no longer on target for this ART');
+    eq(w.rag(96, 'completion'), 'green');
+    eq(w.rag(10, 'churn'), 'yellow', 'and 10% break-in is now a watch');
+  });
+});
+t('the band follows too, both edges and both reds', () => {
+  withTargets({ predLow: 90, predHigh: 110, predUnderRed: 80, predOverRed: 130 }, () => {
+    eq(w.rag(85, 'predictability'), 'yellow');
+    eq(w.rag(79, 'predictability'), 'red');
+    eq(w.rag(100, 'predictability'), 'green');
+    eq(w.rag(131, 'predictability'), 'red');
+    ok(w.predictabilityStatus(85).indexOf('90–110') >= 0, w.predictabilityStatus(85));
+  });
+});
+t('the ⓘ target line is written from the setting, not captured at load', () => {
+  withTargets({ completionGreen: 92, completionRed: 60 }, () => {
+    const line = TG().METRIC_HELP.commitCompletion.target();
+    ok(line.indexOf('92%') >= 0 && line.indexOf('60%') >= 0, line);
+  });
+});
+t('TARGET_FIELDS covers every default, so nothing is editable-but-unbounded', () => {
+  eq(TG().TARGET_FIELDS.map(f => f.key).sort(),
+     Object.keys(TG().TARGET_DEFAULTS).sort());
+});
+t('a target set that contradicts itself is refused, one rule at a time', () => {
+  const bad = (over) => w.targetProblems(Object.assign({}, TG().TARGET_DEFAULTS, over)).length;
+  eq(w.targetProblems(TG().TARGET_DEFAULTS).length, 0, 'the defaults are legal');
+  ok(bad({ completionGreen: 70 }) > 0, 'green under its own red leaves no amber');
+  ok(bad({ churnRed: 10 }) > 0, 'churn runs the other way — red is the higher number');
+  ok(bad({ predHigh: 70 }) > 0, 'a ceiling under the floor');
+  ok(bad({ predUnderRed: 85 }) > 0, 'red-below has to sit under the floor');
+  ok(bad({ predOverRed: 95 }) > 0, 'red-above has to sit over the ceiling');
+});
+
+group('the targets boundary — a hand-edited or shared copy cannot put nonsense in one');
+t('only the eight known keys survive, and each is a whole number in range', () => {
+  const out = w.sanitizeIds({ teams: [], arts: [], pis: [], sprints: [], plans: [],
+    objectives: [], settings: { targets: {
+      completionGreen: '88.6',        // a string, and fractional
+      churnGreen: -5,                 // under its floor
+      predOverRed: 1e9,               // the crafted-payload case
+      notATarget: 42,                 // a key the format does not have
+      completionRed: 'seventy'        // not a number at all
+    } } });
+  const tg = out.settings.targets;
+  eq(tg.completionGreen, 89, 'rounded');
+  eq(tg.churnGreen, 0, 'clamped up to its floor');
+  eq(tg.predOverRed, 400, 'clamped down to its ceiling');
+  eq('notATarget' in tg, false, 'a stray key is dropped, like every other stray key');
+  eq('completionRed' in tg, false, 'and a non-number is dropped rather than becoming 0');
+});
+t('an empty or nonsense targets object leaves no key behind at all', () => {
+  const empty = w.sanitizeIds({ settings: { targets: {} } });
+  eq('targets' in empty.settings, false, '`{}` is a key claiming to hold a setting');
+  const wrong = w.sanitizeIds({ settings: { targets: 'all of them' } });
+  eq('targets' in wrong.settings, false);
+});
+t('an untouched copy is not counted as scrubbed, or every boot would re-save', () => {
+  w.sanitizeIds.pruned = 0;
+  w.sanitizeIds({ teams: [], arts: [], pis: [], sprints: [], plans: [], objectives: [],
+    settings: { targets: { completionGreen: 90 } } });
+  eq(w.sanitizeIds.pruned, 0);
+});
+
+group('the Trend column — a level is not a direction');
+t('two sprints are a slope, not a trend', () => {
+  eq(w.trendChange([80, 90]), null);
+  eq(w.trendChange([80, 90, 95]) === null, false);
+  eq(TG().MIN_TREND_POINTS, 3);
+});
+t('it reads the fit, so one spike at the end cannot flip the direction', () => {
+  /* Four sprints climbing hard, then one bad one. Last-minus-first would call this
+     a decline; the least-squares fit still says the team is climbing. */
+  const change = w.trendChange([40, 60, 80, 100, 70]);
+  ok(change > 0, 'expected still-climbing, got ' + change);
+});
+t('the cell says the direction in words, which is what survives into a CSV', () => {
+  /* 40 rather than 20: the figure is the change from one END of the window to the
+     other, which is what "up 40" means on the page — not the slope per sprint. */
+  ok(w.trendCell([40, 60, 80]).indexOf('up 40') >= 0, w.trendCell([40, 60, 80]));
+  ok(w.trendCell([80, 60, 40]).indexOf('down 40') >= 0);
+  ok(w.trendCell([80, 80, 80]).indexOf('level') >= 0);
+  ok(w.trendCell([80, 90]).indexOf('—') >= 0, 'too few sprints reads as no answer');
+});
+t('the words carry it, never the arrow — the glyph is aria-hidden decoration', () => {
+  const html = w.trendCell([40, 60, 80]);
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  div.querySelectorAll('[aria-hidden="true"], .sr-only').forEach(el => el.remove());
+  ok(div.textContent.replace(/\s+/g, ' ').trim().indexOf('up 40') >= 0,
+    'what cellText() would export: ' + div.textContent.trim());
+});
+t('a sprint with no percentage is skipped rather than plotted as zero', () => {
+  const change = w.trendChange([80, null, 84, 88]);
+  ok(change > 0, 'a null must not drag the line to the floor: ' + change);
+});
+t('sparkline: nothing to draw below two points, and a flat run is a flat line', () => {
+  eq(w.sparkline([50]), '');
+  eq(w.sparkline([]), '');
+  const flat = w.sparkline([50, 50, 50]);
+  ok(flat.indexOf('<svg') === 0, 'a flat run still draws');
+  ok(flat.indexOf('NaN') < 0, 'and never divides by zero: ' + flat);
+});
+
+group('the goals finding, now that All teams shows it too');
+t('goalGapKind fires both ways, and only on a clear disagreement', () => {
+  const rec = (met, recorded) => ({ met, recorded, missing: [], total: recorded, pct: 0 });
+  eq(w.goalGapKind(rec(1, 5), 95), 'points', 'points land, goals do not');
+  eq(w.goalGapKind(rec(4, 4), 60), 'goals', 'goals land, points do not');
+  eq(w.goalGapKind(rec(3, 5), 90), null, 'a mixed record stays quiet');
+  eq(w.goalGapKind(rec(0, 1), 95), null, 'one answered sprint is an anecdote');
+  eq(w.goalGapKind(rec(1, 5), null), null, 'and no points figure is no finding');
+});
+t('it follows the targets, because "the points land" is a target judgement', () => {
+  const rec = { met: 1, recorded: 5, missing: [], total: 5, pct: 20 };
+  withTargets(null, () => eq(w.goalGapKind(rec, 88), 'points'));
+  withTargets({ completionGreen: 95 }, () =>
+    eq(w.goalGapKind(rec, 88), null, '88% is no longer "the points land" for this ART'));
+});
+
+group('importing a history — names are looked up, never stored');
+function importFixture() {
+  return {
+    teams: [{ id: 't1', name: 'Team One' }, { id: 't2', name: 'Team Two' }],
+    arts: [], pis: [{ id: 'p1', name: 'PI 1' }],
+    sprints: [{ id: 'old', teamId: 't1', piId: 'p1', sprintNumber: 2,
+                committed: 10, committedCompleted: 9, totalCompleted: 9,
+                added: 1, removed: 0, carriedIn: 0, carriedOut: 1,
+                addedThenRemoved: 0, goalMet: true, startDate: '2026-01-05',
+                endDate: '2026-01-16', status: 'auto', excluded: true,
+                excludeReason: 'incident', capacityScale: 80 }],
+    plans: [], objectives: []
+  };
+}
+const HEAD = 'team\tpi\tsprint\tcommitted\tcommitted completed';
+
+t('a clean paste lands as new sprints, with blanks reading as zero', () => {
+  withState(importFixture(), () => {
+    const plan = w.parseImport(HEAD + '\nTeam One\tPI 1\t1\t20\t18', 't1');
+    eq(plan.rows.length, 1);
+    eq(plan.rows[0].action, 'new');
+    eq(plan.rows[0].record.committed, 20);
+    eq(plan.rows[0].record.carriedIn, 0, 'a column that is not there is nothing');
+  });
+});
+t('a name that matches nothing is a skipped row with a sentence, never a new team', () => {
+  withState(importFixture(), () => {
+    const plan = w.parseImport(HEAD + '\nTeam Nine\tPI 1\t1\t20\t18', 't1');
+    eq(plan.rows[0].record, null);
+    ok(plan.rows[0].problem.indexOf('Team Nine') >= 0, plan.rows[0].problem);
+    eq(w.svGet().teams.length, 2, 'and nothing was created');
+  });
+});
+t('the same for a PI — a typo does not quietly file the sprint outside one', () => {
+  withState(importFixture(), () => {
+    const plan = w.parseImport(HEAD + '\nTeam One\tPI 9\t1\t20\t18', 't1');
+    eq(plan.rows[0].record, null);
+    ok(plan.rows[0].problem.indexOf('PI 9') >= 0, plan.rows[0].problem);
+  });
+});
+t('names match loosely — case and spacing are not a reason to fail a paste', () => {
+  withState(importFixture(), () => {
+    const plan = w.parseImport(HEAD + '\n  team one \tpi 1\t1\t20\t18', 't1');
+    eq(plan.rows[0].record.teamId, 't1');
+    eq(plan.rows[0].record.piId, 'p1');
+  });
+});
+t('a figure that is present and is not a number stops the row', () => {
+  withState(importFixture(), () => {
+    const plan = w.parseImport(HEAD + '\nTeam One\tPI 1\t1\tn/a\t18', 't1');
+    eq(plan.rows[0].record, null, 'better a skipped row than a plausible wrong history');
+    ok(plan.rows[0].problem.indexOf('n/a') >= 0, plan.rows[0].problem);
+  });
+});
+t('an overwrite keeps everything the paste has no column for', () => {
+  withState(importFixture(), () => {
+    const plan = w.parseImport(HEAD + '\nTeam One\tPI 1\t2\t99\t88', 't1');
+    const r = plan.rows[0];
+    eq(r.action, 'overwrite');
+    eq(r.record.id, 'old', 'the same sprint, not a second one in the slot');
+    eq(r.record.committed, 99);
+    eq(r.record.goalMet, true, 'a sheet with no goal column must not clear a goal');
+    eq(r.record.carriedOut, 1, 'nor a figure it never mentioned');
+    eq(r.record.startDate, '2026-01-05', 'nor the dates');
+    eq(r.record.excluded, true, 'nor a decision made in the app');
+    eq(r.record.capacityScale, 80, 'nor one only editable in another dialog');
+  });
+});
+t('a goal column that IS there can clear a goal, because absent is a real answer', () => {
+  withState(importFixture(), () => {
+    const plan = w.parseImport('team\tpi\tsprint\tgoal\nTeam One\tPI 1\t2\t', 't1');
+    eq('goalMet' in plan.rows[0].record, false);
+    const met = w.parseImport('team\tpi\tsprint\tgoal\nTeam One\tPI 1\t3\tnot met', 't1');
+    eq(met.rows[0].record.goalMet, false, 'and never null or undefined');
+  });
+});
+t('two rows for one slot: the second is refused rather than silently winning', () => {
+  withState(importFixture(), () => {
+    const plan = w.parseImport(HEAD + '\nTeam One\tPI 1\t1\t20\t18\nTeam One\tPI 1\t1\t30\t28', 't1');
+    eq(plan.rows[0].record === null, false);
+    eq(plan.rows[1].record, null);
+  });
+});
+t('a sprint number a PI has no slot for is refused, and one outside a PI is not', () => {
+  withState(importFixture(), () => {
+    eq(w.parseImport(HEAD + '\nTeam One\tPI 1\t12\t20\t18', 't1').rows[0].record, null);
+    eq(w.parseImport(HEAD + '\nTeam One\t\t12\t20\t18', 't1').rows[0].record.sprintNumber, 12,
+      'a team that does not run PIs numbers straight up');
+  });
+});
+t('quoted CSV survives a comma in a name, which would otherwise shift every figure', () => {
+  eq(w.splitImportLine('"Payments, Core",PI 1,3,20', ','), ['Payments, Core', 'PI 1', '3', '20']);
+  eq(w.splitImportLine('a\tb\tc', '\t'), ['a', 'b', 'c']);
+});
+t('no sprint column is a fatal, not forty skipped rows', () => {
+  withState(importFixture(), () => {
+    const plan = w.parseImport('team\tcommitted\nTeam One\t20', 't1');
+    eq(plan.rows.length, 0);
+    ok(plan.fatal.indexOf('sprint') >= 0, plan.fatal);
+  });
+});
+t('one paste is bounded', () => {
+  withState(importFixture(), () => {
+    const many = [HEAD].concat(
+      Array.from({ length: TG().IMPORT_MAX_ROWS + 1 }, (_, i) => `Team One\t\t${i + 1}\t1\t1`)
+    ).join('\n');
+    ok(w.parseImport(many, 't1').fatal.length > 0);
+  });
+});
+t('with no team column at all, everything lands on the team you are looking at', () => {
+  withState(importFixture(), () => {
+    const plan = w.parseImport('sprint\tcommitted\n4\t20', 't2');
+    eq(plan.rows[0].record.teamId, 't2');
+    eq(plan.rows[0].record.piId, null);
+  });
+});
+
+group('undo — the other half of a delete that asks first');
+/* undoable() calls save(), which is the one thing this suite promises not to do —
+   it boots the real app against the real localStorage on this machine. So save is
+   stubbed for the length of the test and put back in a finally, the way
+   withSample() already stubs it. Without this the fixture team lands in whoever is
+   running the suite's own data. */
+function withNoSave(fn) {
+  const real = w.save;
+  w.save = () => {};
+  try { return fn(); } finally { w.save = real; }
+}
+t('undoable() puts back every collection a delete reaches', () => {
+  withNoSave(() => withState(importFixture(), () => {
+    const st = w.svGet();
+    const step = w.undoable(() => {
+      st.teams = st.teams.filter(x => x.id !== 't1');
+      st.sprints = st.sprints.filter(s => s.teamId !== 't1');
+    }, 'gone');
+    eq(st.teams.length, 1);
+    eq(st.sprints.length, 0);
+    step.restore();
+    eq(st.teams.length, 2);
+    eq(st.sprints.length, 1, 'and its sprints come back with it');
+    eq(st.sprints[0].capacityScale, 80, 'field for field, not just the row');
+  }));
+});
+
+group('on paper — the print pass borrows the Light theme rather than owning colours');
+t('printing swaps to light and back, and a doubled signal cannot lose the theme', () => {
+  const el = w.document.documentElement;
+  const before = el.getAttribute('data-theme');
+  try {
+    el.setAttribute('data-theme', 'midnight');
+    w.printForPaper(true);
+    eq(el.getAttribute('data-theme'), 'light');
+    w.printForPaper(true);        // beforeprint AND the media query, as browsers do
+    eq(el.getAttribute('data-theme'), 'light');
+    w.printForPaper(false);
+    eq(el.getAttribute('data-theme'), 'midnight', 'the reader gets their own theme back');
+    w.printForPaper(false);       // and the pair on the way out too
+    eq(el.getAttribute('data-theme'), 'midnight');
+  } finally { el.setAttribute('data-theme', before); }
+});
+t('someone already on Light is left alone', () => {
+  const el = w.document.documentElement;
+  const before = el.getAttribute('data-theme');
+  try {
+    el.setAttribute('data-theme', 'light');
+    w.printForPaper(true);
+    eq(el.getAttribute('data-theme'), 'light');
+    w.printForPaper(false);
+    eq(el.getAttribute('data-theme'), 'light');
+  } finally { el.setAttribute('data-theme', before); }
+});
+t('the print rules name no colour of their own beyond the white of the paper', () => {
+  /* The whole point of the theme swap: a print palette in here would be a second
+     copy of the shared pack to keep in step. #fff and #000 are paper and ink; #999
+     is a hairline rule. Anything else is a colour that has escaped tokens.json. */
+  const css = w.document.querySelector('style').textContent;
+  const i = css.indexOf('@media print {');
+  ok(i > 0, 'there is a print block at all');
+  let depth = 0, j = i;
+  for (; j < css.length; j++) {
+    if (css[j] === '{') depth++;
+    else if (css[j] === '}') { depth--; if (!depth) break; }
+  }
+  const block = css.slice(i, j);
+  const colours = (block.match(/#[0-9a-fA-F]{3,8}\b/g) || [])
+    .map(c => c.toLowerCase()).filter(c => ['#fff', '#000', '#999'].indexOf(c) < 0);
+  eq(colours, [], 'stray colours in the print rules: ' + colours.join(', '));
+});
+t('the provenance line says the view, the scope and the day — and never twice', () => {
+  const line = w.printMetaLine('teams');
+  ok(line.indexOf('All teams') >= 0, line);
+  eq(line.split('All teams').length - 1, 1,
+    'with no ART filter the view name IS the scope: "All teams · All teams" reads as a bug');
+  ok(/printed .*\d{4}/.test(line), 'and the year is there — this ends up in a folder: ' + line);
 });
 
 /* ── Runner ───────────────────────────────────────────────────────────────── */

@@ -254,6 +254,9 @@ Velocity              = total points completed
 
 ### Targets
 
+These are the **defaults** — where a SAFe train usually sets them. All eight are yours to
+change: see [Setting your own targets](#setting-your-own-targets).
+
 | | 🟢 Green | 🟡 Yellow | 🔴 Red |
 |---|---|---|---|
 | Commitment completion | ≥ 85% | 75–84% | < 75% |
@@ -263,6 +266,33 @@ Velocity              = total points completed
 The last one is a **band**, not a threshold — it can be missed from either side, and both
 sides mean something. See [Predictability and the ART PI
 view](#predictability-and-the-art-pi-view).
+
+### Setting Your Own Targets
+
+**⚙ Targets** in the header opens the eight numbers above. Change one and the whole app
+follows at once: every ✓ / ! / ✕, every colour, every tile caption, the shaded bands on the
+instability chart, the dashed target line on two others, and the plain-English definition
+behind each ⓘ. There is no copy of a target anywhere that can disagree with the setting —
+that is why the ⓘ text is written when you open it rather than when the page loads.
+
+85% is what Charles's ART works to, and an SM handed this URL by another one has no reason to
+share it. A target you cannot change doesn't just mis-colour a tile: it mis-states the
+finding, because every "off target" sentence in the app is written from these numbers.
+
+**A set of targets that contradicts itself is refused**, and the dialog says which rule is
+broken while you type. A completion target below its own red line leaves no amber in between;
+a churn "red" below its "green" has the scale running backwards; a band whose ceiling is under
+its floor has no inside. Save stays disabled until it makes sense.
+
+Only what **differs from the default** is saved. A browser that has never opened the dialog
+and one that opened it and pressed *Back to the defaults* hold exactly the same thing — so a
+later change to a default reaches both, and a share link from either is the same length.
+
+**The targets travel in a [share link](#sharing-a-read-only-link).** Without them the person
+you sent figures to would read the same numbers in different colours, and a figure you flagged
+amber arriving green is worse than not sharing at all. They are eight whole numbers; nothing
+identifying rides with them. A recipient can't change them — the button isn't there in a
+shared view, because re-judging someone else's figures would show findings they never made.
 
 Colour is never the only signal — every figure also carries a ✓ / ! / ✕ glyph and a
 screen-reader status, so the app is readable without colour vision.
@@ -510,7 +540,7 @@ The one figure that still shows `—` is a percentage with nothing committed: th
 denominator to divide by, so it can't be a number, and those sprints stay out of averages
 rather than dragging them down.
 
-## The Six Views
+## The Seven Views
 
 - **Sprint** — one sprint in detail: the RAG tiles and a breakdown of where the committed
   points actually went.
@@ -521,6 +551,9 @@ rather than dragging them down.
   ordinary least squares, the same treatment every chart in the sibling Flow Metrics app
   carries — and an instability chart plotting break-in, removed and carryover against
   shaded 15% / 20% threshold bands.
+- **History** — every sprint the team has ever recorded, in order, with no window at all.
+  The only view that can show where a team *turned*. See [The whole
+  run](#the-whole-run-history-with-no-window).
 - **PI trend** — every PI side by side, oldest first: predictability against the
   80–100% band with a trend line through it, and how far the latest PI moved from the one
   before. This is the Inspect & Adapt view — see [Across PIs](#across-pis).
@@ -531,18 +564,21 @@ rather than dragging them down.
 - **All teams** — every team's rolling averages side by side, plus each team's next-sprint
   target in one column, so the one that needs attention is obvious. It carries **two
   comparison tables**, the same sprints through two different averages — see below — and
-  an **ART filter** across the top when your teams are grouped into ARTs.
+  an **ART filter** across the top when your teams are grouped into ARTs. Comparison 1 also
+  carries a [**Trend**](#which-way-each-team-is-going) column and a [**Sprint
+  goals**](#the-goals-column-and-the--finding) one.
 
 The last three look **across** teams rather than into the one you've selected, so they sit
-apart from the other three in the tab row.
+apart from the other four in the tab row.
 
 A view is only offered once there's something in it. **All teams** appears when you have a
 second team; **Current PI** and **Rolling 5** appear once the team you're on has a recorded
 sprint, and step aside again if you switch to a team you haven't recorded anything for;
-**ART PI** appears once you have an ART with a team on it; **PI trend** once two PIs have
-something recorded in them, because one point is a position rather than a direction. With
-no teams at all there are no tabs — just the welcome card. If the view you were on goes away,
-you land back on **Sprint**.
+**History** once that team has *more* sprints than Rolling 5 already shows — below six the two
+views would be the same page under different headings; **ART PI** appears once you have an ART
+with a team on it; **PI trend** once two PIs have something recorded in them, because one point
+is a position rather than a direction. With no teams at all there are no tabs — just the
+welcome card. If the view you were on goes away, you land back on **Sprint**.
 
 ### The Demo — Trying It Without Typing Anything In
 
@@ -560,14 +596,22 @@ rather than a list of names you'd have to open one by one:
 | Team | ART | What it's there to show |
 |---|---|---|
 | **Team Live Sprint** | Payments | A sprint **running right now** — done-so-far, pace ("day 6 of 14, slightly behind") and carried-in. Its commitment is well over the suggestion, which is the one finding still actionable mid-sprint. Also a **⚑ standing team availability**, and the only team with **no business value recorded** — its PI is still running, which is why. Records **no sprint goals** either, so the goals tile is absent rather than showing a zero. |
-| **Team Baseline** | Payments | The ordinary team: green, landing about 90% of what it signs up for. Spans **all three PIs**, so the [PI trend](#across-pis) has a team behind every point. Carries a **⚖ scaled sprint** (someone joined after it) and a sprint with work **↩ brought in then removed again**. Its PI predictability is 90% — **inside the band**. Sprint goals **3 of 4**, with one sprint unrecorded — the only place the "no goal recorded" caption appears. |
+| **Team Baseline** | Payments | The ordinary team: green, landing about 90% of what it signs up for. Spans **all three PIs**, so the [PI trend](#across-pis) has a team behind every point — and nine sprints, so it is one of the two teams with a **History** tab. Carries a **⚖ scaled sprint** (someone joined after it) and a sprint with work **↩ brought in then removed again**. Its PI predictability is 90% — **inside the band**. Sprint goals **3 of 4**, with one sprint unrecorded — the only place the "no goal recorded" caption appears. Its whole history reads **up 11** while its last five read **level**, which is the argument for [History](#the-whole-run-history-with-no-window) in one team. |
 | **Team Overcommitted** | Platform | The team the targets exist to catch — around 70% completion and swinging from 14 to 26 points. Has a **⚑ sprint left out** for a major incident, and its next slot is the **IP sprint**, so it carries that caveat too. 59% predictability — **under the band**. It's also the team where the [**reliable commitment**](#two-figures-not-one) differs from the average enough to matter: 20 or 17 — and where **◎ the goals land and the points don't**. |
-| **Team Headroom** | Platform | **↗ Room for more** — it clears its commitment then pulls extra work in, so it reads 98% commitment completion beside a **red 29% break-in**. The contradiction the [headroom note](#when-a-team-has-room-for-more) exists to resolve. It under-commits its objectives too: 113%, **over the band**, with the value coming partly from **stretch**. Steady enough that it gets **one** capacity figure rather than two — and it's the team where **◎ the points land and the goals don't**, at 2 of 5. |
-| **Team New Start** | *none* | A brand-new team: **thin history**, a **⚑ one-off availability** for leave, and a carryover that then **fills the whole figure** — no room for new work at all. Being in no ART, it's also the **No ART** group on *All teams* and *ART PI*. |
+| **Team Headroom** | Platform | **↗ Room for more** — it clears its commitment then pulls extra work in, so it reads 98% commitment completion beside a **red 29% break-in**. The contradiction the [headroom note](#when-a-team-has-room-for-more) exists to resolve. It under-commits its objectives too: 113%, **over the band**, with the value coming partly from **stretch**. Steady enough that it gets **one** capacity figure rather than two — and it's the team where **◎ the points land and the goals don't**, at 2 of 5. The second team with a **History** tab, and the sharper case: **up 14** across nine sprints, **down 1** across the last five. |
+| **Team New Start** | *none* | A brand-new team: **thin history**, a **⚑ one-off availability** for leave, and a carryover that then **fills the whole figure** — no room for new work at all. Two sprints, so it's also the team whose [**Trend**](#which-way-each-team-is-going) cell reads `—`: not enough for a direction. Being in no ART, it's also the **No ART** group on *All teams* and *ART PI*. |
 | **Team No PI** | *none* | The team that [**doesn't run PIs**](#pis-are-optional) — sprints numbered **12–16**, continuous, past the six a PI holds. No IP sprint, no Current PI tab, and it's named on *ART PI* as not being in that PI at all. Deliberately carries nothing else: every other finding already belongs to a team above. |
 
 Two ARTs of two plus two teams in neither is the arrangement where the *All teams* ART
 filter and its *No ART* group both actually do something.
+
+The **Trend** column has all four of its answers between them — a team on the way up, one on
+the way down, one level, and one too thin to say — which is checked by a test, because a tidy
+of these figures could easily leave three of the four unreachable on a first run. The two
+routes into [bulk import](#getting-a-history-in) are their own demo: *Download a template*
+comes out of whichever team you are on, and *Paste an example* fills the box with two rows you
+can edit. The one new thing the sample data cannot demonstrate is a changed
+[target](#setting-your-own-targets) — so the welcome card names the ⚙ button instead.
 
 The business value is picked the same way — to make the *ART PI* view say something on a
 first run. **Platform ART is the [cancelling case](#when-the-average-hides-the-train)**: Team
@@ -595,6 +639,44 @@ It asks before it loads, and everything it adds is ordinary data you can edit or
 *Teams, ARTs & PIs* removes the teams and PIs, or *Start again* in the Back up dialog
 clears the lot. Don't load it into a browser that already holds real sprints you care
 about: it's added alongside them, not instead of them, and unpicking it is manual.
+
+## The Whole Run: History, with No Window
+
+Every other per-team view looks through a window. Rolling 5 takes the last five sprints;
+Current PI takes six. Both are the right shape for the question they answer, and between them
+a team with three PIs behind it had **eighteen sprints that could never be seen sprint by
+sprint** — PI trend flattens the same history into one point per PI, which is where a team's
+history stops being visible and starts being summarised.
+
+**History** has no window, and that is its whole definition. Every sprint on record, oldest
+first, with the in-flight and left-out ones drawn and marked rather than dropped.
+
+```
+Team Baseline — Every Sprint
+
+Sprints recorded   Commitment completion   Direction   Best and worst
+       9                    88% ✓            Up 11        92% / 80%
+ every one counts     pooled across        percentage    best and worst
+                      the whole history    points        on record
+```
+
+**Direction is the figure you can't get anywhere else.** In the demo, Team Baseline reads
+*up 11* across nine sprints and *level* across the last five; Team Headroom reads *up 14*
+across its history and *down 1* over the window. Those aren't contradictions — a team can be
+climbing over three PIs and flat over a fortnight-and-a-half of them — but only one of the two
+answers was previously available, and it was the short one.
+
+**Best and worst** is the other thing an average hides. Two teams both averaging 85% — one
+running 84, 85, 86 and one running 40, 100, 115 — need completely different conversations.
+
+The chart draws velocity as bars and commitment completion as a line over the whole run, with
+a dashed least-squares fit through each. Over a long enough history those two can part company,
+and a team getting faster while getting less predictable is exactly what a five-sprint window
+cannot show.
+
+The tab appears once a team has **more than five** sprints. Below that it would be Rolling 5
+with a different heading, and a tab that duplicates its neighbour teaches a reader that the
+tabs don't mean anything.
 
 ## The Two Comparison Tables
 
@@ -652,6 +734,59 @@ figure, and a wide gap between them means one sprint is skewing the total.
 Comparison 2 also carries **Actual complete** — everything delivered, break-in work
 included, against what was committed. It goes above 100% when a team finished more than it
 signed up for, which says throughput was high, not that the plan held.
+
+### Which Way Each Team Is Going
+
+Every other figure on the All teams page is a *level*, and a level has no direction in it. A
+team climbing 60% → 85% and a team sliding 95% → 85% print the same number in the same colour,
+and they are opposite findings.
+
+The **Trend** column, beside commitment completion, is the smallest thing that can tell them
+apart: a sparkline of the same window, and the change in words.
+
+| Team | Commitment completion | Trend |
+|---|---|---|
+| Team Baseline | 90% ✓ | `‾\_/‾` → level |
+| Team Live Sprint | 94% ✓ | `_/‾` ↗ up 4 |
+| Team Overcommitted | 70% ✕ | `‾\_` ↘ down 13 |
+| Team New Start | 63% ✕ | — |
+
+"up 12" means twelve percentage points from one end of the window to the other, read off a
+**least-squares fit** through the sprints — the same one the Rolling 5 chart draws its dashed
+line from — so one bad sprint at either end can't decide the direction on its own. It needs
+**three** sprints before it will say anything: two points make a slope, not a trend.
+
+The sparkline is deliberately **colourless**, one neutral stroke. The level beside it already
+carries the RAG colour, and two colour languages in adjacent cells teaches a reader to trust
+neither. It also means nothing is lost reading this column without colour vision — the
+direction is a word.
+
+That word is not decoration either: the sparkline is `aria-hidden`, so the [CSV
+export](#getting-the-numbers-out) drops it, and "up 12" is what lands in the file.
+
+### The Goals Column, and the ◎ Finding
+
+Sprint goals were tracked everywhere except the one page that lines every team up side by
+side — which is the page whose job is *which team needs you*. Comparison 1 now carries them.
+
+The figure is a count — **3 of 4**, never a percentage — over the sprints somebody actually
+answered the question about, so its denominator can be smaller than the sprint count to its
+left. The difference is spoken to a screen reader rather than left to be noticed.
+
+A **◎** on the figure means this team's points and goals disagree, and the teams it fires for
+are named in full above the table:
+
+> **◎ Points and goals disagree** — The points land and the goals don't for Team Headroom —
+> 98% of the commitment, 2 of 5 goals — the work is getting done and it isn't the work the
+> sprint was for, which is a planning conversation rather than a delivery one. The goals land
+> and the points don't for Team Overcommitted — 70% of the commitment, 4 of 4 goals — they are
+> delivering what the sprints were for; what is off is the estimate of how much fits in one.
+
+It is the one finding the coloured figures on that row cannot make, because every one of them
+is answering whether the *points* landed. Prose and a glyph, never a colour — the point is
+precisely that the colour-coded pills beside it are answering a different question. The same
+rule as [the Rolling 5 version of this note](#when-the-points-and-the-goals-disagree), which
+is where the finding started; both now read from one function, so they cannot drift apart.
 
 ## Predictability and the ART PI View
 
@@ -1162,6 +1297,53 @@ table into their own notes is rather the point.
 For the whole dataset rather than one table, **Back up** still exports the complete JSON —
 that's the one to keep, and the only one that can be restored.
 
+## Getting a History In
+
+The [Jira paste](#filling-a-sprint-from-jira) reads one sprint report. That is the right shape
+for keeping up week to week and the wrong shape for *starting*: a team with three PIs behind it
+is eighteen sprints of seven figures typed by hand before the app can say anything about them.
+
+**Back up → Import a sprint history** takes the lot in one paste. Copy rows straight out of a
+spreadsheet — tab-separated, or CSV — with a heading row on top:
+
+```
+team           pi         sprint  committed  committed completed  total completed  goal
+Team Baseline  PI 2026.2  4       34         30                   33               met
+Team Baseline  PI 2026.2  5       36         33                   36               met
+Team Baseline  PI 2026.3  1       38         35                   38               not met
+```
+
+**`sprint` is the only column you must have.** `team` and `pi` are optional — leave them out
+and everything lands on the team you're looking at, with no PI. The rest — `start`, `end`,
+`committed`, `committed completed`, `total completed`, `added`, `removed`, `carried in`,
+`carried out`, `brought in then removed`, `goal` — are optional too, and a blank figure means
+zero, exactly as it does on the sprint form. Headings are matched loosely: `Cmt done`,
+`carried-in` and `CarriedIn` all land where you'd expect.
+
+**Nothing is written until you press Import**, and before that a preview shows every row and
+what would happen to it — new sprint, overwrites what is there, or a sentence saying why it
+can't be used. Rows that can't be used are **skipped and named, never guessed at**: a figure
+that is present and isn't a number stops its row, because "n/a" in a committed column almost
+always means the columns are one out, and reading it as 0 would import a plausible, wrong
+history.
+
+**Names are looked up, never stored.** A `team` or `pi` cell finds a row that already exists
+and is then discarded — this never creates either, and it will tell you to add one first. That
+isn't caution about typos, it's the [numbers-and-dates rule](#what-it-tracks): the only things
+this path can write are figures, dates and the goal's yes/no, exactly what the sprint form can
+write. A bulk importer that could create a team from pasted text would be a free-text field
+with extra steps.
+
+**Columns your paste doesn't have are left alone.** Re-importing from a sheet with no goal
+column won't clear the goals you recorded, and a sprint you've marked *left out of the rolling
+average* stays left out — that's a decision you made in the app, not something a spreadsheet
+knows about. A blank cell in a column that *is* there is a real answer and does clear the field.
+
+**⬇ Download a template** hands you the headings with your current team's sprints already
+under them, so the shape is a file you can edit rather than a paragraph you have to interpret —
+and what comes out goes back in unchanged. **Paste an example** fills the box instead, for when
+you'd rather change a number than start from nothing.
+
 ## Your Data
 
 `localStorage` in your own browser is the source of truth, and since
@@ -1172,7 +1354,8 @@ origin at all, so the browser itself refuses to let it try.
 What's saved per sprint is the seven figures, its dates, its status, and — if you've set
 one — whether it's left out of the rolling average and which of the fixed reasons applies.
 A capacity adjustment saves as a percentage and a reason code against a team and a sprint
-slot. Nothing else.
+slot. Any [target](#setting-your-own-targets) you have moved off its default saves as one
+whole number. Nothing else.
 
 The names you type — teams, ARTs and PIs — are **capped at 120 characters as they're
 written**, not only on the way back in: the object you name is the one that reaches
@@ -1183,6 +1366,22 @@ pass that same boundary, so a hand-edited file can't widen either.
 **Back up & restore** — the *Back up* button exports everything as a JSON file
 (`sprint-velocity-YYYY-MM-DD.json`, dated in local time) and imports it back. Useful as a
 backup, for moving between browsers, or for handing a colleague a starting point.
+
+**Undo** — deleting a sprint, a team, a PI or an ART leaves an **Undo** button in the toast
+that follows, for ten seconds. It puts back everything that delete reached: a team comes back
+with its sprints, its capacity adjustments and its business value, field for field, and a PI
+deleted with *Keep the sprints* comes back with the grouping restored rather than nineteen
+sprints to re-file by hand.
+
+The confirmation before the delete **stays** anyway. There is only ever one toast on screen —
+a second replaces the first — so Undo is an offer rather than a guarantee, and an offer isn't
+enough to justify deleting a team's history on one click. It is one step back, not a history:
+what an undo stack should survive (a reload? an import?) has no obvious answer here, and a
+half-answered one is worse than none.
+
+*Delete all data* deliberately has no Undo. That one is meant to be hard, it has its own
+dialog saying exactly how much is going, and it offers the backup that is the real way back —
+a ten-second Undo would quietly make it the easiest destructive thing in the app.
 
 **Starting again** — folded away at the foot of the same dialog, under *Start again*, is
 **Delete all data**. It's behind a fold on purpose: the one irreversible action in the app
@@ -1228,6 +1427,40 @@ described under [Your Data](#your-data) stops it misreading anything.
 `sw-kill.js` sits in the repo unused, as an escape hatch: copying it over `sw.js` and
 pushing makes every installed copy uninstall itself and go back to being an ordinary
 online-only page.
+
+## On Paper
+
+The ART PI page *is* the Inspect & Adapt slide, and getting it onto one used to mean Copy,
+paste, and rebuild the layout somewhere else. **Print the page** (⌘P / Ctrl-P, or Save as PDF
+from the same dialog) and you get the same page with the furniture taken off: no tabs, no
+header controls, no Copy/CSV buttons, no ⓘ buttons, no scope pickers.
+
+Nothing is re-laid-out. A print stylesheet that rearranges things is a second design to keep in
+step with the first, and it always falls behind — so what prints is what you were looking at,
+cards, charts and all, with each card kept whole across a page break and each table's heading
+row repeated on every page it runs onto.
+
+Three details are deliberate:
+
+- **It prints on white, whatever theme you work in.** Printing switches the page to the
+  **Light** theme for the length of the job and switches back afterwards — which is also how
+  the print rules avoid owning a single colour of their own: they borrow the shared theme
+  pack's Light palette rather than inventing a print one that would have to be kept in step
+  with it. The charts are redrawn as part of the swap, because a canvas is painted with the
+  colours that were in force when it was drawn.
+- **The colours that mean something print.** Browsers drop background colour by default to
+  save ink, and this app puts meaning in a background — the RAG tints on the tiles and pills,
+  the shaded threshold bands on the instability chart. Those are asked for back by name; the
+  rest of the page prints however your browser prefers. It still reads without any of them:
+  every figure carries its ✓ / ! / ✕, for the same reason the app works without colour vision.
+- **A line at the top says what the sheet is** — "Sprint Predictability · ART PI · Platform ART
+  · printed 22 Aug 2026" — and it only appears on paper, because on screen the header and the
+  tab row are already saying it. A printed figure with no date on it is the thing somebody
+  quotes back at you six weeks later.
+
+The scope pickers go, but what they *did* stays: every caption already spells out "with sprint
+6 excluded", "includes S3, still running", which ART the page is filtered to, and which sprints
+were left out — so the page can't print a figure whose working is off the sheet.
 
 ## Sharing a Read-Only Link
 
@@ -1470,6 +1703,22 @@ Share it freely: it is [MIT licensed](LICENSE), so anyone — including a compan
 for — may use, modify and redistribute it. Running it inside an organisation conveys no
 ownership of it; permission comes from that licence, granted by the author as copyright
 holder. [NOTICE](NOTICE) records this in full.
+
+## What Arrived on 2026-08-22
+
+Seven gaps, closed in one pass. Each has its own section above; together they are the
+difference between an app built around one Scrum Master's numbers and one somebody else can
+pick up:
+
+| | |
+|---|---|
+| [**Targets are yours**](#setting-your-own-targets) | All eight RAG boundaries are settings, and they travel in a share link |
+| [**Trend**](#which-way-each-team-is-going) | *All teams* shows which way each team is moving, not only where it stands |
+| [**Sprint goals**](#the-goals-column-and-the--finding) | …and whether the goals agree with the points, on the page that compares teams |
+| [**History**](#the-whole-run-history-with-no-window) | A seventh view: every sprint a team has ever recorded, with no window |
+| [**Import a history**](#getting-a-history-in) | A spreadsheet of sprints pastes in one go, previewed row by row |
+| [**Undo**](#your-data) | Deleting a sprint, team, PI or ART can be taken back |
+| [**On paper**](#on-paper) | The page prints as a document rather than a screenshot of an app |
 
 ## The Landmarks (2026-08-21)
 
