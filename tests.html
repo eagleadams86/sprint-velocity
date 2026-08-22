@@ -4095,15 +4095,20 @@ t('printing swaps to light and back, and a doubled signal cannot lose the theme'
     eq(el.getAttribute('data-theme'), 'midnight');
   } finally { el.setAttribute('data-theme', before); }
 });
-t('someone already on Light is left alone', () => {
+t('someone already on a light theme is left alone — Sepia included', () => {
+  /* Sepia is the one worth pinning: it is a deliberate choice of a paper-coloured
+     screen, and swapping it to Light for the printer would be the app overruling
+     the reader. The theme pack's own print block skips the same two by name. */
   const el = w.document.documentElement;
   const before = el.getAttribute('data-theme');
   try {
-    el.setAttribute('data-theme', 'light');
-    w.printForPaper(true);
-    eq(el.getAttribute('data-theme'), 'light');
-    w.printForPaper(false);
-    eq(el.getAttribute('data-theme'), 'light');
+    for (const t of ['light', 'sepia']) {
+      el.setAttribute('data-theme', t);
+      w.printForPaper(true);
+      eq(el.getAttribute('data-theme'), t, t + ' must survive the print swap');
+      w.printForPaper(false);
+      eq(el.getAttribute('data-theme'), t);
+    }
   } finally { el.setAttribute('data-theme', before); }
 });
 t('the print rules name no colour of their own beyond the white of the paper', () => {

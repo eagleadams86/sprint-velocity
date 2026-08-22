@@ -5001,7 +5001,14 @@ function printForPaper(on) {
   const el = document.documentElement;
   if (on) {
     if (printForPaper._was === null) printForPaper._was = el.getAttribute('data-theme');
-    if (el.getAttribute('data-theme') === 'light') return;   // nothing to swap, nothing to redraw
+    /* Light AND Sepia are both left alone, and Sepia is the one worth stating: it
+       is a deliberate choice of a paper-coloured screen, so swapping it to Light on
+       the way to a printer would be this app telling a reader their own answer was
+       wrong. The theme pack's own print block says so in those words and skips the
+       same two, and Flow Metrics skips them too — this line is that family rule, not
+       a local preference. */
+    const now = el.getAttribute('data-theme');
+    if (now === 'light' || now === 'sepia') return;   // nothing to swap, nothing to redraw
     el.setAttribute('data-theme', 'light');
   } else {
     if (printForPaper._was === null) return;
