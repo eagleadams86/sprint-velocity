@@ -247,7 +247,7 @@ header {
 button, select, input, textarea { font: inherit; color: inherit; }
 .btn {
   background: var(--bg-card-alt); color: var(--text-primary);
-  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  border: 1px solid var(--border-control); border-radius: var(--radius-sm);
   padding: 7px 12px; cursor: pointer; white-space: nowrap;
 }
 .btn:hover { border-color: var(--text-muted); }
@@ -260,7 +260,7 @@ button, select, input, textarea { font: inherit; color: inherit; }
    The share dialog's copy and preview buttons are disabled while a link builds,
    and until now looked identical to live ones. Mirrored from Team Dashboard. */
 .btn:disabled { opacity: .45; cursor: not-allowed; }
-.btn:disabled:hover { border-color: var(--border-strong); }
+.btn:disabled:hover { border-color: var(--border-control); }
 .btn.primary:disabled:hover { opacity: .45; }
 /* Shared height for the header chrome. A native <select> ignores line-height, so
    it sizes ~3px shorter than a button with identical padding and font — pinning
@@ -284,13 +284,13 @@ button, select, input, textarea { font: inherit; color: inherit; }
    `.btn` / `.btn.danger` already uses: the arrows are not destructive and must
    not light up as though they were. Disabled dims by opacity rather than by a
    greyed colour, so nothing here invents a palette value. */
-.icon-btn { appearance: none; background: none; border: 1px solid var(--border-strong);
+.icon-btn { appearance: none; background: none; border: 1px solid var(--border-control);
   color: var(--text-muted); border-radius: var(--radius-sm); cursor: pointer;
   width: 30px; height: 30px; font-size: var(--fs-sm); line-height: 1; }
 .icon-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
 .icon-btn.danger:hover { color: var(--err); border-color: var(--err); }
 .icon-btn:disabled { opacity: .45; cursor: not-allowed; }
-.icon-btn:disabled:hover { color: var(--text-muted); border-color: var(--border-strong); }
+.icon-btn:disabled:hover { color: var(--text-muted); border-color: var(--border-control); }
 /* Kept on one line and pushed to the right edge, so the arrows line up down the
    table however wide the columns end up. */
 .rowacts { display: flex; gap: 6px; justify-content: flex-end; white-space: nowrap; }
@@ -345,7 +345,7 @@ dialog:focus { outline: none; }
 .btn, select.ctl { min-height: var(--control-h); }
 select.ctl {
   background: var(--bg-card-alt); color: var(--text-primary);
-  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  border: 1px solid var(--border-control); border-radius: var(--radius-sm);
   padding: 7px 9px; cursor: pointer;
 }
 select.ctl:hover { border-color: var(--text-muted); }
@@ -353,7 +353,7 @@ select.ctl:hover { border-color: var(--text-muted); }
 /* The team and theme pickers are the same idea at the smaller header size. */
 #teamSel, #themeSel {
   background: var(--bg-card-alt); color: var(--text-primary);
-  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  border: 1px solid var(--border-control); border-radius: var(--radius-sm);
   padding: 4px 9px; font-size: var(--fs-xs); font-weight: inherit; cursor: pointer;
   min-height: var(--chrome-h);
 }
@@ -372,7 +372,7 @@ select.ctl:hover { border-color: var(--text-muted); }
    button you can press rather than a line of text. It was only the selected one
    that looked clickable, which is backwards — that's the one you're already on. */
 .tab {
-  background: var(--bg-card-alt); border: 1px solid var(--border-strong);
+  background: var(--bg-card-alt); border: 1px solid var(--border-control);
   border-radius: var(--radius-sm);
   padding: 8px 14px; cursor: pointer; color: var(--text-primary); font-weight: 500;
 }
@@ -502,7 +502,7 @@ dialog p { font-size: var(--fs-xs); color: var(--text-secondary); }
 .tile-help {
   margin-left: 7px;
   flex: none; width: 16px; height: 16px; padding: 0; border-radius: 50%;
-  border: 1px solid var(--border-strong); background: transparent;
+  border: 1px solid var(--border-control); background: transparent;
   color: var(--text-secondary); font-size: var(--fs-xs); font-weight: 700; line-height: 1;
   font-family: inherit; text-transform: none; cursor: pointer;
 }
