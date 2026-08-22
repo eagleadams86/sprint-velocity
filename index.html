@@ -1574,15 +1574,16 @@ main:focus { outline: none; }
 <!-- ── Backup / restore ──────────────────────────────────────────────────── -->
 <dialog id="dataDialog" aria-labelledby="dataDialogTitle">
   <h3 id="dataDialogTitle">Back Up &amp; Restore</h3>
-  <p class="sub">Your data lives in this browser. Export a JSON file to keep a backup, move to
-    another browser, or hand a colleague a starting point.</p>
+  <p class="sub">One JSON file holding every team, ART, PI and sprint — a copy you keep,
+    independent of this browser. It is the only copy of your data that exists anywhere else,
+    so it is worth taking one.</p>
   <div class="row">
-    <button class="btn" id="exportBtn"><span aria-hidden="true">⬇</span> Export JSON</button>
-    <button class="btn" id="importBtn"><span aria-hidden="true">⬆</span> Import JSON…</button>
+    <button class="btn" id="exportBtn"><span aria-hidden="true">⬇︎</span> Download backup (JSON)</button>
+    <button class="btn" id="importBtn"><span aria-hidden="true">⬆︎</span> Restore from backup…</button>
     <input type="file" id="importFile" accept="application/json,.json" hidden>
   </div>
-  <p class="sub muted" style="margin-top:14px">Importing replaces everything currently in this
-    browser. You'll be asked to confirm first.</p>
+  <p class="sub muted" style="margin-top:14px">Restoring <strong>replaces every team in this
+    browser</strong>. You'll see what the file holds and be asked to confirm first.</p>
   <hr style="border:0;border-top:1px solid var(--border);margin:16px 0">
   <p class="sub" style="margin:0 0 10px"><strong>Coming from a spreadsheet?</strong> A sprint
     history pastes in one go — rows of figures against sprints, for one team or several. Unlike
