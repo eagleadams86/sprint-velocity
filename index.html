@@ -800,6 +800,15 @@ label.field { display: block; font-size: var(--fs-xs); color: var(--text-seconda
 .grid.two > div > label { flex: 0 0 auto; display: block; font-size: var(--fs-xs);
   color: var(--text-secondary); font-weight: var(--fw-semibold); margin-bottom: 4px; }
 .grid.two > div > input, .grid.two > div > select { width: 100%; }
+/* TWO ACROSS, always, for a section whose fields come in PAIRS. `auto-fit` puts
+   as many as will fit on a line, which for the four predictability figures is
+   three and then a lonely fourth — and those four are two pairs, a band floor
+   with its ceiling and a red with its red. Reading them 3+1 breaks the pairing
+   the labels are describing. Only above 700px: below it, auto-fit's stacking is
+   still the right answer. */
+@media (min-width: 700px) {
+  .grid.two.pairs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 /* Fields line up on their boxes, not their labels. A cell is a full-height column
    with the control pushed to the bottom, so a label that wraps onto two lines
    ("Committed points completed") doesn't shunt its box below its neighbours'. */
@@ -1226,7 +1235,7 @@ main:focus { outline: none; }
          PICKER IS ALWAYS LAST — it is the one control that changes nothing but
          how the page looks, so it sits at the far end, out of the way of the
          controls that do something. -->
-    <button class="btn small" id="dataBtn" type="button" title="Back up, restore or clear your data"><span aria-hidden="true">⇩</span> Back up</button>
+    <button class="btn small" id="dataBtn" type="button" title="Back up, restore or clear your data"><span aria-hidden="true">⇩</span> Back Up</button>
     <button class="btn small" id="shareBtn" type="button" title="Create a read-only link to show someone your figures"><span aria-hidden="true">↗</span> Share</button>
     <label class="sr-only" for="themeSel">Theme</label>
     <!-- The four unified themes, listed alphabetically (matches the other apps).
@@ -1277,9 +1286,9 @@ main:focus { outline: none; }
     <button class="tab" role="tab" id="tab-pi"      aria-controls="views" data-view="pi"      aria-selected="false" tabindex="-1">Current PI</button>
     <button class="tab" role="tab" id="tab-rolling" aria-controls="views" data-view="rolling" aria-selected="false" tabindex="-1">Rolling 5</button>
     <button class="tab" role="tab" id="tab-history" aria-controls="views" data-view="history" aria-selected="false" tabindex="-1">History</button>
-    <button class="tab" role="tab" id="tab-trend"   aria-controls="views" data-view="trend"   aria-selected="false" tabindex="-1">PI trend</button>
+    <button class="tab" role="tab" id="tab-trend"   aria-controls="views" data-view="trend"   aria-selected="false" tabindex="-1">PI Trend</button>
     <button class="tab" role="tab" id="tab-art"     aria-controls="views" data-view="art"     aria-selected="false" tabindex="-1">ART PI</button>
-    <button class="tab" role="tab" id="tab-teams"   aria-controls="views" data-view="teams"   aria-selected="false" tabindex="-1">All teams</button>
+    <button class="tab" role="tab" id="tab-teams"   aria-controls="views" data-view="teams"   aria-selected="false" tabindex="-1">All Teams</button>
   </div>
 
   <!-- The tabpanel role goes on an inner div, not on <main> itself: putting it on
@@ -1359,7 +1368,7 @@ main:focus { outline: none; }
       <textarea id="jiraText" rows="5" placeholder="Paste the whole Sprint Report here, including the
  &quot;Completed Issues&quot; / &quot;Issues Not Completed&quot; / &quot;Issues Removed From Sprint&quot; headings"></textarea>
       <div class="row" style="margin-top:8px">
-        <button type="button" class="btn" id="jiraParseBtn">Read it</button>
+        <button type="button" class="btn" id="jiraParseBtn">Read It</button>
         <button type="button" class="btn" id="jiraClearBtn">Clear</button>
       </div>
       <div id="jiraPreview" tabindex="-1" hidden></div>
@@ -1490,7 +1499,7 @@ main:focus { outline: none; }
       <button type="button" class="btn" id="sprintDeleteBtn">Delete</button>
       <span class="row">
         <button type="button" class="btn" id="sprintCancelBtn">Cancel</button>
-        <button type="button" class="btn primary" id="sprintSaveBtn">Save sprint</button>
+        <button type="button" class="btn primary" id="sprintSaveBtn">Save Sprint</button>
       </span>
     </div>
   </form>
@@ -1500,7 +1509,7 @@ main:focus { outline: none; }
 <dialog id="manageDialog" aria-labelledby="manageDialogTitle">
   <h3 id="manageDialogTitle">Teams, ARTs &amp; PIs</h3>
   <div class="row spread"><strong style="font-size:var(--fs-sm)">Teams</strong>
-    <button class="btn small" id="addTeamBtn">+ Add team</button></div>
+    <button class="btn small" id="addTeamBtn">+ Add Team</button></div>
   <div class="tablewrap"><table aria-label="Teams"><tbody id="teamRows"></tbody></table></div>
   <div class="row spread" style="margin-top:20px"><strong style="font-size:var(--fs-sm)">ARTs</strong>
     <button class="btn small" id="addArtBtn">+ Add ART</button></div>
@@ -1567,7 +1576,7 @@ main:focus { outline: none; }
   </div>
   <p class="manage-note">Above the ceiling is a finding too:
       a train that reliably lands well over it committed to less than it could deliver.</p>
-  <div class="grid two" style="margin-top:var(--sp-5)">
+  <div class="grid two pairs" style="margin-top:var(--sp-5)">
       <div>
         <label class="field" for="t_predLow">Band floor (%)</label>
         <input type="number" id="t_predLow" min="1" max="400" step="1" inputmode="numeric">
@@ -1593,10 +1602,10 @@ main:focus { outline: none; }
   <p class="sub" id="targetsPreview" style="margin-top:10px"></p>
 
   <div class="row spread" style="margin-top:18px">
-    <button class="btn" id="targetsResetBtn" type="button">Back to the defaults</button>
+    <button class="btn danger" id="targetsResetBtn" type="button">Back to the Defaults</button>
     <span class="row">
       <button class="btn" id="targetsCancelBtn" type="button">Cancel</button>
-      <button class="btn primary" id="targetsSaveBtn" type="button">Save targets</button>
+      <button class="btn primary" id="targetsSaveBtn" type="button">Save Targets</button>
     </span>
   </div>
 </dialog>
@@ -1608,8 +1617,8 @@ main:focus { outline: none; }
     independent of this browser. It is the only copy of your data that exists anywhere else,
     so it is worth taking one.</p>
   <div class="row">
-    <button class="btn" id="exportBtn"><span aria-hidden="true">⬇︎</span> Download backup (JSON)</button>
-    <button class="btn" id="importBtn"><span aria-hidden="true">⬆︎</span> Restore from backup…</button>
+    <button class="btn" id="exportBtn"><span aria-hidden="true">⬇︎</span> Download Backup (JSON)</button>
+    <button class="btn" id="importBtn"><span aria-hidden="true">⬆︎</span> Restore from Backup…</button>
     <input type="file" id="importFile" accept="application/json,.json" hidden>
   </div>
   <p class="sub muted" style="margin-top:14px">Restoring <strong>replaces every team in this
@@ -1620,14 +1629,14 @@ main:focus { outline: none; }
     the JSON above it <em>adds to</em> what is here rather than replacing it, and it shows you
     every row before it writes anything.</p>
   <div class="row">
-    <button class="btn" id="importSprintsBtn" type="button"><span aria-hidden="true">⬆︎</span> Import a sprint history…</button>
+    <button class="btn" id="importSprintsBtn" type="button"><span aria-hidden="true">⬆︎</span> Import a Sprint History…</button>
   </div>
   <details class="danger-zone">
     <summary>Start Again</summary>
     <p class="sub muted" style="margin-top:10px">Deletes every team, ART, PI and sprint in this
       browser. Your theme is kept.</p>
     <div class="row" style="margin-top:10px">
-      <button class="btn danger" id="clearBtn" type="button">Delete all data</button>
+      <button class="btn danger" id="clearBtn" type="button">Delete All Data</button>
     </div>
   </details>
   <div class="row" style="justify-content:flex-end;margin-top:18px">
@@ -1654,8 +1663,8 @@ main:focus { outline: none; }
     anything is saved, and nothing is written until you press Import.</p>
 
   <div class="row" style="gap:8px;flex-wrap:wrap">
-    <button class="btn small" id="importTemplateBtn" type="button"><span aria-hidden="true">⬇</span> Download a template</button>
-    <button class="btn small" id="importSampleBtn" type="button">Paste an example</button>
+    <button class="btn small" id="importTemplateBtn" type="button"><span aria-hidden="true">⬇</span> Download a Template</button>
+    <button class="btn small" id="importSampleBtn" type="button">Paste an Example</button>
     <span class="muted" style="font-size:var(--fs-xs)">The template carries the headings, and this
       team's sprints if it has any — so the shape is a file rather than a paragraph.</span>
   </div>
@@ -1692,10 +1701,10 @@ main:focus { outline: none; }
   <h3 id="clearTitle">Delete All Data?</h3>
   <p class="sub" id="clearBody"></p>
   <div class="row spread" style="margin-top:18px">
-    <button class="btn" id="clearBackupBtn" type="button"><span aria-hidden="true">⬇</span> Export a backup first</button>
+    <button class="btn" id="clearBackupBtn" type="button"><span aria-hidden="true">⬇</span> Export a Backup First</button>
     <span class="row">
       <button class="btn" id="clearCancel" type="button">Cancel</button>
-      <button class="btn danger" id="clearConfirm" type="button">Delete everything</button>
+      <button class="btn danger" id="clearConfirm" type="button">Delete Everything</button>
     </span>
   </div>
 </dialog>
@@ -1727,7 +1736,7 @@ main:focus { outline: none; }
         <button type="button" class="btn small" data-pct="80">80%</button>
         <button type="button" class="btn small" data-pct="75">75%</button>
         <button type="button" class="btn small" data-pct="50">50%</button>
-        <button type="button" class="btn small" data-pct="100">Back to 100%</button>
+        <button type="button" class="btn small" data-pct="100">Back To 100%</button>
       </div>
       <p class="sub" id="adjustPctHint" style="margin:10px 0 0">100% is a normal sprint. As a rough
         guide, one person in five away for the whole sprint is about 80%. Over 100% is allowed for
@@ -1774,10 +1783,10 @@ main:focus { outline: none; }
 
     <p class="warn" id="adjustPreview" role="status"></p>
     <div class="row spread" style="margin-top:16px">
-      <button type="button" class="btn" id="adjustRemoveBtn">Remove adjustment</button>
+      <button type="button" class="btn" id="adjustRemoveBtn">Remove Adjustment</button>
       <span class="row">
         <button type="button" class="btn" id="adjustCancelBtn">Cancel</button>
-        <button type="button" class="btn primary" id="adjustSaveBtn">Save adjustment</button>
+        <button type="button" class="btn primary" id="adjustSaveBtn">Save Adjustment</button>
       </span>
     </div>
   </form>
@@ -1821,7 +1830,7 @@ main:focus { outline: none; }
       <button type="button" class="btn" id="bvRemoveBtn">Remove</button>
       <span class="row">
         <button type="button" class="btn" id="bvCancelBtn">Cancel</button>
-        <button type="button" class="btn primary" id="bvSaveBtn">Save business value</button>
+        <button type="button" class="btn primary" id="bvSaveBtn">Save Business Value</button>
       </span>
     </div>
   </form>
@@ -1836,8 +1845,8 @@ main:focus { outline: none; }
   <div class="row spread" style="margin-top:18px">
     <button type="button" class="btn" id="delPiCancelBtn">Cancel</button>
     <span class="row">
-      <button type="button" class="btn danger" id="delPiDropBtn">Delete the sprints too</button>
-      <button type="button" class="btn primary" id="delPiKeepBtn">Keep the sprints</button>
+      <button type="button" class="btn danger" id="delPiDropBtn">Delete the Sprints Too</button>
+      <button type="button" class="btn primary" id="delPiKeepBtn">Keep the Sprints</button>
     </span>
   </div>
 </dialog>
@@ -1847,7 +1856,7 @@ main:focus { outline: none; }
   <p id="helpBody" style="margin:0;font-size:var(--fs-sm)"></p>
   <p id="helpTarget" class="sub muted" style="margin:12px 0 0"></p>
   <div class="row" style="justify-content:flex-end;margin-top:18px">
-    <button class="btn primary" id="helpCloseBtn">Got it</button>
+    <button class="btn primary" id="helpCloseBtn">Got It</button>
   </div>
 </dialog>
 
@@ -1863,7 +1872,7 @@ main:focus { outline: none; }
     <legend>Which Teams</legend>
     <div class="checklist-head">
       <span class="sub muted" id="shareTeamCount" role="status"></span>
-      <button type="button" class="btn small" id="shareSelectAll">Select all</button>
+      <button type="button" class="btn small" id="shareSelectAll">Select All</button>
     </div>
     <div class="checklist" id="shareTeams"></div>
   </fieldset>
@@ -1897,8 +1906,8 @@ main:focus { outline: none; }
     <p class="sub muted" id="shareScope" role="status" style="margin:6px 0 0"></p>
     <p class="warn" id="shareWarn" role="status"></p>
     <div class="row" style="margin-top:10px">
-      <button type="button" class="btn primary" id="shareCopyBtn">Copy link</button>
-      <button type="button" class="btn" id="shareOpenBtn">Preview it</button>
+      <button type="button" class="btn primary" id="shareCopyBtn">Copy Link</button>
+      <button type="button" class="btn" id="shareOpenBtn">Preview It</button>
     </div>
   </fieldset>
 
@@ -6341,7 +6350,7 @@ function targetCapacityCard(team, includeSix) {
              exclusion this app refuses everywhere else. `planFor` reaches a PI-less
              slot; this is the other half of that. */
         t.slot && !viewOnly
-        ? '<button class="btn small" id="adjustBtn" type="button">Adjust capacity</button>' : ''}
+        ? '<button class="btn small" id="adjustBtn" type="button">Adjust Capacity</button>' : ''}
     </div>
     <p class="sub">What ${esc(team.name)} can realistically commit to, based on their last
       ${t.sprints} finished sprint${t.sprints === 1 ? '' : 's'}.${
@@ -8206,7 +8215,7 @@ F('jiraParseBtn').onclick = () => {
         'not in the Jira report — taken from the previous sprint') : ''}
     </tbody></table></div>
     <div class="row" style="margin-top:12px">
-      <button type="button" class="btn primary" id="jiraApplyBtn">Use these numbers</button>
+      <button type="button" class="btn primary" id="jiraApplyBtn">Use These Numbers</button>
       <span class="muted" style="font-size:var(--fs-xs)">Fills the boxes below and saves the sprint —
         only Cancel puts it back as it was.</span>
     </div>`;
