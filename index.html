@@ -929,6 +929,22 @@ main:focus { outline: none; }
 </header>
 
 <div class="wrap">
+  <!-- <main> opens HERE, above the tab strip, not below it — and that is the
+       whole point of the change (2026-08-21). It used to wrap the panel alone,
+       which left the tabs in no landmark at all AND meant the skip link jumped
+       PAST them: a keyboard user who took the skip link had the entire tab row
+       behind them, reachable only by shift-tabbing back. The tabs and the panel
+       they drive are one widget, so the landmark goes round both. axe-core's
+       `region` rule found the landmark half; the skip-link half was the reason
+       worth acting on. The share bar comes with them: it describes what is on
+       screen, so it is content rather than furniture.
+
+       The tabpanel role still goes on an inner div, never on <main> itself —
+       putting a role ON the element IS its role, so `role="tabpanel"` there
+       would silently replace the main landmark. That mistake is recorded below
+       and has not changed. -->
+  <main id="maincontent" tabindex="-1">
+
   <!-- Filled once when a share link is opened; empty and invisible otherwise. -->
   <div id="shareBar"></div>
 
@@ -948,7 +964,6 @@ main:focus { outline: none; }
   <!-- The tabpanel role goes on an inner div, not on <main> itself: putting it on
        the element *is* its role, so `role="tabpanel"` silently replaced the main
        landmark and "skip to main content" stopped finding anything. -->
-  <main id="maincontent" tabindex="-1">
     <div id="views" role="tabpanel" aria-labelledby="tab-sprint"></div>
   </main>
 
@@ -1182,8 +1197,8 @@ main:focus { outline: none; }
   <p class="sub">Your data lives in this browser. Export a JSON file to keep a backup, move to
     another browser, or hand a colleague a starting point.</p>
   <div class="row">
-    <button class="btn" id="exportBtn">⬇ Export JSON</button>
-    <button class="btn" id="importBtn">⬆ Import JSON…</button>
+    <button class="btn" id="exportBtn"><span aria-hidden="true">⬇</span> Export JSON</button>
+    <button class="btn" id="importBtn"><span aria-hidden="true">⬆</span> Import JSON…</button>
     <input type="file" id="importFile" accept="application/json,.json" hidden>
   </div>
   <p class="sub muted" style="margin-top:14px">Importing replaces everything currently in this
@@ -1209,7 +1224,7 @@ main:focus { outline: none; }
   <h3 id="clearTitle">Delete All Data?</h3>
   <p class="sub" id="clearBody"></p>
   <div class="row spread" style="margin-top:18px">
-    <button class="btn" id="clearBackupBtn" type="button">⬇ Export a backup first</button>
+    <button class="btn" id="clearBackupBtn" type="button"><span aria-hidden="true">⬇</span> Export a backup first</button>
     <span class="row">
       <button class="btn" id="clearCancel" type="button">Cancel</button>
       <button class="btn danger" id="clearConfirm" type="button">Delete everything</button>
@@ -8079,7 +8094,7 @@ function exportButtons(tableId, name) {
     <button type="button" class="btn small" data-export="${esc(tableId)}"
       data-export-name="${esc(name)}" data-export-how="copy">Copy</button>
     <button type="button" class="btn small" data-export="${esc(tableId)}"
-      data-export-name="${esc(name)}" data-export-how="csv">⬇ CSV</button>
+      data-export-name="${esc(name)}" data-export-how="csv"><span aria-hidden="true">⬇</span> CSV</button>
   </span>`;
 }
 
@@ -8572,7 +8587,7 @@ function shareBanner() {
         { day: 'numeric', month: 'short', year: 'numeric' })
     : null;
   return `<div class="viewbar">
-    <strong>👁 Read-only view${shareMeta && shareMeta.label ? ' — ' + esc(shareMeta.label) : ''}</strong>
+    <strong><span aria-hidden="true">👁️</span> Read-only view${shareMeta && shareMeta.label ? ' — ' + esc(shareMeta.label) : ''}</strong>
     <span class="muted">Shared${when ? ' on ' + when : ''}. Nothing you do here is saved,
       and your own data is untouched.${shareRangeNote(shareMeta && shareMeta.range)}</span>
     <a class="mine" href="${esc(location.pathname)}">Open my own data</a>
