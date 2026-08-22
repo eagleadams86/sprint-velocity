@@ -54,7 +54,7 @@
      before the main script parses; keep the two in step. */
   try {
     var t = localStorage.getItem('sv-theme');
-    var ok = ['light','dark','midnight','sepia'];
+    var ok = ['auto','light','dark','midnight','sepia'];
     document.documentElement.setAttribute('data-theme',
       ok.indexOf(t) === -1 ? 'midnight' : t);
   } catch (e) {}
@@ -1042,6 +1042,7 @@ main:focus { outline: none; }
          already applied, so the picker never reads one theme while the page shows
          another. THEMES is read back off these options. -->
     <select id="themeSel" title="Change the colour theme">
+      <option value="auto">◐ Auto</option>
       <option value="dark">☾ Dark</option>
       <option value="light">☀ Light</option>
       <option value="midnight" selected>✦ Midnight</option>
@@ -10659,6 +10660,19 @@ F('themeSel').onchange = (e) => {
   applyTheme();
   render();   // charts resolve their colours at construction, so rebuild them
 };
+
+/* On Auto the palette can change with nobody touching the picker — the reader's phone
+   switches to dark at sunset and theme.css follows on its own, because the whole rule
+   lives in a media query rather than in script. The charts do NOT follow: they resolve
+   their colours at construction and would keep the old palette until the next render.
+   So this does what the handler above does, minus the save — the theme has not changed,
+   only what it resolves to. */
+{
+  const mq = matchMedia('(prefers-color-scheme: dark)');
+  const onSystemChange = () => { if (themeId() === 'auto') { applyTheme(); render(); } };
+  if (mq.addEventListener) mq.addEventListener('change', onSystemChange);
+  else if (mq.addListener) mq.addListener(onSystemChange);
+}
 
 document.getElementById('teamSel').onchange = (e) => {
   state.settings.activeTeamId = e.target.value;
