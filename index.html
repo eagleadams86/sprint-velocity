@@ -431,6 +431,21 @@ h1, h2, h3 { font-weight: var(--fw-semibold); }
    card-scoped — dialogs set their own spacing inline, and hoisting it would move
    every one of them. */
 .sub { color: var(--text-secondary); font-size: var(--fs-xs); }
+/* ── DIALOG PROSE IS ONE SIZE AND ONE INK, family-wide ──────────────────────
+   Charles, 2026-08-22, with the five Back Up windows side by side: "how do you
+   consider the text on these windows the same?" It was not. Five apps, five
+   treatments — 16px primary here, 13px secondary in Sprint Predictability, 15px
+   in Flow Metrics, 16px primary intro over 13px muted body in Golf Handicap,
+   13px secondary throughout in PAPTrack.
+
+   This app's was an ACCIDENT rather than a choice: `.sub` is declared as
+   `.card > .sub, .card-body > .sub`, scoped to cards, so inside a dialog the
+   class does nothing at all and the paragraph falls back to body text. It read
+   as the deliberate one because it was the biggest.
+
+   A paragraph in a dialog explains a control; it is not the page's body copy.
+   --fs-xs and --text-secondary, which is what three of the five already did. */
+dialog p { font-size: var(--fs-xs); color: var(--text-secondary); }
 .card > .sub { margin: 0 0 16px; }
 /* Tiles share the parent's rows via subgrid, so the label, the number and the
    caption each line up straight across a row of tiles. Without it a label that
