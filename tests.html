@@ -93,7 +93,7 @@ function ok(cond, note) { if (!cond) throw new Error(note || 'expected truthy');
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 384;
+const EXPECTED = 385;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -2525,6 +2525,34 @@ t('every dot draws an "i", and every dot has words behind it', () => {
     'and a key handed in from a spec draws no dot at all when the table has no entry');
   eq(keys.filter((k) => !H[k].title || String(H[k].body || '').length < 60).join(', '), '',
     'each entry is headed and actually explains something');
+});
+t('a long note is paragraphs, and it bolds the claim it turns on', () => {
+  /* Every entry was a single paragraph until 2026-08-23, and nine of them ran
+     past 400 characters — a wall of text on a phone. The threshold is length,
+     not taste: under about 380 characters a note is two or three sentences and
+     splitting it is its own kind of unreadable, which is why 35 of the 45 are
+     deliberately left whole. Measured on the rendered text rather than the
+     source, because these bodies are template literals with `${…}` in them. */
+  const H = TG().METRIC_HELP;
+  const box = document.createElement('div');
+  const read = (k) => { box.innerHTML = String(H[k].body || ''); return box; };
+  const long = Object.keys(H).filter((k) => {
+    read(k); return box.textContent.trim().replace(/\s+/g, ' ').length > 380;
+  });
+  ok(long.length >= 8, 'the long notes were found — ' + long.length);
+  eq(long.filter((k) => read(k).querySelectorAll('p').length < 2).join(', '), '',
+    'a note over 380 characters with no paragraph break in it');
+  eq(long.filter((k) => !read(k).querySelector('strong')).join(', '), '',
+    'and one that bolds nothing — the reader has no way in');
+  /* Bold is the anchor, not the paragraph. `<em>` is a separate channel here and
+     is left alone: it marks a contrastive word inside a sentence, where bold
+     marks the claim the note turns on. */
+  eq(Object.keys(H).filter((k) => {
+    const n = read(k).querySelectorAll('p').length;
+    return n > 0 && read(k).querySelectorAll('strong').length > n;
+  }).join(', '), '',
+    'with at most one bold run per paragraph: a note where half the words are '
+    + 'bold has no emphasis left');
 });
 t('a missing shell file can be repaired without a new worker version', () => {
   const code = stripComments(SW_SRC);

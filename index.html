@@ -3990,22 +3990,25 @@ const METRIC_HELP = {
       was. A team that lands its points and misses its goals is planning the wrong work; the two
       figures disagreeing is the useful part.` },
   forecast: { title: 'How long would it take?', target: 'No target — it is a range, and the width of the range is the point.',
-    body: `The capacity card fixes the sprint and asks how much fits; this fixes the work and
-      asks how many sprints. It uses <em>committed points finished</em>, never velocity — velocity
-      counts the break-in that turns up mid-sprint, which by definition isn't the work you asked
-      about, so forecasting at it assumes the whole sprint goes to this piece while the
-      interruptions keep arriving anyway. Nothing is saved: a backlog total goes stale as soon as
-      anyone grooms it.` },
+    body: `<p>The capacity card fixes the sprint and asks how much fits; <strong>this fixes the
+      work and asks how many sprints</strong>.</p>
+      <p>It uses <em>committed points finished</em>, never velocity — velocity counts the
+      break-in that turns up mid-sprint, which by definition isn't the work you asked about, so
+      forecasting at it assumes the whole sprint goes to this piece while the interruptions keep
+      arriving anyway.</p>
+      <p><strong>Nothing is saved</strong>: a backlog total goes stale as soon as anyone grooms
+      it.</p>` },
   carriedIn: { title: 'Carried in', target: null,
     body: `Unfinished points inherited from last sprint. They're part of this sprint's
       commitment, so they take up capacity before any new work does.` },
 
   /* Current PI */
   piCommitCompletion: { title: 'PI commitment completion', target: TARGET_COMPLETION,
-    body: `Every committed point across the PI's counted sprints, against how much of it got
-      finished. Because it's one big total, a large sprint moves it more than a small one — the
-      same pooled method the Agile Operations Dashboard uses, so this is the PI figure that
-      reconciles with it.` },
+    body: `<p>Every committed point across the PI's counted sprints, against how much of it
+      got finished.</p>
+      <p>Because it's one big total, <strong>a large sprint moves it more than a small
+      one</strong> — the same pooled method the Agile Operations Dashboard uses, so this is the
+      PI figure that reconciles with it.</p>` },
   piAvgCompletion: { title: 'Average per sprint', target: TARGET_COMPLETION,
     body: `The mean of each sprint's own completion, so every sprint counts equally whatever
       its size. A big gap between this and the PI figure means one sprint is skewing the
@@ -4024,11 +4027,12 @@ const METRIC_HELP = {
      "higher is better" or "lower is better"; a reader who assumes the same here
      will read 130% as the best team on the train. */
   piPredictability: { title: 'PI predictability', target: TARGET_PREDICTABILITY,
-    body: `The business value this team actually delivered against the value it committed to
-      at PI planning — SAFe's own predictability measure, and a different question from
-      commitment completion: that one asks whether the points landed, this one asks whether
-      the <em>objectives</em> did. Value from stretch objectives counts in what was delivered
-      but never in what was committed, which is what lets an honest figure sit above 100%.` },
+    body: `<p>The business value this team actually delivered against the value it committed
+      to at PI planning — <strong>SAFe's own predictability measure</strong>.</p>
+      <p>It is a different question from commitment completion: that one asks whether the points
+      landed, this one asks whether the <em>objectives</em> did.</p>
+      <p>Value from stretch objectives counts in what was delivered but never in what was
+      committed, which is <strong>what lets an honest figure sit above 100%</strong>.</p>` },
   trendPredictability: { title: 'PI predictability', target: TARGET_PREDICTABILITY,
     body: `The latest PI's measure, and how far it moved from the one before. Each team's own
       measure averaged, so it stays comparable across PIs that covered different teams — a
@@ -4057,11 +4061,12 @@ const METRIC_HELP = {
       the other method — all the value pooled, so a team that planned more pulls harder — see
       the <strong>ART total</strong> row at the foot of the table below.` },
   artTotalRow: { title: 'ART total', target: TARGET_PREDICTABILITY,
-    body: `Every point and every unit of business value across the train added into one total,
-      with each percentage taken once at the end — so <em>a bigger team pulls harder</em>. This
-      is the pooled method, the one the Agile Operations Dashboard uses for points. For the
-      per-team average that SAFe's predictability measure is defined as, see the
-      <em>ART predictability</em> tile at the top of this view.` },
+    body: `<p>Every point and every unit of business value across the train added into one
+      total, with each percentage taken once at the end — so <em>a bigger team pulls
+      harder</em>.</p>
+      <p>This is <strong>the pooled method</strong>, the one the Agile Operations Dashboard uses
+      for points. For the per-team average that SAFe's predictability measure is defined as, see
+      the <em>ART predictability</em> tile at the top of this view.</p>` },
   bvPlanned: { title: 'Planned business value', target: null,
     body: `The value of the objectives the team committed to at PI planning. <strong>Stretch
       objectives are deliberately not in it</strong> — they were never a commitment, and
@@ -4116,33 +4121,36 @@ const METRIC_HELP = {
      the other, because the only question either one raises is "why doesn't this
      match the table above it". */
   teamsTrend: { title: 'Trend', target: null,
-    body: `Which way the commitment-completion figure beside it is <em>moving</em> across the
-      same ${ROLLING_WINDOW}-sprint window — a least-squares fit through the sprints, the same
-      one the Rolling 5 chart draws its dashed line from, so one bad sprint at either end
-      can't decide the direction on its own. “up 12” means twelve percentage points from one
-      end of the window to the other. Every other figure on this page is a level, and two
-      teams sitting on the same level can be going opposite ways. It needs
-      ${MIN_TREND_POINTS} sprints — two points make a slope, not a trend.` },
+    body: `<p>Which way the commitment-completion figure beside it is <em>moving</em> across
+      the same ${ROLLING_WINDOW}-sprint window — a least-squares fit through the sprints, the
+      same one the Rolling 5 chart draws its dashed line from, so <strong>one bad sprint at
+      either end can't decide the direction on its own</strong>. “up 12” means twelve
+      percentage points from one end of the window to the other.</p>
+      <p><strong>Every other figure on this page is a level</strong>, and two teams sitting on
+      the same level can be going opposite ways.</p>
+      <p>It needs ${MIN_TREND_POINTS} sprints — two points make a slope, not a trend.</p>` },
   teamsGoals: { title: 'Sprint goals', target: 'No target — a count, not a percentage against a threshold.',
-    body: `How many sprints in the window met their goal, out of the sprints somebody
-      <em>answered the question about</em> — so the denominator can be smaller than the sprint
-      count to its left, and the difference is spoken to a screen reader. A ◎ means this
-      team's points and goals disagree, which is named in full under the heading above: it is
-      the one finding the coloured figures on this row cannot make, because they are all
-      answering whether the points landed rather than whether the sprint did what it was
-      for.` },
+    body: `<p>How many sprints in the window met their goal, out of <strong>the sprints
+      somebody <em>answered the question about</em></strong> — so the denominator can be smaller
+      than the sprint count to its left, and the difference is spoken to a screen reader.</p>
+      <p>A ◎ means <strong>this team's points and goals disagree</strong>, which is named in
+      full under the heading above. It is the one finding the coloured figures on this row
+      cannot make, because they are all answering whether the points landed rather than whether
+      the sprint did what it was for.</p>` },
   teamsMean: { title: 'Average of sprints', target: TARGET_COMPLETION,
-    body: `Each sprint's own percentage is worked out first, then those percentages are
-      averaged — so <em>every sprint counts equally</em> whatever its size. This is the better
-      read on a team's habit: one unusually big sprint can't drown out the rest. The pooled
-      table below answers the other question. ${ROLLING_WINDOW_NOTE}` },
+    body: `<p>Each sprint's own percentage is worked out first, then those percentages are
+      averaged — so <em>every sprint counts equally</em> whatever its size.</p>
+      <p>This is <strong>the better read on a team's habit</strong>: one unusually big sprint
+      can't drown out the rest. The pooled table below answers the other question.</p>
+      <p>${ROLLING_WINDOW_NOTE}</p>` },
   teamsPooled: { title: 'Pooled totals', target: TARGET_COMPLETION,
-    body: `Every point across the window is added into one total and the percentage taken
-      once at the end — so <em>a bigger sprint pulls harder</em> than a small one. This is the
-      better read on the body of work as a whole, and it's the method the Agile Operations
-      Dashboard uses, so these are the figures that reconcile with it — as long as any sprint
-      you've left out of the rolling average is unselected in the Dashboard too, or it will
-      still be in their total and not in this one. ${ROLLING_WINDOW_NOTE}` },
+    body: `<p>Every point across the window is added into one total and the percentage taken
+      once at the end — so <em>a bigger sprint pulls harder</em> than a small one.</p>
+      <p>This is <strong>the better read on the body of work as a whole</strong>, and it's the
+      method the Agile Operations Dashboard uses, so these are the figures that reconcile with
+      it — <strong>as long as any sprint you've left out of the rolling average is unselected in
+      the Dashboard too</strong>, or it will still be in their total and not in this one.</p>
+      <p>${ROLLING_WINDOW_NOTE}</p>` },
   actualComplete: { title: 'Actual complete', target: null,
     body: `Everything delivered — break-in work included — against what was committed at the
       start. It goes above 100% when a team finished more than it signed up for, which says
@@ -4156,20 +4164,23 @@ const METRIC_HELP = {
      no figure picks a method silently) and say where the other one lives. The
      entries for the removed rows are gone rather than left unreferenced. */
   piTotalRow: { title: 'PI total', target: null,
-    body: `Every point across this PI's counted sprints added into one total, with each
+    body: `<p>Every point across this PI's counted sprints added into one total, with each
       percentage taken once at the end — so <em>a bigger sprint pulls harder</em> than a small
-      one. This is the method the <strong>Agile Operations Dashboard</strong> uses, so it's the
-      row that reconciles with what the ART reports upward. For the other method — every sprint
-      counting equally, whatever its size — see the <em>average per sprint</em> tile at the top
-      of this view, or the Rolling ${ROLLING_WINDOW} table.` },
+      one.</p>
+      <p>This is the method the <strong>Agile Operations Dashboard</strong> uses, so it's the
+      row that reconciles with what the ART reports upward.</p>
+      <p>For the other method — every sprint counting equally, whatever its size — see the
+      <em>average per sprint</em> tile at the top of this view, or the Rolling
+      ${ROLLING_WINDOW} table.</p>` },
 
   rollAvgRow: { title: 'Average per sprint', target: null,
-    body: `Each sprint's own percentage is worked out first, then those percentages are
+    body: `<p>Each sprint's own percentage is worked out first, then those percentages are
       averaged, so <em>every sprint counts equally</em> whatever its size. Its committed and
-      velocity figures are per-sprint means. This is the better read on a team's habit — one
-      unusually big sprint can't drown out the rest — and it's what the tiles at the top of
-      this view show. For the pooled method, which weights a sprint by how much was committed
-      to it, see the <em>PI total</em> row on Current PI or Comparison 2 on All teams.` },
+      velocity figures are per-sprint means.</p>
+      <p>This is <strong>the better read on a team's habit</strong> — one unusually big sprint
+      can't drown out the rest — and it's what the tiles at the top of this view show.</p>
+      <p>For the pooled method, which weights a sprint by how much was committed to it, see the
+      <em>PI total</em> row on Current PI or Comparison 2 on All teams.</p>` },
 
   rollVelocity: { title: 'Avg velocity', target: null,
     body: `Mean points completed per sprint across the window, break-in included. The target

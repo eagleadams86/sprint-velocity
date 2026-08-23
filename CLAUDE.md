@@ -241,6 +241,18 @@ but Charles had ever actually signed in.)
     inheritance is exactly what let the seven windows drift apart: an unset heading weight
     defaulted to bold on two pages, an unset paragraph colour came out `--text-primary` on
     one, and the dialog padding differed by app.
+  - **A NOTE OVER ~380 CHARACTERS IS PARAGRAPHS, AND IT BOLDS THE CLAIM IT TURNS ON**
+    (2026-08-23). All 45 entries were a single paragraph before that and nine ran past 400
+    characters, which is a wall of text on a phone. The threshold is length rather than
+    taste: under about 380 a note is two or three sentences and breaking it up is its own
+    kind of unreadable, so **35 of the 45 are deliberately left whole** and `tests.html`
+    only holds the long ones to the rule. **`<em>` is a separate channel and is left
+    alone** — it marks a contrastive word inside a sentence (`<em>after</em> the sprint
+    started`), where bold marks the claim. At most one bold run per paragraph, pinned.
+    Money Map and Flow Metrics reached the same place by a different route: their bodies
+    are arrays of paragraphs built with `createElement`, because those two write help with
+    `textContent` and never markup. This app's bodies have always been template literals
+    with `<em>` in them, so `<p>` and `<strong>` are simply the next tags along.
   - `tests.html` pins all of it, and scans only the dots written out as literals — about a
     third of them; the rest come from a tile spec as `helpBtn(helpKey, label)`. What covers
     those is the guard that `helpBtn` returns `''` for a key with no entry, so a wrong key
