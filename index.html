@@ -577,6 +577,75 @@ dialog p { font-size: var(--fs-xs); color: var(--text-secondary); }
    back to each tile laying itself out, which is what it did before. */
 .tiles { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   grid-template-rows: repeat(3, auto); }
+/* A TILE ROW FILLS ONE LINE WHEN THE LINE HAS ROOM FOR EVERY TILE, AND SPLITS
+   INTO EQUAL ROWS WHEN IT DOES NOT — never a full row with a lone tile stranded
+   under it (2026-08-23, family-wide; Money Map hit it first, with six net-worth
+   tiles coming out five across and one alone underneath). Plain `auto-fit` takes
+   as many tiles as fit and drops the remainder wherever they land, which on a
+   sprint card is a six-tile group at five across, and the sixth — the sprint
+   goal — reading as an afterthought rather than as the sixth answer.
+
+   The COUNT comes from `:has(> :nth-child(N):last-child)`, which is "exactly N
+   children"; every group here is built from conditionals, so the count is not
+   knowable when the CSS is written. The WIDTH comes from a CONTAINER query, so
+   each row answers the box it is actually in — a tile group inside a card in a
+   `.cards2` half is nowhere near the width of the viewport, and a media query
+   would answer the wrong question for it.
+
+   The thresholds are the 160px minimum tile and the 12px gap multiplied out:
+   2→332, 3→504, 4→676, 5→848, 6→1020, 7→1192, 8→1364. Narrowest first, so the
+   widest rule that matches wins. Only counts that leave rows differing by at
+   most one tile are offered, and never a row holding a single tile: five go 5,
+   3 + 2, or one per line, never 2 + 2 + 1; seven go 7 or 4 + 3. Nine or more
+   keeps the auto-fit line above — no group here comes close, and a strip that
+   long is a scroll at every width. The tests read the 160 and the 12 back out
+   of this file and check every threshold against them, so raising the minimum
+   tile fails the suite instead of quietly making a row too tight. */
+@container tiles (min-width: 332px) {
+  .tiles:has(> :nth-child(3):last-child),
+  .tiles:has(> :nth-child(5):last-child),
+  .tiles:has(> :nth-child(7):last-child) {
+    grid-template-columns: minmax(0, 1fr); }
+  .tiles:has(> :nth-child(4):last-child),
+  .tiles:has(> :nth-child(6):last-child),
+  .tiles:has(> :nth-child(8):last-child) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container tiles (min-width: 504px) {
+  .tiles:has(> :nth-child(3):last-child),
+  .tiles:has(> :nth-child(5):last-child),
+  .tiles:has(> :nth-child(6):last-child),
+  .tiles:has(> :nth-child(8):last-child) {
+    grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@container tiles (min-width: 676px) {
+  .tiles:has(> :nth-child(4):last-child),
+  .tiles:has(> :nth-child(7):last-child),
+  .tiles:has(> :nth-child(8):last-child) {
+    grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@container tiles (min-width: 848px) {
+  .tiles:has(> :nth-child(5):last-child) {
+    grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+@container tiles (min-width: 1020px) {
+  .tiles:has(> :nth-child(6):last-child) {
+    grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+@container tiles (min-width: 1192px) {
+  .tiles:has(> :nth-child(7):last-child) {
+    grid-template-columns: repeat(7, minmax(0, 1fr)); }
+}
+@container tiles (min-width: 1364px) {
+  .tiles:has(> :nth-child(8):last-child) {
+    grid-template-columns: repeat(8, minmax(0, 1fr)); }
+}
+/* Whatever holds a tile row becomes the thing those queries measure — the row's
+   own parent, so the width asked about is the width the tiles actually get,
+   with no card padding counted in. NAMED, so a container added elsewhere later
+   cannot start answering these queries by accident; where no container is found
+   the row simply keeps the auto-fit line above, which is what it always had. */
+:has(> .tiles) { container: tiles / inline-size; }
 /* The left edge is 6px, matching Flow Metrics — the shared-chrome rule, applied
    to the half of its tile change that transfers. Charles asked for the edge and
    only the edge (2026-08-21).

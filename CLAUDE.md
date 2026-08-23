@@ -1036,6 +1036,34 @@ but Charles had ever actually signed in.)
 - **The Rolling 5 velocity chart carries a dashed `linearTrend()` line** (ordinary least
   squares, ported from Team Dashboard; nulls skipped). It's drawn muted — a reading of the
   bars, not a new series — and `linearTrend()` is a pure function pinned by tests.html.
+- **A TILE ROW FILLS ONE LINE WHEN THE LINE HAS ROOM, AND SPLITS INTO EQUAL ROWS WHEN IT
+  DOES NOT (2026-08-23, family-wide).** Never a full row with a lone tile stranded under it:
+  the eye finishes the row, finds a gap, and goes looking for the thing that should have been
+  there. Money Map hit it first — six net-worth tiles came out five across with the sixth
+  alone — and every app with a variable-count tile row now answers it the same way. Here that
+  is a six-tile sprint group whose sixth tile is the sprint goal, which was reading as an
+  afterthought rather than as the sixth answer.
+  - **The COUNT comes from `:has(> :nth-child(N):last-child)`** — "exactly N children". Every
+    group in this app is built from conditionals (`inFlight`, `pace`, `hasGoal`), so the count
+    is not knowable when the CSS is written; asking the DOM is the only way to know it.
+  - **The WIDTH comes from a CONTAINER query, never the viewport.** `:has(> .tiles)` makes the
+    row's own parent the named container `tiles`, so the width asked about is the width the
+    tiles actually get, card padding already taken off. A tile group inside a card in a
+    `.cards2` half is nowhere near the viewport's width, and a media query would answer the
+    wrong question for it. Where no container is found the row keeps the plain auto-fit line,
+    which is what it always had.
+  - **The thresholds are the 160px minimum tile and the 12px gap multiplied out**: 2→332,
+    3→504, 4→676, 5→848, 6→1020, 7→1192, 8→1364. Narrowest first, so the widest rule that
+    matches wins. tests.html reads those two numbers back out of the CSS and checks every
+    threshold against them, so raising the minimum tile fails the suite rather than quietly
+    making a row too tight.
+  - **Only counts that leave rows differing by at most one tile are offered, and never a row
+    holding a single tile.** Five go 5, or 3 + 2, or one per line — never 2 + 2 + 1. Seven go
+    7 or 4 + 3. Where the only alternative would strand one tile the row drops to a single
+    column and stacks. Nine or more keeps auto-fit; no group in this app comes near it.
+  - **Flow Metrics has the same block against its `.tiles.group`**, with its own 200px floor.
+    Its plain `.tiles` is the deliberate exception in both apps: it is always exactly four
+    tiles, one per dimension, and spelling out four columns is already gap-free.
 - **THE TILE'S LEFT EDGE IS 6px, AND ITS BACKGROUND DELIBERATELY DID NOT FOLLOW (2026-08-21).**
   Flow Metrics moved its tiles onto `--surface` — the ground its cards and tables are on — and
   widened the left edge from 4px to 6px in the same change, because once the fill no longer told

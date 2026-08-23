@@ -93,7 +93,7 @@ function ok(cond, note) { if (!cond) throw new Error(note || 'expected truthy');
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 386;
+const EXPECTED = 388;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -2503,6 +2503,50 @@ t('the dot is the family circle, declared property by property', () => {
     .test(APP_SRC),
     'and the hover fills rather than borrowing --focus-border, which would say '
     + '"focused" to anybody reading the two states side by side');
+});
+/* ── The tile rows ──────────────────────────────────────────────────────────
+   A tile row fills ONE line when the line has room for every tile, and splits
+   into EQUAL rows when it does not — a full row with a lone tile under it is
+   the shape being designed out, family-wide since 2026-08-23. The rules are
+   container queries, and the two numbers they were worked out from — the
+   smallest a tile may be and the gap between them — live in a different rule
+   higher up the sheet. Both are read back out of the CSS and the thresholds
+   checked AGAINST them, rather than copied here as figures that would go on
+   agreeing with a sheet that had moved. */
+t('every tile row fits the tiles it promises, and none strands a lone tile', () => {
+  ok(APP_SRC, 'index.html was not read — the fetch test above must run first');
+  const floor = APP_SRC.match(/\.tiles \{ display: grid; gap: (\d+)px;[^}]*minmax\((\d+)px/);
+  ok(floor, 'the auto-fit fallback still states a gap and a smallest tile');
+  const gap = +floor[1], min = +floor[2];
+  const blocks = [...APP_SRC.matchAll(/@container tiles \(min-width: (\d+)px\) \{([\s\S]*?)\n\}/g)];
+  ok(blocks.length >= 5, 'the container queries are still there');
+  let checked = 0;
+  for (const [, atStr, body] of blocks) {
+    const at = +atStr;
+    for (const rule of body.split('}').filter((r) => r.includes('grid-template-columns'))) {
+      const counts = [...rule.matchAll(/nth-child\((\d+)\):last-child/g)].map((m) => +m[1]);
+      ok(counts.length, 'every rule says which tile counts it answers');
+      const cols = rule.match(/grid-template-columns: repeat\((\d+),/);
+      const c = cols ? +cols[1] : 1;
+      ok(c * min + (c - 1) * gap <= at,
+        c + ' columns need ' + (c * min + (c - 1) * gap) + 'px of tiles and gaps, and the '
+        + 'query lets them in at ' + at + 'px');
+      for (const n of counts) {
+        ok(n >= c, n + ' tiles can never fill ' + c + ' columns');
+        ok(c === 1 || n % c !== 1,
+          n + ' tiles across ' + c + ' columns leaves one tile alone on the last row');
+        checked++;
+      }
+    }
+  }
+  ok(checked >= 16, 'and every count from three to eight is still answered');
+});
+t('the tile rows have something to measure', () => {
+  ok(/:has\(> \.tiles\) \{ container: tiles \/ inline-size; \}/.test(APP_SRC),
+    "the row's own parent is the named container — without it every query above "
+    + 'matches nothing and the counts silently stop applying');
+  ok([...APP_SRC.matchAll(/\.tiles:has\(> :nth-child/g)].length >= 16,
+    'and the count rules are still written against .tiles');
 });
 t('every dot draws an "i", and every dot has words behind it', () => {
   /* "?" is the glyph a browser already puts on its own help cursor and in a
