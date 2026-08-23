@@ -1061,6 +1061,13 @@ but Charles had ever actually signed in.)
     holding a single tile.** Five go 5, or 3 + 2, or one per line — never 2 + 2 + 1. Seven go
     7 or 4 + 3. Where the only alternative would strand one tile the row drops to a single
     column and stacks. Nine or more keeps auto-fit; no group in this app comes near it.
+  - **A SHORT LAST ROW IS STRETCHED TO FINISH THE LINE**, never left with a hole at the end of
+    it: `lcm(columns, last row)` tracks, the full rows' tiles spanning `lcm/columns` and the
+    last row's `lcm/last row`, so 3 + 2 is six tracks at span 2 and span 3. That is Golf
+    Handicap's hand-counted grid generalised — its own file says those spans have to be redone
+    by hand if a tile is ever added. The stretch is undone at the width where the tiles all fit
+    on one line, and **on BOTH selectors**: `:nth-child` out-ranks a bare `> *` and would
+    otherwise carry its span into the wider layout.
   - **Flow Metrics has the same block against its `.tiles.group`**, with its own 200px floor.
     Its plain `.tiles` is the deliberate exception in both apps: it is always exactly four
     tiles, one per dimension, and spelling out four columns is already gap-free.
