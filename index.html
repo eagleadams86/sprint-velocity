@@ -143,6 +143,15 @@
   --shadow: 0 1px 2px rgba(0,0,0,.06), 0 4px 12px rgba(0,0,0,.04);
   --chrome-h: 30px;    /* small header buttons + the team picker */
   --control-h: 38.5px; /* full-size buttons + the toolbar pickers beside them */
+  /* ONE number, read by BOTH .wrap/.shell and .headbar. They have to be the same
+     or the brand stops lining up with the left edge of the first card — which is
+     exactly why it is a token and not two literals, and it WAS two literals here
+     until 2026-08-23. Every other app in the family already had the token; these
+     two wrote 1500px twice each.
+     THERE ARE TWO WIDTHS IN THE FAMILY AND ONLY TWO: 1500px here, Flow Metrics,
+     Golf Handicap and both lottery pages; 2400px ultra-wide for Money Map,
+     PAPTrack and the dashboard. A new app picks one, and does not invent a third. */
+  --page-w: 1500px;
 }
 /* Every theme keeps the same hue for the same series — committed grey, completed
    blue, velocity teal, added amber, removed violet, carried red — so a chart reads
@@ -268,8 +277,8 @@ body {
   color: var(--text-primary);
   font: var(--fw-normal) var(--fs-base)/var(--lh-base) var(--font-sans);
 }
-/* 1500px to match Team Dashboard — the two apps share one page width. */
-.wrap { max-width: 1500px; margin: 0 auto; padding: 0 16px 64px; }
+/* The two apps share one page width — see --page-w above. */
+.wrap { max-width: var(--page-w); margin: 0 auto; padding: 0 16px 64px; }
 
 /* ── Header ─────────────────────────────────────────────────────────────── */
 header {
@@ -279,7 +288,7 @@ header {
   padding: 10px 0;
   margin-bottom: 20px;
 }
-.headbar { max-width: 1500px; margin: 0 auto; padding: 0 16px;
+.headbar { max-width: var(--page-w); margin: 0 auto; padding: 0 16px;
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 /* An <h1>, so the page has a top-level heading — hence the margin reset. The auto
    right margin is what pushes the control cluster to the right edge; it moved back
