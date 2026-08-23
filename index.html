@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="midnight">
+<html lang="en" data-theme="auto">
 <head>
 <meta charset="utf-8">
 <!-- Content Security Policy. GitHub Pages can't set response headers, so this meta
@@ -78,21 +78,35 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <!-- The installed window's title bar takes its colour from here. It holds the
-     manifest's midnight to start with, because that is the default theme and
-     this has to be right before any script runs; applyTheme() rewrites it from
-     the theme pack's own --bg whenever the theme changes, so a Light window
-     doesn't keep a midnight bar above it. No colour is invented — it is read
-     back out of theme.css. -->
+     manifest's midnight to start with, because this has to be right before any
+     script runs; applyTheme() rewrites it from the theme pack's own --bg whenever
+     the theme changes, so a Light window doesn't keep a midnight bar above it. No
+     colour is invented — it is read back out of theme.css. -->
 <meta name="theme-color" content="#0a0e1a">
 <script>
   /* Apply the saved theme before first paint so there's no light flash. The list
      is repeated here rather than shared with THEMES below because this has to run
-     before the main script parses; keep the two in step. */
+     before the main script parses; keep the two in step.
+
+     THE DEFAULT IS 'auto' — a reader who has never touched the picker follows their
+     system. It is also where a retired id lands, which is why this is the one place
+     the fallback is written; <html data-theme="auto"> in the markup covers the case
+     where this script never runs at all. */
   try {
     var t = localStorage.getItem('sv-theme');
     var ok = ['auto','light','dark','midnight','sepia'];
-    document.documentElement.setAttribute('data-theme',
-      ok.indexOf(t) === -1 ? 'midnight' : t);
+    var id = ok.indexOf(t) === -1 ? 'auto' : t;
+    document.documentElement.setAttribute('data-theme', id);
+    /* And the installed window's title bar with it. The literal above is Midnight's,
+       and Auto resolves to LIGHT on a light system — so without this an installed app
+       opens with a midnight bar over a light page and corrects itself a frame later.
+       matchMedia is answerable this early; --bg is not, because theme.css has not
+       loaded yet, which is why the one value is written out. Keep it in step with
+       theme.css's Light --bg; applyTheme() takes over from the first repaint on. */
+    if (id === 'auto' && !matchMedia('(prefers-color-scheme: dark)').matches) {
+      var bar = document.querySelector('meta[name="theme-color"]');
+      if (bar) bar.setAttribute('content', '#f5f5f3');
+    }
   } catch (e) {}
 </script>
 <link rel="stylesheet" href="theme.css">
@@ -1267,10 +1281,10 @@ main:focus { outline: none; }
          already applied, so the picker never reads one theme while the page shows
          another. THEMES is read back off these options. -->
     <select id="themeSel" title="Change the colour theme">
-      <option value="auto">◐ Auto</option>
+      <option value="auto" selected>◐ Auto</option>
       <option value="dark">☾ Dark</option>
       <option value="light">☀ Light</option>
-      <option value="midnight" selected>✦ Midnight</option>
+      <option value="midnight">✦ Midnight</option>
       <option value="sepia">📜 Sepia</option>
     </select>
   </div>
@@ -10918,13 +10932,16 @@ function lsSet(key, value) {
    than kept a second time here — a theme added to one and not the other would be
    selectable but unrecognised, or recognised but unreachable. The palettes
    themselves live in theme.css; each id has a matching block there and a set of
-   app tokens in the <style> above. Midnight is the default: anything unrecognised
-   (an old value, a hand-edited key) falls back to it. */
+   app tokens in the <style> above. AUTO is the default: anything unrecognised (an
+   old value, a hand-edited key) falls back to it, and so does never having chosen,
+   which means a first run follows the reader's system. Midnight is still the base
+   palette — what :root holds, and what Auto resolves to on a dark system — it is
+   just no longer what an app opens on unasked. */
 const THEMES = [...F('themeSel').options].map(o => o.value);
 
 function themeId() {
   const t = lsGet('sv-theme');
-  return THEMES.includes(t) ? t : 'midnight';
+  return THEMES.includes(t) ? t : 'auto';
 }
 
 function applyTheme() {
@@ -10936,7 +10953,8 @@ function applyTheme() {
 
 /* The installed window's title bar. The literal in the <head> is only ever right
    for Midnight — it has to be there because it must be correct before any script
-   runs — so every theme change repaints it, and always from the pack's own `--bg`
+   runs, and the boot script nudges it to Light when Auto resolves that way — so
+   every theme change repaints it, and always from the pack's own `--bg`
    rather than from a colour of this app's own. Called from applyTheme(), which is
    the one place the theme is applied, so a Light window can never keep a midnight
    bar above it.

@@ -52,7 +52,7 @@ but Charles had ever actually signed in.)
   verified by hand at that audit — they clear AA and they avoid the red-green axis (slate,
   blue, teal, amber, violet, rose). **Re-check them by hand whenever the pack's surface
   tokens change**, and keep `SERIES_TEXTURE`, which is what actually tells them apart.
-  Golf Handicap carries the same note for its two. The four themes (Midnight default) are surfaced
+  Golf Handicap carries the same note for its two. The four themes (Midnight is the base palette; **`auto` is the default** since 2026-08-22, and follows the reader's system) are surfaced
   in the header picker **in alphabetical order** — Dark, Light, Midnight, Sepia — and an
   unrecognised stored value (including the retired forest/synthwave/solarized) falls back
   to midnight.

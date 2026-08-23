@@ -1228,7 +1228,9 @@ so you still get five sprints.
 ## Themes
 
 Four, shared with every other app in this family and listed alphabetically in the header
-dropdown: Dark, Light, **Midnight** (deep indigo/navy — the default) and Sepia. (Forest,
+dropdown: **Auto** (the default — it follows your own system, Light or Midnight, and changes
+with it while the page is open), Dark, Light, **Midnight** (deep indigo/navy — the base
+palette, and what Auto means by "dark") and Sepia. (Forest,
 Solarized and Synthwave were retired in August 2026; if you had one selected you'll now
 see Midnight.) Your choice is remembered
 in this browser and isn't part of your data, so it never goes into a backup file and a
