@@ -836,7 +836,7 @@ details.datatable summary { cursor: pointer; font-size: var(--fs-xs); color: var
 /* "Start again" inside the backup dialog. Folded away deliberately: the one
    irreversible action in the app should take a deliberate open, not sit a
    mis-click away from Export. Same pattern in the sibling apps. */
-details.danger-zone { margin-top: 18px; border-top: 1px solid var(--border); padding-top: 12px; }
+details.danger-zone { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px; }
 details.danger-zone > summary { cursor: pointer; font-size: var(--fs-xs); font-weight: 600;
   color: var(--text-secondary); }
 details.danger-zone > summary:hover { color: var(--text-primary); }
@@ -844,6 +844,17 @@ details.danger-zone > summary:hover { color: var(--text-primary); }
    safety net is pushed to the far left, the two answers sit together on the
    right, and on a phone the backup button takes a row of its own rather than
    wrapping its own label in half beside them. */
+/* ── Back Up & Restore: the family's window ──────────────────────────────────
+   One window across six apps (2026-08-23) — PAPTrack's, to the pixel. What
+   varies between the apps is the CONTENT (what a backup holds, which extra
+   buttons the app offers), never the frame around it. Keep this block in step
+   with PAPTrack, Flow Metrics, Golf Handicap, Money Map and the starter. */
+#dataDialog { max-width: 700px; padding: 18px; }
+#dataDialog p { font-size: var(--fs-xs); color: var(--text-secondary); margin: 0 0 12px; }
+#dataDialog hr { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
+#dataDialog .datarow { display: flex; gap: 10px; flex-wrap: wrap; margin: 0; }
+#dataDialog details.danger-zone > p { margin: 10px 0 12px; }
+#dataDialog .datafoot { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; margin-top: 14px; }
 .clearfoot { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; margin-top: 14px; }
 .clearfoot .safety { margin-right: auto; }
 @media (max-width: 460px) {
@@ -951,20 +962,14 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
    sheet is narrowed to a comfortable measure. */
 #helpDialog { max-width: 46ch; }
 /* 880px is the BASE dialog width above — what Share and the PI-delete question
-   use. Backing up is two buttons and three short paragraphs, which at 880px read
-   as one long line each and sit oddly beside the same dialog in Flow Metrics and
-   Golf Handicap. 560px is what those two use, and this app shares its chrome with
-   Flow Metrics. (The sprint form was on the base width until the three working
-   dialogs went to 1100px — see below.) */
-/* THE SAME WIDTH AS MONEY MAP'S BACK UP WINDOW: 700px, its --dialog-w-narrow.
-   Asked for on 2026-08-22, alongside the share windows — these were all 560px,
-   so the same dialog opened narrower here than in the app beside it. */
-#dataDialog { max-width: 700px; }
+   use. The two shared windows are narrower and are declared with the rest of
+   their own blocks further down: Back Up at 700px (the family's, 2026-08-22)
+   and the delete-all confirmation at 560px. */
 /* The delete-all confirmation is the ONE window that is meant to be identical in
    every app in the family, so it is PAPTrack's verbatim: 560px on 18px padding,
    rather than the 700 it inherited from the Back Up window beside it. (Asked for
-   2026-08-23, with the five dialogs lined up side by side; the 700px above still
-   belongs to Back Up, which is a different window with more in it.) */
+   2026-08-23, with the five dialogs lined up side by side; Back Up keeps its 700
+   — a different window, with more in it.) */
 #clearDialog { max-width: 560px; padding: 18px; }
 /* ── Find ───────────────────────────────────────────────────────────────────
    Money Map's Find window, ported here on 2026-08-23 so ⌘K reaches the same
@@ -1769,33 +1774,34 @@ main:focus { outline: none; }
 <!-- ── Backup / restore ──────────────────────────────────────────────────── -->
 <dialog id="dataDialog" aria-labelledby="dataDialogTitle">
   <h3 id="dataDialogTitle">Back Up &amp; Restore</h3>
-  <p class="sub">One JSON file holding every team, ART, PI and sprint — a copy you keep,
+  <p>One JSON file holding every team, ART, PI and sprint — a copy you keep,
     independent of this browser. It is the only copy of your data that exists anywhere else,
     so it is worth taking one.</p>
-  <div class="row">
+  <div class="datarow">
     <button class="btn" id="exportBtn"><span aria-hidden="true">⬇︎</span> Download Backup (JSON)</button>
     <button class="btn" id="importBtn"><span aria-hidden="true">⬆︎</span> Restore from Backup…</button>
     <input type="file" id="importFile" accept="application/json,.json" hidden>
   </div>
-  <p class="sub muted" style="margin-top:14px">Restoring <strong>replaces every team in this
-    browser</strong>. You'll see what the file holds and be asked to confirm first.</p>
-  <hr style="border:0;border-top:1px solid var(--border);margin:16px 0">
-  <p class="sub" style="margin:0 0 10px"><strong>Coming from a spreadsheet?</strong> A sprint
+  <hr>
+  <p><strong>Coming from a spreadsheet?</strong> A sprint
     history pastes in one go — rows of figures against sprints, for one team or several. Unlike
     the JSON above it <em>adds to</em> what is here rather than replacing it, and it shows you
     every row before it writes anything.</p>
-  <div class="row">
+  <div class="datarow">
     <button class="btn" id="importSprintsBtn" type="button"><span aria-hidden="true">⬆︎</span> Import a Sprint History…</button>
   </div>
+  <hr>
+  <p>Restoring <strong>replaces every team in this
+    browser</strong>. You'll see what the file holds and be asked to confirm first.</p>
   <details class="danger-zone">
     <summary>Start Again</summary>
-    <p class="sub muted" style="margin-top:10px">Deletes every team, ART, PI and sprint in this
+    <p>Deletes every team, ART, PI and sprint in this
       browser. Your theme is kept.</p>
-    <div class="row" style="margin-top:10px">
+    <div class="datarow">
       <button class="btn danger" id="clearBtn" type="button">Delete All Data</button>
     </div>
   </details>
-  <div class="row" style="justify-content:flex-end;margin-top:18px">
+  <div class="datafoot">
     <button class="btn primary" id="dataCloseBtn">Close</button>
   </div>
 </dialog>
