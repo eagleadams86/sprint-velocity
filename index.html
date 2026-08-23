@@ -2069,7 +2069,7 @@ main:focus { outline: none; }
   <fieldset class="formpanel">
     <legend>Which Teams</legend>
     <div class="checklist-head">
-      <span class="sub muted" id="shareTeamCount" role="status"></span>
+      <span class="sub" id="shareTeamCount" role="status"></span>
       <button type="button" class="btn small" id="shareSelectAll">Select All</button>
     </div>
     <div class="checklist" id="shareTeams"></div>
@@ -2100,8 +2100,8 @@ main:focus { outline: none; }
   <fieldset class="formpanel">
     <legend>Your Link</legend>
     <input type="text" id="shareLink" readonly aria-label="Read-only share link">
-    <p class="sub muted" id="shareMeta" role="status" style="margin:8px 0 0"></p>
-    <p class="sub muted" id="shareScope" role="status" style="margin:6px 0 0"></p>
+    <p class="sub" id="shareMeta" role="status" style="margin:8px 0 0"></p>
+    <p class="sub" id="shareScope" role="status" style="margin:6px 0 0"></p>
     <p class="warn" id="shareWarn" role="status"></p>
     <div class="row" style="margin-top:10px">
       <button type="button" class="btn primary" id="shareCopyBtn">Copy Link</button>
@@ -2109,7 +2109,11 @@ main:focus { outline: none; }
     </div>
   </fieldset>
 
-  <p class="sub muted" style="margin-top:14px">This is a <strong>snapshot</strong>, frozen as it
+  <!-- --text-secondary, not `muted`. The status lines and the small print in this
+       window were a step dimmer than the same lines in Flow Metrics and Golf
+       Handicap — and the dimmest text in the window was the sentence saying a
+       link cannot be withdrawn. Same fix the Back Up window took on 2026-08-23. -->
+  <p class="sub" style="margin-top:14px">This is a <strong>snapshot</strong>, frozen as it
     looks right now — later edits won't appear, so send a fresh link when the numbers move.
     There's no way to withdraw one once sent, so treat it like emailing a spreadsheet.</p>
 
