@@ -233,6 +233,14 @@ but Charles had ever actually signed in.)
   - **`#helpTarget` takes the same 66ch, and is deliberately outside the shared block.** The
     target line under the definition is a second paragraph no sibling has, and without a cap a
     long one would set the window's width instead of the definition it belongs to.
+  - **The type, the colour and the padding are in the block too** (2026-08-23, a second pass
+    after Charles spotted differences between the windows). `#helpTitle` at `--fs-md`/600,
+    `#helpBody` at `--text-secondary`, paragraph margins at 10px, `#helpBody strong` lifted
+    to `--text-primary`, and `padding: 20px` on the window itself. Nothing here moved — this
+    app was already on all of it — but the rules are declared rather than inherited, because
+    inheritance is exactly what let the seven windows drift apart: an unset heading weight
+    defaulted to bold on two pages, an unset paragraph colour came out `--text-primary` on
+    one, and the dialog padding differed by app.
   - `tests.html` pins all of it, and scans only the dots written out as literals — about a
     third of them; the rest come from a tile spec as `helpBtn(helpKey, label)`. What covers
     those is the guard that `helpBtn` returns `''` for a key with no entry, so a wrong key

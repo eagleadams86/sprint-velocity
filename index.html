@@ -1023,9 +1023,20 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
    measure now, and it is on the text rather than on the box. `max-width` is
    restated because the base `dialog` rule's `width` is what is being
    overridden; on a phone the window is still the screen less its margin. */
-#helpDialog { width: fit-content; max-width: calc(100% - 32px); }
-#helpBody { max-width: 66ch; font-size: var(--fs-sm); line-height: 1.55; }
-#helpBody p, #helpBody li { font-size: inherit; line-height: inherit; }
+#helpDialog { width: fit-content; max-width: calc(100% - 32px); padding: 20px; }
+/* THE PADDING IS PINNED HERE and not left to each app's own dialog rule
+   (2026-08-23). It was 24px in Golf Handicap and 18px in PAPTrack, so the
+   same 624px of text opened in a 674px, a 666px and a 662px window across
+   the family. One window means one width, and this is the only property
+   that decides it once the measure is fixed. */
+#helpTitle { margin: 0 0 12px; font-size: var(--fs-md); font-weight: 600;
+  color: var(--text-primary); }
+#helpBody { max-width: 66ch; font-size: var(--fs-sm); line-height: 1.55;
+  color: var(--text-secondary); }
+#helpBody p, #helpBody li { font-size: inherit; line-height: inherit;
+  color: inherit; margin: 0 0 10px; }
+#helpBody p:last-child, #helpBody li:last-child { margin-bottom: 0; }
+#helpBody strong { color: var(--text-primary); }
 /* App-specific, and outside the block: the target line under the definition is a
    second paragraph nobody else has. It takes the same measure so that a long one
    cannot widen the window past the text it belongs to. */
