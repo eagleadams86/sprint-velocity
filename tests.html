@@ -2348,11 +2348,22 @@ t('the privacy page carries the family footer', async () => {
      /<main>/ or a bare '<footer' would pass on a page that had lost the element
      and kept the comment explaining it, which is the one way this could rot. */
   const bare = stripHtmlComments(src);
-  ok(/<footer class="foot">/.test(bare),
+  /* Matched by the WRAPPER's class, never by a bare '<footer'. The note above
+     says why and this is the second time it has bitten: a bare match passes on
+     the prose in the <style> block's own comment, which an HTML-comment strip
+     does not reach. `class="foot"` used to serve that purpose on the element
+     itself; `.footnotes` serves it now. */
+  ok(/<div class="footnotes">/.test(bare),
     'the footer is a real <footer> — a contentinfo landmark, not a styled paragraph');
+  /* The wrapper is not decoration: `footer` is a flex ROW, so without it the
+     paragraphs become flex items and lay out side by side. It carried
+     `class="foot"` on the element itself until 2026-08-23, when every page in
+     the family moved to this app's own footer treatment. */
+  ok(/<p class="privacy privacy-links">/.test(bare),
+    'and the lines wear .privacy, so they read the same as the app page\u2019s');
   ok(/<main>/.test(bare),
     'and the policy sits in <main>, or contentinfo would be the only landmark on the page');
-  ok(bare.indexOf('</main>') < bare.indexOf('<footer class="foot"'),
+  ok(bare.indexOf('</main>') < bare.indexOf('<div class="footnotes">'),
     'with main CLOSED before it: a <footer> inside main is not contentinfo at all');
   ok(!/href="privacy\.html"/.test(src),
     'and NOT a privacy link, which on the privacy page points at itself');
