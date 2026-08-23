@@ -840,6 +840,15 @@ details.danger-zone { margin-top: 18px; border-top: 1px solid var(--border); pad
 details.danger-zone > summary { cursor: pointer; font-size: var(--fs-xs); font-weight: 600;
   color: var(--text-secondary); }
 details.danger-zone > summary:hover { color: var(--text-primary); }
+/* The delete-all footer, PAPTrack's verbatim and shared by all five apps: the
+   safety net is pushed to the far left, the two answers sit together on the
+   right, and on a phone the backup button takes a row of its own rather than
+   wrapping its own label in half beside them. */
+.clearfoot { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; margin-top: 14px; }
+.clearfoot .safety { margin-right: auto; }
+@media (max-width: 460px) {
+  .clearfoot .safety { flex: 1 0 100%; margin-right: 0; }
+}
 
 /* A few short paragraphs of reasoning. Capped to one readable measure they left the
    right half of a wide card empty, so they flow into two columns instead — the
@@ -950,7 +959,13 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
 /* THE SAME WIDTH AS MONEY MAP'S BACK UP WINDOW: 700px, its --dialog-w-narrow.
    Asked for on 2026-08-22, alongside the share windows — these were all 560px,
    so the same dialog opened narrower here than in the app beside it. */
-#dataDialog, #clearDialog { max-width: 700px; }
+#dataDialog { max-width: 700px; }
+/* The delete-all confirmation is the ONE window that is meant to be identical in
+   every app in the family, so it is PAPTrack's verbatim: 560px on 18px padding,
+   rather than the 700 it inherited from the Back Up window beside it. (Asked for
+   2026-08-23, with the five dialogs lined up side by side; the 700px above still
+   belongs to Back Up, which is a different window with more in it.) */
+#clearDialog { max-width: 560px; padding: 18px; }
 /* ── Find ───────────────────────────────────────────────────────────────────
    Money Map's Find window, ported here on 2026-08-23 so ⌘K reaches the same
    thing in whichever app is open. Narrow on purpose, and its own width rather
@@ -1841,12 +1856,10 @@ main:focus { outline: none; }
 <dialog id="clearDialog" aria-labelledby="clearTitle">
   <h3 id="clearTitle">Delete All Data?</h3>
   <p class="sub" id="clearBody"></p>
-  <div class="row spread" style="margin-top:18px">
-    <button class="btn" id="clearBackupBtn" type="button"><span aria-hidden="true">⬇</span> Export a Backup First</button>
-    <span class="row">
-      <button class="btn" id="clearCancel" type="button">Cancel</button>
-      <button class="btn danger" id="clearConfirm" type="button">Delete Everything</button>
-    </span>
+  <div class="clearfoot">
+    <button class="btn safety" id="clearBackupBtn" type="button"><span aria-hidden="true">⬇︎</span> Download Backup First</button>
+    <button class="btn" id="clearCancel" type="button">Cancel</button>
+    <button class="btn danger" id="clearConfirm" type="button">Delete Everything</button>
   </div>
 </dialog>
 
@@ -10315,7 +10328,7 @@ F('clearBtn').onclick = () => {
   const n = (v, w) => `${v} ${w}${v === 1 ? '' : 's'}`;
   F('clearBody').textContent =
     `This deletes ${n(t, 'team')}, ${n(p, 'PI')} and ${n(s, 'recorded sprint')}. `
-    + `Your theme is kept. There is no undo — an exported backup is the only way to get `
+    + `Your theme is kept. There is no undo — a downloaded backup is the only way to get `
     + `any of it back.`;
   /* No "…and every device you own" line any more: since sync was removed there
      is exactly one copy of this data and it is the one in this browser, which is
