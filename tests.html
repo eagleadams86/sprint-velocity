@@ -93,7 +93,7 @@ function ok(cond, note) { if (!cond) throw new Error(note || 'expected truthy');
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 358;
+const EXPECTED = 364;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -4122,6 +4122,103 @@ t('undoable() puts back every collection a delete reaches', () => {
     eq(st.sprints.length, 1, 'and its sprints come back with it');
     eq(st.sprints[0].capacityScale, 80, 'field for field, not just the row');
   }));
+});
+
+/* ── Auto had to be told about this page's OWN tokens (2026-08-23) ────────────
+   theme.css resolves Auto's palette on its own, in CSS, with no help from the
+   page. What it cannot resolve is a token the page invented — and this page
+   invented ten: six series colours, three threshold bands and a shadow. There
+   was no [data-theme="auto"] block here at all, the only page in the family
+   without one, so on Auto all ten fell back to :root, which holds the LIGHT
+   values. A midnight card with light series shades painted onto it, and
+   `color-scheme: light` telling the browser to draw its own controls light on a
+   dark page — the exact fault the note at the top of :root says that property
+   exists to prevent.
+
+   It needed three things at once to show up — Auto, a dark system, and nobody
+   having touched the picker — which is precisely the state a first-time reader
+   arrives in and never the state of a browser used to develop the app. Nothing
+   threw and nothing logged; the colours were just quietly the wrong theme's. */
+group('Auto reaches this page\u2019s own tokens, not just the pack\u2019s');
+const LOCAL_TOKENS = ['--c-committed', '--c-completed', '--c-velocity',
+                      '--c-added', '--c-removed', '--c-carry',
+                      '--band-green', '--band-yellow', '--band-red', '--shadow'];
+t('every local token Auto needs is declared for Auto', () => {
+  /* Read off the source as well as measured below, because the measurement can
+     only ever see the ONE system setting this browser happens to be in. */
+  const auto = (APP_SRC.match(/@media \(prefers-color-scheme: dark\)[^{]*\{\s*\[data-theme="auto"\]\s*\{([^}]*)\}/) || [])[1];
+  ok(auto, 'there is no dark-mode [data-theme="auto"] block — that is the bug this pins');
+  LOCAL_TOKENS.forEach(tok =>
+    ok(new RegExp(tok.replace(/-/g, '\\-') + '\\s*:').test(auto),
+       tok + ' must be given Auto\u2019s dark value, or it falls back to :root\u2019s LIGHT one'));
+  ok(/color-scheme:\s*dark/.test(auto),
+     'and color-scheme, or the browser draws its own controls light on a dark page');
+});
+t('Auto means MIDNIGHT when the system is dark, never Dark', () => {
+  /* Pack rule 6: midnight is the base palette and what Auto means by "dark".
+     Read as source, so it holds whichever mode this browser is in. */
+  const auto = (APP_SRC.match(/@media \(prefers-color-scheme: dark\)[^{]*\{\s*\[data-theme="auto"\]\s*\{([^}]*)\}/) || [])[1] || '';
+  const midnight = (APP_SRC.match(/\[data-theme="midnight"\]\s*\{([^}]*)\}/) || [])[1] || '';
+  const dark = (APP_SRC.match(/\[data-theme="dark"\]\s*\{([^}]*)\}/) || [])[1] || '';
+  const val = (block, tok) => (block.match(new RegExp(tok.replace(/-/g, '\\-') + '\\s*:\\s*([^;]+);')) || [])[1];
+  LOCAL_TOKENS.forEach(tok => {
+    eq(val(auto, tok).trim(), val(midnight, tok).trim(), tok + ' must take Midnight\u2019s value');
+  });
+  ok(val(dark, '--c-committed').trim() !== val(midnight, '--c-committed').trim(),
+     'Dark and Midnight really do differ here, so the assertion above means something');
+});
+t('the light half is left to inherit, deliberately', () => {
+  /* In light mode Auto already IS :root. A block saying so would be a copy of
+     the values above it — one more place to keep in step for no behaviour. */
+  const plain = (APP_SRC.match(/\n\[data-theme="auto"\]\s*\{([^}]*)\}/) || [])[1] || '';
+  ok(/color-scheme:\s*light/.test(plain), 'the unqualified auto rule carries color-scheme only');
+  LOCAL_TOKENS.forEach(tok =>
+    ok(!new RegExp(tok.replace(/-/g, '\\-') + '\\s*:').test(plain),
+       tok + ' must NOT be repeated in the light half — it inherits from :root'));
+});
+t('and it resolves live, in whichever mode this browser is in', () => {
+  const el = w.document.documentElement;
+  const was = el.getAttribute('data-theme');
+  try {
+    const read = (th) => { el.setAttribute('data-theme', th);
+      const c = w.getComputedStyle(el);
+      return { scheme: c.colorScheme.trim(), c: c.getPropertyValue('--c-committed').trim(),
+               bg: c.getPropertyValue('--bg').trim() }; };
+    const auto = read('auto');
+    const want = read(w.matchMedia('(prefers-color-scheme: dark)').matches ? 'midnight' : 'light');
+    eq(auto.bg, want.bg, 'the pack resolves the palette');
+    eq(auto.c, want.c, 'and this page\u2019s own series colour follows it');
+    eq(auto.scheme, want.scheme, 'and so does color-scheme');
+  } finally {
+    el.setAttribute('data-theme', was || 'auto');
+  }
+});
+
+/* ── Chart text is on the ramp, like every other size on the page ─────────── */
+group('the charts follow the reader\u2019s text size');
+t('makeChart sets a font SIZE, derived from the pack\u2019s scale', () => {
+  /* It set the font FAMILY from the page and left the size alone, so every chart
+     here ran at Chart.js's built-in 12px — under the pack's own 12px floor by
+     nothing, off the ramp entirely, and deaf to a reader who has set their
+     browser's default text size to 20px. That reader is why rule 7 moved the
+     scale to rem in the first place. Flow Metrics already had this helper. */
+  ok(/function fsPx\(step\)/.test(APP_SRC), 'the helper must exist');
+  ok(/Chart\.defaults\.font\.size = fsPx\('xs'\)/.test(APP_SRC),
+     'and makeChart must apply it — xs is the chrome step, which is what ticks and legends are');
+  ok(!/Chart\.defaults\.font\.size\s*=\s*\d/.test(APP_SRC),
+     'a raw pixel number has come back');
+});
+t('fsPx resolves a rem step against the LIVE root size', () => {
+  const px = w.fsPx('xs');
+  const rootEl = w.document.documentElement;
+  const root = parseFloat(w.getComputedStyle(rootEl).fontSize);
+  /* Not w.cssVar — that is a `const`, so it never lands on the window. fsPx is a
+     function DECLARATION, which is why the app's own helper is reachable here
+     and its neighbour is not. */
+  const step = parseFloat(w.getComputedStyle(rootEl).getPropertyValue('--fs-xs'));
+  ok(px > 0, 'it returned a number');
+  ok(Math.abs(px - step * root) < 0.01, 'xs (' + step + 'rem) at a ' + root + 'px root is ' + px + 'px');
+  ok(px >= 12, 'and it clears the pack\u2019s hard 12px floor, which the old 12px sat exactly on');
 });
 
 group('on paper — the print pass borrows the Light theme rather than owning colours');

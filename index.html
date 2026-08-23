@@ -196,6 +196,52 @@
   --shadow: 0 1px 2px rgba(90,70,30,.10), 0 4px 12px rgba(90,70,30,.07);
 }
 
+/* ── Auto (2026-08-23) ───────────────────────────────────────────────────────
+   THIS BLOCK WAS MISSING, AND AUTO IS THE FAMILY DEFAULT. Every other app in
+   the family had one; this was the only page without, which meant the tokens
+   BELOW — the six series colours, the three threshold bands, the shadow and
+   `color-scheme` — were the one part of the app that never followed Auto.
+
+   `theme.css` resolves Auto's PALETTE on its own, in CSS, with no help from
+   this page. What it cannot resolve is a token this page invented, and this
+   page invented ten of them. So on Auto the palette went Midnight on a dark
+   system while all ten fell back to `:root`, which holds the LIGHT values —
+   light series shades and light threshold bands painted onto a midnight card,
+   and `color-scheme: light` telling the browser to draw its own controls light
+   on a dark page. That last one is the exact fault the note at the top of
+   `:root` says `color-scheme` exists to prevent: a near-black calendar glyph on
+   a near-black field.
+
+   It went unnoticed because it needs three things at once — Auto, a dark
+   system, and nobody having touched the picker — which is precisely the state a
+   first-time reader arrives in, and never the state of a browser that has been
+   used to develop the app. Charts read these through `cssVar()` at construction
+   time, so nothing throws and nothing logs; the colours are just quietly the
+   wrong theme's.
+
+   Only the dark half needs writing. In light mode Auto already IS `:root`, so
+   the block that would say so would be a copy of the values above it — one more
+   place to keep in step for no behaviour. Same structure as the pack's own auto
+   block, and as the four sibling apps': the light values by inheritance, the
+   dark ones in the media query. Midnight's values, not Dark's, because Midnight
+   is what Auto means by "dark" (pack rule 6). */
+[data-theme="auto"] { color-scheme: light; }
+@media (prefers-color-scheme: dark) {
+  [data-theme="auto"] {
+    color-scheme: dark;
+    --c-committed:  #94a3b8;
+    --c-completed:  #60a5fa;
+    --c-velocity:   #2dd4bf;
+    --c-added:      #fbbf24;
+    --c-removed:    #c4b5fd;
+    --c-carry:      #fb7185;
+    --band-green:   rgba(114,254,132,.09);
+    --band-yellow:  rgba(239,190,57,.16);
+    --band-red:     rgba(251,120,116,.15);
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.3);
+  }
+}
+
 /* The contrast-corrections block that used to live here is gone: the unified
    theme pack's gate (check_contrast.py) now verifies every text and status
    token — including the RAG colours this app reads by — at 4.5:1 on the page,
@@ -4804,6 +4850,26 @@ window.toast = toast;
 const charts = {};
 const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 
+/* Resolves a --fs-* step to a NUMBER OF PIXELS, against the live root font size.
+   Flow Metrics' helper, ported verbatim on 2026-08-23 — the two apps share their
+   chrome, and their charts had drifted apart on the one axis nobody looks at.
+
+   Chart text is painted onto a canvas, so it inherits nothing: every size in a
+   Chart.js config is a raw number, which is exactly what the rem ramp exists to
+   stop the page from containing. Until now this app set the font FAMILY from the
+   page and left the size alone, so every chart here ran at Chart.js's built-in
+   12px — under the pack's own 12px floor by nothing, off the ramp entirely, and
+   deaf to a reader who has set their browser's default text size to 20px. That
+   reader is the whole reason rule 7 moved the scale to rem.
+
+   Read at build time, like cssVar() beside it: a theme change already rebuilds
+   every chart, and a root-size change reloads the page. */
+function fsPx(step) {
+  const v = cssVar('--fs-' + step);
+  const root = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  return v.endsWith('rem') ? parseFloat(v) * root : parseFloat(v);
+}
+
 function makeChart(canvasId, config) {
   const el = document.getElementById(canvasId);
   if (!el) return;
@@ -4811,6 +4877,10 @@ function makeChart(canvasId, config) {
   Chart.defaults.color = cssVar('--chart-tick');
   Chart.defaults.borderColor = cssVar('--chart-grid');
   Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+  /* xs is the chrome step, which is what axis ticks, titles and legends are —
+     the same step Flow Metrics gives them, so a chart in one app and a chart in
+     the other are the same size beside each other. */
+  Chart.defaults.font.size = fsPx('xs');
   charts[canvasId] = new Chart(el, config);
 }
 
