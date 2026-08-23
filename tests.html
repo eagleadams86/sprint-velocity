@@ -93,7 +93,7 @@ function ok(cond, note) { if (!cond) throw new Error(note || 'expected truthy');
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 381;
+const EXPECTED = 384;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -2454,6 +2454,63 @@ t('a dialog focused as a container does not ring itself', () => {
     'without this the whole dialog rings itself on every phone and tablet');
   ok(/dlg\.tabIndex = -1;\s*\n\s*dlg\.focus\(\);/.test(APP_SRC),
     'and that container focus is still how the keyboard is kept down');
+});
+/* ── The info dot and the help window ────────────────────────────────────────
+   Both became family-wide blocks on 2026-08-23 — the same declarations in every
+   app that has one. This app's half of the drift was the measure: it capped the
+   WINDOW at 46ch, resolved against the dialog's own 16px, so about 50 characters
+   of 15px text, while Money Map read to 66 and Flow Metrics to about 80. */
+t('the help window is as wide as its text, not as wide as a table', () => {
+  /* Two rules, and only together: the measure caps the LINE, `fit-content` makes
+     the WINDOW take that measure. The cap alone leaves the paragraph hugging the
+     left of an 880px window; `fit-content` alone stretches a two-sentence
+     definition across all 880px, which is what the old 46ch was written to stop. */
+  ok(/#helpDialog \{ width: fit-content; max-width: calc\(100% - 32px\); \}/.test(APP_SRC),
+    'the window is sized by what is in it, and still fits a phone screen');
+  ok(/#helpBody \{ max-width: 66ch; font-size: var\(--fs-sm\); line-height: 1\.55; \}/.test(APP_SRC),
+    'the family measure and the family reading size are what it is sized to');
+  ok(/#helpBody p, #helpBody li \{ font-size: inherit; line-height: inherit; \}/.test(APP_SRC),
+    'and the block is carried whole, including the rule the sibling apps need');
+  ok(/#helpTarget \{ max-width: 66ch; \}/.test(APP_SRC),
+    'the target line takes the same measure — it is a second paragraph nobody else '
+    + 'has, and a long one would widen the window past the text it belongs to');
+});
+t('the dot is the family circle, declared property by property', () => {
+  ok(/\.tile-help \{[^}]*width: 16px; height: 16px; min-height: 0;/.test(APP_SRC),
+    '16px, and carrying the floor opt-out the sibling with a bare <button> rule needs');
+  ok(/\.tile-help \{[^}]*border-radius: 50%;/.test(APP_SRC)
+    && /\.tile-help \{[^}]*background: transparent;/.test(APP_SRC),
+    'an outlined circle, not the filled pill two apps drew until 2026-08-23');
+  ok(/\.tile-help \{[^}]*margin-left: 7px;/.test(APP_SRC),
+    'off the word it follows — standing preference in every app');
+  ok(/\.tile-help::after \{ content: ''; position: absolute; inset: -4px; \}/.test(APP_SRC),
+    "the 24px tap target, WCAG 2.2's, grown from the target rather than the circle");
+  ok(/\.tile-help:hover \{ background: var\(--surface-alt\); border-color: var\(--text-secondary\);/
+    .test(APP_SRC),
+    'and the hover fills rather than borrowing --focus-border, which would say '
+    + '"focused" to anybody reading the two states side by side');
+});
+t('every dot draws an "i", and every dot has words behind it', () => {
+  /* "?" is the glyph a browser already puts on its own help cursor and in a
+     form's validation bubble, and it asks a question where this answers one. */
+  ok(/helpBtn\(helpKey, label\)[\s\S]{0,240}>i<\/button>/.test(APP_SRC),
+    'the one helper that renders every dot draws an "i"');
+  const H = TG().METRIC_HELP;
+  const keys = Object.keys(H);
+  ok(keys.length > 30, 'the table is reachable — ' + keys.length + ' entries');
+  /* Only the dots written out as a literal can be scanned for: most are drawn
+     from a tile spec as `helpBtn(helpKey, label)`, so a quoted-key sweep finds
+     about a third of them. The guard below is what covers the rest — a key with
+     no entry draws NO dot, rather than a dot onto an empty window. */
+  const used = [...new Set([...stripComments(APP_SRC).matchAll(/helpBtn\('(\w+)'/g)]
+    .map((m) => m[1]))];
+  ok(used.length > 10, 'the dots written out as literals were found — ' + used.length + ' keys');
+  eq(used.filter((k) => !H[k]).join(', '), '',
+    'a dot with no entry opens an empty window, and nothing on screen can say so');
+  ok(/if \(!helpKey \|\| !METRIC_HELP\[helpKey\]\) return '';/.test(APP_SRC),
+    'and a key handed in from a spec draws no dot at all when the table has no entry');
+  eq(keys.filter((k) => !H[k].title || String(H[k].body || '').length < 60).join(', '), '',
+    'each entry is headed and actually explains something');
 });
 t('a missing shell file can be repaired without a new worker version', () => {
   const code = stripComments(SW_SRC);

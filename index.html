@@ -609,28 +609,36 @@ dialog p { font-size: var(--fs-xs); color: var(--text-secondary); }
 .tile .label { font-size: var(--fs-xs); color: var(--text-secondary); text-transform: uppercase;
   letter-spacing: .04em; font-weight: 600;
   display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-/* Sized to the label's own line so adding it never makes the row taller. The margin
-   keeps the circle off the last letter — flush against the word it reads as part of it
-   rather than as a control you can press. */
-.tile-help {
-  margin-left: 7px;
-  flex: none; width: 16px; height: 16px; padding: 0; border-radius: 50%;
-  border: 1px solid var(--border-control); background: transparent;
-  color: var(--text-secondary); font-size: var(--fs-xs); font-weight: 700; line-height: 1;
-  font-family: inherit; text-transform: none; cursor: pointer;
-}
+/* ── The info dot ────────────────────────────────────────────────────────────
+   A circled "i" beside a label, opening the help window rather than a hover tooltip so
+   it works the same on a phone. THE SAME BLOCK IS IN EVERY APP THAT HAS ONE, PROPERTY BY
+   PROPERTY (2026-08-23). Golf Handicap and the NY calculator drew a "?" in a filled 18px
+   pill until that date, and the three apps that already drew an "i" each declared it
+   slightly differently. "i" is the glyph that survives: "?" is what a browser already
+   puts on its own help cursor and in a form's validation bubble, and it asks a question
+   where this thing answers one.
+   The circle is sized to the label's own line so adding it never makes a tile row taller.
+   WCAG 2.2 wants a 24px target, so the TARGET grows instead of the circle — an ::after
+   that overflows the button on every side, never painted, only catching the pointer. The
+   margin keeps the circle off the last letter: flush against the word it reads as part of
+   it rather than as a control you can press. `min-height: 0` is carried for the sibling
+   whose bare <button> rule puts a 38.5px floor under everything. The hover fills with
+   `--surface-alt` rather than borrowing `--focus-border`, which would say "focused" to
+   anybody reading the two states side by side. A change to any of it belongs in all of
+   them. */
+.tile-help { display: inline-flex; align-items: center; justify-content: center;
+  position: relative; box-sizing: border-box; flex: none;
+  width: 16px; height: 16px; min-height: 0; padding: 0; margin-left: 7px;
+  border: 1px solid var(--border-control); border-radius: 50%;
+  background: transparent; color: var(--text-secondary);
+  font-family: inherit; font-size: var(--fs-xs); font-weight: 700;
+  line-height: 1; text-transform: none; cursor: pointer; vertical-align: 1px; }
+.tile-help:hover { background: var(--surface-alt); border-color: var(--text-secondary);
+  color: var(--text-primary); }
+.tile-help::after { content: ''; position: absolute; inset: -4px; }
 /* A tile label is a flex row with its own gap that pins the button to the far right,
-   so there the margin would only be dead space. */
+   so there the margin would only be dead space. App-specific, outside the block. */
 .tile .label .tile-help { margin-left: 0; }
-.tile-help:hover { color: var(--text-primary); background: var(--bg-card);
-  border-color: var(--text-secondary); }
-/* WCAG 2.2 wants a 24px target. The circle itself must stay 16px — it's sized to the
-   label's own line so that adding it never makes a tile row taller — so the *target*
-   grows instead, via a pseudo-element that overflows the button on every side. It is
-   never painted; it only catches the pointer. */
-.tile-help { position: relative; }
-.tile-help::after { content: ''; position: absolute; top: 50%; left: 50%;
-  transform: translate(-50%, -50%); width: 24px; height: 24px; }
 /* A checkbox and the words beside it are one target, and the browser's 13px box is
    well under the minimum — so the label carries the height instead. */
 label.row:has(> input[type=checkbox]), .checkline { min-height: 24px; align-items: center; }
@@ -999,9 +1007,29 @@ dialog {
   overscroll-behavior: contain;
 }
 dialog::backdrop { background: rgba(0,0,0,.55); }
-/* A two-sentence definition stretched across 880px is unreadable, so the help
-   sheet is narrowed to a comfortable measure. */
-#helpDialog { max-width: 46ch; }
+/* ── The help window ─────────────────────────────────────────────────────────
+   THE SAME TWO RULES ARE IN EVERY APP THAT HAS ONE (2026-08-23), and they are
+   about the TEXT sizing the window rather than the window holding the text.
+   This is the one dialog that is nothing but prose, so `#helpBody` is capped at
+   a 66-character reading measure and `fit-content` makes the window take that
+   cap as its width. Both or neither: the cap alone leaves the paragraph hugging
+   the left of a window sized for tables with the rest of it empty (which is how
+   Money Map's looked until this date), and `fit-content` alone lets a
+   two-sentence definition stretch across the 880px base width, which is
+   unreadable and is what this rule was first written to stop.
+   THIS APP'S HALF OF THE DRIFT WAS THE MEASURE ITSELF: it capped the WINDOW at
+   `46ch` — resolved against the dialog's own 16px, so about 50 characters of
+   15px text — while Money Map read to 66 and Flow Metrics to about 80. One
+   measure now, and it is on the text rather than on the box. `max-width` is
+   restated because the base `dialog` rule's `width` is what is being
+   overridden; on a phone the window is still the screen less its margin. */
+#helpDialog { width: fit-content; max-width: calc(100% - 32px); }
+#helpBody { max-width: 66ch; font-size: var(--fs-sm); line-height: 1.55; }
+#helpBody p, #helpBody li { font-size: inherit; line-height: inherit; }
+/* App-specific, and outside the block: the target line under the definition is a
+   second paragraph nobody else has. It takes the same measure so that a long one
+   cannot widen the window past the text it belongs to. */
+#helpTarget { max-width: 66ch; }
 /* 880px is the BASE dialog width above — what Share and the PI-delete question
    use. The two shared windows are narrower and are declared with the rest of
    their own blocks further down: Back Up at 700px (the family's, 2026-08-22)

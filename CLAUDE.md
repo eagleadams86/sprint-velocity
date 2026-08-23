@@ -169,8 +169,9 @@ but Charles had ever actually signed in.)
   as the tail of a sentence ("S1 left out (a major incident)"), so keep any new one a phrase,
   not a clause, and re-measure against ~210px.
 - **The three working dialogs — sprint form, Teams & PIs, Adjust Capacity — are all 1100px**,
-  Money Map's Preferences width. Back up, Delete and the help sheet stay narrow: they are a few
-  lines each, and Money Map keeps its short ones narrow for the same reason. Share is still
+  Money Map's Preferences width. Back up and Delete stay narrow: they are a few lines each, and
+  Money Map keeps its short ones narrow for the same reason. **The help window is no longer a
+  width at all** — since 2026-08-23 its own text sizes it (see the info-dot block above). Share is still
   on the 880px base — widen it only if asked. (The sync chooser shared that base until sync
   was removed.)
 - **A `.grid-fields` control is capped at 260px, and that cap is what makes a wide dialog
@@ -206,11 +207,36 @@ but Charles had ever actually signed in.)
   sub-heading stacked directly above it: the one element on the card meant to catch the eye
   was the only thing not aligned. Same trap as the `.tile-help` spacing rule below — a margin
   written for one position is wrong in the other.
-- **Help buttons (`helpBtn`) need breathing room**: `.tile-help` carries `margin-left: 7px`,
-  zeroed inside `.tile .label` (a flex row that already pins it right). `td:has(.tile-help)`
-  is `nowrap` so a wrapping label can't orphan the circle onto a line of its own. This is a
-  standing preference of Charles's across all his projects — icons must never sit flush
-  against the word.
+- **THE INFO DOT AND THE HELP WINDOW ARE FAMILY-WIDE BLOCKS, DECLARED PROPERTY BY PROPERTY,
+  AND THE SAME IN EVERY APP THAT HAS ONE (2026-08-23).** A change to either belongs in all of
+  them.
+  - The dot (`helpBtn` → `.tile-help`) is a 16px outlined circled **"i"**: `margin-left: 7px`
+    (zeroed inside `.tile .label`, a flex row that already pins it right — that one line is
+    app-specific and stays outside the block), `min-height: 0` for the sibling whose bare
+    `<button>` rule puts a 38.5px floor under everything, and a 24px tap target from an
+    unpainted `::after` so a tile row never gets taller. `td:has(.tile-help)` is `nowrap` so a
+    wrapping label can't orphan the circle onto a line of its own. Icons must never sit flush
+    against the word — a standing preference of Charles's across all his projects. Golf
+    Handicap and the NY calculator drew a "?" in a filled 18px pill until this date; "i" won
+    because "?" is what a browser already puts on its own help cursor and in a form's
+    validation bubble, and it asks a question where this thing answers one.
+  - **The hover fills with `--surface-alt`, which is Flow Metrics' and not this app's old
+    `--bg-card`,** and specifically not Money Map's `--focus-border`: a hover that borrows the
+    focus colour says "focused" to anybody reading the two states side by side.
+  - The window is sized by its TEXT — `#helpBody` capped at a 66-character measure,
+    `#helpDialog` at `width: fit-content` — so it takes the measure as its width. **This app's
+    half of the drift was that measure**: it capped the WINDOW at `46ch`, resolved against the
+    dialog's own 16px, so about 50 characters of 15px text, while Money Map read to 66 and
+    Flow Metrics to about 80. Most entries now open at 666px with 624px of text, the family
+    figure. `piDelivered` opens at 565px and that is the rule working, not a bug: it is one
+    77-character sentence, and a window sized to its text is smaller when there is less of it.
+  - **`#helpTarget` takes the same 66ch, and is deliberately outside the shared block.** The
+    target line under the definition is a second paragraph no sibling has, and without a cap a
+    long one would set the window's width instead of the definition it belongs to.
+  - `tests.html` pins all of it, and scans only the dots written out as literals — about a
+    third of them; the rest come from a tile spec as `helpBtn(helpKey, label)`. What covers
+    those is the guard that `helpBtn` returns `''` for a key with no entry, so a wrong key
+    draws no dot rather than a dot onto an empty window.
 - **Blank means 0.** `val()` saves 0 for an empty box and `metrics()` uses `num()` throughout.
   Blanks were once kept as `null` so a half-typed sprint couldn't read as real results; the
   sprint lifecycle now does that job, data mostly arrives via the Jira paste where absent
