@@ -4288,13 +4288,21 @@ group('Auto reaches this page\u2019s own tokens, not just the pack\u2019s');
 const LOCAL_TOKENS = ['--c-committed', '--c-completed', '--c-velocity',
                       '--c-added', '--c-removed', '--c-carry',
                       '--band-green', '--band-yellow', '--band-red', '--shadow'];
+/* A regex built from a token NAME. This used to escape hyphens and nothing else,
+   which is precisely backwards — `-` is literal outside a character class, while
+   `.`, `$`, `\` and the rest are not. CodeQL called it (js/incomplete-sanitization,
+   three times) and was right about the shape even though LOCAL_TOKENS is a literal
+   array ten lines up: a half-escape that is safe only because of its input is a
+   habit, and the next one will not be. This escapes the whole metacharacter set,
+   backslash included. */
+const reEsc = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 t('every local token Auto needs is declared for Auto', () => {
   /* Read off the source as well as measured below, because the measurement can
      only ever see the ONE system setting this browser happens to be in. */
   const auto = (APP_SRC.match(/@media \(prefers-color-scheme: dark\)[^{]*\{\s*\[data-theme="auto"\]\s*\{([^}]*)\}/) || [])[1];
   ok(auto, 'there is no dark-mode [data-theme="auto"] block — that is the bug this pins');
   LOCAL_TOKENS.forEach(tok =>
-    ok(new RegExp(tok.replace(/-/g, '\\-') + '\\s*:').test(auto),
+    ok(new RegExp(reEsc(tok) + '\\s*:').test(auto),
        tok + ' must be given Auto\u2019s dark value, or it falls back to :root\u2019s LIGHT one'));
   ok(/color-scheme:\s*dark/.test(auto),
      'and color-scheme, or the browser draws its own controls light on a dark page');
@@ -4305,7 +4313,7 @@ t('Auto means MIDNIGHT when the system is dark, never Dark', () => {
   const auto = (APP_SRC.match(/@media \(prefers-color-scheme: dark\)[^{]*\{\s*\[data-theme="auto"\]\s*\{([^}]*)\}/) || [])[1] || '';
   const midnight = (APP_SRC.match(/\[data-theme="midnight"\]\s*\{([^}]*)\}/) || [])[1] || '';
   const dark = (APP_SRC.match(/\[data-theme="dark"\]\s*\{([^}]*)\}/) || [])[1] || '';
-  const val = (block, tok) => (block.match(new RegExp(tok.replace(/-/g, '\\-') + '\\s*:\\s*([^;]+);')) || [])[1];
+  const val = (block, tok) => (block.match(new RegExp(reEsc(tok) + '\\s*:\\s*([^;]+);')) || [])[1];
   LOCAL_TOKENS.forEach(tok => {
     eq(val(auto, tok).trim(), val(midnight, tok).trim(), tok + ' must take Midnight\u2019s value');
   });
@@ -4318,7 +4326,7 @@ t('the light half is left to inherit, deliberately', () => {
   const plain = (APP_SRC.match(/\n\[data-theme="auto"\]\s*\{([^}]*)\}/) || [])[1] || '';
   ok(/color-scheme:\s*light/.test(plain), 'the unqualified auto rule carries color-scheme only');
   LOCAL_TOKENS.forEach(tok =>
-    ok(!new RegExp(tok.replace(/-/g, '\\-') + '\\s*:').test(plain),
+    ok(!new RegExp(reEsc(tok) + '\\s*:').test(plain),
        tok + ' must NOT be repeated in the light half — it inherits from :root'));
 });
 t('and it resolves live, in whichever mode this browser is in', () => {
