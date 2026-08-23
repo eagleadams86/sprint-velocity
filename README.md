@@ -1461,6 +1461,35 @@ Two details worth knowing:
 The installed window's title bar takes the theme's own background colour, and follows the
 theme picker.
 
+## Find (⌘K)
+
+**⌕ Find** in the header — or **⌘K** / **Ctrl-K** from anywhere — opens a search box over
+everything the app holds: your teams, the ARTs they're on, every PI, every sprint, and every
+planned capacity adjustment. Type two characters and the list narrows as you go; click a
+result and the app takes you to it.
+
+It's the same window, in the same place, with the same shortcut as
+[Money Map's](https://github.com/eagleadams86/financial-plan) and
+[Flow Metrics'](https://github.com/eagleadams86/team-dashboard) — one habit across the family
+rather than three.
+
+The team and PI pickers already find a team and a PI. What Find adds is everything they
+can't reach:
+
+- **A sprint by its label.** `2026.3` lists every sprint in that PI across every team;
+  `S4` lists every team's fourth.
+- **Why a sprint was left out of your averages.** Searching `incident` or `absence` finds the
+  excluded sprints and says which reason each one carries — the one piece of writing in this
+  app that no view puts in front of you.
+- **Where capacity was planned down.** A [planned capacity adjustment](#target-capacity-for-the-next-sprint)
+  hangs off a sprint *slot*, usually one with no sprint recorded in it yet, so `leave` or
+  `holiday` is the only way back to it.
+- **A team you can't quite name**, when the picker has eight of them and you only remember
+  half the word.
+
+Results are capped at 80, and the list says how many more matched so the cap is never
+silent. Nothing is stored: Find reads what's already in the app and writes nothing back.
+
 ## Working Offline
 
 The app keeps a copy of itself on your device, so it opens with no network at all — on a

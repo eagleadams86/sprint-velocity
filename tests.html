@@ -93,7 +93,7 @@ function ok(cond, note) { if (!cond) throw new Error(note || 'expected truthy');
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 364;
+const EXPECTED = 381;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -603,6 +603,140 @@ t('within a group the teams keep the order they were added in', () => {
 t('with no ARTs at all the list comes back untouched', () => {
   eq(names(w.groupTeamsByArt(TEAMS, [])), ['Kestrel', 'Otter', 'Puffin', 'Heron']);
   eq(names(w.groupTeamsByArt(TEAMS, null)), ['Kestrel', 'Otter', 'Puffin', 'Heron']);
+});
+
+group('searchApp — what Find reaches');
+/* Pure over the state it is handed, so this fixture IS the app as far as these
+   go: nothing here touches the live state or the dialog. */
+const S_ARTS = [{ id: 'a1', name: 'Payments ART' }];
+const S_TEAMS = [{ id: 't1', name: 'Kestrel', artId: 'a1' }, { id: 't2', name: 'Otter' }];
+const S_PIS = [{ id: 'p1', name: 'PI 2026.1' }, { id: 'p2', name: 'PI 2026.2' }];
+const S_SPRINTS = [
+  { id: 's1', teamId: 't1', piId: 'p1', sprintNumber: 1, startDate: '2026-01-05', endDate: '2026-01-16' },
+  { id: 's2', teamId: 't1', piId: 'p1', sprintNumber: 2, excluded: true, excludeReason: 'incident' },
+  { id: 's3', teamId: 't2', piId: 'p2', sprintNumber: 1 },
+  { id: 's4', teamId: 't2', piId: null, sprintNumber: 7 },
+];
+const S_PLANS = [
+  { id: 'pl1', teamId: 't1', piId: 'p2', sprintNumber: 3, availability: 50, reason: 'leave' },
+  { id: 'pl2', teamId: 't2', piId: null, sprintNumber: 8, availability: 80 },
+];
+const S_STATE = { teams: S_TEAMS, arts: S_ARTS, pis: S_PIS, sprints: S_SPRINTS, plans: S_PLANS };
+const find = (q, st) => w.__svTestHooks.searchApp(st || S_STATE, q);
+const wheres = (q, st) => find(q, st).hits.map(h => h.where);
+
+t('under two characters finds nothing at all — one letter matches half the app', () => {
+  eq(find('K').hits, []);
+  eq(find('').hits, []);
+  eq(find('  ').hits, []);
+  eq(find(null).hits, []);
+  ok(find('Ke').hits.length > 0, 'two is the minimum, not the first useful length');
+});
+t('a team is found by name, and comes before its own sprints', () => {
+  const out = wheres('kestrel');
+  eq(out[0], 'Kestrel — team', 'the thing a picker would have found is top of the list');
+  ok(out.length > 1, 'and its sprints follow');
+});
+t('matching ignores case', () => {
+  eq(wheres('KESTREL')[0], 'Kestrel — team');
+  eq(wheres('kEsTrEl')[0], 'Kestrel — team');
+});
+t('a team hit names the ART it is on, and a team on none says nothing', () => {
+  eq(find('kestrel').hits[0].snippet, 'on Payments ART');
+  eq(find('otter').hits[0].snippet, '');
+});
+t('an ART is found, counts its teams, and heads for All Teams', () => {
+  const h = find('payments art').hits[0];
+  eq(h.where, 'Payments ART — ART');
+  eq(h.snippet, '1 team', 'singular at one — a count that reads as a typo is a count nobody trusts');
+  eq(h.view, 'teams');
+  eq(h.artId, 'a1');
+});
+t('a PI is found, counts its sprints, and heads for Current PI', () => {
+  const h = find('2026.1').hits[0];
+  eq(h.where, 'PI 2026.1 — PI');
+  eq(h.snippet, '2 sprints recorded');
+  eq(h.view, 'pi');
+  eq(h.piId, 'p1');
+});
+t('a PI name reaches every sprint in it, newest first', () => {
+  eq(wheres('2026.1'), ['PI 2026.1 — PI',
+    'Kestrel — PI 2026.1 · S2', 'Kestrel — PI 2026.1 · S1']);
+});
+t('a sprint outside any PI is labelled without one, not with a placeholder', () => {
+  eq(wheres('otter').filter(x => x.indexOf('S7') > -1), ['Otter — S7']);
+});
+t('an excluded sprint is findable by the REASON it was left out', () => {
+  const h = find('incident').hits;
+  eq(h.length, 1);
+  eq(h[0].where, 'Kestrel — PI 2026.1 · S2');
+  eq(h[0].snippet, 'Left out — ' + w.__svTestHooks.REASONS.incident,
+    'the reason in the app’s own words, not a second copy of them here');
+});
+t('a dated sprint carries its dates, an undated one carries no lone dash', () => {
+  const dated = find('2026.1').hits.find(x => x.where.indexOf('S1') > -1);
+  ok(dated.snippet.length > 1 && dated.snippet !== '—', 'expected a date range, got ' + fmt(dated.snippet));
+  const bare = find('otter').hits.find(x => x.where.indexOf('S7') > -1);
+  eq(bare.snippet, '', 'fmtDateRange answers an em dash for no dates; a row that is one dash is worse than none');
+});
+t('a planned capacity adjustment is findable by its reason', () => {
+  const h = find('leave').hits;
+  eq(h.length, 1);
+  eq(h[0].where, 'Kestrel — PI 2026.2 · S3 capacity');
+  ok(h[0].snippet.indexOf('Planned at 50%') === 0, 'got ' + fmt(h[0].snippet));
+  eq(h[0].sprintNumber, 3);
+});
+t('an adjustment with no reason is not dragged in by a search for "other"', () => {
+  eq(find('other').hits, [], 'reasonLabel answers Other for an unset code — guarded, or every '
+    + 'reasonless adjustment would surface');
+});
+t('the cap holds, and says how much it dropped', () => {
+  const CAP = w.__svTestHooks.SEARCH_CAP;
+  const many = [];
+  for (let i = 0; i < CAP + 5; i++) many.push({ id: 'x' + i, name: 'Widget ' + i });
+  const out = find('widget', { teams: many, arts: [], pis: [], sprints: [], plans: [] });
+  eq(out.hits.length, CAP);
+  eq(out.more, 5, 'counted, so the cap is never silent');
+});
+t('junk state never throws', () => {
+  eq(find('ke', {}).hits, []);
+  eq(find('ke', { teams: 'nope', arts: 42, pis: null, sprints: undefined, plans: 0 }).hits, []);
+});
+t('the header carries a Find button, with the family’s glyph and its shortcut', () => {
+  const btn = w.document.getElementById('findBtn');
+  ok(!!btn, 'the header carries a Find button');
+  eq(btn.querySelector('[aria-hidden="true"]').textContent, '⌕',
+    'wearing the family’s find glyph, hidden from a screen reader');
+  ok(/⌘K/.test(btn.title) && /Ctrl\+K/.test(btn.title),
+    'and saying which keys open it, since nothing on screen otherwise does');
+  /* ── The family's header order ─────────────────────────────────────────────
+     Every app in the family lays this row out the same way, so a control is in
+     the same place whichever one you have open. Right to left: theme · Share ·
+     Back up · ⚙ settings · ☰ manage · the record picker · zoom · find ·
+     everything else, and an app skips whatever it hasn't got.
+
+     Pinned as the WHOLE ROW rather than as one button's position, because that
+     is the invariant — a new control added in the middle is exactly the change
+     that should have to come back here and say where it goes. Flow Metrics and
+     Golf Handicap carry the same sweep. */
+  eq([...btn.parentElement.children].filter(e => e.id).map(e => e.id),
+    ['findBtn', 'teamSel', 'manageBtn', 'targetsBtn', 'dataBtn', 'shareBtn', 'themeSel'],
+    'in the family’s header order, with the theme picker last of all');
+});
+t('the COUNT is the live region, not the results list', () => {
+  const c = w.document.getElementById('searchCount');
+  eq(c.getAttribute('role'), 'status',
+    'a screen reader hears "12 results" per keystroke rather than the whole list re-read');
+  ok(c.classList.contains('sr-only'), 'and does it without putting a running count on screen');
+});
+t('every view a hit can name is a real tab in the app', () => {
+  const labels = w.__svTestHooks.SEARCH_VIEW_LABEL;
+  Object.keys(labels).forEach((v) => {
+    ok(w.document.querySelector('.tab[data-view="' + v + '"]'),
+      'SEARCH_VIEW_LABEL names "' + v + '", which is not a tab — a hit would land nowhere');
+  });
+  const all = [...w.document.querySelectorAll('.tab[data-view]')].map(el => el.dataset.view);
+  all.forEach((v) => ok(labels[v], 'the tab "' + v + '" has no label for the Find list'));
 });
 
 group('coerceShape — the shape guard in front of the same boundary');

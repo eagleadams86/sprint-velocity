@@ -942,6 +942,36 @@ dialog::backdrop { background: rgba(0,0,0,.55); }
    Asked for on 2026-08-22, alongside the share windows — these were all 560px,
    so the same dialog opened narrower here than in the app beside it. */
 #dataDialog, #clearDialog { max-width: 700px; }
+/* ── Find ───────────────────────────────────────────────────────────────────
+   Money Map's Find window, ported here on 2026-08-23 so ⌘K reaches the same
+   thing in whichever app is open. Narrow on purpose, and its own width rather
+   than any of the three above: what it holds is one text box and a column of
+   short lines, and at the base 880px it was the widest thing on screen for the
+   least content in it. The results list and the box above it take the same
+   320px, which is the trade — a hit naming a long team wraps onto a second line
+   rather than running across a window that was mostly empty. */
+#searchDialog { max-width: 360px; }
+/* `max-width` rather than a flat width so it still shrinks with the dialog on
+   a phone. */
+#searchBox { width: 320px; max-width: 100%; margin-top: 4px; }
+.searchresults { max-height: 50vh; overflow-y: auto; margin-top: 10px; }
+/* A hit is a full-width button so the keyboard reaches it — Tab walks the list,
+   Enter opens. Left-aligned prose, not button chrome. */
+.searchresults .hit { display: block; width: 100%; text-align: left;
+  background: none; border: none; border-bottom: 1px solid var(--border);
+  padding: 8px 10px; cursor: pointer; color: var(--text-primary);
+  font-size: var(--fs-xs); border-radius: 0; }
+.searchresults .hit:hover, .searchresults .hit:focus-visible {
+  background: var(--accent-bg); }
+.searchresults .hitwhere { font-weight: 600; display: block; }
+/* --text-secondary, not --text-muted: this line sits on --accent-bg when the
+   hit is hovered or focused, and muted fails AA there. 12px is also the pack's
+   floor for quiet text. */
+.searchresults .hitsnip { display: block; color: var(--text-secondary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.searchresults .hittab { display: block; font-size: var(--fs-sm);
+  color: var(--text-secondary); text-transform: uppercase; letter-spacing: .04em;
+  margin-top: 2px; }
 /* Narrower than the sprint form for the same reason Back up is: this dialog's
    widest row is a sprint label, a small number box and a percent sign. At 880px
    the two panels below ran the full width one under the other and the window was
@@ -1288,6 +1318,10 @@ main:focus { outline: none; }
          narrow window. Starting hidden costs nothing; growing does. (A sign-in
          button used to sit at the end of this row and was the worse case, since it
          waited on a network round trip; sync was removed on 2026-08-20.) -->
+    <!-- Find is "everything else" in the family's header order below, so it sits
+         to the LEFT of the record picker, at the end of the row that grows into
+         space rather than shoving the furniture sideways. -->
+    <button class="btn small" id="findBtn" type="button" title="Search your teams, ARTs, PIs and sprints (⌘K / Ctrl+K)"><span aria-hidden="true">⌕</span> Find</button>
     <label class="sr-only" for="teamSel">Team</label>
     <select id="teamSel" title="Which team you're looking at" hidden></select>
     <!-- Every button in this row wears a glyph in front of its word, the way Money
@@ -1590,6 +1624,20 @@ main:focus { outline: none; }
 </dialog>
 
 <!-- ── Teams & PIs ───────────────────────────────────────────────────────── -->
+<!-- ── Find ──────────────────────────────────────────────────────────────── -->
+<dialog id="searchDialog" aria-labelledby="searchDialogTitle">
+  <h3 id="searchDialogTitle">Find</h3>
+  <p class="sub">Your teams, the trains they are on, every PI and every sprint —
+    including why one was left out of an average and where capacity was planned down.</p>
+  <label class="sr-only" for="searchBox">Search</label>
+  <input type="text" id="searchBox" autocomplete="off" spellcheck="false"
+    placeholder="At least two characters…">
+  <!-- The COUNT is the live region, not the list: a screen reader hears
+       "12 results" per keystroke rather than the whole list re-read. -->
+  <span id="searchCount" class="sr-only" role="status"></span>
+  <div id="searchResults" class="searchresults"></div>
+</dialog>
+
 <dialog id="manageDialog" aria-labelledby="manageDialogTitle">
   <h3 id="manageDialogTitle">Teams, ARTs &amp; PIs</h3>
   <div class="row spread"><strong style="font-size:var(--fs-sm)">Teams</strong>
@@ -8078,7 +8126,173 @@ function closeOnBackdropClick(dlg) {
    to carry an exception for the sync reconciliation dialog, which refused to be
    dismissed; it went with sync on 2026-08-20.) */
 ['sprintDialog', 'manageDialog', 'dataDialog', 'clearDialog', 'helpDialog', 'adjustDialog',
- 'bvDialog', 'delPiDialog'].forEach(id => closeOnBackdropClick(F(id)));
+ 'bvDialog', 'delPiDialog', 'searchDialog'].forEach(id => closeOnBackdropClick(F(id)));
+
+/* ── Find ───────────────────────────────────────────────────────────────────
+   Money Map has had this since it grew past what a picker can hold, and this
+   app went the same way: several teams, several trains, a PI list that only
+   grows, and six sprints in each of them. The pickers name a team and a PI;
+   nothing named the SPRINT you half-remember, or told you which of eight teams
+   had the one you took out of the rolling average and why.
+
+   Pure over the state it is handed, so the matching is pinned by tests and the
+   dialog below renders whatever this returns — the same arrangement as
+   `searchPlan` in Money Map, down to the two-character minimum (one character
+   matches half the app) and the hard cap, counted so the cap is never silent.
+
+   Nothing here reads `state` through the by-id helpers above, which are bound
+   to the live one: a search over a fixture has to be a search over THAT fixture.
+   The sprint label is rebuilt from the lists in hand for the same reason — it is
+   `sprintLabel`'s wording over the state it was given. */
+const SEARCH_CAP = 80;
+const SEARCH_VIEW_LABEL = { sprint: 'Sprint', pi: 'Current PI', rolling: 'Rolling 5',
+  history: 'History', trend: 'PI Trend', art: 'ART PI', teams: 'All Teams' };
+function searchApp(st, query) {
+  const q = String(query || '').trim().toLowerCase();
+  if (q.length < 2) return { hits: [], more: 0 };
+  const hits = [];
+  let dropped = 0;
+  const has = (t) => t && String(t).toLowerCase().includes(q);
+  const push = (r) => { if (hits.length < SEARCH_CAP) hits.push(r); else dropped++; };
+  const teams = Array.isArray(st.teams) ? st.teams : [];
+  const arts  = Array.isArray(st.arts)  ? st.arts  : [];
+  const pis   = Array.isArray(st.pis)   ? st.pis   : [];
+  const sprints = Array.isArray(st.sprints) ? st.sprints : [];
+  const plans   = Array.isArray(st.plans)   ? st.plans   : [];
+  const teamName = (id) => (teams.find(t => t.id === id) || {}).name || '';
+  const artName  = (id) => (arts.find(a => a.id === id) || {}).name || '';
+  const piName   = (id) => (pis.find(p => p.id === id) || {}).name || '';
+  /* sprintLabel's three cases, over the state handed in. */
+  const label = (sp) => (sp.piId ? (piName(sp.piId) || 'PI?') + ' · S' : 'S') + sp.sprintNumber;
+
+  /* Teams, trains and PIs first, and in that order: they are the things a
+     picker would have found, so a reader who typed a team's name wants the team
+     at the top rather than eighteen of its sprints above it. */
+  for (const t of teams)
+    if (has(t.name))
+      push({ view: 'sprint', teamId: t.id, where: t.name + ' — team',
+             snippet: t.artId ? 'on ' + artName(t.artId) : '', kind: 'Team' });
+  for (const a of arts)
+    if (has(a.name)) {
+      const n = teams.filter(t => t.artId === a.id).length;
+      push({ view: 'teams', artId: a.id, where: a.name + ' — ART',
+             snippet: n + ' team' + (n === 1 ? '' : 's'), kind: 'ART' });
+    }
+  for (const p of pis)
+    if (has(p.name)) {
+      const n = sprints.filter(x => x.piId === p.id).length;
+      push({ view: 'pi', piId: p.id, where: p.name + ' — PI',
+             snippet: n + ' sprint' + (n === 1 ? '' : 's') + ' recorded', kind: 'PI' });
+    }
+  /* Newest first, which for a list only ever appended to is the reverse of the
+     order it is stored in. A sprint matches on its own label — so "2026.3"
+     reaches every sprint in that PI, and "S4" every team's fourth — on its
+     team's name, and on the REASON it was excluded, which is the one thing in
+     this app written down somewhere no picker goes. */
+  for (const sp of sprints.slice().reverse()) {
+    const why = sp.excluded ? reasonLabel(sp.excludeReason) : '';
+    if (!has(label(sp)) && !has(teamName(sp.teamId)) && !has(why)) continue;
+    push({ view: 'sprint', teamId: sp.teamId, piId: sp.piId,
+           sprintNumber: sp.sprintNumber,
+           where: teamName(sp.teamId) + ' — ' + label(sp),
+           /* fmtDateRange answers '—' for a sprint with neither date, and a
+              row whose whole second line is one dash is worse than no second
+              line at all. */
+           snippet: why ? 'Left out — ' + why
+             : (sp.startDate || sp.endDate) ? fmtDateRange(sp.startDate, sp.endDate) : '',
+           kind: 'Sprint' });
+  }
+  /* A planned capacity adjustment is the other written-down WHY, and it hangs
+     off a sprint SLOT rather than a record — usually one with no sprint in it
+     yet — so it is findable here or nowhere. */
+  for (const pl of plans) {
+    /* Guarded rather than passed straight to reasonLabel, which answers 'Other'
+       for a code that isn't set — and a search for "other" would then reach
+       every adjustment that has no reason at all. */
+    const why = pl.reason ? reasonLabel(pl.reason) : '';
+    if (!has(why) && !has(teamName(pl.teamId))) continue;
+    push({ view: 'sprint', teamId: pl.teamId, piId: pl.piId,
+           sprintNumber: pl.sprintNumber,
+           where: teamName(pl.teamId) + ' — '
+             + (pl.piId ? (piName(pl.piId) || 'PI?') + ' · S' : 'S') + pl.sprintNumber
+             + ' capacity',
+           snippet: 'Planned at ' + pl.availability + '%' + (why ? ' — ' + why : ''),
+           kind: 'Capacity' });
+  }
+  return { hits, more: dropped };
+}
+
+let searchHits = [];
+function renderSearchResults() {
+  const box = F('searchBox'), out = F('searchResults');
+  const { hits, more } = searchApp(state, box.value);
+  searchHits = hits;
+  /* Announced through the count span (role="status") — the toast pattern's
+     quiet cousin. The list itself stays out of the live region. */
+  const count = F('searchCount');
+  if (count) count.textContent = box.value.trim().length < 2 ? ''
+    : hits.length ? hits.length + (more ? ' of ' + (hits.length + more) : '')
+        + ' result' + (hits.length === 1 && !more ? '' : 's')
+    : 'Nothing matches';
+  out.innerHTML = hits.length
+    ? hits.map((h, i) => '<button type="button" class="hit" data-hit="' + i + '">'
+        + '<span class="hitwhere">' + esc(h.where) + '</span>'
+        + (h.snippet ? '<span class="hitsnip">' + esc(String(h.snippet).slice(0, 120)) + '</span>' : '')
+        + '<span class="hittab">' + esc(SEARCH_VIEW_LABEL[h.view] || h.view)
+        + '</span></button>').join('')
+      + (more ? '<p class="sub" style="padding:8px 10px">…and ' + more
+          + ' more — narrow the search.</p>' : '')
+    : box.value.trim().length >= 2
+      ? '<p class="sub" style="padding:8px 10px">Nothing matches.</p>'
+      : '<p class="sub" style="padding:8px 10px">Type at least two characters.</p>';
+}
+/* Set what the hit points at, then let renderTabs() have the last word on the
+   view: a PI hit asks for Current PI, and if the team it landed on has nothing
+   in that PI the tab isn't on offer, so the fallback to Sprint happens by itself
+   rather than needing a second copy of those rules here. */
+function goToSearchHit(h) {
+  F('searchDialog').close();
+  if (h.teamId && teamById(h.teamId)) state.settings.activeTeamId = h.teamId;
+  if (h.artId) state.settings.artFilter = h.artId;
+  if ('piId' in h) state.settings.activePiId = piKey(h.piId);
+  if (h.sprintNumber) state.settings.activeSprintNum = h.sprintNumber;
+  /* A PI hit carries no team of its own, so it lands on one that actually has
+     sprints in that PI — otherwise Current PI opens on six empty slots and
+     reads as a miss. */
+  if (h.kind === 'PI' && !(state.sprints || []).some(
+      x => x.piId === h.piId && x.teamId === state.settings.activeTeamId)) {
+    const other = (state.sprints || []).find(x => x.piId === h.piId);
+    if (other) state.settings.activeTeamId = other.teamId;
+  }
+  state.settings.view = h.view;
+  save();
+  render();
+}
+F('findBtn').onclick = () => {
+  const dlg = F('searchDialog');
+  /* Through openModal like every other dialog — and the focus() below then
+     takes it back, on a phone as much as anywhere. Typing IS the reason this
+     window opens, so it is the one place the keyboard should arrive with it. */
+  openModal(dlg);
+  F('searchBox').value = '';
+  renderSearchResults();
+  F('searchBox').focus();
+};
+F('searchBox').addEventListener('input', renderSearchResults);
+F('searchResults').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-hit]');
+  if (btn && searchHits[+btn.dataset.hit]) goToSearchHit(searchHits[+btn.dataset.hit]);
+});
+document.addEventListener('keydown', (e) => {
+  if ((e.key !== 'k' && e.key !== 'K') || !(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey)
+    return;
+  /* Never over the top of another window, and a second press closes it. */
+  const open = document.querySelector('dialog[open]');
+  if (open && open.id !== 'searchDialog') return;
+  e.preventDefault();
+  if (open) open.close();
+  else F('findBtn').onclick();
+});
 
 /* Fill a reason <select> from the fixed code list. The label comes from REASONS
    and never from the stored value, so a code that arrived in a share link can
@@ -10388,6 +10602,7 @@ async function openSharedView() {
 function renderShareError(reason) {
   document.querySelector('.tabs').hidden = true;
   document.getElementById('teamSel').hidden = true;
+  document.getElementById('findBtn').hidden = true;   // nothing loaded to search
   viewsEl.innerHTML = reason === 'newer' ? `
     <div class="card empty">
       <h2>This Link Was Made by a Newer Version</h2>
@@ -11165,6 +11380,9 @@ if (viewOnly) {
    window properties; this exposes the consts the tests need. Nothing in the
    app reads it. */
 window.__svTestHooks = { raisesKeyboard, reorderById,
+  /* Find: the matcher and its cap, so the suite pins what a query reaches over
+     a fixture rather than over whatever happens to be in the browser. */
+  searchApp, SEARCH_CAP, SEARCH_VIEW_LABEL,
   fmtPct, fmtDate, ART_NONE, b64urlEncode, REASONS, AVAILABILITY_REASONS, EXCLUDE_REASONS, isCounted,
   /* The targets themselves, so the suite pins every boundary against the app's own
      numbers rather than against eight copied out of them — and `tgt` rather than a
