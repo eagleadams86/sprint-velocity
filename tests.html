@@ -4285,9 +4285,11 @@ t('undoable() puts back every collection a delete reaches', () => {
    arrives in and never the state of a browser used to develop the app. Nothing
    threw and nothing logged; the colours were just quietly the wrong theme's. */
 group('Auto reaches this page\u2019s own tokens, not just the pack\u2019s');
+/* `--shadow` was the eleventh entry here until 2026-08-23, when the family
+   dropped elevation shadows outright — see the note in the app's :root block. */
 const LOCAL_TOKENS = ['--c-committed', '--c-completed', '--c-velocity',
                       '--c-added', '--c-removed', '--c-carry',
-                      '--band-green', '--band-yellow', '--band-red', '--shadow'];
+                      '--band-green', '--band-yellow', '--band-red'];
 /* A regex built from a token NAME. This used to escape hyphens and nothing else,
    which is precisely backwards — `-` is literal outside a character class, while
    `.`, `$`, `\` and the rest are not. CodeQL called it (js/incomplete-sanitization,

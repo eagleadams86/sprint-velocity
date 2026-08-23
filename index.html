@@ -140,7 +140,6 @@
   --band-green:   rgba(11,122,103,.09);
   --band-yellow:  rgba(160,136,10,.22);
   --band-red:     rgba(160,34,47,.14);
-  --shadow: 0 1px 2px rgba(0,0,0,.06), 0 4px 12px rgba(0,0,0,.04);
   --chrome-h: 30px;    /* small header buttons + the team picker */
   --control-h: 38.5px; /* full-size buttons + the toolbar pickers beside them */
   /* ONE number, read by BOTH .wrap/.shell and .headbar. They have to be the same
@@ -176,7 +175,6 @@
   --band-green:   rgba(114,254,132,.09);
   --band-yellow:  rgba(239,190,57,.16);
   --band-red:     rgba(251,120,116,.15);
-  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.3);
 }
 [data-theme="midnight"] {
   color-scheme: dark;
@@ -189,7 +187,6 @@
   --band-green:   rgba(114,254,132,.09);
   --band-yellow:  rgba(239,190,57,.16);
   --band-red:     rgba(251,120,116,.15);
-  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.3);
 }
 [data-theme="sepia"] {
   color-scheme: light;
@@ -202,7 +199,6 @@
   --band-green:   rgba(8,114,86,.13);
   --band-yellow:  rgba(152,129,8,.22);
   --band-red:     rgba(155,39,50,.13);
-  --shadow: 0 1px 2px rgba(90,70,30,.10), 0 4px 12px rgba(90,70,30,.07);
 }
 
 /* ── Auto (2026-08-23) ───────────────────────────────────────────────────────
@@ -247,7 +243,6 @@
     --band-green:   rgba(114,254,132,.09);
     --band-yellow:  rgba(239,190,57,.16);
     --band-red:     rgba(251,120,116,.15);
-    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.3);
   }
 }
 
@@ -530,7 +525,7 @@ select.ctl:hover { border-color: var(--text-muted); }
 /* ── Cards, tiles ───────────────────────────────────────────────────────── */
 .card {
   background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 18px; margin-bottom: 18px; box-shadow: var(--shadow);
+  border-radius: var(--radius); padding: 18px; margin-bottom: 18px;
 }
 /* SEMIBOLD, not the browser's own bold. Headings had no weight declared here,
    so an h2 fell through to the UA default of 700 — while Flow Metrics, Golf
@@ -988,7 +983,7 @@ dialog {
   background: var(--bg-card); color: var(--text-primary);
   /* Wide enough that the four PI/date fields and the four change-during-the-sprint
      fields each sit on one line; still shrinks to fit a phone. */
-  padding: 20px; max-width: 880px; width: calc(100% - 32px); box-shadow: var(--shadow);
+  padding: 20px; max-width: 880px; width: calc(100% - 32px);
   /* A tall dialog on a short laptop screen opens already scrolled past its own
      heading — showModal() focuses the first control and drags it into view. Cap
      the height so the scrolling happens inside a dialog that fits. Mirrored from
@@ -1280,13 +1275,10 @@ footer .applink { margin: 0 19px 0 auto; }
   header { position: static !important; border: 0 !important; padding: 0 !important; }
   .brand { font-size: 14pt !important; }
   .brand span { display: none; }   /* the strapline is branding, not information */
-  /* A card printed on a card is a border nobody needs; the outline below is enough. */
-  .card { box-shadow: none !important; }
-
   /* A card is the unit a reader thinks in, so it is the unit that shouldn't be cut
      in half. Tables keep their heading row on every page they run onto. */
   .card { break-inside: avoid; page-break-inside: avoid;
-    border: 1px solid #999 !important; box-shadow: none !important; margin-bottom: 6mm; }
+    border: 1px solid #999 !important; margin-bottom: 6mm; }
   .chartbox { break-inside: avoid; page-break-inside: avoid; }
   thead { display: table-header-group; }
   tr { break-inside: avoid; page-break-inside: avoid; }
