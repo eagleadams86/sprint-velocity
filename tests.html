@@ -2313,7 +2313,16 @@ group('Offline — the service worker');
    runner walks the tests in declaration order. The newer-build group below
    pins index.html too and reuses APP_SRC rather than fetching it again. */
 let SW_SRC = null, KILL_SRC = null, APP_SRC = null;
-const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+/* Loop until the source stops changing. A SINGLE pass is fooled by a comment that
+   contains a comment opener: one sweep over `/* a /* b */` leaves a live `/*` behind,
+   and a helper that can be wrong about what is commented out is one that can miss a
+   live off-origin script — which is the whole reason these suites read the source. */
+const stripComments = (s) => {
+  let out = s, prev;
+  do { prev = out; out = out.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, ''); }
+  while (out !== prev);
+  return out;
+};
 
 t('sw.js, its kill switch and the app all read back as text', async () => {
   const [a, b, c] = await Promise.all([bustFetch('sw.js'), bustFetch('sw-kill.js'), bustFetch('index.html')]);
@@ -2497,8 +2506,9 @@ t('the dot is the family circle, declared property by property', () => {
     'an outlined circle, not the filled pill two apps drew until 2026-08-23');
   ok(/\.tile-help \{[^}]*margin-left: 7px;/.test(APP_SRC),
     'off the word it follows — standing preference in every app');
-  ok(/\.tile-help::after \{ content: ''; position: absolute; inset: -4px; \}/.test(APP_SRC),
-    "the 24px tap target, WCAG 2.2's, grown from the target rather than the circle");
+  ok(/\.tile-help::after \{ content: ''; position: absolute; inset: -5px; \}/.test(APP_SRC),
+    "a true 24px tap target: -5px, because `inset` grows from the PADDING box "
+       + "and the 1px border made -4px a 22px target");
   ok(/\.tile-help:hover \{ background: var\(--surface-alt\); border-color: var\(--text-secondary\);/
     .test(APP_SRC),
     'and the hover fills rather than borrowing --focus-border, which would say '
