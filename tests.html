@@ -93,7 +93,7 @@ function ok(cond, note) { if (!cond) throw new Error(note || 'expected truthy');
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 387;
+const EXPECTED = 397;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -3714,6 +3714,174 @@ t('a small piece that fits inside the PI is reported as fitting', () => {
     eq(f.fitsPi, true, 'one sprint of work, one delivery slot left');
     eq(f.missesPi, false);
   });
+});
+
+group('forecast — a velocity you type, for a team that has not got one');
+/* Asked for by Charles (2026-08-26), after the same gap was closed in Flow
+   Metrics. The card rests on nextSprintTarget, which rests on finished sprints —
+   and the team most often asked "how long will this take?" is the one that has
+   not started. The rate can be STATED instead of measured, dealt exactly where
+   the mean and the floor would have gone.
+
+   Every case here resets the three module-level lets through the hook, because
+   they are shared by every forecast test in this file and a rate left behind
+   would silently re-answer all of them. */
+const typed = (lo, hi, on) => w.__svTestHooks.svTypedRate(lo, hi, on);
+t('the tick DEFAULTS to the data: on with no rate to measure, off with one', () => {
+  withState(capacityFixture(), () => {
+    typed();
+    eq(w.__svTestHooks.forecastHasRate('t1', false), true, 'the fixture has a rate');
+    eq(w.__svTestHooks.forecastTypedTicked('t1', false), false, 'so the box arrives unticked');
+    eq(w.__svTestHooks.forecastTypedTicked('nobody', false), true,
+      'and a team with no window at all arrives ticked — it is the team this exists for');
+  });
+  const none = capacityFixture();
+  none.sprints.forEach(sp => { sp.committedCompleted = 0; });
+  withState(none, () => {
+    typed();
+    eq(w.__svTestHooks.forecastHasRate('t1', false), false,
+      'sprints that finished none of their commitment are no rate either');
+    eq(w.__svTestHooks.forecastTypedTicked('t1', false), true, 'so that team arrives ticked too');
+  });
+  typed();
+});
+t('a PRESS beats the default, in both directions', () => {
+  /* Three states, and this is the whole reason for the third: a plain boolean
+     cannot tell an unticked box from an untouched one, and a reader who unticks
+     it over a brand-new team must keep it unticked. */
+  withState(capacityFixture(), () => {
+    typed(undefined, undefined, true);
+    eq(w.__svTestHooks.forecastTypedTicked('t1', false), true,
+      'ticked by hand over a team WITH history, and it stays ticked');
+    typed(undefined, undefined, false);
+    eq(w.__svTestHooks.forecastTypedTicked('nobody', false), false,
+      'unticked by hand over a team with none, and it stays unticked');
+  });
+  typed();
+});
+t('a ticked box with nothing in it is not a rate', () => {
+  withState(capacityFixture(), () => {
+    typed(undefined, undefined, true);
+    eq(w.__svTestHooks.forecastTypedRange(), null, 'no numbers, no range');
+    const f = w.forecast('t1', 100, false);
+    eq(f.typed, false, 'so the forecast falls back to the history it does have');
+    eq(f.fast, 4, 'and answers exactly as it did before');
+  });
+  typed();
+});
+t('a typed rate is dealt where the mean and the floor would have gone', () => {
+  withState(capacityFixture(), () => {
+    typed(25, 35, true);
+    const f = w.forecast('t1', 100, false);
+    eq(f.typed, true);
+    approx(f.meanRate, 35, 'the optimistic end');
+    approx(f.floorRate, 25, 'and the cautious one');
+    eq(f.fast, 3, 'ceil(100 / 35)');
+    eq(f.slow, 4, 'ceil(100 / 25)');
+  });
+  typed();
+});
+t('the ends are sorted, so a range typed backwards still reads the right way round', () => {
+  withState(capacityFixture(), () => {
+    typed(35, 25, true);
+    const f = w.forecast('t1', 100, false);
+    eq(f.fast, 3); eq(f.slow, 4, 'the same answer as typing it the other way');
+  });
+  typed();
+});
+t('one number is a flat rate — the range simply closes', () => {
+  withState(capacityFixture(), () => {
+    typed(20, undefined, true);
+    const f = w.forecast('t1', 100, false);
+    eq(f.fast, 5); eq(f.slow, 5);
+    typed(undefined, 20, true);
+    eq(w.forecast('t1', 100, false).fast, 5, 'either box on its own');
+  });
+  typed();
+});
+t('it answers for a team with NO finished sprints at all', () => {
+  /* The whole point. Without a typed rate this is null, and was the only answer
+     available to a team that had not started. */
+  withState(capacityFixture(), () => {
+    typed();
+    eq(w.forecast('nobody', 100, false), null, 'no history and no typed rate, still null');
+    typed(25, 35);
+    const f = w.forecast('nobody', 100, false);
+    eq(!!f, true, 'with a rate typed it answers');
+    eq(f.typed, true);
+    eq(f.fast, 3); eq(f.slow, 4);
+    /* No slot, so no dates and no PI to fit inside — stated as null rather than
+       guessed at. A team with no sprints has no sprint being planned. */
+    eq(f.fastEnd, null, 'no dates: there is no slot being planned');
+    eq(f.slotsLeftInPi, null);
+    eq(f.sprints, 0, 'and it says outright that no sprint is behind it');
+    eq(f.thin, false, 'the two history caveats are OFF rather than answered from '
+      + 'a team the forecast did not use');
+    eq(f.steady, true);
+  });
+  typed();
+});
+t('a standing availability is NOT applied on top of a typed rate', () => {
+  /* The same refusal the app makes everywhere else: a rate you state is already
+     a statement about the team as it will be, and knocking it down again would
+     allow for the same absence twice. */
+  const standing = capacityFixture();
+  standing.teams = [{ id: 't1', name: 'Team One', availability: 50, availabilityReason: 'teamChange' }];
+  withState(standing, () => {
+    typed();
+    approx(w.forecast('t1', 100, false).meanRate, 12.5, 'measured: the 50% holds');
+    typed(25, 25, true);
+    const f = w.forecast('t1', 100, false);
+    approx(f.meanRate, 25, 'typed: 25 means 25, not 12.5');
+    eq(f.lastingAdjustment, null, 'and no caveat claims an adjustment that did not happen');
+    eq(f.oneOffIgnored, null);
+  });
+  typed();
+});
+t('the card is REACHABLE for a team with nothing recorded', () => {
+  /* The other half, and the half the same bug in Flow Metrics was made of: a
+     control that answers for a team with no history is no use if only a team
+     with history can get to it. Rolling 5 hid itself below one recorded sprint,
+     and the forecast card hid itself below one finished one — so the door was
+     behind the room twice over. */
+  withState({ teams: [{ id: 'bare', name: 'Not Started' }], pis: [], sprints: [] }, () => {
+    const st = w.svGet();
+    const prevTeam = st.settings.activeTeam, prevView = st.settings.view;
+    st.settings.activeTeam = 'bare';
+    st.settings.view = 'rolling';
+    typed();
+    try {
+      w.render();
+      const tab = w.document.querySelector('.tab[data-view="rolling"]');
+      eq(tab.hidden, false, 'Rolling 5 stays on offer — one card on it still answers');
+      ok(!!w.document.getElementById('forecastTyped'),
+        'and the empty state carries the forecast card');
+      eq(w.document.getElementById('forecastTyped').checked, true,
+        'with the tick already on, because this team has no rate to measure');
+      ok(!!w.document.getElementById('forecastRateLo'), 'and the boxes open');
+      /* Everything else on that view really is gone — the card is an exception,
+         not a reopening of the whole view. */
+      const heads = [...w.document.querySelectorAll('#views .card h2')].map(h => h.textContent.trim());
+      eq(heads.length, 2, 'the empty state and the forecast, and nothing else');
+    } finally {
+      st.settings.activeTeam = prevTeam;
+      st.settings.view = prevView;
+      typed();
+      w.render();
+    }
+  });
+});
+t('an absurd rate is clamped rather than believed', () => {
+  withState(capacityFixture(), () => {
+    typed(999999, 999999, true);
+    const f = w.forecast('t1', 100, false);
+    approx(f.meanRate, 1000, 'above a thousand a sprint it is a typo, not a plan');
+    typed(0, 0, true);
+    eq(w.forecast('t1', 100, false).typed, false, 'and zero is not a rate at all');
+    typed('banana', 'banana', true);
+    eq(w.forecast('t1', 100, false).typed, false, 'nor is anything that is not a number');
+  });
+  typed();
 });
 
 group('piTrend — one row per PI, for the Inspect & Adapt view');

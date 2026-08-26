@@ -2381,6 +2381,8 @@ const MIN_TREND_POINTS = 3;
    the team, the backlog and the estimate scale will all have moved. The card keeps
    the sprint count and drops the calendar dates beyond it. */
 const FORECAST_HORIZON = SPRINTS_PER_PI * 2;
+/* Above this a typed velocity is not a plan, it is a typo. */
+const FORECAST_RATE_MAX = 1000;
 
 const CLEARED_PCT       = 95;
 const HEADROOM_MIN_EXTRA = 1;
@@ -3333,27 +3335,38 @@ function groupTeamsByArt(teams, arts) {
    own second-lowest result (see `hasFloor`). */
 function forecast(teamId, points, includeSix) {
   const t = nextSprintTarget(teamId, includeSix);
-  if (!t || !(points > 0)) return null;
+  /* A TYPED rate supplies its own pace, so the history requirement does not
+     reach it — that is the whole point of the control, and `t` being null (a
+     team with no finished sprints at all) stops being the end of the matter.
+     Everything below that reads `t` is guarded, and the card says which of the
+     two it drew from. */
+  const typed = forecastTypedRate(teamId, includeSix);
+  if ((!t && !typed) || !(points > 0)) return null;
 
   /* A STANDING availability figure is a lasting change — someone left — so it
      holds across the whole horizon. A one-off against a single slot is leave next
      sprint, and stretching that over ten sprints would forecast a team as
      permanently short-staffed because of one fortnight's holiday. The card says
-     which it did. */
-  const lasting = t.availabilitySource === 'team' ? t.availability / 100 : 1;
+     which it did.
+
+     NOT applied to a typed rate. "We think we will finish 30 a sprint" is already
+     a statement about the team as it will be; knocking it down for the standing
+     availability on top would apply the same allowance twice, which is the same
+     guess-times-a-guess this app refuses elsewhere. */
+  const lasting = (!typed && t && t.availabilitySource === 'team') ? t.availability / 100 : 1;
   /* Kept apart by WHAT THEY ARE rather than by which is bigger, because the card
      has to name each end ("the 20 they average", "the 17 they hit in 3 of the
      last 4") and those two sentences are not interchangeable. Which one is the
      faster end is then just a comparison — and it does swap round for a team
      whose mean sits below its own second-lowest result (see `hasFloor`). */
-  const meanRate = t.planningBase * lasting;
-  const floorRate = t.reliableBase * lasting;
+  const meanRate = typed ? typed.fast : t.planningBase * lasting;
+  const floorRate = typed ? typed.slow : t.reliableBase * lasting;
   const fastRate = Math.max(meanRate, floorRate);
   const slowRate = Math.min(meanRate, floorRate);
   /* A team that has finished none of its commitment has no rate to divide by.
      Zero sprints would be a lie and Infinity is not a forecast, so the card says
      it can't answer rather than printing something. */
-  if (!(slowRate > 0)) return { points, impossible: true, sprints: t.sprints };
+  if (!(slowRate > 0)) return { points, impossible: true, sprints: t ? t.sprints : 0 };
 
   /* Sprints are whole. You do not finish in 5.3 of them, you finish in 6. */
   const fast = Math.ceil(points / fastRate);
@@ -3376,7 +3389,9 @@ function forecast(teamId, points, includeSix) {
      every one delivered under-states the finish date by a fortnight each time.
      Walking the slots is the only honest way: how many land in the horizon
      depends on which slot the team is starting from. */
-  const slot = t.slot;
+  /* Null for a team with no finished sprints: there is no slot being planned, so
+     no dates, no PI to fit inside, and the card simply answers in sprints. */
+  const slot = t ? t.slot : null;
   const calendarSlots = (n) => {
     /* `!slot.piId` too: on the unassigned track every slot delivers, because
        there is no IP sprint out there to step over. */
@@ -3424,7 +3439,10 @@ function forecast(teamId, points, includeSix) {
     /* So the card can say "3 of the last 4" rather than "all but one" — which is
        simply wrong under three sprints, where the floor is the lowest result the
        team has and they have therefore hit it every time. */
-    reliableMet: t.reliableMet,
+    /* Which of the two the answer was dealt from, stated on the object so every
+       sentence the card writes reads from one place. */
+    typed: !!typed,
+    reliableMet: t ? t.reliableMet : null,
     /* Whole weeks, from the team's own stride rather than an assumed fortnight. */
     fastWeeks: c && !beyondHorizon ? Math.round(calendarSlots(fast) * c.stride / 7) : null,
     slowWeeks: c && !beyondHorizon ? Math.round(calendarSlots(slow) * c.stride / 7) : null,
@@ -3437,9 +3455,17 @@ function forecast(teamId, points, includeSix) {
     missesPi: slotsLeftInPi !== null && fast > slotsLeftInPi,
     fitsPi: slotsLeftInPi !== null && slow <= slotsLeftInPi,
     /* Carried straight through so the card's caveats read from one object. */
-    lastingAdjustment: t.availabilitySource === 'team' ? t.availability : null,
-    oneOffIgnored: t.availabilitySource === 'sprint' ? t.availability : null,
-    sprints: t.sprints, thin: t.thin, steady: t.steady, spread: t.spread,
+    /* Both null under a typed rate: neither was applied, and a caveat about an
+       adjustment that did not happen is worse than no caveat. */
+    lastingAdjustment: (!typed && t && t.availabilitySource === 'team') ? t.availability : null,
+    oneOffIgnored: (!typed && t && t.availabilitySource === 'sprint') ? t.availability : null,
+    sprints: t ? t.sprints : 0,
+    /* A typed rate has no history to be thin or unsteady, so the two caveats
+       that describe one are switched off rather than answered from a team the
+       forecast did not use. */
+    thin: !typed && !!t && t.thin,
+    steady: typed ? true : (!!t && t.steady),
+    spread: t ? t.spread : null,
     beyondHorizon,
     impossible: false
   };
@@ -5646,7 +5672,15 @@ function renderTabs() {
        of six empty slots and a picker with nothing in it — and the tab row is the
        one place that decides what is on offer, so it decides this too. */
     pi:      state.pis.length > 0 && !!team && teamSprints(team.id).some(x => !!x.piId),
-    rolling: !!team && teamSprints(team.id).length > 0,
+    /* ── Rolling 5 is offered to a team with nothing recorded ────────────────
+       The rule this row keeps is "a tab is hidden because the view behind it has
+       nothing to say", and that stopped being true of this one: the forecast
+       card answers from a velocity you TYPE, which needs no recorded sprint, and
+       is the card the team with no history most needs. Hidden, it could only be
+       reached by a team that did not need it — the control behind the door it
+       opens. Everything else on the view still steps aside; see the empty state
+       in renderRollingView, which now carries the forecast and nothing else. */
+    rolling: !!team,
     /* Only once there is MORE history than Rolling ${ROLLING_WINDOW} already shows.
        Below that the two views are the same sprints under different headings, and a
        tab that duplicates its neighbour teaches a reader that the tabs don't mean
@@ -6315,8 +6349,16 @@ function renderRollingView() {
         ? `${esc(team.name)} has ${esc(openSprintsNote(team.id))} recorded, but nothing finished — the
            trend and the capacity target start once a sprint completes.`
         : `Add some sprint data for ${esc(team.name)} and the rolling trend will build itself.`}</p>
-    </div>`;
+    </div>`
+    /* ── The one card that still works here ──────────────────────────────────
+       Everything else on this view is an average of sprints that do not exist.
+       The forecast is not: a typed velocity supplies its own rate, and the team
+       with no history is the team most often asked how long something will take.
+       Left out, the control that exists for exactly this team could only ever be
+       reached by a team that did not need it. */
+    + forecastCard(team, includeSix);
     wireRollingToolbar();
+    wireForecast(team, includeSix);
     return;
   }
 
@@ -6560,14 +6602,75 @@ function renderRollingView() {
    result region on its own, so the caret stays in the box. */
 let forecastPoints = '';
 
+/* ── A velocity you type, for a team that has not got one ────────────────────
+   The card above rests on `nextSprintTarget`, which rests on finished sprints.
+   A team that has not started has none — and is the team most often asked how
+   long something will take. So the rate can be stated instead of measured: two
+   numbers, an optimistic end and a cautious one, dealt exactly where the mean
+   and the floor would have gone.
+
+   IN MEMORY, NOT STORED, like `forecastPoints` beside it and for the reason
+   given there: a rate typed weeks ago and forgotten is worse than a box that
+   asks again. Nothing here touches the saved state or its schema.
+
+   THREE-STATE, deliberately. `null` is "the reader has not said", and the tick
+   then follows the data — on where there is no rate to measure, off where there
+   is. A plain boolean could not tell an unticked box from an untouched one, and
+   a reader who unticks it over a brand-new team must keep it unticked. */
+let forecastRateLo = '';
+let forecastRateHi = '';
+let forecastTypedOn = null;
+
+/* Whether this team has a rate to forecast FROM — the same two conditions
+   `forecast()` refuses on, asked in one place so the tick's default and the
+   card's own refusal cannot disagree about what "no history" means. */
+function forecastHasRate(teamId, includeSix) {
+  const t = nextSprintTarget(teamId, includeSix);
+  if (!t) return false;
+  const lasting = t.availabilitySource === 'team' ? t.availability / 100 : 1;
+  return Math.min(t.planningBase, t.reliableBase) * lasting > 0;
+}
+
+const forecastTypedTicked = (teamId, includeSix) =>
+  forecastTypedOn === null ? !forecastHasRate(teamId, includeSix) : forecastTypedOn;
+
+/* The typed pair, or null when there is not a usable one. A single number is
+   allowed and means a flat rate — the range simply closes. */
+function forecastTypedRange() {
+  const n = (v) => {
+    const x = parseFloat(v);
+    return Number.isFinite(x) && x > 0 ? Math.min(FORECAST_RATE_MAX, x) : null;
+  };
+  const lo = n(forecastRateLo), hi = n(forecastRateHi);
+  if (lo === null && hi === null) return null;
+  const a = lo === null ? hi : lo, b = hi === null ? lo : hi;
+  return { slow: Math.min(a, b), fast: Math.max(a, b) };
+}
+
+/* A typed rate is IN EFFECT only once there is a rate typed. The tick opens the
+   boxes; this is what the forecast asks. */
+const forecastTypedRate = (teamId, includeSix) =>
+  forecastTypedTicked(teamId, includeSix) ? forecastTypedRange() : null;
+
 function forecastResultHtml(team, includeSix) {
   const points = Math.max(0, Math.round(parseFloat(forecastPoints) || 0));
+  const typedRate = forecastTypedRate(team.id, includeSix);
+  const ticked = forecastTypedTicked(team.id, includeSix);
   if (!points) return `<p class="sub" style="margin:0">Type a number of story points above —
     the whole backlog, an epic, a release — and this says how many sprints it would take
-    ${esc(team.name)} at the rate they have actually been finishing committed work.</p>`;
+    ${esc(team.name)} ${typedRate
+      ? 'at the velocity typed below.'
+      : ticked
+      ? `at a velocity you type below. ${esc(team.name)} has no finished sprints to take a rate
+         from, so the two boxes are where it comes from.`
+      : 'at the rate they have actually been finishing committed work.'}</p>`;
 
   const f = forecast(team.id, points, includeSix);
-  if (!f) return '';
+  /* Ticked, and nothing typed into it yet. Naming the history would send the
+     reader to find sprints they have already been told they do not have. */
+  if (!f) return `<p class="sub" style="margin:0">${ticked
+    ? 'Type a velocity below — points a sprint, or a range — and this will answer.'
+    : ''}</p>`;
   if (f.impossible) return `<p class="warn" style="margin:0">${esc(team.name)} has finished none
     of its committed points across the last ${plural(f.sprints, 'sprint')}, so there is no rate
     to forecast from. Record a sprint with some committed work finished and this will answer.</p>`;
@@ -6585,9 +6688,17 @@ function forecastResultHtml(team, includeSix) {
      counted fact rather than as "all but one sprint", which is plainly wrong under
      three sprints — there the floor is the lowest figure the team has, so they
      have hit it every time. */
-  const meanPhrase = `the <strong>${fmtNum(Math.round(f.meanRate))}</strong> points a sprint they average`;
-  const floorPhrase = `the <strong>${fmtNum(Math.round(f.floorRate))}</strong> they finished in
-    ${f.reliableMet} of the last ${f.sprints}`;
+  /* Under a typed rate both ends are the reader's own numbers, so they are named
+     as such: "the 20 they average" over a team that has averaged nothing is the
+     card inventing a history to justify an answer. */
+  const meanPhrase = f.typed
+    ? `the <strong>${fmtNum(Math.round(f.meanRate))}</strong> points a sprint you typed as the
+       optimistic end`
+    : `the <strong>${fmtNum(Math.round(f.meanRate))}</strong> points a sprint they average`;
+  const floorPhrase = f.typed
+    ? `the <strong>${fmtNum(Math.round(f.floorRate))}</strong> you typed as the cautious end`
+    : `the <strong>${fmtNum(Math.round(f.floorRate))}</strong> they finished in
+       ${f.reliableMet} of the last ${f.sprints}`;
   const fastPhrase = f.meanRate >= f.floorRate ? meanPhrase : floorPhrase;
   const slowPhrase = f.meanRate >= f.floorRate ? floorPhrase : meanPhrase;
   const working = f.fast === f.slow
@@ -6625,9 +6736,28 @@ function forecastResultHtml(team, includeSix) {
 
   const caveats = [];
   if (f.beyondHorizon)
-    caveats.push(`That is further out than ${plural(f.sprints, 'sprint')} of history can speak to,
-      so it is a rough size rather than a forecast and there are no dates on it. The team, the
-      backlog and the way you size things will all have moved before you get there.`);
+    caveats.push(f.typed
+      ? `That is further out than a typed velocity can speak to, so it is a rough size rather than
+         a forecast and there are no dates on it. The team, the backlog and the way you size
+         things will all have moved before you get there.`
+      : `That is further out than ${plural(f.sprints, 'sprint')} of history can speak to,
+         so it is a rough size rather than a forecast and there are no dates on it. The team, the
+         backlog and the way you size things will all have moved before you get there.`);
+  /* Said first among the caveats it belongs with, and said EVERY time: a number
+     read off a shared screen has to carry where its rate came from. */
+  if (f.typed)
+    caveats.push(`This is dealt from a velocity you typed, not from anything ${esc(team.name)}
+      has recorded — it is your estimate with the arithmetic done. A typed range is also narrower
+      than a real team's results, so treat it as the most generous reading rather than the safest.
+      Record some sprints and this answers from what actually happened instead.`);
+  if (f.typed && forecastHasRate(team.id, includeSix))
+    caveats.push(`${esc(team.name)} <strong>does</strong> have finished sprints to draw from —
+      untick the box below to forecast from them instead.`);
+  if (f.typed && nextSprintTarget(team.id, includeSix)
+      && nextSprintTarget(team.id, includeSix).availabilitySource === 'team')
+    caveats.push(`The team's standing availability is <em>not</em> applied on top of a typed
+      velocity: a rate you state is already a statement about the team as it will be, and knocking
+      it down again would allow for the same absence twice.`);
   if (f.thin)
     caveats.push(`Only ${plural(f.sprints, 'sprint')} of history behind the rate, so this is a
       rough shape rather than a forecast.`);
@@ -6652,7 +6782,11 @@ function forecastResultHtml(team, includeSix) {
 }
 
 function forecastCard(team, includeSix) {
-  if (!nextSprintTarget(team.id, includeSix)) return '';
+  /* No longer gated on having a target. A team with no finished sprints is the
+     team most often asked how long something will take, and the typed rate below
+     is the answer to that — gating the card on the history it exists to stand in
+     for would put the control behind the door it opens. */
+  const ticked = forecastTypedTicked(team.id, includeSix);
   return `<div class="card">
     <div class="row spread cardhead">
       <h2>How Long Would It Take?${helpBtn('forecast', 'the forecast')}</h2>
@@ -6663,20 +6797,52 @@ function forecastCard(team, includeSix) {
       </label>
     </div>
     <div id="forecastResult">${forecastResultHtml(team, includeSix)}</div>
+    <div style="margin-top:12px">
+      <label class="row" style="gap:8px;font-size:var(--fs-sm)">
+        <input type="checkbox" id="forecastTyped"${ticked ? ' checked' : ''}>
+        <span>Use a velocity I type instead of this history</span>
+      </label>
+      <div id="forecastRateWrap" class="row" style="gap:8px;margin-top:8px;font-size:var(--fs-sm)"${
+        ticked ? '' : ' hidden'}>
+        <span>Points a sprint</span>
+        <input type="number" id="forecastRateLo" min="0" max="${FORECAST_RATE_MAX}" step="1"
+          inputmode="numeric" style="width:90px" value="${esc(forecastRateLo)}"
+          aria-label="Typed velocity, cautious end" placeholder="e.g. 25">
+        <span>to</span>
+        <input type="number" id="forecastRateHi" min="0" max="${FORECAST_RATE_MAX}" step="1"
+          inputmode="numeric" style="width:90px" value="${esc(forecastRateHi)}"
+          aria-label="Typed velocity, optimistic end" placeholder="e.g. 35">
+      </div>
+    </div>
   </div>`;
 }
 
 function wireForecast(team, includeSix) {
   const box = document.getElementById('forecastPoints');
   if (!box) return;
-  box.oninput = () => {
-    forecastPoints = box.value;
-    /* This card's own result only — never render(). A full re-render rebuilds the
-       input and takes the caret with it, so every keystroke would land in a fresh
-       empty box. */
+  /* This card's own result only — never render(). A full re-render rebuilds the
+     input and takes the caret with it, so every keystroke would land in a fresh
+     empty box. */
+  const redraw = () => {
     const out = document.getElementById('forecastResult');
     if (out) out.innerHTML = forecastResultHtml(team, includeSix);
   };
+  box.oninput = () => { forecastPoints = box.value; redraw(); };
+
+  const tick = document.getElementById('forecastTyped');
+  const wrap = document.getElementById('forecastRateWrap');
+  const lo = document.getElementById('forecastRateLo');
+  const hi = document.getElementById('forecastRateHi');
+  if (!tick) return;
+  /* The press ENDS the default's opinion, in either direction — which is the
+     whole reason `forecastTypedOn` has three states rather than two. */
+  tick.onchange = () => {
+    forecastTypedOn = tick.checked;
+    wrap.hidden = !tick.checked;
+    redraw();
+  };
+  lo.oninput = () => { forecastRateLo = lo.value; redraw(); };
+  hi.oninput = () => { forecastRateHi = hi.value; redraw(); };
 }
 
 /* The actionable takeaway from the rolling window: what to commit to at the next
@@ -11680,6 +11846,18 @@ window.__svTestHooks = { raisesKeyboard, reorderById,
   /* A plain module-level `let`, so a getter rather than the value itself — the
      suite needs what it holds AFTER loadSample() has run, not at export time. */
   svForecastPoints: () => forecastPoints,
+  /* The typed velocity, same reason and the same shape. It has to be SETTABLE
+     too: the whole control is three module-level lets, and a suite that could
+     only read them would be testing the default and nothing else. Reset between
+     cases by the setter itself — leaving a rate behind would silently re-answer
+     every later forecast test from it. */
+  svTypedRate: (lo, hi, on) => {
+    forecastRateLo = lo === undefined ? '' : String(lo);
+    forecastRateHi = hi === undefined ? '' : String(hi);
+    forecastTypedOn = on === undefined ? null : on;
+  },
+  svTypedRateState: () => ({ lo: forecastRateLo, hi: forecastRateHi, on: forecastTypedOn }),
+  forecastHasRate, forecastTypedTicked, forecastTypedRange,
   /* `const` at the top level of a classic script is not a property of window,
      so the two version numbers have to be handed over deliberately or the
      suite would compare against `undefined` and pass on nothing. */

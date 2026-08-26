@@ -1073,6 +1073,45 @@ Past **two PIs** it keeps the sprint count, drops the dates and says why. A rate
 five-sprint window can't speak to the next hundred: the team, the backlog and the way you
 size things will all have moved long before you get there.
 
+#### A Velocity You Type, for a Team That Hasn't Got One
+
+Everything above rests on finished sprints — and the team most often asked *"how long will
+this take?"* is the one that hasn't started. So the rate can be **stated instead of measured**:
+tick **Use a velocity I type instead of this history**, give an optimistic end and a cautious
+one, and those two numbers are dealt exactly where the mean and the floor would have gone.
+One number on its own is a flat rate and the range simply closes.
+
+```
+120 points would take 4 to 5 sprints.
+4 at the 35 points a sprint you typed as the optimistic end,
+5 at the 25 you typed as the cautious end.
+```
+
+**The tick follows your data until you touch it** — on where there's no rate to measure (no
+finished sprints, or none that finished any of their commitment), off where there is. It's a
+default, not a rule: the setting is three-state, so the first press wins for good in either
+direction. Tick it over a team with a year of history and it stays ticked; untick it over a
+brand-new team and it stays unticked.
+
+**The card says which of the two it drew from, every time.** A typed rate names both ends as
+*yours* rather than as something the team averaged, carries a caveat saying it's your estimate
+with the arithmetic done, and offers to go back to the history when there is some. The two
+caveats that describe a history — *thin* and *swings a fair bit* — go quiet, because there
+isn't one to describe.
+
+**Standing availability is not applied on top of a typed rate.** A rate you state is already a
+statement about the team as it will be, so knocking it down again would allow for the same
+absence twice — the same guess-times-a-guess this app refuses everywhere else.
+
+**Rolling 5 stays on offer for a team with nothing recorded**, which it didn't before. The rule
+that row keeps is *"a tab is hidden because the view behind it has nothing to say"*, and that
+stopped being true of this one: the rest of the view steps aside as it always did, and the
+forecast card is what's left. Hidden, the control built for a team with no history could only
+ever have been reached by a team that had some.
+
+Like the points box, **the typed rate isn't saved** — same reasoning, one step further: a
+velocity typed weeks ago and forgotten is worse than a box that asks again.
+
 ### When a Team Has Room for More
 
 The method has one blind spot, and it's the only one the app can spot for itself. The
