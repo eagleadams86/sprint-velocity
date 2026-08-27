@@ -81,7 +81,16 @@ function approx(actual, expected, note, eps) {
   if (typeof actual !== 'number' || Math.abs(actual - expected) > (eps || 1e-9))
     throw new Error((note ? note + ': ' : '') + 'expected ≈' + expected + ', got ' + fmt(actual));
 }
-function ok(cond, note) { if (!cond) throw new Error(note || 'expected truthy'); }
+/* `detail` is the value that FAILED, not more prose: `ok(/2 settings on/.test(s),
+   'and both', s)` says what was expected and then shows what was actually there.
+   Four call sites were already passing it and it was being dropped on the floor —
+   the assertion still failed correctly, it just refused to say what it saw.
+   CodeQL's js/superfluous-trailing-arguments is what noticed. */
+function ok(cond, note, detail) {
+  if (cond) return;
+  throw new Error((note || 'expected truthy')
+    + (detail === undefined ? '' : ' \u2014 got ' + detail));
+}
 /* ── The completeness floor ─────────────────────────────────────────────────
    "Everything that ran passed" is only half an answer. Nothing above counts the
    tests, so a group deleted by accident — or a `PAGES.forEach` that ends up
@@ -93,7 +102,7 @@ function ok(cond, note) { if (!cond) throw new Error(note || 'expected truthy');
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 414;
+const EXPECTED = 416;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -258,6 +267,24 @@ let w; // the app iframe's window
    alone: it is somebody else's endpoint, not a file we ship. */
 const BUST = '?t=' + Date.now();
 const bustFetch = (f, init) => fetch(f + BUST, Object.assign({ cache: 'no-store' }, init || {}));
+
+group('the assertion helpers themselves');
+/* A suite that cannot say what it saw costs a debugging session every time it
+   goes red, and the failure is invisible while everything is green — which is
+   how four call sites passed a third argument to a two-argument `ok` for weeks.
+   These two tests are the only thing standing between that and a silent repeat. */
+t('ok() prints the value that failed, not just the expectation', () => {
+  let msg = '';
+  try { ok(false, 'one knob, counted', '2 settings on'); }
+  catch (e) { msg = e.message; }
+  ok(/one knob, counted/.test(msg), 'the note survives', msg);
+  ok(/2 settings on/.test(msg), 'and so does the value that was actually there', msg);
+});
+t('and it stays quiet when there is no detail to add', () => {
+  let msg = '';
+  try { ok(false, 'a plain note'); } catch (e) { msg = e.message; }
+  eq(msg, 'a plain note', 'no trailing dash, no "undefined"');
+});
 
 group('sanitizeIds — the untrusted-id boundary');
 t('hostile ids are replaced and every reference rewritten through the same map', () => {
