@@ -93,7 +93,7 @@ function ok(cond, note) { if (!cond) throw new Error(note || 'expected truthy');
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 404;
+const EXPECTED = 405;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -3965,6 +3965,38 @@ t('the typed velocity and the planning screen SURVIVE a reload', () => {
   })).settings;
   eq('forecastRateLo' in junk, false, 'a rate that is not a number does not get in');
   eq('forecastTypedOn' in junk, false, 'nor a tick that is not a boolean');
+});
+t('the header drops the buttons that have nothing to act on', () => {
+  /* Two of the five operate on RECORDS — Find searches teams, ARTs, PIs and
+     sprints, Share builds a link out of figures you pick — so with none recorded
+     they open a dialog that can only say there is nothing there. Reported by
+     Charles on 2026-08-26 about the planning screen; the welcome card behind it
+     had carried the same two dead controls all along, which is why the rule is
+     "nothing recorded" rather than "planning". */
+  const doc = w.document;
+  const shown = () => ['findBtn', 'manageBtn', 'targetsBtn', 'dataBtn', 'shareBtn']
+    .filter(id => !doc.getElementById(id).hidden);
+  withState({ teams: [], pis: [], sprints: [] }, () => {
+    typed();
+    w.__svTestHooks.svPlanning(false);
+    w.render();
+    eq(shown(), ['manageBtn', 'targetsBtn', 'dataBtn'],
+      'Find and Share go; the three that still do something stay');
+    /* Each of the three for its own reason, not by omission: Teams & PIs is how
+       you get a first team, Back Up carries Restore — one of the four ways in on
+       the card behind it — and Targets is configuration the first figure will be
+       judged by. */
+    doc.getElementById('welcomePlanBtn').click();
+    eq(shown(), ['manageBtn', 'targetsBtn', 'dataBtn'],
+      'and the planning screen is the same, being the same emptiness');
+    w.__svTestHooks.svPlanning(false);
+  });
+  withState(capacityFixture(), () => {
+    w.render();
+    eq(shown(), ['findBtn', 'manageBtn', 'targetsBtn', 'dataBtn', 'shareBtn'],
+      'one recorded team brings both back');
+  });
+  typed();
 });
 t('the planning screen answers from a typed velocity with no team at all', () => {
   withState({ teams: [], pis: [], sprints: [] }, () => {

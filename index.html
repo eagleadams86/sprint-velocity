@@ -5663,9 +5663,33 @@ const printMedia = window.matchMedia && window.matchMedia('print');
 if (printMedia && printMedia.addEventListener)
   printMedia.addEventListener('change', (e) => printForPaper(e.matches));
 
+/* ── Header buttons with nothing to act on ──────────────────────────────────
+   Two of the five operate on RECORDS, and with none recorded they open a dialog
+   that can only say there is nothing there: Find searches teams, ARTs, PIs and
+   sprints, and Share builds a link out of figures you pick. Reported by Charles
+   on 2026-08-26, on the planning screen — but the welcome card has had the same
+   two dead controls on it all along, so the rule is "nothing recorded" rather
+   than "planning", and it fixes both.
+
+   The other three STAY, and each for its own reason rather than by omission:
+   Teams & PIs is how you get your first team, Back Up carries Restore — which
+   is one of the four ways in on the card behind it — and Targets is global
+   configuration that will apply to the first figure you record. Only Find and
+   Share are about records that do not exist.
+
+   Never in a shared view: viewOnly already hides Share along with everything
+   else that writes, and a link always carries at least one team. */
+function renderHeaderButtons() {
+  if (viewOnly) return;
+  const nothingRecorded = !state.teams.length;
+  F('findBtn').hidden = nothingRecorded;
+  F('shareBtn').hidden = nothingRecorded;
+}
+
 function render() {
   renderTeamPicker();
   destroyCharts();
+  renderHeaderButtons();
 
   const view = renderTabs();
   document.getElementById('printMeta').textContent = printMetaLine(view);
@@ -8846,6 +8870,10 @@ document.addEventListener('keydown', (e) => {
   /* Never over the top of another window, and a second press closes it. */
   const open = document.querySelector('dialog[open]');
   if (open && open.id !== 'searchDialog') return;
+  /* A hidden control must not be reachable by its own shortcut: with nothing
+     recorded the button is gone (see renderHeaderButtons) and ⌘K would otherwise
+     be the one way left to open a search over nothing. */
+  if (!open && F('findBtn').hidden) return;
   e.preventDefault();
   if (open) open.close();
   else F('findBtn').onclick();

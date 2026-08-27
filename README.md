@@ -1091,6 +1091,13 @@ and it answers, having recorded nothing.
 The first three buttons are the family's, in the family's order; the fourth is this app's own,
 as Flow Metrics' and Golf Handicap's fourth buttons are theirs.
 
+**The header drops what has nothing to act on.** With nothing recorded, *Find* and *Share* go —
+one searches teams, ARTs, PIs and sprints, the other builds a link out of figures you pick, and
+neither has anything to reach. ⌘K goes with the button, because a hidden control shouldn't stay
+open by its own shortcut. *Teams & PIs*, *Back Up* and *Targets* stay, each for its own reason:
+the first is how you get a team, the second carries *Restore*, and the third is configuration
+the first figure you record will be judged by. Both come back the moment a team exists.
+
 **No team and no sprint is recorded** — but the screen and the velocity on it are kept, so a
 reload brings your forecast back as you left it. There's a way back to the welcome card, and a
 *Start a Team* beside it for when the answer is worth keeping properly. The story points box
