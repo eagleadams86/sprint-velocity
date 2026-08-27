@@ -45,7 +45,7 @@ Per team, per sprint:
 
 Per team, per PI, it also tracks the **business value** on that team's PI objectives —
 planned, achieved, and achieved from stretch — which is what the [predictability
-measure](#predictability-and-the-art-pi-view) is worked out from.
+measure](#predictability-and-the-pi-by-team-view) is worked out from.
 
 There is deliberately **no free-text field anywhere in the app**. The figures come out of a
 work Jira, and a comment box is the one place sensitive detail could ride along into the
@@ -65,7 +65,7 @@ the cloud. A code from the list carries the meaning and can't carry anything els
 
 ## Across PIs
 
-Every other view looks at a single PI, or at a fixed five-sprint window. **PI trend** is the
+Every other view looks at a single PI, or at a fixed five-sprint window. **PI Trend** is the
 only one that is PI-grained over time, which makes it the only place the Inspect & Adapt
 question can be asked: *not how the last PI went, but which way the train is moving.*
 
@@ -96,7 +96,7 @@ the view says so:
 
 That's the reason the two methods are split the way they are. **Predictability** is the mean
 of each team's own measure — every team counting once — which survives the comparison.
-**Complete %** is pooled, matching the Current PI tab and the Agile Operations Dashboard, and
+**Complete %** is pooled, matching the Team PI tab and the Agile Operations Dashboard, and
 it doesn't.
 
 A PI with nothing recorded is dropped rather than drawn as a hole, and a PI with no business
@@ -147,9 +147,9 @@ they simply aren't there until you make one:
 
 | | With no PI | Once a PI exists |
 |---|---|---|
-| Sprint, Rolling 5, All teams | ✅ | ✅ |
-| **Current PI** | hidden | appears once the team has a sprint in one |
-| **ART PI** | hidden | appears once an ART has a team on it |
+| Sprint, Rolling 5, Compare Teams | ✅ | ✅ |
+| **Team PI** | hidden | appears once the team you're on has a sprint in one |
+| **PI by Team** | hidden | appears once an ART has a team on it |
 | PI business value / predictability | — | per team, per PI |
 
 ### Starting without one, adding one later
@@ -209,7 +209,7 @@ Where it shows up:
 
 - **Sprint** — a tile, when there's an answer. No answer, no tile: an unanswered question
   isn't a metric.
-- **Current PI** — a ✓ or ✕ badge on each sprint's row. Not a tenth column: the table already
+- **Team PI** — a ✓ or ✕ badge on each sprint's row. Not a tenth column: the table already
   scrolls sideways on a phone, and six rows is a countable number.
 - **Rolling 5** — **Sprint goals met**, as a count: *"3 of 4"*. A count rather than a
   percentage because that's the sentence you say out loud at a retro, and over four or five
@@ -264,8 +264,8 @@ change: see [Setting your own targets](#setting-your-own-targets).
 | PI predictability | 80–100% | 70–79%, 101–120% | < 70%, > 120% |
 
 The last one is a **band**, not a threshold — it can be missed from either side, and both
-sides mean something. See [Predictability and the ART PI
-view](#predictability-and-the-art-pi-view).
+sides mean something. See [Predictability and the PI by Team
+view](#predictability-and-the-pi-by-team-view).
 
 ### Setting Your Own Targets
 
@@ -313,7 +313,7 @@ pale card, and at that size three dark colours all read as near-black — the fi
 this change was flagged by colour-normal reviewers as well as a colourblind one. A filled panel
 gives the eye a large area of the hue instead.
 
-The **All teams** bar chart follows the same rule: each bar is drawn like the pill in the table
+The **Compare Teams** bar chart follows the same rule: each bar is drawn like the pill in the table
 beneath it — the status tint as the fill, the status colour as the outline — rather than as a
 solid block of the status colour. A solid bar had exactly the problem the tinted panels fixed,
 only larger: on Light and Sepia the three bars rendered olive, maroon and bottle-green, and you
@@ -328,7 +328,7 @@ where the eye reads the boundary and gives the large area back to the card. Beca
 mixed toward the *card* and not toward white, the same rule works on the dark themes — there the
 fill goes quiet and the outline is the bright thing.
 
-Every tile on the Sprint, Current PI and Rolling 5 views has a small **ⓘ** button in its
+Every tile on the Sprint, Team PI and Rolling 5 views has a small **ⓘ** button in its
 top-right corner. Click it for a plain-English definition of that figure — what it means,
 how it's worked out, and the target it's being judged against. It works in a shared
 read-only link too, so someone you send figures to can look up a metric without asking.
@@ -462,7 +462,7 @@ Nothing is excluded silently — every view names what it's leaving out.
 
 ### Counting a Sprint That's Still Running
 
-**Count sprints that are still running**, on the Rolling 5 and All teams views, opts in-flight
+**Count sprints that are still running**, on the Rolling 5 and Compare Teams views, opts in-flight
 sprints into every figure — the rolling window, the PI totals, the team comparison and the
 capacity target. It's off by default, because the numbers genuinely aren't final.
 
@@ -513,7 +513,7 @@ round every fourteen, and a fortnightly team stays fortnightly. Once two sprints
 the real gap between them is measured instead, so a team with a break between sprints, or a
 three-week cadence, self-corrects.
 
-The empty rows on the **Current PI** table show where each remaining sprint falls
+The empty rows on the **Team PI** table show where each remaining sprint falls
 (`No data — click to add · scheduled 17 Aug – 28 Aug`), so the whole PI is laid out before
 any of it is filled in.
 
@@ -544,24 +544,29 @@ rather than dragging them down.
 
 - **Sprint** — one sprint in detail: the RAG tiles and a breakdown of where the committed
   points actually went.
-- **Current PI** — all six sprints of a PI, with PI totals and a sprint-by-sprint chart,
+- **Team PI** — all six sprints of a PI, with PI totals and a sprint-by-sprint chart,
   plus this team's **PI objectives** and the predictability measure worked out from them.
 - **Rolling 5** — the last five sprints for a team, crossing PI boundaries. Velocity and
   commitment completion on one chart — with a dashed **velocity trend line** fitted by
   ordinary least squares, the same treatment every chart in the sibling Flow Metrics app
   carries — and an instability chart plotting break-in, removed and carryover against
-  shaded 15% / 20% threshold bands.
+  shaded 15% / 20% threshold bands. It is also where the app looks **forward**: the
+  **target capacity** for the next sprint and the **How long would it take?** forecast
+  both live here, which is why the tab is offered to a team with no sprints at all — the
+  forecast runs off a velocity you type. On that team the forecast comes first and the
+  rest of the page is described underneath it.
 - **History** — every sprint the team has ever recorded, in order, with no window at all.
   The only view that can show where a team *turned*. See [The whole
   run](#the-whole-run-history-with-no-window).
-- **PI trend** — every PI side by side, oldest first: predictability against the
+- **PI Trend** — every PI side by side, oldest first: predictability against the
   80–100% band with a trend line through it, and how far the latest PI moved from the one
   before. This is the Inspect & Adapt view — see [Across PIs](#across-pis).
-- **ART PI** — the whole train's PI on one page: every team's points and business value side
-  by side, the ART's **predictability measure**, and a chart of each team against the
-  80–100% band. This is the RTE view — see [Predictability and the ART PI
-  view](#predictability-and-the-art-pi-view).
-- **All teams** — every team's rolling averages side by side, plus each team's next-sprint
+- **PI by Team** — one PI across every team on one page: their points and business value
+  side by side, the **predictability measure**, and a chart of each team against the
+  80–100% band. This is the RTE view — see [Predictability and the PI by Team
+  view](#predictability-and-the-pi-by-team-view). Narrow it to one train with the ART
+  picker and it becomes that train's PI page.
+- **Compare Teams** — every team's rolling averages side by side, plus each team's next-sprint
   target in one column, so the one that needs attention is obvious. It carries **two
   comparison tables**, the same sprints through two different averages — see below — and
   an **ART filter** across the top when your teams are grouped into ARTs. Comparison 1 also
@@ -571,14 +576,25 @@ rather than dragging them down.
 The last three look **across** teams rather than into the one you've selected, so they sit
 apart from the other four in the tab row.
 
-A view is only offered once there's something in it. **All teams** appears when you have a
-second team; **Current PI** and **Rolling 5** appear once the team you're on has a recorded
-sprint, and step aside again if you switch to a team you haven't recorded anything for;
-**History** once that team has *more* sprints than Rolling 5 already shows — below six the two
-views would be the same page under different headings; **ART PI** appears once you have an ART
-with a team on it; **PI trend** once two PIs have something recorded in them, because one point
-is a position rather than a direction. With no teams at all there are no tabs — just the
-[welcome card](#the-first-thing-you-see). If the view you were on goes away, you land back on **Sprint**.
+They also share **one ART picker**, and it starts on *All ARTs*. That is worth saying out
+loud, because it is what the names of these three tabs are careful *not* to claim: **PI by
+Team** covers every team you have until you narrow it, and **Compare Teams** covers only
+one train once you do. The picker decides the scope; the tab names say what shape the page
+is. (They were called *ART PI* and *All teams*, each naming the scope the other one
+actually had.)
+
+A view is only offered once there's something in it. **Compare Teams** appears when you have a
+second team; **Team PI** once the team you're on has a sprint in a PI, and it steps aside
+again if you switch to a team that hasn't; **History** once that team has *more* sprints
+than Rolling 5 already shows — below six the two views would be the same page under
+different headings; **PI by Team** appears once you have an ART with a team on it; **PI
+Trend** once two PIs have something recorded in them, because one point is a position
+rather than a direction. With no teams at all there are no tabs — just the [welcome
+card](#the-first-thing-you-see). If the view you were on goes away, you land back on **Sprint**.
+
+**Rolling 5 is the exception** and is offered to every team, including one with nothing
+recorded: the forecast on it needs no history, so hiding the tab would put the control
+behind the door it opens.
 
 ### The First Thing You See
 
@@ -617,13 +633,13 @@ rather than a list of names you'd have to open one by one:
 | Team | ART | What it's there to show |
 |---|---|---|
 | **Team Live Sprint** | Payments | A sprint **running right now** — done-so-far, pace ("day 6 of 14, slightly behind") and carried-in. Its commitment is well over the suggestion, which is the one finding still actionable mid-sprint. Also a **⚑ standing team availability**, and the only team with **no business value recorded** — its PI is still running, which is why. Records **no sprint goals** either, so the goals tile is absent rather than showing a zero. |
-| **Team Baseline** | Payments | The ordinary team: green, landing about 90% of what it signs up for. Spans **all three PIs**, so the [PI trend](#across-pis) has a team behind every point — and nine sprints, so it is one of the two teams with a **History** tab. Carries a **⚖ scaled sprint** (someone joined after it) and a sprint with work **↩ brought in then removed again**. Its PI predictability is 90% — **inside the band**. Sprint goals **3 of 4**, with one sprint unrecorded — the only place the "no goal recorded" caption appears. Its whole history reads **up 11** while its last five read **level**, which is the argument for [History](#the-whole-run-history-with-no-window) in one team. |
+| **Team Baseline** | Payments | The ordinary team: green, landing about 90% of what it signs up for. Spans **all three PIs**, so the [PI Trend](#across-pis) has a team behind every point — and nine sprints, so it is one of the two teams with a **History** tab. Carries a **⚖ scaled sprint** (someone joined after it) and a sprint with work **↩ brought in then removed again**. Its PI predictability is 90% — **inside the band**. Sprint goals **3 of 4**, with one sprint unrecorded — the only place the "no goal recorded" caption appears. Its whole history reads **up 11** while its last five read **level**, which is the argument for [History](#the-whole-run-history-with-no-window) in one team. |
 | **Team Overcommitted** | Platform | The team the targets exist to catch — around 70% completion and swinging from 14 to 26 points. Has a **⚑ sprint left out** for a major incident, and its next slot is the **IP sprint**, so it carries that caveat too. 59% predictability — **under the band**. It's also the team where the [**reliable commitment**](#two-figures-not-one) differs from the average enough to matter: 20 or 17 — and where **◎ the goals land and the points don't**. |
 | **Team Headroom** | Platform | **↗ Room for more** — it clears its commitment then pulls extra work in, so it reads 98% commitment completion beside a **red 29% break-in**. The contradiction the [headroom note](#when-a-team-has-room-for-more) exists to resolve. It under-commits its objectives too: 113%, **over the band**, with the value coming partly from **stretch**. Steady enough that it gets **one** capacity figure rather than two — and it's the team where **◎ the points land and the goals don't**, at 2 of 5. The second team with a **History** tab, and the sharper case: **up 14** across nine sprints, **down 1** across the last five. |
-| **Team New Start** | *none* | A brand-new team: **thin history**, a **⚑ one-off availability** for leave, and a carryover that then **fills the whole figure** — no room for new work at all. Two sprints, so it's also the team whose [**Trend**](#which-way-each-team-is-going) cell reads `—`: not enough for a direction. Being in no ART, it's also the **No ART** group on *All teams* and *ART PI*. |
-| **Team No PI** | *none* | The team that [**doesn't run PIs**](#pis-are-optional) — sprints numbered **12–16**, continuous, past the six a PI holds. No IP sprint, no Current PI tab, and it's named on *ART PI* as not being in that PI at all. Deliberately carries nothing else: every other finding already belongs to a team above. |
+| **Team New Start** | *none* | A brand-new team: **thin history**, a **⚑ one-off availability** for leave, and a carryover that then **fills the whole figure** — no room for new work at all. Two sprints, so it's also the team whose [**Trend**](#which-way-each-team-is-going) cell reads `—`: not enough for a direction. Being in no ART, it's also the **No ART** group on *Compare Teams* and *PI by Team*. |
+| **Team No PI** | *none* | The team that [**doesn't run PIs**](#pis-are-optional) — sprints numbered **12–16**, continuous, past the six a PI holds. No IP sprint, no Team PI tab, and it's named on *PI by Team* as not being in that PI at all. Deliberately carries nothing else: every other finding already belongs to a team above. |
 
-Two ARTs of two plus two teams in neither is the arrangement where the *All teams* ART
+Two ARTs of two plus two teams in neither is the arrangement where the *Compare Teams* ART
 filter and its *No ART* group both actually do something.
 
 The **Trend** column has all four of its answers between them — a team on the way up, one on
@@ -634,7 +650,7 @@ comes out of whichever team you are on, and *Paste an example* fills the box wit
 can edit. The one new thing the sample data cannot demonstrate is a changed
 [target](#setting-your-own-targets), which is what the ⚙ button in the header is for.
 
-The business value is picked the same way — to make the *ART PI* view say something on a
+The business value is picked the same way — to make the *PI by Team* view say something on a
 first run. **Platform ART is the [cancelling case](#when-the-average-hides-the-train)**: Team
 Overcommitted at 59% and Team Headroom at 113% average to 86%, so the train reads on target
 while neither of its teams is, and the ⚑ note that catches it has something to catch. **Payments
@@ -664,9 +680,9 @@ about: it's added alongside them, not instead of them, and unpicking it is manua
 ## The Whole Run: History, with No Window
 
 Every other per-team view looks through a window. Rolling 5 takes the last five sprints;
-Current PI takes six. Both are the right shape for the question they answer, and between them
+Team PI takes six. Both are the right shape for the question they answer, and between them
 a team with three PIs behind it had **eighteen sprints that could never be seen sprint by
-sprint** — PI trend flattens the same history into one point per PI, which is where a team's
+sprint** — PI Trend flattens the same history into one point per PI, which is where a team's
 history stops being visible and starts being summarised.
 
 **History** has no window, and that is its whole definition. Every sprint on record, oldest
@@ -701,7 +717,7 @@ tabs don't mean anything.
 
 ## The Two Comparison Tables
 
-The All teams view shows the same rolling window twice, because there are two honest ways
+The Compare Teams view shows the same rolling window twice, because there are two honest ways
 to average a percentage and they answer different questions.
 
 **Comparison 1 — average of sprints.** Each sprint's own percentage is worked out first,
@@ -731,24 +747,24 @@ a team with six of them pulls six times as hard as a team with one; Comparison 2
 point, exactly as the dashboard's Total does. The single exception is Comparison 1's
 **next sprint target**: that's points rather than a rate, so the team targets simply add up.
 
-**Current PI** and **Rolling 5** each end their *The numbers* table with **one** summary
+**Team PI** and **Rolling 5** each end their *The numbers* table with **one** summary
 row, in whichever method that view's own figures already use:
 
 | View | Summary row | Method |
 |---|---|---|
-| Current PI | **PI total** | Pooled — matches the dashboard, and its headline commitment-completion tile |
+| Team PI | **PI total** | Pooled — matches the dashboard, and its headline commitment-completion tile |
 | Rolling 5 | **Average per sprint** | Average of sprints — matches every tile on the view |
 
 Its committed and delivered figures follow the method: **totals** on the pooled row,
 **per-sprint means** on the average row. The row carries an ⓘ explaining its own method and
-pointing at where the other one lives — which is **All teams**, above, where the two sit
+pointing at where the other one lives — which is **Compare Teams**, above, where the two sit
 side by side over the same sprints and can actually be compared.
 
 (Both views used to show the two methods as a pair of rows. That made every table answer a
 question most readers weren't asking, so each view now shows the one that matches the
 figures above it.)
 
-The tiles at the top of Rolling 5 are all averages of sprints. Current PI's tiles are a
+The tiles at the top of Rolling 5 are all averages of sprints. Team PI's tiles are a
 mix: *PI commitment completion* is pooled, *Average per sprint* is the average-of-sprints
 figure, and a wide gap between them means one sprint is skewing the total.
 
@@ -758,7 +774,7 @@ signed up for, which says throughput was high, not that the plan held.
 
 ### Which Way Each Team Is Going
 
-Every other figure on the All teams page is a *level*, and a level has no direction in it. A
+Every other figure on the Compare Teams page is a *level*, and a level has no direction in it. A
 team climbing 60% → 85% and a team sliding 95% → 85% print the same number in the same colour,
 and they are opposite findings.
 
@@ -809,13 +825,13 @@ precisely that the colour-coded pills beside it are answering a different questi
 rule as [the Rolling 5 version of this note](#when-the-points-and-the-goals-disagree), which
 is where the finding started; both now read from one function, so they cannot drift apart.
 
-## Predictability and the ART PI View
+## Predictability and the PI by Team View
 
 Commitment completion asks whether the **points** landed. It doesn't ask whether the
 **objectives** did, and those are different questions — a team can finish 95% of its points
 and miss the two objectives the PI was planned around.
 
-So each team's PI can carry three business-value figures, entered on the **Current PI** tab
+So each team's PI can carry three business-value figures, entered on the **Team PI** tab
 under *PI Objectives*:
 
 | Figure | What it is |
@@ -856,9 +872,9 @@ Because "off target" means two opposite things here, every figure also says **wh
 missed on, out loud — "below the 80–100% band", "above the 80–100% band" — rather than
 leaving a colour and a ✕ to carry a direction they can't.
 
-### The ART PI View
+### The PI by Team View
 
-The **ART PI** tab is the train's page. Pick an ART and a PI and you get every team on it at
+The **PI by Team** tab is the train's page. Pick an ART and a PI and you get every team on it at
 once: sprints counted, points committed and finished, commitment completion, business value
 planned and delivered, and each team's predictability. It shares its ART picker with **All
 teams**, so the scope follows you between the two.
@@ -907,7 +923,7 @@ its sprints across every team, and an ART takes nothing at all — its teams sim
 being on none.
 
 **↑ and ↓ reorder.** All three lists are *read* in the order you put them in: teams appear
-in that order in every picker and down **All teams**, ARTs are the order their groups come
+in that order in every picker and down **Compare Teams**, ARTs are the order their groups come
 in, and PI order is the app's sense of time — the rolling window walks back through it. The
 order you added things in is rarely the order you want to read them in a year later. The
 arrows at each end of a list are disabled rather than hidden, so no row ever jumps under the
@@ -928,18 +944,18 @@ is perfectly normal, and nothing forces you to use the feature at all.
 
 An ART is **almost entirely a label rather than a level of maths**. Every points figure in
 the app is worked out per team and then simply added up; grouping never changes a single one
-of them. The one exception is the **predictability measure** on the [ART PI
-view](#predictability-and-the-art-pi-view), which SAFe defines at train level and which has
+of them. The one exception is the **predictability measure** on the [PI by Team
+view](#predictability-and-the-pi-by-team-view), which SAFe defines at train level and which has
 nowhere else it could live. Everything else the grouping does is change what you're looking
 at:
 
-- **ART PI** appears at all — the train's own page, described above.
-- **All teams** gains an **ART** picker across the top — *All ARTs*, each ART by name, and
+- **PI by Team** appears at all — the train's own page, described above.
+- **Compare Teams** gains an **ART** picker across the top — *All ARTs*, each ART by name, and
   *No ART* if any team is un-grouped. Put the last un-grouped team on an ART and the *No ART*
   option goes with it, so a filter left sitting on it falls back to *All ARTs* rather than
-  filtering to nothing behind a picker that no longer offers the option. The ART PI view
+  filtering to nothing behind a picker that no longer offers the option. The PI by Team view
   shares the same picker, so the scope follows you between them. Everything below it follows: both comparison tables,
-  both **All teams** footer rows, the chart, and the count of sprints still in flight. Pick
+  both **Compare Teams** footer rows, the chart, and the count of sprints still in flight. Pick
   *Payments ART* and the footer row reads **All teams on Payments ART**, worked out across
   that ART's teams only.
 - The picker says how many teams it's hiding, the same way every other exclusion in the app
@@ -950,9 +966,9 @@ at:
 Deleting an ART is the cheapest delete in the app: it takes no team, no sprint and no
 business value with it — the teams that were on it simply go back to having none.
 (Deleting a **PI** is no longer expensive either — it
-[offers to keep its sprints](#deleting-a-pi-no-longer-deletes-its-sprints).) The ART PI
+[offers to keep its sprints](#deleting-a-pi-no-longer-deletes-its-sprints).) The PI by Team
 tab goes away with the last ART, and the figures it showed are all still on each team's own
-Current PI page.
+Team PI page.
 
 Share links carry only the ARTs the teams in the link are actually on, so sharing one team
 doesn't publish the names of every train you support.
@@ -1277,11 +1293,11 @@ window, but excluding it would throw a real data point away.
 The same **Adjust capacity** dialog lists the sprints behind the figure, each with a
 percentage. Scale S1 to 133% and its result counts at four-people strength in the
 average — there's a team-size helper ("3 then, 4 now") that works the percentage out for
-you. The card shows a **⚖ scaled** badge and explains the working; the All teams target
+you. The card shows a **⚖ scaled** badge and explains the working; the Compare Teams target
 carries the same ⚑ as an availability adjustment.
 
 **Only the recommendation changes.** The sprint's own recorded figures are untouched in
-every chart and table — the Sprint view, the Current PI totals, the Rolling 5 tiles and
+every chart and table — the Sprint view, the Team PI totals, the Rolling 5 tiles and
 both comparison tables all still show exactly what the team delivered. A scale needs no
 expiry: it sits on its sprint and retires by itself when that sprint drops out of the
 rolling window.
@@ -1322,19 +1338,19 @@ on:**
 |---|---|
 | Sprint view | A **⚑ Left out of the rolling average** banner spelling out what it does and doesn't change, and the badge on the sprint's own heading |
 | Sprint picker | `Sprint 2 — left out of the average`, before you even open it |
-| Current PI | A **⚑ Left out of the rolling 5** badge on the sprint's row, and a caption naming it as **included** in this PI's totals |
+| Team PI | A **⚑ Left out of the rolling 5** badge on the sprint's row, and a caption naming it as **included** in this PI's totals |
 | Rolling 5 | A badged line under the heading naming it and the reason, and a note on the numbers table explaining the gap in the sprint numbers |
-| All teams | A ⚑ on the team's sprint count in both comparison tables, and a line under the heading naming which team lost which sprint |
+| Compare Teams | A ⚑ on the team's sprint count in both comparison tables, and a line under the heading naming which team lost which sprint |
 
 Leaving a sprint out also breaks the promise that Comparison 2 reconciles with the Agile
 Operations Dashboard, because the sprint is still in the Dashboard's total until it's
 unselected there too. So that badge becomes conditional and names the sprint —
 *"matches the Agile Operations Dashboard when S1 is unselected there too"* — as do the
-method note beneath it and the ⓘ help on both pooled figures. The **Current PI** total
+method note beneath it and the ⓘ help on both pooled figures. The **Team PI** total
 keeps the unconditional promise, because that view never drops the sprint in the first
 place.
 
-The Current PI wording matters: an exclusion reaches the rolling average, the All teams
+The Team PI wording matters: an exclusion reaches the rolling average, the Compare Teams
 comparison and the capacity target, and **nothing else**. The sprint's own figures and the
 PI totals are untouched — that's the whole difference between this and setting the sprint
 back to "planned" to hide it.
@@ -1343,7 +1359,7 @@ back to "planned" to hide it.
 
 Sprint 6 is the innovation & planning sprint, so it's **excluded from the rolling average
 by default** — an IP sprint isn't meant to look like a delivery sprint, and including it
-makes every team look worse than they are. There's a toggle on the Rolling 5 and All teams
+makes every team look worse than they are. There's a toggle on the Rolling 5 and Compare Teams
 views if you'd rather count it. When it's excluded the window simply reaches further back,
 so you still get five sprints.
 
@@ -1407,10 +1423,10 @@ Every table in the app carries a **Copy** and a **⬇ CSV** button in its headin
 
 | View | Table |
 |---|---|
-| **Current PI** | Sprint by sprint, with the PI total row |
+| **Team PI** | Sprint by sprint, with the PI total row |
 | **Rolling 5** | The sprints in the window |
-| **ART PI** | Every team on the train, with the ART row |
-| **All teams** | Comparison 1 and Comparison 2, separately |
+| **PI by Team** | Every team on the train, with the ART row |
+| **Compare Teams** | Comparison 1 and Comparison 2, separately |
 
 **Copy** puts the table on the clipboard tab-separated, which pastes as a real grid into a
 status email, a slide or a spreadsheet. **⬇ CSV** downloads a file — `sprint-velocity-all-teams-avg-2026-08-20.csv`
@@ -1637,7 +1653,7 @@ online-only page.
 
 ## On Paper
 
-The ART PI page *is* the Inspect & Adapt slide, and getting it onto one used to mean Copy,
+The PI by Team page *is* the Inspect & Adapt slide, and getting it onto one used to mean Copy,
 paste, and rebuild the layout somewhere else. **Print the page** (⌘P / Ctrl-P, or Save as PDF
 from the same dialog) and you get the same page with the furniture taken off: no tabs, no
 header controls, no Copy/CSV buttons, no ⓘ buttons, no scope pickers.
@@ -1660,7 +1676,7 @@ Three details are deliberate:
   the shaded threshold bands on the instability chart. Those are asked for back by name; the
   rest of the page prints however your browser prefers. It still reads without any of them:
   every figure carries its ✓ / ! / ✕, for the same reason the app works without colour vision.
-- **A line at the top says what the sheet is** — "Sprint Predictability · ART PI · Platform ART
+- **A line at the top says what the sheet is** — "Sprint Predictability · PI by Team · Platform ART
   · printed 22 Aug 2026" — and it only appears on paper, because on screen the header and the
   tab row are already saying it. A printed figure with no date on it is the thing somebody
   quotes back at you six weeks later.
@@ -1686,7 +1702,7 @@ You choose per link:
   others, or even the names of PIs that team never ran in.
 - **How much history** — all of it (the default), the last 2 PIs, this PI only, or the last 5
   or 10 sprints for each team. See below.
-- **The All teams comparison view** — only offered when you've picked more than one team.
+- **The Compare Teams comparison view** — only offered when you've picked more than one team.
 
 A link only ever carries names, numbers and dates — there is no free-text anywhere in the
 data, so nothing written can travel by accident.
@@ -1941,7 +1957,7 @@ can pick up:
 | | |
 |---|---|
 | [**Targets are yours**](#setting-your-own-targets) | All eight RAG boundaries are settings, and they travel in a share link |
-| [**Trend**](#which-way-each-team-is-going) | *All teams* shows which way each team is moving, not only where it stands |
+| [**Trend**](#which-way-each-team-is-going) | *Compare Teams* shows which way each team is moving, not only where it stands |
 | [**Sprint goals**](#the-goals-column-and-the--finding) | …and whether the goals agree with the points, on the page that compares teams |
 | [**History**](#the-whole-run-history-with-no-window) | A seventh view: every sprint a team has ever recorded, with no window |
 | [**Import a history**](#getting-a-history-in) | A spreadsheet of sprints pastes in one go, previewed row by row |

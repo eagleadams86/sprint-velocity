@@ -10,7 +10,7 @@ shared-workspace/multi-SM-editing model. (It used to say "each person signs in w
 own Google account"; sync was removed on 2026-08-20, and the Auth list confirmed nobody
 but Charles had ever actually signed in.)
 
-- **⌕ Find / ⌘K is Money Map's window, ported (2026-08-23)** — `searchApp(st, query)` is PURE over the state it is handed and does NOT use the `teamById`/`piById`/`artById` helpers, which are bound to the live `state`; a search over a test fixture has to be a search over that fixture, and the sprint label is rebuilt from the lists in hand for the same reason. Two-character minimum, `SEARCH_CAP` of 80 with the overflow COUNTED so the cap is never silent, and the count span (`role="status"`) is the live region rather than the results list. `goToSearchHit` sets what the hit points at and then lets `renderTabs()` have the last word on the view — a PI hit asking for Current PI on a team with nothing in that PI falls back to Sprint by itself, so there is no second copy of the tab rules. `SEARCH_VIEW_LABEL` must name every `.tab[data-view]` and nothing else; a test asserts both directions. Mirrored into Flow Metrics and Golf Handicap in the same pass — a change to one belongs in all three — and the Task Dashboard has one too, which makes six windows in five apps plus the starter.
+- **⌕ Find / ⌘K is Money Map's window, ported (2026-08-23)** — `searchApp(st, query)` is PURE over the state it is handed and does NOT use the `teamById`/`piById`/`artById` helpers, which are bound to the live `state`; a search over a test fixture has to be a search over that fixture, and the sprint label is rebuilt from the lists in hand for the same reason. Two-character minimum, `SEARCH_CAP` of 80 with the overflow COUNTED so the cap is never silent, and the count span (`role="status"`) is the live region rather than the results list. `goToSearchHit` sets what the hit points at and then lets `renderTabs()` have the last word on the view — a PI hit asking for Team PI on a team with nothing in that PI falls back to Sprint by itself, so there is no second copy of the tab rules. `SEARCH_VIEW_LABEL` must name every `.tab[data-view]` and nothing else; a test asserts both directions. Mirrored into Flow Metrics and Golf Handicap in the same pass — a change to one belongs in all three — and the Task Dashboard has one too, which makes six windows in five apps plus the starter.
 - **THE WINDOW ITSELF IS PINNED, PROPERTY BY PROPERTY, AND THE SAME BLOCK IS IN ALL SIX APPS VERBATIM (2026-08-23).** 700px on 18px of padding — the Back Up & Restore window's size, the family's other fixed-width window — with the heading, the intro line, the box, the hit and its three lines, and the "Nothing matches" line all declared inside the `#searchDialog` block rather than borrowed from whatever quiet-text class the app happens to have. That borrowing is what made one window into six: 360px and 420px wide, a 320px box inside a 360px dialog, a hittab at `--fs-sm` here and `--fs-xs` there, `.04em` typed out beside `--ls-label`, and four different colours on the same sentence. A change to any of it belongs in all six. Two details worth keeping: `#searchDialog > p` is the DIRECT child only (the results list's message is a `<p>` too, and an id in that selector would out-rank `.searchresults .hint` and hand it the intro line's colour), and the block deliberately declares NO dialog chrome — backdrop, shadow, a field's touch-height floor, and the max-height Money Map divides by its own zoom all belong to the app's `dialog` rule and are shared with every other window it opens.
 - **The header buttons wear a glyph in front of the word** (2026-08-21) — plain text characters, NOT emoji and not an icon font: one more file to fetch is the last thing a header painted this early needs, and a text glyph inherits the theme's colour for free, so it can never become the thing that carries a meaning by hue. Each is `aria-hidden` — the word beside it is already the whole label. The glyphs are Money Map's own where the same button exists there (`⇩` Back up, `↗` Share, `⚙` settings), so one action looks the same in every app, and `☰` is the list/manage one the three list-managing apps share. Added to Sprint Predictability, Flow Metrics, Golf Handicap and PAPTrack in the same commit.
 - The app is **one file — `index.html`** (no build step), alongside `theme.css` and a
@@ -136,26 +136,26 @@ but Charles had ever actually signed in.)
   because it would RE-JUDGE somebody else's figures.
 - **Two averaging methods, both deliberate.** `avg()` is the mean of each sprint's own
   percentage (every sprint equal); `pooled()` sums the points and divides once (bigger sprints
-  weigh more). The All teams view shows both — Comparison 1 uses `avg()`, Comparison 2 uses
+  weigh more). The Compare Teams view shows both — Comparison 1 uses `avg()`, Comparison 2 uses
   `pooled()` — over the *same* sprint set, so they can only ever differ by method. **Comparison
   2 is the method the Agile Operations Dashboard uses**, as is the PI view's "PI total" row
   and commitment-completion tile; the PI "Average per sprint" tile and every Rolling 5 figure
   are `avg()`. Don't "fix" one to agree with the other, and don't let a new figure pick a
   method silently — say which it is in the UI.
-- **Both comparison tables end in an `All teams` row, each in its own table's method**
+- **Both comparison tables end in an `Compare Teams` row, each in its own table's method**
   (`allMean` on `avg()`, `allPooled` on `pooled()`), taken across every counted sprint from
   every team — **never** the mean of the rows above, so neither equals the mean of its own
   column and a six-sprint team pulls six times as hard as a one-sprint team. The lone plain
   sum is Comparison 1's next-sprint target: points, not a rate, so the column adds up. The
   `methodnote` under Comparison 2 explains both rows; keep it in step if either changes.
-- **Current PI and Rolling 5 carry ONE summary row each, in the method that view's own
-  figures already use** (asked for 2026-08-18): Current PI keeps **PI total** (pooled, matching
+- **Team PI and Rolling 5 carry ONE summary row each, in the method that view's own
+  figures already use** (asked for 2026-08-18): Team PI keeps **PI total** (pooled, matching
   its headline commitment-completion tile), Rolling 5 keeps **Average per sprint** (matching
   every tile on the view). They used to show both methods as a pair of rows so the gap between
   them read as a difference in method rather than an error; with one row that job falls to its
   `helpBtn`, which must still name its method outright AND say where the other one lives —
   don't let either help drift into describing a row that isn't there, which is what the
-  removed `piAvgRow`/`rollPooledRow` entries did before they were deleted. **All teams still
+  removed `piAvgRow`/`rollPooledRow` entries did before they were deleted. **Compare Teams still
   shows both methods side by side** (Comparison 1 and 2), which is where to send anyone who
   wants to compare them. Rolling 5 also keeps its **tiles on `avg()` only** — a fuller pooled
   treatment there (extra tile cards, a worked-example note) was built and rejected as too
@@ -202,7 +202,7 @@ but Charles had ever actually signed in.)
   shared class renders the same in a card, a dialog and a table before shipping it.
 - **`.badge`'s `margin-left: 6px` is for a badge that FOLLOWS text, and `.badge:first-child`
   zeroes it.** Four of the six badge sites sit after something — a sprint name in a table row,
-  a card heading — and want the gap. The two "left out" notes on Rolling 5 and All teams open
+  a card heading — and want the gap. The two "left out" notes on Rolling 5 and Compare Teams open
   their own line, where the same 6px pushed the pill out of line with the heading and
   sub-heading stacked directly above it: the one element on the card meant to catch the eye
   was the only thing not aligned. Same trap as the `.tile-help` spacing rule below — a margin
@@ -281,7 +281,7 @@ but Charles had ever actually signed in.)
   is recorded, the same rule as every other percentage.
 - **The Rolling 5 tile is a COUNT, not a percentage** — "3 of 4" is what somebody says at a
   retro, and over four or five sprints a percentage rounds to figures like 67% that imply a
-  precision four answers don't have. On the Current PI table the goal is a **badge on the
+  precision four answers don't have. On the Team PI table the goal is a **badge on the
   row**, not a tenth column: that table already scrolls sideways on a phone, and six rows is
   countable by eye. The Sprint view shows a tile only when there IS an answer — an unanswered
   question is not a metric, the same rule the PI predictability tile follows.
@@ -293,11 +293,11 @@ but Charles had ever actually signed in.)
   met), so an ordinary mixed record stays quiet. **Prose and a glyph, never a colour** — the
   finding is precisely that the colour-coded tiles beside it answer a different question, so
   painting it would be its own contradiction. Same rule as the headroom and cancelling notes.
-  It was an IIFE inside the Rolling 5 view until 2026-08-22, when **All teams** gained a
+  It was an IIFE inside the Rolling 5 view until 2026-08-22, when **Compare Teams** gained a
   Sprint goals column and needed the same finding: one function now, because two copies of a
   rule this particular drift the first time either is tuned. Note it reads `rag()`, so it
   follows the targets — "the points land" is a target judgement, not a fixed 85%.
-- **All teams shows a DIRECTION as well as a level** (2026-08-22). Every figure on that page
+- **Compare Teams shows a DIRECTION as well as a level** (2026-08-22). Every figure on that page
   is an average, and a team climbing 60→85 prints the same number as one sliding 95→85 —
   opposite findings, one cell. `trendCell()` draws `sparkline()` plus the change in words, off
   the same `linearTrend()` fit the Rolling 5 chart uses, so one bad sprint at an end cannot
@@ -384,7 +384,7 @@ but Charles had ever actually signed in.)
   PI compulsory every team was in one, so `renderArtPiView()` mapping every shown team was
   safe; now a PI-less team would appear as a row of zeros, which reads as a team that
   delivered nothing rather than one that isn't in this PI. `renderTabs()` hides **Current
-  PI** without a PI (and for a team with no PI'd sprint) as well as **ART PI**.
+  PI** without a PI (and for a team with no PI'd sprint) as well as **PI by Team**.
 - **Deleting a PI asks whether to keep its sprints, and the renumbering is not optional.**
   It used to destroy every sprint in the PI across every team, which was the only coherent
   answer while a sprint needed one. `unassignPiSprints()` appends them past the team's
@@ -402,8 +402,8 @@ but Charles had ever actually signed in.)
 - **An ART is a grouping of teams, and ONE figure's worth of maths.** `state.arts` is a flat
   list beside `teams` and `pis`, and a team carries an optional `artId`. **No POINTS figure
   is ever worked out per ART** — an ART's points are simply what its teams' points come to
-  under the two methods the All teams view already applies, so `metrics()` never learns the
-  concept exists. The single exception, added with the ART PI view, is
+  under the two methods the Compare Teams view already applies, so `metrics()` never learns the
+  concept exists. The single exception, added with the PI by Team view, is
   `artPredictability()`: SAFe defines the predictability measure at train level, so there is
   nowhere else it could live. It reads `state.objectives`, not `metrics()`, and it does not
   touch a points figure — keep that line where it is. This rule used to read "a label, not a
@@ -438,7 +438,7 @@ but Charles had ever actually signed in.)
   and 140%. `predictabilityStatus()` supplies the direction and `predPill()` is the only
   way a predictability figure should reach the page, so no site can render one without it.
   `pill()`'s third argument exists solely for this.
-- **The ART and PI pickers share ONE card on the ART PI view** (`artToolbar`'s `extra`
+- **The ART and PI pickers share ONE card on the PI by Team view** (`artToolbar`'s `extra`
   argument). Both narrow the same page, so two stacked cards read as two unrelated settings
   and cost a card's height to say it. The PI picker is built **above** that view's early
   returns and passed to all three `artToolbar` calls, because both empty-state cards tell the
@@ -453,14 +453,14 @@ but Charles had ever actually signed in.)
   the way they do: **predictability is the MEAN of the teams' own measures** (every team once,
   so it survives a train changing size, and the same method `renderArtPiView`'s tile uses so
   the two views can't disagree about one PI), while **commitment completion is POOLED**
-  (matching Current PI and the Dashboard) and openly does not survive it. A PI with nothing
+  (matching Team PI and the Dashboard) and openly does not survive it. A PI with nothing
   recorded is a GAP, not a zero — `any` is false and the view drops it rather than plotting a
   hole as a collapse; a PI with no business value leaves a hole in the predictability line for
   the same reason. **There is deliberately no total row**: adding PIs together answers
   nothing, a programme's history is a sequence, and the only summary worth having is the
   direction, which is what `linearTrend()` draws.
 - **The trend tab needs TWO PIs**, because one point is a position rather than a direction and
-  the chart would be a single dot. It is cross-team like ART PI and All teams, so it takes the
+  the chart would be a single dot. It is cross-team like PI by Team and Compare Teams, so it takes the
   same `shareMeta.allTeams` rule and joins the same right-hand tab group — the `margin-left:
   auto` now belongs to the FIRST VISIBLE of `trend`/`art`/`teams`, with each zeroing every
   later sibling, or two auto margins split the free space and break the group apart.
@@ -479,9 +479,9 @@ but Charles had ever actually signed in.)
   and don't level them off.
 - **`renderArtPiView()` is the RTE view, and it reads the PI, not the rolling window** —
   objectives are planned and scored per PI, so a five-sprint window crossing a PI boundary
-  would answer a question nobody asked. It **shares `settings.artFilter` with All teams**
+  would answer a question nobody asked. It **shares `settings.artFilter` with Compare Teams**
   rather than keeping a second picker: two controls meaning the same thing and disagreeing
-  is worse than either. Its tab takes All teams' shared-view rule as well
+  is worse than either. Its tab takes Compare Teams' shared-view rule as well
   (`shareMeta.allTeams`) — it is a comparison ACROSS teams, so a sender who declined to
   publish one must not have it handed back through another tab.
 - **The tile is `mean`, the footer row is `pooled`, and both say so.** Same deliberate pair
@@ -514,13 +514,13 @@ but Charles had ever actually signed in.)
   the OLD number over data now holding new fields — and the next older build to read it sails
   straight past `haltForNewerData()` and strips them. Invisible while `SCHEMA` had never moved
   off 1; found the day it moved to 2. Pinned in tests.html.
-- **PI trend, ART PI and All teams are the CROSS-TEAM group and sit apart from the other
+- **PI Trend, PI by Team and Compare Teams are the CROSS-TEAM group and sit apart from the other
   three**, which look into the selected team. Only the first of the pair takes the
   `margin-left: auto` — two auto margins in a flex row split the free space and would put a
   gap between them as well — so the rule hands it to `[data-view="art"]:not([hidden])` and
-  the sibling combinator zeroes All teams' when ART PI is on the page. Below 470px it is off
+  the sibling combinator zeroes Compare Teams' when PI by Team is on the page. Below 470px it is off
   entirely, and the pair falls onto the second row together, which is where it should be.
-- **The All teams view filters once, at the top.** `renderTeamsView()` derives `shown` from
+- **The Compare Teams view filters once, at the top.** `renderTeamsView()` derives `shown` from
   `state.settings.artFilter` before anything else, and both tables, both footer rows, the
   chart and the in-flight count all come off that one list — so no corner of the page can
   still be counting teams the picker left out. Its exclusions are never silent, the same
@@ -537,7 +537,7 @@ but Charles had ever actually signed in.)
   sprints; it reads as "No ART" on screen, which is where it can be seen and fixed. Same for
   a saved filter naming an ART that's gone, and same for Delete ART, which is the one delete
   in Teams & PIs with no confirm because it destroys nothing.
-- `rollingSprints()` is the chokepoint — filtering there covers Rolling 5, All teams and the
+- `rollingSprints()` is the chokepoint — filtering there covers Rolling 5, Compare Teams and the
   capacity target at once. The PI view filters separately via its own `closed` list.
 - Exclusions must never be silent: every view that drops a sprint says which one and why
   (`openSprintsNote()`). A sprint sitting outside the numbers unnoticed is worse than the
@@ -573,7 +573,7 @@ but Charles had ever actually signed in.)
   Adjust Capacity), so `commitSprint()` preserves an existing numeric scale when the incoming
   record lacks one — remove that and every Save sprint or Jira re-paste silently strips it.
   Absent means 100: set back to 100 the key is DELETED, never written as 100 or undefined.
-  Its badge is **⚖, deliberately not a third meaning for ⚑** (the All teams target ⚑ covers
+  Its badge is **⚖, deliberately not a third meaning for ⚑** (the Compare Teams target ⚑ covers
   both levers, with sr-only text saying which); a scale on an excluded sprint is inert and
   the card must not claim it (`scales` is built from the window, which is what makes that
   true). A scale needs no expiry — it retires when its sprint leaves the window.
@@ -732,8 +732,8 @@ but Charles had ever actually signed in.)
   span, the IP note and the still-running note — and Charles's verdict was that it wasn't
   clear anywhere. A rule technically satisfied and never read is not satisfied. The five
   sites are the Sprint view (its own banner via `excludedWhy()`, plus `excludedBadge()` on
-  the heading), the sprint picker (`sprintPickerNote()`), the Current PI row and caption,
-  the Rolling 5 heading (`excludedLine()`) and its numbers-table caption, and both All teams
+  the heading), the sprint picker (`sprintPickerNote()`), the Team PI row and caption,
+  the Rolling 5 heading (`excludedLine()`) and its numbers-table caption, and both Compare Teams
   comparison tables (`excludedTag()`) plus `excludedTeamsLine()` above the chart drawn from
   those same windows. **Say what it does NOT touch too** — the PI totals still count an
   excluded sprint, and a reader who sees a ⚑ will otherwise assume they don't.
@@ -741,7 +741,7 @@ but Charles had ever actually signed in.)
   it with, and it must stay that shape.** Three versions, each naming a different subset:
   anchoring on the oldest *kept* sprint and looking forward made the oldest sprint the one it
   could never name — exclude the first of four and the window went from four sprints to three
-  with nothing on Rolling 5 or All teams to say so, while Sprint and Current PI (which read
+  with nothing on Rolling 5 or Compare Teams to say so, while Sprint and Team PI (which read
   `s.excluded` per sprint) were fine. `counted.slice(-ROLLING_WINDOW).filter(excluded)` fixed
   that and still under-reported whenever the exclusions clustered: with sprints 1–7 and S1, S2
   and S3 all out, the window is four sprints and only S3 got named. Walking it is the only
@@ -759,7 +759,7 @@ but Charles had ever actually signed in.)
   loses a sprint this way. That asymmetry is pinned by a test — if the PI view ever starts
   reading the window, `piTotalRow` and `piCommitCompletion` become wrong too.
   **Never call the window "the average" in an exclusion label — name it "the rolling N".**
-  The badge first read "⚑ Left out of the average", which on the Current PI table sits two
+  The badge first read "⚑ Left out of the average", which on the Team PI table sits two
   rows above a summary line literally called **Average per sprint** that counts the sprint in
   full. Charles's reaction was "is it left out or not on the PI tab?" — the badge and the
   table it was in read as a flat contradiction. "The rolling N" is the app's own name for the
@@ -768,7 +768,7 @@ but Charles had ever actually signed in.)
   match. Where a correction is needed it goes INSIDE the sentence making the claim ("finished
   sprints only — S1 included"), never as a second sentence after the full stop; trailing
   corrections arrive after the reader has already believed the badge.
-  **⚑ now means two things in the All teams table** — sprints left out on the Sprints
+  **⚑ now means two things in the Compare Teams table** — sprints left out on the Sprints
   column, capacity adjusted on the Next sprint target column — so the caption spells out
   which is which; don't add a third use without doing the same. `excluded` and
   `excludeReason` are written by `buildSprintRecord()`, not merely read by `openSprint()`:
@@ -784,7 +784,7 @@ but Charles had ever actually signed in.)
 - **`cellText()` strips `[aria-hidden="true"]` as the general rule**, with `.sr-only`,
   `.badge`, `.tile-help` and `.artname` as named cases. Anything hidden from assistive
   technology is DECORATION and decoration is not data — that one selector is what catches the
-  bare ⚑/⚖ markers on the All teams table, which are aria-hidden spans with an `.sr-only`
+  bare ⚑/⚖ markers on the Compare Teams table, which are aria-hidden spans with an `.sr-only`
   sentence beside them rather than `.badge` elements, and which otherwise exported a sprint
   count of 4 as the text `4 ⚑` and cost the column its numbers.
 - **Rows are padded to the widest row.** The PI table's empty slots are one cell with
@@ -826,7 +826,7 @@ but Charles had ever actually signed in.)
 - RAG state must never be conveyed by colour alone — tiles and pills carry a glyph and an
   `sr-only` status. Every theme is WCAG AA on the figures; keep them that way.
 - **A RAG surface is a tint fill plus a status-colour edge, everywhere** — `.tile`, `.pill` and
-  the All teams bars all pair `--green`/`--amber`/`--red` with their `-bg` tint. `ragVar()` is
+  the Compare Teams bars all pair `--green`/`--amber`/`--red` with their `-bg` tint. `ragVar()` is
   the one place that maps a value to those custom properties, so a chart can't drift from the
   pill beside it; don't inline the ternary back into a dataset. Solid status-coloured bars are
   what this replaced: the contrast gate forces all three colours dark on Light and Sepia, so a
@@ -838,8 +838,8 @@ but Charles had ever actually signed in.)
   `<main>`** — putting it on the element replaces its role, which silently cost the page its
   main landmark once already.
 - **`renderTabs()` is the one place that decides which views are on offer**, and it hides a
-  tab only when the view behind it has nothing to say: **All teams** needs a second team,
-  **Current PI** needs a PI *and* a sprint of the active team's inside one, **PI trend** needs
+  tab only when the view behind it has nothing to say: **Compare Teams** needs a second team,
+  **Team PI** needs a PI *and* a sprint of the active team's inside one, **PI Trend** needs
   two PIs with something in them, **Rolling 5**
   needs at least one recorded sprint *for the active team*
   (so they come and go as you switch teams), **History** needs MORE than `ROLLING_WINDOW`
@@ -854,7 +854,7 @@ but Charles had ever actually signed in.)
   reinstate it there.
 - **History is the view with NO window, and that is its whole definition** (2026-08-22).
   Every other per-team view looks through one — five sprints, or six — which left a team with
-  three PIs behind it holding eighteen sprints nothing could show sprint by sprint (PI trend
+  three PIs behind it holding eighteen sprints nothing could show sprint by sprint (PI Trend
   flattens them to one point per PI). It deliberately does **not** call `rollingSprints()`:
   the two rolling toggles narrow a window and this view has none, so every sprint is listed,
   with the in-flight and left-out ones drawn and marked rather than dropped. Its Direction
@@ -1483,7 +1483,7 @@ its own — Charles asked for the two to match, and the two apps share their chr
   neutral and `.danger` is what turns it red — the same split `.btn` / `.btn.danger` already
   uses. Moving something is not destructive and must not light up as though it were.
 - **All three lists reorder**, not just PIs. PI order was always this app's sense of time;
-  team and ART order are read too, down every picker and every All teams table. Reordering
+  team and ART order are read too, down every picker and every Compare Teams table. Reordering
   permutes an array that was always there, so **no new field and no version bump**.
   `reorderById` is the permutation on its own, split out so tests.html can pin it without
   writing anything — this suite is read-only about storage and must stay that way.
@@ -1547,7 +1547,7 @@ its own — Charles asked for the two to match, and the two apps share their chr
   It does not fight `openModal`: on a touch screen focus goes to the dialog, so
   nothing is selected until you tap a field.
 - **A horizontal scroll box must carry `position: relative`.** `overflow-x: auto` is the
-  whole design for `.tablewrap`, and the All teams comparison table is what made it visible — content too wide for a phone scrolls inside its card and the
+  whole design for `.tablewrap`, and the Compare Teams comparison table is what made it visible — content too wide for a phone scrolls inside its card and the
   page stays the width of the screen. On iOS that only half worked: WebKit clipped it on
   screen but still counted its full width in the DOCUMENT's scrollable area, so the page
   itself became horizontally scrollable into a band of nothing. Measured on iOS 27 at a

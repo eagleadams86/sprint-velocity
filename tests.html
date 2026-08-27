@@ -93,7 +93,7 @@ function ok(cond, note) { if (!cond) throw new Error(note || 'expected truthy');
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 413;
+const EXPECTED = 414;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -645,14 +645,14 @@ t('a team hit names the ART it is on, and a team on none says nothing', () => {
   eq(find('kestrel').hits[0].snippet, 'on Payments ART');
   eq(find('otter').hits[0].snippet, '');
 });
-t('an ART is found, counts its teams, and heads for All Teams', () => {
+t('an ART is found, counts its teams, and heads for Compare Teams', () => {
   const h = find('payments art').hits[0];
   eq(h.where, 'Payments ART — ART');
   eq(h.snippet, '1 team', 'singular at one — a count that reads as a typo is a count nobody trusts');
   eq(h.view, 'teams');
   eq(h.artId, 'a1');
 });
-t('a PI is found, counts its sprints, and heads for Current PI', () => {
+t('a PI is found, counts its sprints, and heads for Team PI', () => {
   const h = find('2026.1').hits[0];
   eq(h.where, 'PI 2026.1 — PI');
   eq(h.snippet, '2 sprints recorded');
@@ -737,6 +737,20 @@ t('every view a hit can name is a real tab in the app', () => {
   });
   const all = [...w.document.querySelectorAll('.tab[data-view]')].map(el => el.dataset.view);
   all.forEach((v) => ok(labels[v], 'the tab "' + v + '" has no label for the Find list'));
+});
+t('a view is called the same thing on the tab, in Find and on paper', () => {
+  /* There were two label maps, and they disagreed: one hard-coded "Rolling 5"
+     where the other templated ROLLING_WINDOW, and they differed in case on three
+     of the seven names — so a Find hit and the tab it sent you to were spelled
+     differently. There is one map now, and this is what holds it to the row. */
+  const labels = w.__svTestHooks.SEARCH_VIEW_LABEL;
+  [...w.document.querySelectorAll('.tab[data-view]')].forEach((el) => {
+    const shown = el.textContent.trim();
+    eq(labels[el.dataset.view], shown,
+      'the tab reads "' + shown + '" and the Find list says "' + labels[el.dataset.view] + '"');
+    eq(w.printMetaLine(el.dataset.view).split(' · ')[1], shown,
+      'and the printed page has to agree with both');
+  });
 });
 
 group('coerceShape — the shape guard in front of the same boundary');
@@ -1626,7 +1640,7 @@ t('the roster is six teams, two ARTs of two, and two teams in neither', () => {
     eq(st.arts.map(a => w.teamsInArt(st.teams, a.id).length), [2, 2]);
     eq(w.teamsInArt(st.teams, w.__svTestHooks.ART_NONE).map(t => t.name),
       ['Team New Start', 'Team No PI'],
-      'so the All teams picker has a "No ART" group to show');
+      'so the Compare Teams picker has a "No ART" group to show');
   });
 });
 t('Team No PI is the demo’s PI-less team, and its one job is to have no PI', () => {
@@ -1852,7 +1866,7 @@ t('the demo lands on the running sprint', () => {
 });
 
 /* ── The demo's PI business value ────────────────────────────────────────────
-   The ART PI view's whole point is that predictability is a TWO-SIDED measure, so
+   The PI by Team view's whole point is that predictability is a TWO-SIDED measure, so
    the demo has to show a team on each side of the band and one that hasn't been
    scored at all. Tidy these into four healthy percentages and a first run teaches
    the measure as one-sided, which is the misreading the view exists to prevent. */
@@ -1909,7 +1923,7 @@ t('the Trend column has all three of its answers to give', () => {
       'and Team New Start, too thin to have a direction at all');
   });
 });
-t('the ◎ goals-versus-points finding appears in BOTH directions on All teams', () => {
+t('the ◎ goals-versus-points finding appears in BOTH directions on Compare Teams', () => {
   withSample((id, by) => {
     const kind = (name) => {
       const rs = w.rollingSprints(id(name), false);
@@ -2125,7 +2139,7 @@ t('the excluded sprint keeps all its own figures — only the forecast skips it'
     eq(w.sprintStatus(s), 'complete', 'and it is still a finished sprint, not a faked-planned one');
   });
 });
-t('the Current PI view keeps an excluded sprint, which is why its help stays unconditional', () => {
+t('the Team PI view keeps an excluded sprint, which is why its help stays unconditional', () => {
   /* The Dashboard-reconciliation claim is conditional on Comparison 2 and the
      Rolling 5 pooled row, and NOT on the PI total row. That asymmetry is only
      correct while the PI view keeps filtering on its own counted list rather than
@@ -2148,8 +2162,8 @@ t('excluding everything returns no target rather than throwing', () => {
   });
 });
 t('excluding the OLDEST sprint in a short history is still named', () => {
-  /* The regression Charles caught: Sprint and Current PI showed the exclusion,
-     Rolling 5 and All teams said nothing, because both read excludedInRange() and
+  /* The regression Charles caught: Sprint and Team PI showed the exclusion,
+     Rolling 5 and Compare Teams said nothing, because both read excludedInRange() and
      it anchored on the oldest KEPT sprint — making the oldest sprint the one it
      could never name, however much the window shrank. */
   const fx = windowFixture();
@@ -2194,7 +2208,7 @@ t('the note names the excluded sprints the window reached over, and no others', 
 t('exclusions bunched at the start are ALL named, not just the newest', () => {
   /* The under-report the slice-based version left behind: with S1, S2 and S3 out
      of seven, the window is four sprints and only S3 was named — so Rolling 5 and
-     All teams showed a short window with two of its three reasons missing. */
+     Compare Teams showed a short window with two of its three reasons missing. */
   const fx = windowFixture();
   [0, 1, 2].forEach(i => { fx.sprints[i].excluded = true; fx.sprints[i].excludeReason = 'rebaseline'; });
   withState(fx, () => {
@@ -2449,7 +2463,7 @@ t('the worker is network-first, so cached code needs a failed network', () => {
     'a bare fetch(req) is the bug \u2014 it inherits the page request\u2019s cache mode');
 });
 
-/* IN-PAGE NAVIGATION HAS TO TAKE FOCUS WITH IT. Pressing a team's name in All teams
+/* IN-PAGE NAVIGATION HAS TO TAKE FOCUS WITH IT. Pressing a team's name in Compare Teams
    rebuilds #views, which destroys the button that was pressed; without focusView() the
    focus falls to <body> and a keyboard or screen-reader user is returned to the top of
    the document with nothing announced. Neither axe nor any suite can see that, so the
@@ -3040,7 +3054,7 @@ t('a share link of the current version still opens', async () => {
 
 group('reordering teams, ARTs and PIs');
 /* All three lists are ORDERED and the order is read: teams appear in this order
-   in every picker and down the All teams table, ARTs are the order their groups
+   in every picker and down the Compare Teams table, ARTs are the order their groups
    come in, and PI order has always been this app's sense of time — the rolling
    window walks back through it. PIs had these arrows already; teams and ARTs
    gained them on 2026-08-20, along with Flow Metrics, whose Teams window this
@@ -3391,7 +3405,7 @@ t('the average can sit in the band while NO team does — the cancelling case', 
   });
 });
 
-t('the ART PI captions count the teams the figures actually cover', () => {
+t('the PI by Team captions count the teams the figures actually cover', () => {
   /* "Total delivered" is summed over the teams with a sprint in the SELECTED PI,
      and its caption said `shown.length` — every team on the ART, including the
      ones the view had just named as not being in this PI at all. A figure over
@@ -3488,7 +3502,7 @@ t('two records for one team’s PI is a damaged payload — the second goes', ()
   eq(out.objectives.length, 1, 'or the two would disagree invisibly about the measure');
   eq(out.objectives[0].plannedBv, 10, 'the first one wins, as it does for plans');
 });
-t('the ART PI view is a real view name at the boundary', () => {
+t('the PI by Team view is a real view name at the boundary', () => {
   const out = w.sanitizeIds(w.coerceShape({
     teams: [{ id: 't1', name: 'A' }], arts: [], pis: [], sprints: [],
     settings: { view: 'art' },
@@ -3498,7 +3512,7 @@ t('the ART PI view is a real view name at the boundary', () => {
 
 t('a shared link that withholds the team comparison withholds this view too', () => {
   /* renderTabs() is DOM-bound, so what is pinned here is the rule it applies:
-     the ART PI view is a comparison ACROSS teams, exactly like All teams, so a
+     the PI by Team view is a comparison ACROSS teams, exactly like Compare Teams, so a
      sender who switched that off must not have it handed back by another tab. */
   const gate = (viewOnly, allTeams) => (!viewOnly || !!allTeams);
   eq(gate(false, false), true, 'your own copy always offers it');
@@ -3561,7 +3575,7 @@ t('the RAG glyph and its screen-reader status are stripped, the figure is kept',
   eq(w.tableToRows(t1), [['90%']]);
 });
 t('a bare aria-hidden marker goes too — that is what the ⚑ columns are', () => {
-  /* The All teams table marks an adjusted target with an aria-hidden ⚑ and an
+  /* The Compare Teams table marks an adjusted target with an aria-hidden ⚑ and an
      .sr-only sentence, NOT a .badge — so without the aria-hidden rule a sprint
      count of 4 exported as the text "4 ⚑" and the column lost its numbers. */
   const t1 = makeTable(`<tbody><tr><td>4 <span aria-hidden="true">⚑</span><span
@@ -4342,7 +4356,7 @@ t('points figures are pooled totals, and move with the size of the train', () =>
     const st = w.svGet();
     const rows = w.piTrend(st.teams, false);
     eq(rows[1].committed, 30, 'A’s 20 plus B’s 10');
-    approx(rows[1].commitPct, 27 / 30 * 100, 'pooled — the Current PI and Dashboard method');
+    approx(rows[1].commitPct, 27 / 30 * 100, 'pooled — the Team PI and Dashboard method');
   });
 });
 t('a PI-less sprint never lands in any PI’s row', () => {
@@ -4883,7 +4897,7 @@ t('sparkline: nothing to draw below two points, and a flat run is a flat line', 
   ok(flat.indexOf('NaN') < 0, 'and never divides by zero: ' + flat);
 });
 
-group('the goals finding, now that All teams shows it too');
+group('the goals finding, now that Compare Teams shows it too');
 t('goalGapKind fires both ways, and only on a clear disagreement', () => {
   const rec = (met, recorded) => ({ met, recorded, missing: [], total: recorded, pct: 0 });
   eq(w.goalGapKind(rec(1, 5), 95), 'points', 'points land, goals do not');
@@ -5201,9 +5215,16 @@ t('the print rules name no colour of their own beyond the white of the paper', (
 });
 t('the provenance line says the view, the scope and the day — and never twice', () => {
   const line = w.printMetaLine('teams');
-  ok(line.indexOf('All teams') >= 0, line);
-  eq(line.split('All teams').length - 1, 1,
-    'with no ART filter the view name IS the scope: "All teams · All teams" reads as a bug');
+  ok(line.indexOf('Compare Teams') >= 0, line);
+  eq(line.split('Compare Teams').length - 1, 1,
+    'the view is named once — it used to be the scope as well, and printed itself twice');
+  /* The scope on an across-teams view is the ART filter and nothing else, so with
+     no filter set there is no scope segment at all. This is the half of the old
+     "never twice" rule that survived the rename, and it is worth pinning: the
+     regression it guards is a page that names the tab where it should be naming
+     the teams the figures actually cover. */
+  eq(line.indexOf('All teams'), -1,
+    'with no ART filter there is no scope to state, so nothing stands in for one');
   ok(/printed .*\d{4}/.test(line), 'and the year is there — this ends up in a folder: ' + line);
 });
 
