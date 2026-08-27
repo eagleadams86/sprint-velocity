@@ -1079,6 +1079,21 @@ the same rule the IP toggle and the tab row already keep. A team whose only spri
 running keeps them, because *"count sprints that are still running"* is the way out of that
 particular empty state rather than decoration on it.
 
+#### Forecasting Before There Is a Team At All
+
+With nothing recorded the tab row is gone and the welcome card is the whole page, so the typed
+velocity was reachable only after creating a team and finding Rolling 5. **Forecast Ahead**, the
+fourth button on that card, goes straight to it: type a velocity and a number of story points
+and it answers, having recorded nothing.
+
+The first three buttons are the family's, in the family's order; the fourth is this app's own,
+as Flow Metrics' and Golf Handicap's fourth buttons are theirs.
+
+**Nothing on that screen is kept**, and it says so. The rate isn't saved for the reason below,
+so a screen that survived a reload would come back with the numbers already gone out of it —
+better to be plainly temporary than to look permanent and not be. There's a way back to the
+welcome card, and a *Start a Team* beside it for when the answer is worth keeping.
+
 #### A Velocity You Type, for a Team That Hasn't Got One
 
 Everything above rests on finished sprints — and the team most often asked *"how long will

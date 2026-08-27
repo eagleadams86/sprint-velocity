@@ -5649,7 +5649,13 @@ function render() {
   const view = renderTabs();
   document.getElementById('printMeta').textContent = printMetaLine(view);
 
-  if (!state.teams.length) { renderWelcome(); return; }
+  /* Planning stands in front of the welcome card, and only while there is still
+     nothing recorded: the moment a team exists the forecast belongs to it, on
+     Rolling 5 where the rest of that team's figures are. */
+  if (!state.teams.length) {
+    if (forecastPlanning && !viewOnly) renderPlanning(); else renderWelcome();
+    return;
+  }
 
   if (view === 'sprint')       renderSprintView();
   else if (view === 'pi')      renderPiView();
@@ -5809,17 +5815,42 @@ function renderWelcome() {
       <p style="margin-top:16px">
         <button class="btn primary" id="welcomeAddBtn">Start Fresh</button>
         <button class="btn" id="welcomeSampleBtn">Load Sample Data</button>
-        <button class="btn" id="welcomeRestoreBtn">Restore a Backup</button></p>
+        <button class="btn" id="welcomeRestoreBtn">Restore a Backup</button>
+        <button class="btn" id="welcomePlanBtn">Forecast Ahead</button></p>
       <p><strong>Start Fresh</strong> adds your first team and opens Teams &amp; PIs, where you
         name it and set up the PIs you run — if you run any.</p>
       <p><strong>Load Sample Data</strong> fills every tab with six invented teams, each named
         for the one thing it shows, so you can see what the app does before typing anything of
         your own. The figures are made up.</p>
       <p><strong>Restore a Backup</strong> reads a Sprint Predictability export.</p>
+      <p><strong>Forecast Ahead</strong> is for work that has not started. You type a velocity
+        and a number of story points, and it says how many sprints that would take — the same
+        answer this app gives from a real team's history, dealt from your estimate instead.
+        Nothing is recorded and nothing is kept.</p>
     </div></div>`;
   document.getElementById('welcomeAddBtn').onclick = () => { openManage(); addTeam(); };
   document.getElementById('welcomeSampleBtn').onclick = loadSample;
   document.getElementById('welcomeRestoreBtn').onclick = () => openModal(F('dataDialog'));
+  document.getElementById('welcomePlanBtn').onclick = () => { forecastPlanning = true; render(); };
+}
+
+/* The planning screen: the forecast card, and the way back. No team exists, so
+   nothing here can be about one — forecastCard and everything under it take a
+   null team and answer in the general. */
+function renderPlanning() {
+  viewsEl.innerHTML = forecastCard(null, false) + `
+    <div class="card empty" style="padding:18px">
+      <p style="margin:0">Nothing here is recorded or kept — reload and this screen is gone.
+        To keep a forecast, and to have it drawn from what a team really finishes rather than
+        from a number you typed, start a team instead.</p>
+      <div class="row" style="justify-content:center;margin-top:14px;gap:10px">
+        <button class="btn primary" id="planAddBtn">Start a Team</button>
+        <button class="btn" id="planBackBtn">Back</button>
+      </div>
+    </div>`;
+  wireForecast(null, false);
+  F('planAddBtn').onclick = () => { forecastPlanning = false; openManage(); addTeam(); };
+  F('planBackBtn').onclick = () => { forecastPlanning = false; render(); };
 }
 
 /* ── Which sprint numbers a picker offers ───────────────────────────────────
@@ -6651,6 +6682,19 @@ let forecastTypedOn = null;
    `forecastPoints` deliberately does NOT go with it: a backlog total is a
    statement about the work, not about who is doing it, and comparing the same
    scope across two teams is the reason somebody switches. */
+/* ── Forecasting before there is a team to forecast for ──────────────────────
+   The fourth way in. With nothing recorded the tab row is gone and the welcome
+   card is the whole page, so the typed velocity — the one thing this app can do
+   with no data at all — was reachable only after creating a team and finding
+   Rolling 5. This puts it on the front screen.
+
+   In memory, like everything else this card holds. A reload returns to the
+   welcome card, and that is the honest outcome rather than an oversight: the
+   rate itself is deliberately not saved either, so a persisted flag would bring
+   back a planning screen with the numbers already gone out of it. The screen
+   says so, so nobody loses work they thought was kept. */
+let forecastPlanning = false;
+
 function forecastClearTypedRate() {
   forecastRateLo = '';
   forecastRateHi = '';
@@ -6690,24 +6734,32 @@ const forecastTypedRate = (teamId, includeSix) =>
 
 function forecastResultHtml(team, includeSix) {
   const points = Math.max(0, Math.round(parseFloat(forecastPoints) || 0));
-  const typedRate = forecastTypedRate(team.id, includeSix);
-  const ticked = forecastTypedTicked(team.id, includeSix);
+  /* Null on the planning screen, where no team exists yet. Every sentence below
+     that would have named one says "it" instead — inventing a subject would be
+     the card claiming a team that is not there. */
+  const teamId = team ? team.id : null;
+  const who = team ? esc(team.name) : 'this';
+  const typedRate = forecastTypedRate(teamId, includeSix);
+  const ticked = forecastTypedTicked(teamId, includeSix);
   if (!points) return `<p class="sub" style="margin:0">Type a number of story points above —
-    the whole backlog, an epic, a release — and this says how many sprints it would take
-    ${esc(team.name)} ${typedRate
+    the whole backlog, an epic, a release — and this says how many sprints ${
+      team ? 'it would take ' + who : 'that would take'} ${typedRate
       ? 'at the velocity typed below.'
       : ticked
-      ? `at a velocity you type below. ${esc(team.name)} has no finished sprints to take a rate
-         from, so the two boxes are where it comes from.`
+      ? `at a velocity you type below. ${team
+          ? who + ' has no finished sprints to take a rate from, so the two boxes are where it '
+            + 'comes from.'
+          : 'There is nothing recorded to take a rate from, so the two boxes are where it '
+            + 'comes from.'}`
       : 'at the rate they have actually been finishing committed work.'}</p>`;
 
-  const f = forecast(team.id, points, includeSix);
+  const f = forecast(teamId, points, includeSix);
   /* Ticked, and nothing typed into it yet. Naming the history would send the
      reader to find sprints they have already been told they do not have. */
   if (!f) return `<p class="sub" style="margin:0">${ticked
     ? 'Type a velocity below — points a sprint, or a range — and this will answer.'
     : ''}</p>`;
-  if (f.impossible) return `<p class="warn" style="margin:0">${esc(team.name)} has finished none
+  if (f.impossible) return `<p class="warn" style="margin:0">${who} has finished none
     of its committed points across the last ${plural(f.sprints, 'sprint')}, so there is no rate
     to forecast from. Record a sprint with some committed work finished and this will answer.</p>`;
 
@@ -6782,15 +6834,16 @@ function forecastResultHtml(team, includeSix) {
   /* Said first among the caveats it belongs with, and said EVERY time: a number
      read off a shared screen has to carry where its rate came from. */
   if (f.typed)
-    caveats.push(`This is dealt from a velocity you typed, not from anything ${esc(team.name)}
-      has recorded — it is your estimate with the arithmetic done. A typed range is also narrower
-      than a real team's results, so treat it as the most generous reading rather than the safest.
-      Record some sprints and this answers from what actually happened instead.`);
-  if (f.typed && forecastHasRate(team.id, includeSix))
-    caveats.push(`${esc(team.name)} <strong>does</strong> have finished sprints to draw from —
-      untick the box below to forecast from them instead.`);
-  if (f.typed && nextSprintTarget(team.id, includeSix)
-      && nextSprintTarget(team.id, includeSix).availabilitySource === 'team')
+    caveats.push(`This is dealt from a velocity you typed, not from anything ${
+      team ? who + ' has' : 'anybody has'} recorded — it is your estimate with the arithmetic
+      done. A typed range is also narrower than a real team's results, so treat it as the most
+      generous reading rather than the safest. Record some sprints and this answers from what
+      actually happened instead.`);
+  if (f.typed && forecastHasRate(teamId, includeSix))
+    caveats.push(`${who} <strong>does</strong> have finished sprints to draw from —
+      untick the box above to forecast from them instead.`);
+  if (f.typed && nextSprintTarget(teamId, includeSix)
+      && nextSprintTarget(teamId, includeSix).availabilitySource === 'team')
     caveats.push(`The team's standing availability is <em>not</em> applied on top of a typed
       velocity: a rate you state is already a statement about the team as it will be, and knocking
       it down again would allow for the same absence twice.`);
@@ -6822,7 +6875,7 @@ function forecastCard(team, includeSix) {
      team most often asked how long something will take, and the typed rate below
      is the answer to that — gating the card on the history it exists to stand in
      for would put the control behind the door it opens. */
-  const ticked = forecastTypedTicked(team.id, includeSix);
+  const ticked = forecastTypedTicked(team ? team.id : null, includeSix);
   return `<div class="card">
     <div class="row spread cardhead">
       <h2>How Long Would It Take?${helpBtn('forecast', 'the forecast')}</h2>
@@ -11906,6 +11959,10 @@ window.__svTestHooks = { raisesKeyboard, reorderById,
     forecastTypedOn = on === undefined ? null : on;
   },
   svTypedRateState: () => ({ lo: forecastRateLo, hi: forecastRateHi, on: forecastTypedOn }),
+  /* The planning screen's own flag, settable for the same reason: it is a
+     module-level let, and a suite that pressed the button would otherwise leave
+     the app on that screen for every case after it. */
+  svPlanning: (on) => { forecastPlanning = !!on; },
   forecastHasRate, forecastTypedTicked, forecastTypedRange,
   /* `const` at the top level of a classic script is not a property of window,
      so the two version numbers have to be handed over deliberately or the

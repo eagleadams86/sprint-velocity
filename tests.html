@@ -93,7 +93,7 @@ function ok(cond, note) { if (!cond) throw new Error(note || 'expected truthy');
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 401;
+const EXPECTED = 403;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -3898,6 +3898,46 @@ t('the two boxes are really HIDDEN when the box is unticked', () => {
       w.render();
     }
   });
+});
+t('the welcome card offers a fourth way in, and it creates nothing', () => {
+  /* With no teams the tab row is gone and the welcome card is the whole page, so
+     the typed velocity — the one thing this app can do with nothing recorded —
+     could be reached only by first creating a team and finding Rolling 5. */
+  withState({ teams: [], pis: [], sprints: [] }, () => {
+    typed();
+    w.render();
+    const doc = w.document;
+    const labels = [...doc.querySelectorAll('.welcome button')].map(b => b.textContent.trim());
+    eq(labels, ['Start Fresh', 'Load Sample Data', 'Restore a Backup', 'Forecast Ahead'],
+      'the family\u2019s three, in the family\u2019s order, then this app\u2019s own fourth');
+    doc.getElementById('welcomePlanBtn').click();
+    eq(w.svGet().teams.length, 0, 'pressing it records nothing \u2014 that is the whole promise');
+    ok(!!doc.getElementById('forecastTyped'), 'and the forecast card is on screen');
+    eq(doc.getElementById('forecastTyped').checked, true,
+      'ticked, because there is no history anywhere to measure');
+    ok(!!doc.getElementById('planBackBtn'), 'with a way back to the card it came from');
+    /* A null team everywhere: nothing on this screen may name one, because there
+       is not one. */
+    ok(!/undefined|null/.test(doc.getElementById('forecastResult').textContent),
+      'and no sentence on it says "undefined"');
+    doc.getElementById('planBackBtn').click();
+    ok(!!doc.querySelector('.card.welcome'), 'Back returns to the welcome card');
+    w.__svTestHooks.svPlanning(false);
+  });
+  typed();
+});
+t('the planning screen answers from a typed velocity with no team at all', () => {
+  withState({ teams: [], pis: [], sprints: [] }, () => {
+    typed(25, 35);
+    const f = w.forecast(null, 120, false);
+    ok(!!f, 'a null team id still forecasts, given a rate');
+    eq(f.typed, true);
+    eq(f.fast, 4, 'ceil(120 / 35)');
+    eq(f.slow, 5, 'ceil(120 / 25)');
+    eq(f.sprints, 0, 'and claims no history behind it');
+    eq(f.fastEnd, null, 'no dates: there is no team, so no cadence and no slot');
+  });
+  typed();
 });
 t('the rolling toolbar goes when there is nothing for it to govern', () => {
   /* Both toggles decide which RECORDED sprints reach the average, so with none
