@@ -1413,7 +1413,7 @@ unattached numbers. Every dialog announces its own title, the sprint form's warn
 auto-filled hints are tied to the boxes they refer to and read out when they change, and
 pressing **Read it** on a Jira paste moves you to the result rather than leaving it
 unannounced. Small targets like the ⓘ carry a 24px hit area without growing on screen, and
-`prefers-reduced-motion` is honoured.
+`prefers-reduced-motion` is honoured — from `theme.css`, which has carried it for every app in the family since 2026-08-26 (pack rule 15) rather than each page keeping its own copy.
 
 ---
 
