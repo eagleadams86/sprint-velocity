@@ -2390,6 +2390,12 @@ const MIN_TREND_POINTS = 3;
 const FORECAST_HORIZON = SPRINTS_PER_PI * 2;
 /* Above this a typed velocity is not a plan, it is a typo. */
 const FORECAST_RATE_MAX = 1000;
+/* Scope growth, as a percentage. Clamped at zero on the low side deliberately:
+   a negative growth is "scope shrinks", which is a way to forecast your way to a
+   date and not a risk anybody plans for. Flow Metrics draws the same line. */
+const FORECAST_GROWTH_MAX = 200;
+/* Sprints nobody is delivering in. Past the horizon it is not a plan either. */
+const FORECAST_LOST_MAX = FORECAST_HORIZON;
 
 const CLEARED_PCT       = 95;
 const HEADROOM_MIN_EXTRA = 1;
@@ -2555,7 +2561,11 @@ function blankState() {
                    read off again. `forecastTypedOn` is a TRIBOOL: null means
                    nobody has pressed the tick and the data decides. */
                 forecastRateLo: '', forecastRateHi: '',
-                forecastTypedOn: null, forecastPlanning: false }
+                forecastTypedOn: null, forecastPlanning: false,
+                /* The two adjustments, and whether their fold is open. Numbers
+                   and a bool, like everything else kept here. */
+                forecastGrowthLo: '', forecastGrowthHi: '',
+                forecastLostSprints: '', forecastAdjustOpen: false }
   };
 }
 
@@ -2878,7 +2888,9 @@ function sanitizeIds(data) {
          restored forecast and nothing else: the card falls back to the history
          it can see, and says so as it always did. */
       forecastRateLo: 'num', forecastRateHi: 'num',
-      forecastTypedOn: 'tribool', forecastPlanning: 'bool' });
+      forecastTypedOn: 'tribool', forecastPlanning: 'bool',
+      forecastGrowthLo: 'num', forecastGrowthHi: 'num',
+      forecastLostSprints: 'num', forecastAdjustOpen: 'bool' });
   }
   /* The top level too — with the share-meta keys allowed through, because a
      share payload crosses this same boundary and the shared-view banner is
@@ -3396,9 +3408,31 @@ function forecast(teamId, points, includeSix) {
      it can't answer rather than printing something. */
   if (!(slowRate > 0)) return { points, impossible: true, sprints: t ? t.sprints : 0 };
 
+  /* ── Scope growth ────────────────────────────────────────────────────────
+     Applied to the WORK, not to the rate, and each end of the growth range pairs
+     with the end of the rate range that belongs to it: the optimistic answer is
+     the least growth at the fastest rate, the cautious one the most growth at
+     the slowest. Ceiled, because work you have not counted yet is work. At the
+     default both multipliers are exactly 1 and ceil(n * 1) === n for an integer
+     n, which is what keeps this an exact no-op. */
+  const growth = forecastGrowth();
+  const fastPoints = Math.ceil(points * (1 + growth.lo / 100));
+  const slowPoints = Math.ceil(points * (1 + growth.hi / 100));
+
   /* Sprints are whole. You do not finish in 5.3 of them, you finish in 6. */
-  const fast = Math.ceil(points / fastRate);
-  const slow = Math.ceil(points / slowRate);
+  const fastDeliver = Math.ceil(fastPoints / fastRate);
+  const slowDeliver = Math.ceil(slowPoints / slowRate);
+
+  /* ── Sprints nobody is delivering in ─────────────────────────────────────
+     Added flat rather than dropped in at a chosen point: a sprint that delivers
+     nothing contributes nothing and shifts everything after it by exactly one,
+     so WHERE it lands cannot change the finish. Kept separate from the delivery
+     count all the way down, because the calendar walk below converts DELIVERY
+     sprints into calendar slots by stepping over IP sprints, and these are
+     already calendar slots. */
+  const lost = forecastLostSprints();
+  const fast = fastDeliver + lost;
+  const slow = slowDeliver + lost;
 
   /* ── Where a forecast stops being one ─────────────────────────────────────
      A rate taken from five sprints cannot tell you about the next hundred. Past
@@ -3450,8 +3484,10 @@ function forecast(teamId, points, includeSix) {
           ? c.anchor.startDate : null);
     if (iso) startDay = dayNum(iso);
   }
-  const endOf = (n) => (startDay === null || beyondHorizon ? null
-    : isoDay(startDay + (calendarSlots(n) - 1) * c.stride + c.length));
+  /* `deliver` is the delivering sprints, which is what the slot walk converts;
+     the lost ones are calendar slots already and are added after it. */
+  const endOf = (deliver) => (startDay === null || beyondHorizon ? null
+    : isoDay(startDay + (calendarSlots(deliver) + lost - 1) * c.stride + c.length));
 
   /* How much of the current PI is left to deliver in, so the card can answer the
      question this one always turns into: does it land before the PI ends? */
@@ -3470,12 +3506,19 @@ function forecast(teamId, points, includeSix) {
     /* Which of the two the answer was dealt from, stated on the object so every
        sentence the card writes reads from one place. */
     typed: !!typed,
+    /* Stated on the object so every sentence the card writes reads from one
+       place, and so a default scenario can be told from an adjusted one without
+       re-deriving the rule. */
+    growthLo: growth.lo, growthHi: growth.hi, lostSprints: lost,
+    grownPoints: growth.hi > 0 || growth.lo > 0 ? [fastPoints, slowPoints] : null,
     reliableMet: t ? t.reliableMet : null,
     /* Whole weeks, from the team's own stride rather than an assumed fortnight. */
-    fastWeeks: c && !beyondHorizon ? Math.round(calendarSlots(fast) * c.stride / 7) : null,
-    slowWeeks: c && !beyondHorizon ? Math.round(calendarSlots(slow) * c.stride / 7) : null,
-    fastEnd: endOf(fast),
-    slowEnd: endOf(slow),
+    fastWeeks: c && !beyondHorizon
+      ? Math.round((calendarSlots(fastDeliver) + lost) * c.stride / 7) : null,
+    slowWeeks: c && !beyondHorizon
+      ? Math.round((calendarSlots(slowDeliver) + lost) * c.stride / 7) : null,
+    fastEnd: endOf(fastDeliver),
+    slowEnd: endOf(slowDeliver),
     slotsLeftInPi,
     piId: slot ? slot.piId : null,
     /* True when even the optimistic end runs past the sprints left in this PI —
@@ -6752,6 +6795,15 @@ function forecastClearTypedRate() {
   fcs().forecastTypedOn = null;
 }
 
+/* The adjustments go with it on a team switch and on a delete: "scope grows 20%"
+   is a statement about ONE backlog, and two sprints of shutdown are one team's
+   calendar. The fold's own open/shut state is a preference and stays. */
+function forecastClearAdjustments() {
+  fcs().forecastGrowthLo = '';
+  fcs().forecastGrowthHi = '';
+  fcs().forecastLostSprints = '';
+}
+
 /* Whether this team has a rate to forecast FROM — the same two conditions
    `forecast()` refuses on, asked in one place so the tick's default and the
    card's own refusal cannot disagree about what "no history" means. */
@@ -6777,6 +6829,34 @@ function forecastTypedRange() {
   if (lo === null && hi === null) return null;
   const a = lo === null ? hi : lo, b = hi === null ? lo : hi;
   return { slow: Math.min(a, b), fast: Math.max(a, b) };
+}
+
+/* ── The two adjustments ────────────────────────────────────────────────────
+   Both are statements about the WORK and the CALENDAR rather than about the
+   team's pace, which is why they sit apart from the typed velocity and apply
+   whichever rate the answer is drawn from.
+
+   Growth is a range, and its two ends pair with the two rates rather than
+   floating free: the optimistic answer is the low growth at the fast rate, the
+   cautious one is the high growth at the slow rate. Mixing them — low scope,
+   slow rate — would be a scenario nobody is describing. */
+function forecastGrowth() {
+  const pct = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.max(0, Math.min(FORECAST_GROWTH_MAX, n)) : 0;
+  };
+  const lo = pct(fcs().forecastGrowthLo), hi = pct(fcs().forecastGrowthHi);
+  return { lo, hi: Math.max(lo, hi) };
+}
+
+/* Sprints inside the span in which nobody is delivering this work — a shutdown,
+   a conference, a fortnight of leave the whole team is taking. NOT the same as
+   availability, which scales what ONE sprint can hold; this removes sprints
+   from the span outright, and the IP sprint is already stepped over separately
+   by the slot walk. */
+function forecastLostSprints() {
+  const n = Math.round(Number(fcs().forecastLostSprints));
+  return Number.isFinite(n) ? Math.max(0, Math.min(FORECAST_LOST_MAX, n)) : 0;
 }
 
 /* A typed rate is IN EFFECT only once there is a rate typed. The tick opens the
@@ -6912,10 +6992,35 @@ function forecastResultHtml(team, includeSix) {
     caveats.push(`The <strong>${f.oneOffIgnored}%</strong> availability set against the next sprint
       is <em>not</em> applied across this whole span — it is a one-off, and stretching it over
       every sprint would forecast the team as permanently short-staffed.`);
+  /* Each adjustment says what it did, every time, in the same list the method's
+     own caveats are in. An answer read off a shared screen has to carry the
+     settings behind it — the same rule the typed rate follows. */
+  if (f.growthHi > 0)
+    caveats.push(`Scope growth is on: the ${plural(points, 'point')} you typed ${
+      f.growthLo === f.growthHi
+        ? `is forecast as <strong>${f.growthLo}%</strong> more`
+        : `is forecast as <strong>${f.growthLo}% to ${f.growthHi}%</strong> more`}, because work
+      you have not counted yet is still work. The least growth pairs with the faster rate and
+      the most with the slower, so each end is one coherent story rather than a mix of two.`);
+  if (f.lostSprints > 0)
+    caveats.push(`<strong>${plural(f.lostSprints, 'sprint')}</strong> in this span deliver
+      nothing towards it, and ${f.lostSprints === 1 ? 'that sprint is' : 'those sprints are'}
+      counted in the answer above. Where they fall makes no difference to the finish, so they
+      are added flat.${includeSix ? '' : ` The IP sprint is stepped over separately and is not
+      one of these.`}`);
   caveats.push(`It assumes the whole commitment goes to this work. Anything else the team picks
     up — break-in, support, a second stream — comes out of the same sprints.`);
 
-  return `<p style="margin:0 0 10px">${plural(points, 'point')} would take ${range}${
+  /* The scope actually forecast, named where the question was asked. "100 points
+     would take 9 sprints" over a 20% growth setting is the card quoting a number
+     it did not use, and the reader has no way to see the one it did. */
+  const scope = f.grownPoints
+    ? `${plural(points, 'point')} — ${f.grownPoints[0] === f.grownPoints[1]
+        ? fmtNum(f.grownPoints[0]) : fmtNum(f.grownPoints[0]) + ' to ' + fmtNum(f.grownPoints[1])}
+       after growth —`
+    : `${plural(points, 'point')}`;
+
+  return `<p style="margin:0 0 10px">${scope} would take ${range}${
       weeks ? ` — ${weeks}` : ''}.${dates}${pi}</p>
     <p class="sub" style="margin:0">${working}</p>
     <ul class="sub" style="margin:10px 0 0;padding-left:20px">${
@@ -6960,8 +7065,51 @@ function forecastCard(team, includeSix) {
         </div>
       </div>
     </div>
+    <!-- ── The adjustments, ABOVE the answer ────────────────────────────────
+         Same reason the tick moved up: anything the reader operates has to sit
+         where the answer's own length cannot move it. Folded because they are
+         the exception rather than the ordinary case, and the summary says how
+         many are on so a shut fold can never hide one — Flow Metrics' rule and
+         its wording, for the block that does the same job there. -->
+    <details class="forecast-adjust" id="forecastAdjust"${
+        fcs().forecastAdjustOpen ? ' open' : ''} style="margin:10px 0">
+      <summary style="cursor:pointer;font-size:var(--fs-sm)">${forecastAdjustSummary()}</summary>
+      <div class="row" style="gap:16px;margin-top:10px;font-size:var(--fs-sm)">
+        <label class="row" style="gap:8px">
+          <span>Scope grows by (%)</span>
+          <input type="number" id="fcGrowthLo" min="0" max="${FORECAST_GROWTH_MAX}" step="1"
+            inputmode="numeric" style="width:70px" value="${esc(fcs().forecastGrowthLo)}"
+            aria-label="Scope growth, lowest" placeholder="0">
+          <span>to</span>
+          <input type="number" id="fcGrowthHi" min="0" max="${FORECAST_GROWTH_MAX}" step="1"
+            inputmode="numeric" style="width:70px" value="${esc(fcs().forecastGrowthHi)}"
+            aria-label="Scope growth, highest" placeholder="0">
+        </label>
+        <label class="row" style="gap:8px">
+          <span>Sprints nobody is delivering</span>
+          <input type="number" id="fcLost" min="0" max="${FORECAST_LOST_MAX}" step="1"
+            inputmode="numeric" style="width:70px" value="${esc(fcs().forecastLostSprints)}"
+            aria-label="Sprints nobody is delivering" placeholder="0">
+        </label>
+      </div>
+      <p class="muted" style="font-size:var(--fs-xs);margin:8px 0 0">Both are about the WORK and
+        the CALENDAR rather than the team's pace, so they apply whichever rate the answer is
+        drawn from. Scope growth is the work turning out to be more than you counted — its two
+        ends pair with the two rates, least growth at the fastest. A sprint nobody is delivering
+        in is a shutdown or a fortnight of leave; the IP sprint is already stepped over on its
+        own.</p>
+    </details>
     <div id="forecastResult">${forecastResultHtml(team, includeSix)}</div>
   </div>`;
+}
+
+/* A shut fold must never hide an adjustment, so the summary counts them. */
+function forecastAdjustSummary() {
+  const g = forecastGrowth(), lost = forecastLostSprints();
+  const on = (g.hi > 0 ? 1 : 0) + (lost > 0 ? 1 : 0);
+  return on
+    ? `Adjusted for what you know <strong>\u2014 ${on} setting${on === 1 ? '' : 's'} on</strong>`
+    : 'Adjust for what you know';
 }
 
 function wireForecast(team, includeSix) {
@@ -6993,6 +7141,29 @@ function wireForecast(team, includeSix) {
      and then close the tab. */
   lo.oninput = () => { fcs().forecastRateLo = lo.value; save(); redraw(); };
   hi.oninput = () => { fcs().forecastRateHi = hi.value; save(); redraw(); };
+
+  /* The two adjustments, and the fold they sit in. The summary is re-rendered
+     with the answer, so a count that changes shows without a full render taking
+     the caret out of the box being typed in. */
+  const fold = document.getElementById('forecastAdjust');
+  const sum = fold && fold.querySelector('summary');
+  const adjust = (id, key) => {
+    const el = document.getElementById(id);
+    if (el) el.oninput = () => {
+      fcs()[key] = el.value;
+      save();
+      if (sum) sum.innerHTML = forecastAdjustSummary();
+      redraw();
+    };
+  };
+  adjust('fcGrowthLo', 'forecastGrowthLo');
+  adjust('fcGrowthHi', 'forecastGrowthHi');
+  adjust('fcLost', 'forecastLostSprints');
+  if (fold) fold.ontoggle = () => {
+    if (fcs().forecastAdjustOpen === fold.open) return;
+    fcs().forecastAdjustOpen = fold.open;
+    save();
+  };
 }
 
 /* The actionable takeaway from the rolling window: what to commit to at the next
@@ -10909,6 +11080,7 @@ F('clearConfirm').onclick = () => {
      total and a typed velocity left sitting in the card is not starting fresh. */
   forecastPoints = '';
   forecastClearTypedRate();
+  forecastClearAdjustments();
   save();
   clearDialog.close();
   render();
@@ -11874,6 +12046,7 @@ F('themeSel').onchange = (e) => {
 document.getElementById('teamSel').onchange = (e) => {
   state.settings.activeTeamId = e.target.value;
   forecastClearTypedRate();
+  forecastClearAdjustments();
   /* In a shared view, follow the new team to its latest data. Your own copy keeps
      the sprint you were last looking at — that's a working position you chose,
      not a starting point someone handed you. */
@@ -12023,6 +12196,16 @@ window.__svTestHooks = { raisesKeyboard, reorderById,
      module-level let, and a suite that pressed the button would otherwise leave
      the app on that screen for every case after it. */
   svPlanning: (on) => { state.settings.forecastPlanning = !!on; },
+  /* The two adjustments, settable and resettable for the same reason the rate
+     is: they are saved now, so a value left behind would re-answer every
+     forecast case after it. */
+  svAdjust: (lo, hi, lost) => {
+    state.settings.forecastGrowthLo = lo === undefined ? '' : String(lo);
+    state.settings.forecastGrowthHi = hi === undefined ? '' : String(hi);
+    state.settings.forecastLostSprints = lost === undefined ? '' : String(lost);
+  },
+  forecastGrowth, forecastLostSprints, forecastAdjustSummary,
+  FORECAST_GROWTH_MAX, FORECAST_LOST_MAX,
   forecastHasRate, forecastTypedTicked, forecastTypedRange,
   /* `const` at the top level of a classic script is not a property of window,
      so the two version numbers have to be handed over deliberately or the

@@ -93,7 +93,7 @@ function ok(cond, note) { if (!cond) throw new Error(note || 'expected truthy');
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 405;
+const EXPECTED = 412;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -4106,6 +4106,127 @@ t('an absurd rate is clamped rather than believed', () => {
     eq(w.forecast('t1', 100, false).typed, false, 'nor is anything that is not a number');
   });
   typed();
+});
+
+group('forecast — scope growth and sprints nobody is delivering');
+/* Two adjustments brought over from Flow Metrics on 2026-08-26, chosen because
+   they are statements about the WORK and the CALENDAR rather than about the
+   team's pace — so they apply whichever rate the answer is drawn from, and they
+   make no statistical claim the five-sprint window could not support. The
+   simulation was deliberately NOT brought over; see the README. */
+const adjust = (lo, hi, lost) => w.__svTestHooks.svAdjust(lo, hi, lost);
+t('at their defaults they are an exact no-op', () => {
+  /* The promise every knob in Flow Metrics makes, and the one worth pinning
+     first: the figures this app has always given must be the same figures. */
+  withState(capacityFixture(), () => {
+    typed(); adjust();
+    const f = w.forecast('t1', 100, false);
+    eq(f.fast, 4, '100 at the mean of 25');
+    eq(f.slow, 5, 'and at the floor of 20');
+    eq(f.growthLo, 0); eq(f.growthHi, 0); eq(f.lostSprints, 0);
+    eq(f.grownPoints, null, 'and nothing to say about scope');
+  });
+  adjust();
+});
+t('scope growth pairs its ends with the RATE ends, least growth at the fastest', () => {
+  /* Mixing them — low scope at the slow rate — would be a scenario nobody is
+     describing. Each end has to be one coherent story. */
+  withState(capacityFixture(), () => {
+    typed(); adjust(20, 40);
+    const f = w.forecast('t1', 100, false);
+    eq(f.grownPoints, [120, 140], '100 grown by 20% and by 40%');
+    eq(f.fast, 5, 'ceil(120 / 25) — least growth, fastest rate');
+    eq(f.slow, 7, 'ceil(140 / 20) — most growth, slowest rate');
+  });
+  adjust();
+});
+t('growth is ceiled, clamped, straightened and never negative', () => {
+  withState(capacityFixture(), () => {
+    typed();
+    adjust(1, 1);
+    eq(w.forecast('t1', 100, false).grownPoints, [101, 101],
+      'work you have not counted yet is work, so it rounds UP');
+    adjust(999, 999);
+    eq(w.forecast('t1', 100, false).growthHi, 200, 'clamped where it stops being a plan');
+    adjust(40, 10);
+    eq(w.forecast('t1', 100, false).growthHi, 40, 'a backwards range is straightened');
+    /* Scope SHRINK is refused outright: it is a way to forecast your way to a
+       date, and not a risk anybody plans for. Flow Metrics draws the same line. */
+    adjust(-40, -40);
+    eq(w.forecast('t1', 100, false).growthLo, 0, 'and shrink is refused');
+    adjust('banana', 'banana');
+    eq(w.forecast('t1', 100, false).growthLo, 0, 'as is anything that is not a number');
+  });
+  adjust();
+});
+t('sprints nobody delivers in are added FLAT to both ends', () => {
+  withState(capacityFixture(), () => {
+    typed(); adjust(undefined, undefined, 2);
+    const f = w.forecast('t1', 100, false);
+    eq(f.fast, 6, '4 delivering plus 2 that do not');
+    eq(f.slow, 7, '5 plus the same 2');
+    eq(f.lostSprints, 2);
+    /* Where they land cannot change the finish — a sprint that delivers nothing
+       contributes nothing and shifts everything after it by exactly one — which
+       is why they are added rather than dealt into the walk. */
+    adjust(undefined, undefined, 1);
+    eq(w.forecast('t1', 100, false).fast, 5, 'one is one');
+    adjust(undefined, undefined, 999);
+    eq(w.forecast('t1', 100, false).lostSprints, w.__svTestHooks.FORECAST_LOST_MAX,
+      'and past the horizon it is not a plan either');
+  });
+  adjust();
+});
+t('a lost sprint moves the DATES by a whole slot, not just the count', () => {
+  /* The half that would go wrong quietly: the count is easy to add and the
+     calendar is where it has to actually land. The slot walk converts DELIVERING
+     sprints into calendar slots by stepping over IP sprints, so the lost ones
+     are added after it — they are calendar slots already. */
+  const fx = capacityFixture();
+  fx.teams = [{ id: 't1', name: 'Team One', cadenceStart: '2026-01-05', cadenceLength: 14 }];
+  withState(fx, () => {
+    typed(); adjust();
+    const a = w.forecast('t1', 100, false);
+    adjust(undefined, undefined, 2);
+    const b = w.forecast('t1', 100, false);
+    if (a.fastWeeks !== null) {
+      eq(b.fast - a.fast, 2, 'two more sprints in the count');
+      eq(b.fastWeeks - a.fastWeeks, 4, 'and four more weeks on a fortnightly cadence');
+    } else {
+      /* The fixture carries no cadence, so there are no dates to move. Pinned
+         as the shape rather than skipped silently. */
+      eq(a.fastEnd, null, 'no cadence, no dates — and none invented');
+      eq(b.fastEnd, null);
+      eq(b.fast - a.fast, 2, 'the count still moves by exactly two');
+    }
+  });
+  adjust();
+});
+t('both together, and the answer names the scope it actually used', () => {
+  withState(capacityFixture(), () => {
+    typed(); adjust(25, 25, 1);
+    const f = w.forecast('t1', 100, false);
+    eq(f.grownPoints, [125, 125]);
+    eq(f.fast, 6, 'ceil(125 / 25) = 5, plus the sprint that delivers nothing');
+    eq(f.slow, 8, 'ceil(125 / 20) = 7, plus the same one');
+  });
+  adjust();
+});
+t('a shut fold can never hide an adjustment', () => {
+  /* The summary counts them, and it is the only thing standing between a folded
+     block and a figure nobody knows has been moved. */
+  const sum = () => w.__svTestHooks.forecastAdjustSummary();
+  adjust();
+  eq(sum(), 'Adjust for what you know', 'nothing set, nothing claimed');
+  adjust(20, 20);
+  ok(/1 setting on/.test(sum()), 'one knob, counted', sum());
+  adjust(20, 20, 3);
+  ok(/2 settings on/.test(sum()), 'and both', sum());
+  /* A growth range whose HIGH end is zero is not an adjustment, whatever is in
+     the low box — the same rule the assumptions list keeps in Flow Metrics. */
+  adjust(0, 0, 3);
+  ok(/1 setting on/.test(sum()), 'a zero range is not a setting', sum());
+  adjust();
 });
 
 group('piTrend — one row per PI, for the Inspect & Adapt view');

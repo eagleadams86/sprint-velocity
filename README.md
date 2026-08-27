@@ -1081,6 +1081,42 @@ the same rule the IP toggle and the tab row already keep. A team whose only spri
 running keeps them, because *"count sprints that are still running"* is the way out of that
 particular empty state rather than decoration on it.
 
+#### Adjust for What You Know
+
+Two settings, folded above the answer so nothing the reader operates can be moved by an answer
+that grows. Both are statements about the **work** and the **calendar** rather than about the
+team's pace, which is why they apply whichever rate the answer is drawn from — measured or typed.
+
+| Setting | What it says |
+|---|---|
+| **Scope grows by (%)** | The work turns out to be more than you counted. A percentage range. |
+| **Sprints nobody is delivering** | A shutdown, a conference, a fortnight of leave the whole team is taking. A plain count. |
+
+**Growth pairs its ends with the rate's ends** — least growth at the fastest rate, most growth
+at the slowest — so each end of the answer is one coherent story rather than a mix of two.
+Scope *shrink* is refused outright: it's a way to forecast your way to a date, not a risk
+anybody plans for.
+
+**Lost sprints are added flat.** A sprint that delivers nothing contributes nothing and shifts
+everything after it by exactly one, so where it falls can't change the finish. They're kept
+separate from the delivery count all the way down, because the slot walk converts *delivering*
+sprints into calendar slots by stepping over IP sprints — a lost sprint is a calendar slot
+already. The dates move with it: two lost sprints on a fortnightly cadence is four more weeks.
+
+At their defaults both are an **exact no-op** — the figures this app has always given are the
+same figures. When either is on, the answer names the scope it actually used (*"100 points — 125
+after growth — would take…"*), the fold's summary says how many settings are on so a shut fold
+can't hide one, and each carries a caveat saying what it did.
+
+**What was deliberately left out.** Flow Metrics answers with percentiles from ten thousand
+simulated runs. That isn't brought over, and the reason is the window: it refuses to forecast
+under eight periods, and Rolling 5 is five by definition. Resampling five results ten thousand
+times doesn't create information — it produces a smooth curve whose 95th percentile is one bad
+sprint wearing a lab coat, which is the argument `reliableBase` already makes for preferring a
+counted fact ("4 of the last 5") over an interpolation between two of the same five numbers. If
+confidence-labelled answers are ever wanted here, the first question is whether the forecast
+should read from more history than the rolling window, not whether to add a simulator.
+
 #### Forecasting Before There Is a Team At All
 
 With nothing recorded the tab row is gone and the welcome card is the whole page, so the typed
