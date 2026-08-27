@@ -421,7 +421,7 @@ textarea { width: 100%; resize: vertical; min-height: 64px; }
    on an iPhone. Fixed across the whole family in one pass; PAPTrack led. */
 dialog:focus { outline: none; }
 /* WHERE FOCUS GOES AFTER AN IN-PAGE NAVIGATION (2026-08-22). Pressing a team's name in
-   All teams switches team AND view and rebuilds #views from scratch, which destroys the
+   Compare Teams switches team AND view and rebuilds #views from scratch, which destroys the
    button that was just pressed — so focus fell to <body>, the top of the document, and a
    keyboard or screen-reader user was silently returned to the start with nothing said
    about where they had arrived. `focusView()` moves focus to the heading of the view
@@ -496,15 +496,15 @@ select.ctl:hover { border-color: var(--text-muted); }
   border-radius: var(--radius-sm);
   padding: 8px 14px; cursor: pointer; color: var(--text-primary); font-weight: 500;
 }
-/* PI trend, ART PI and All teams all look ACROSS teams rather than into the one
+/* PI Trend, PI by Team and Compare Teams all look ACROSS teams rather than into the one
    that's selected, so the three sit apart from the three views of the current team —
    but only while the row fits on one line. Pushed right on a wrapped row they
    land alone on the second line, reading as orphans rather than a separation.
 
    The gap belongs to whichever of the two comes first, and only one of them can
    have it: two auto margins in a flex row SPLIT the free space, which would put a
-   gap between ART PI and All teams as well and break the pair back apart. ART PI
-   sits before All teams in the markup, so the sibling combinator can hand the
+   gap between PI by Team and Compare Teams as well and break the pair back apart. PI by Team
+   sits before Compare Teams in the markup, so the sibling combinator can hand the
    margin back when it is on the page — and `:not([hidden])` is what makes that
    work, since renderTabs() hides the tab by setting the property, which reflects
    to the attribute. */
@@ -812,7 +812,7 @@ th .tile-help, td .tile-help { vertical-align: 1px; }
 #jiraPreview table { font-size: var(--fs-xs); }
 #jiraPreview td.n { font-weight: 700; width: 1%; white-space: nowrap; }
 #jiraPreview td.why { color: var(--text-secondary); text-align: left; font-size: var(--fs-xs); }
-/* The two comparison tables in All teams run the same sprints through two
+/* The two comparison tables in Compare Teams run the same sprints through two
    different averages. Nobody guesses that from looking, so the difference gets
    its own boxed note under the second one rather than a line of small print. */
 .methodnote { border: 1px solid var(--border); border-radius: var(--radius-sm);
@@ -846,7 +846,7 @@ th .tile-help, td .tile-help { vertical-align: 1px; }
   background: var(--amber-bg); white-space: nowrap; }
 /* The 6px is for a badge that FOLLOWS text — after a sprint name in a table row,
    after a card heading. A badge that opens its own line (the "left out" notes on
-   Rolling 5 and All teams) doesn't want it: it pushed the pill 6px right of the
+   Rolling 5 and Compare Teams) doesn't want it: it pushed the pill 6px right of the
    heading and sub-heading stacked directly above it, so the one element meant to
    catch the eye was the only thing on the card not lining up with the rest. */
 .badge:first-child { margin-left: 0; }
@@ -891,7 +891,7 @@ th .tile-help, td .tile-help { vertical-align: 1px; }
    the thing making it scrollable was drawn clipped. Pinch out to see where the
    page ends and you get the app on the left and a wide band of nothing on the
    right. Measured on iOS 27 at a 402px viewport: `documentElement.scrollWidth`
-   906 with a 402px body, on the All teams comparison table.
+   906 with a 402px body, on the Compare Teams comparison table.
 
    `position: relative` is what fixes it, and nothing weaker does: a stacking
    context alone (`isolation: isolate`) leaves it at 906, and so does spelling
@@ -945,7 +945,7 @@ tbody tr:hover { background: var(--bg-card-alt); }
    `td` alone, the rule left the last row's <th scope="row"> holding a border its
    own row no longer had — a line under the team name that stopped at the end of
    the first column. It showed wherever a table's last body row has no tfoot
-   beneath it to absorb it, which is every row of Comparison 1 in All teams, and
+   beneath it to absorb it, which is every row of Comparison 1 in Compare Teams, and
    is unmissable there when you support a single team and that row is the table. */
 tbody tr:last-child td, tbody tr:last-child th { border-bottom: none; }
 tr.clickable { cursor: pointer; }
@@ -957,7 +957,7 @@ tr.clickable { cursor: pointer; }
 .rowbtn { background: none; border: 0; padding: 0; margin: 0;
   font: inherit; color: inherit; text-align: left; cursor: pointer; }
 .rowbtn:hover { text-decoration: underline; }
-/* The ART under a team's name in the All teams tables. A second line inside the same
+/* The ART under a team's name in the Compare Teams tables. A second line inside the same
    row-header cell rather than a column of its own: Comparison 2 already carries nine
    columns, and the label is a caption for the name above it, not another figure to
    read across. Muted and small so it groups the rows without competing with them. */
@@ -966,13 +966,13 @@ tfoot td, tfoot th { font-weight: 700; border-top: 2px solid var(--border-strong
   border-bottom: none; }
 /* A tfoot carrying more than one row: the second and any after it take a light rule
    rather than a second heavy one, so they read as one block under the sprints instead
-   of competing totals. Current PI and Rolling 5 are down to a single summary row each
+   of competing totals. Team PI and Rolling 5 are down to a single summary row each
    (2026-08-18), so nothing uses this today — it is kept because the heavy top border
    above is what makes a second row need it, and the two rules belong together. */
 tfoot tr + tr td, tfoot tr + tr th { border-top: 1px solid var(--border); }
 td.muted, .muted { color: var(--text-muted); }
 
-/* The All teams Trend cell: the shape and the word sit on one line, and the shape
+/* The Compare Teams Trend cell: the shape and the word sit on one line, and the shape
    never wraps away from the word that explains it. `currentColor` on the polyline
    is what keeps the sparkline theme-aware for free — and secondary rather than
    primary text, because a dozen of these down a column at full contrast would
@@ -1381,7 +1381,7 @@ footer { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
 footer .applink { margin: 0 19px 0 auto; }
 
 /* ── On paper ───────────────────────────────────────────────────────────────
-   The ART PI page IS the Inspect & Adapt slide, and until now getting it onto one
+   The PI by Team page IS the Inspect & Adapt slide, and until now getting it onto one
    meant Copy, paste, and rebuild the layout in something else. Everything here is
    the same page with the furniture taken off: nothing is re-laid-out for print,
    because a print stylesheet that rearranges things is a second design to keep in
@@ -1659,12 +1659,12 @@ main:focus { outline: none; }
        the arrow keys are wired at the foot of the page. -->
   <div class="tabs" role="tablist" aria-label="Views">
     <button class="tab" role="tab" id="tab-sprint"  aria-controls="views" data-view="sprint"  aria-selected="true"  tabindex="0">Sprint</button>
-    <button class="tab" role="tab" id="tab-pi"      aria-controls="views" data-view="pi"      aria-selected="false" tabindex="-1">Current PI</button>
+    <button class="tab" role="tab" id="tab-pi"      aria-controls="views" data-view="pi"      aria-selected="false" tabindex="-1">Team PI</button>
     <button class="tab" role="tab" id="tab-rolling" aria-controls="views" data-view="rolling" aria-selected="false" tabindex="-1">Rolling 5</button>
     <button class="tab" role="tab" id="tab-history" aria-controls="views" data-view="history" aria-selected="false" tabindex="-1">History</button>
     <button class="tab" role="tab" id="tab-trend"   aria-controls="views" data-view="trend"   aria-selected="false" tabindex="-1">PI Trend</button>
-    <button class="tab" role="tab" id="tab-art"     aria-controls="views" data-view="art"     aria-selected="false" tabindex="-1">ART PI</button>
-    <button class="tab" role="tab" id="tab-teams"   aria-controls="views" data-view="teams"   aria-selected="false" tabindex="-1">All Teams</button>
+    <button class="tab" role="tab" id="tab-art"     aria-controls="views" data-view="art"     aria-selected="false" tabindex="-1">PI by Team</button>
+    <button class="tab" role="tab" id="tab-teams"   aria-controls="views" data-view="teams"   aria-selected="false" tabindex="-1">Compare Teams</button>
   </div>
 
   <!-- The tabpanel role goes on an inner div, not on <main> itself: putting it on
@@ -1905,7 +1905,7 @@ main:focus { outline: none; }
     <button class="btn small" id="addArtBtn">+ Add ART</button></div>
   <p class="sub muted" style="font-size:var(--fs-xs);margin:4px 0 0">An Agile Release Train groups teams
     together. It's a label only — every figure is still worked out per team — and the
-    <strong>All teams</strong> view gains a filter for it. Teams need not be on one.</p>
+    <strong>Compare Teams</strong> view gains a filter for it. Teams need not be on one.</p>
   <div class="tablewrap"><table aria-label="Agile Release Trains"><tbody id="artRows"></tbody></table></div>
   <div class="row spread" style="margin-top:20px"><strong style="font-size:var(--fs-sm)">Program Increments</strong>
     <button class="btn small" id="addPiBtn">+ Add PI</button></div>
@@ -2284,7 +2284,7 @@ main:focus { outline: none; }
       </select>
     </div>
     <label class="checkline"><input type="checkbox" id="shareAllTeams">
-      <span>The <strong>All teams</strong> comparison view</span></label>
+      <span>The <strong>Compare Teams</strong> comparison view</span></label>
   </fieldset>
   </div>
 
@@ -2368,8 +2368,8 @@ const SPRINTS_PER_PI = 6;
 const MAX_SPRINT_NO = 999;
 const IP_SPRINT = 6;          // sprint 6 is the innovation & planning sprint
 const ROLLING_WINDOW = 5;
-/* Three sprints before the All teams Trend column will offer a direction. Two
-   points make a slope and not a trend — the same reason PI trend wants two PIs
+/* Three sprints before the Compare Teams Trend column will offer a direction. Two
+   points make a slope and not a trend — the same reason PI Trend wants two PIs
    before it will draw a line, one level up. Up here with the other window
    constants because METRIC_HELP reads it, and that is built long before the
    function that uses it. */
@@ -2468,7 +2468,7 @@ const BV_MAX = 999;
 
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
-/* The All teams view's ART filter uses this for "teams in no ART at all". It is
+/* The Compare Teams view's ART filter uses this for "teams in no ART at all". It is
    deliberately not a plain id: `~` fails ID_OK, so no real ART — however the
    payload arrived — can ever collide with the sentinel, and sanitizeIds() lets it
    through untouched rather than swapping it for a fresh id. */
@@ -3333,7 +3333,7 @@ function fixArtFilter() {
 /* ── ARTs ───────────────────────────────────────────────────────────────────
    The grouping is a filter and a sort, never a second set of figures: an ART's
    numbers are whatever its teams' numbers add up to under the two averaging
-   methods the All teams view already applies, so nothing here touches metrics().
+   methods the Compare Teams view already applies, so nothing here touches metrics().
 
    Both are pure — they take the team list rather than reading state — so
    tests.html can pin them, and so a share payload can be grouped before it is
@@ -3544,7 +3544,7 @@ function forecast(teamId, points, includeSix) {
 
 /* ── One row per PI, for the trend across them ──────────────────────────────
    The question this answers is the Inspect & Adapt one — "are we getting better?"
-   — which no other view can reach: Current PI and ART PI each look at a single
+   — which no other view can reach: Team PI and PI by Team each look at a single
    PI, and Rolling 5 is a fixed five-sprint window that crosses PI boundaries
    without ever being PI-grained.
 
@@ -3555,8 +3555,8 @@ function forecast(teamId, points, includeSix) {
    back its own team count so the page can say when that changed.
 
    Predictability is the MEAN of the teams' own measures — SAFe's definition, and
-   the same method the ART PI tile uses, so the two views can't disagree about the
-   same PI. Commitment completion is POOLED, matching Current PI's headline tile
+   the same method the PI by Team tile uses, so the two views can't disagree about the
+   same PI. Commitment completion is POOLED, matching Team PI's headline tile
    and the Agile Operations Dashboard. Neither picks a method silently; the table
    says which is which. */
 function piTrend(teams, includeSix) {
@@ -3625,7 +3625,7 @@ function goalRecord(sprints) {
 
    It needs two answered sprints — one is an anecdote — and fires only on a clear
    disagreement, so an ordinary team with a mixed record stays quiet. It lived
-   inside the Rolling 5 view until the All teams table gained a goals column of its
+   inside the Rolling 5 view until the Compare Teams table gained a goals column of its
    own; the same finding has to read the same in both places, and two copies of a
    rule this particular would drift the first time either was tuned. */
 function goalGapKind(goals, commitPct) {
@@ -3890,7 +3890,7 @@ function openSprintsNote(teamId) {
 function rollingSprints(teamId, includeSix) {
   const all = teamSprints(teamId)
     /* Unfinished sprints never enter the window. This one filter covers the
-       Rolling 5 view, the All teams comparison and the capacity target, since all
+       Rolling 5 view, the Compare Teams comparison and the capacity target, since all
        three read from here — a sprint recorded mid-flight would otherwise count
        as a 0% result and take a slot from a real sprint. */
     .filter(isCounted)
@@ -3917,7 +3917,7 @@ function rollingSprints(teamId, includeSix) {
    colour alone, and deliberately the same ⚑ the adjusted-capacity badge wears:
    the two are one family of "somebody has told the app something the sprints
    can't say for themselves". */
-/* On the sprint's own row rather than in a column of its own: the Current PI
+/* On the sprint's own row rather than in a column of its own: the Team PI
    table already carries nine numeric columns and scrolls sideways on a phone, and
    a tenth holding one of three words would cost every other column width to say
    less than a glyph does. Six rows is a countable number, so the rate the Rolling
@@ -3931,7 +3931,7 @@ function goalBadge(s) {
 }
 
 function excludedBadge(s) {
-  /* Names the WINDOW, not "the average". On the Current PI table this badge sits
+  /* Names the WINDOW, not "the average". On the Team PI table this badge sits
      two rows above a summary line called "Average per sprint" that counts the
      sprint in full, so "left out of the average" read as a flat contradiction of
      the table it was in. "The rolling N" is the app's own name for the window —
@@ -3942,14 +3942,14 @@ function excludedBadge(s) {
 }
 
 /* Exactly what an exclusion does, and — just as important — what it doesn't.
-   It moves the rolling average, the All teams comparison and the capacity target.
+   It moves the rolling average, the Compare Teams comparison and the capacity target.
    It moves NOTHING else: the sprint's own figures are untouched and the PI totals
    still count it, because the PI view filters on its own `closed` list rather than
    through rollingSprints(). That distinction is the whole difference between this
    and the status-faking it replaced, so every place that mentions the exclusion
    says it rather than leaving the reader to assume the figures moved too. */
 function excludedWhy(s) {
-  return `This sprint is <strong>left out of the rolling ${ROLLING_WINDOW}, the All teams
+  return `This sprint is <strong>left out of the rolling ${ROLLING_WINDOW}, the Compare Teams
     comparison and the capacity target</strong> — ${esc(reasonLabel(s.excludeReason).toLowerCase())}.
     Its own figures below are unaffected, and it still counts towards the PI totals.
     Change this under <strong>Rolling ${ROLLING_WINDOW}</strong> on the sprint form.`;
@@ -3986,7 +3986,7 @@ function excludedLine(teamId, includeSix) {
   const names = excludedNames(teamId, includeSix);
   if (!names) return '';
   return `<p class="sub exnote"><span class="badge">⚑ ${names}</span>
-    <span class="muted">Still shown in full on the Sprint and Current PI views — only these
+    <span class="muted">Still shown in full on the Sprint and Team PI views — only these
     averages and the capacity target skip ${excludedInRange(teamId, includeSix).length === 1
       ? 'it' : 'them'}.</span></p>`;
 }
@@ -4006,7 +4006,7 @@ function excludedInRange(teamId, includeSix) {
        sprint the one it could never name — exclude the first of four and the
        window quietly went four sprints to three with nothing on Rolling 5 or All
        teams to say so. (Both views read this one function, which is why both went
-       silent together while the Sprint and Current PI views, which read
+       silent together while the Sprint and Team PI views, which read
        `s.excluded` per sprint, were fine.)
      · anchoring on the last ROLLING_WINDOW *counted* sprints fixed that and still
        under-reported whenever the exclusions clustered: with sprints 1–7 and S1,
@@ -4207,7 +4207,7 @@ const METRIC_HELP = {
     body: `Unfinished points inherited from last sprint. They're part of this sprint's
       commitment, so they take up capacity before any new work does.` },
 
-  /* Current PI */
+  /* Team PI */
   piCommitCompletion: { title: 'PI commitment completion', target: TARGET_COMPLETION,
     body: `<p>Every committed point across the PI's counted sprints, against how much of it
       got finished.</p>
@@ -4244,7 +4244,7 @@ const METRIC_HELP = {
       train that grew didn't get better because there is more of it.` },
   trendCommitment: { title: 'Commitment completion', target: TARGET_COMPLETION,
     body: `Every committed point across the PI's counted sprints, pooled — the same method the
-      Current PI tab and the Agile Operations Dashboard use. A train can move this without
+      Team PI tab and the Agile Operations Dashboard use. A train can move this without
       moving predictability, or the reverse, and that gap is usually the conversation.` },
   trendDelivered: { title: 'Delivered', target: null,
     body: `Total points completed in the PI, break-in included. Unlike predictability this is a
@@ -4304,12 +4304,12 @@ const METRIC_HELP = {
   histCompletion: { title: 'Commitment completion', target: TARGET_COMPLETION,
     body: `Every committed point this team has ever recorded against how much of it got
       finished — pooled, so a big sprint pulls harder than a small one. It is the same
-      arithmetic as Comparison 2 on All teams, over the whole history rather than the last
+      arithmetic as Comparison 2 on Compare Teams, over the whole history rather than the last
       ${ROLLING_WINDOW} sprints.` },
   histDirection: { title: 'Direction', target: null,
     body: `The change in commitment completion from the first sprint to the last, read off a
       least-squares fit through all of them rather than off the two end sprints. It is the
-      Trend column on All teams over the whole history instead of a window — and the two can
+      Trend column on Compare Teams over the whole history instead of a window — and the two can
       disagree, which is worth knowing: a team can be climbing over three PIs and sliding over
       the last five sprints.` },
   histSpread: { title: 'Best and worst', target: null,
@@ -4319,10 +4319,10 @@ const METRIC_HELP = {
       conversations.` },
   histTotalRow: { title: 'Whole history', target: null,
     body: `Every counted sprint pooled into one total and divided once, the same method the
-      Current PI total and Comparison 2 use. In-flight sprints and any sprint left out of the
+      Team PI total and Comparison 2 use. In-flight sprints and any sprint left out of the
       rolling average sit in the table above but not in this row.` },
 
-  /* All teams — the two comparison tables. Each explains its own method and names
+  /* Compare Teams — the two comparison tables. Each explains its own method and names
      the other, because the only question either one raises is "why doesn't this
      match the table above it". */
   teamsTrend: { title: 'Trend', target: null,
@@ -4362,7 +4362,7 @@ const METRIC_HELP = {
       throughput was high, not that the plan held.` },
 
   /* ONE summary row per view now, each in the method that view's own tiles use —
-     pooled on Current PI, average-of-sprints on Rolling 5 (asked for 2026-08-18).
+     pooled on Team PI, average-of-sprints on Rolling 5 (asked for 2026-08-18).
      The pair used to sit here together so the gap between them read as a
      difference in method rather than an error; with only one row that job falls
      to its help, which still has to name the method OUTRIGHT (the standing rule:
@@ -4385,7 +4385,7 @@ const METRIC_HELP = {
       <p>This is <strong>the better read on a team's habit</strong> — one unusually big sprint
       can't drown out the rest — and it's what the tiles at the top of this view show.</p>
       <p>For the pooled method, which weights a sprint by how much was committed to it, see the
-      <em>PI total</em> row on Current PI or Comparison 2 on All teams.</p>` },
+      <em>PI total</em> row on Team PI or Comparison 2 on Compare Teams.</p>` },
 
   rollVelocity: { title: 'Avg velocity', target: null,
     body: `Mean points completed per sprint across the window, break-in included. The target
@@ -4407,7 +4407,7 @@ function avg(sprints, key) {
    Both are honest averages of a rate and they disagree whenever the sprints differ
    in size, because pooling weights each sprint by how much was committed to it. A
    team with a small good sprint and a large bad one scores better on avg() than on
-   this. Neither is a correction of the other, so the All teams view shows both side
+   this. Neither is a correction of the other, so the Compare Teams view shows both side
    by side and names the difference rather than picking a winner.
 
    This is also the method the Agile Operations Dashboard uses, so these are the
@@ -4979,7 +4979,7 @@ function fmtDateRange(a, b) {
 }
 
 /* ── A direction, small enough to sit in a table cell ──────────────────
-   Every figure on the All teams page is an average, and an average is a level with
+   Every figure on the Compare Teams page is an average, and an average is a level with
    no direction in it: a team climbing 60 → 85 and a team sliding 95 → 85 print the
    same number in the same colour, and they are opposite findings. This is the
    smallest thing that can tell them apart in a cell.
@@ -5028,7 +5028,7 @@ function trendChange(values) {
 /* What goes in the cell: the shape, then the direction in words. "up 12" rather
    than "+12" because a CSV cell opening with + is a formula a spreadsheet has to be
    defended from (see csvCell) — the words come out of the file clean, and they are
-   the wording the PI trend tiles already use one level up. */
+   the wording the PI Trend tiles already use one level up. */
 function trendCell(values, unit) {
   const change = trendChange(values);
   if (change === null) {
@@ -5067,7 +5067,7 @@ function cellText(cell) {
   /* `[aria-hidden="true"]` is the general rule and the others are named cases of
      it: anything hidden from assistive technology is DECORATION, and decoration
      is not data. That one selector is what catches the bare ⚑ and ⚖ markers on
-     the All teams table — they are aria-hidden spans with an .sr-only sentence
+     the Compare Teams table — they are aria-hidden spans with an .sr-only sentence
      beside them, not .badge elements — which otherwise turned a sprint count of
      4 into the text "4 ⚑" and cost the column its numbers. */
   copy.querySelectorAll('[aria-hidden="true"], .sr-only, .badge, .tile-help, .artname')
@@ -5594,7 +5594,7 @@ function focusView(fromKeyboard) {
 /* Table rows that open the sprint editor. A shared view has nothing to open, so
    the handler isn't wired and the class goes with it — a pointer cursor over a
    row that does nothing when clicked reads as a broken page. Rows that merely
-   switch team (All teams) are navigation, not editing, and stay live. */
+   switch team (Compare Teams) are navigation, not editing, and stay live. */
 function wireEditRows(handler) {
   viewsEl.querySelectorAll('tr.clickable').forEach(tr => {
     const btn = tr.querySelector('.rowbtn');
@@ -5635,20 +5635,30 @@ function openHelp(key) {
   openModal(document.getElementById('helpDialog'));
 }
 
-/* What the printed page says it is. Written on every render rather than at print
+/* The name of every view, in one place -- what the printed page says it is, and
+   what the Find list puts on a hit. Written on every render rather than at print
    time, because a beforeprint hook is one more thing to be wrong and this costs a
-   line: whatever is on screen is what would come out of the printer. */
-const VIEW_NAMES = { sprint: 'Sprint', pi: 'Current PI', rolling: `Rolling ${ROLLING_WINDOW}`,
-                     history: 'History', trend: 'PI trend', art: 'ART PI', teams: 'All teams' };
+   line: whatever is on screen is what would come out of the printer.
+
+   ONE map, because there were two: the Find list kept its own copy, which
+   hard-coded "Rolling 5" where this one templates ROLLING_WINDOW and disagreed
+   with the tab row on the case of three of the seven names. Neither copy was
+   wrong on purpose -- that is what a second copy is for. A test below now holds
+   every value here against the text of the tab it names, so the row, the Find
+   list and the printed page can only ever say the same word. */
+const VIEW_NAMES = { sprint: 'Sprint', pi: 'Team PI', rolling: `Rolling ${ROLLING_WINDOW}`,
+                     history: 'History', trend: 'PI Trend', art: 'PI by Team', teams: 'Compare Teams' };
 
 function printMetaLine(view) {
   const team = activeTeam();
   const art = state.settings.artFilter === ART_NONE ? 'Teams with no ART'
     : state.settings.artFilter ? (artById(state.settings.artFilter) || {}).name : '';
   const acrossTeams = view === 'teams' || view === 'art' || view === 'trend';
-  /* The scope, but never twice: on All teams with no ART filter the view is already
-     called "All teams", and "All teams · All teams" reads as a bug on a sheet of
-     paper somebody else is holding. */
+  /* The scope is the ART filter and nothing else. Naming the view and naming the
+     teams it covers are two different jobs, and with no filter set there is no
+     scope to state -- the old name made this line read "All teams · All teams" on a
+     sheet of paper somebody else was holding, which is the confusion the rename
+     of this tab was for. */
   const scope = acrossTeams ? art : (team ? team.name : '');
   /* The year is spelled out here where fmtDate leaves it off. A date range inside
      the app is read in the context of the sprint it belongs to; a printed page
@@ -5755,13 +5765,13 @@ function render() {
 }
 
 /* Which views are worth offering, and which one is on screen. A tab is only ever
-   hidden because the view behind it has nothing to say: All teams compares teams,
-   so it needs a second one; Current PI and Rolling 5 both read the active team's
+   hidden because the view behind it has nothing to say: Compare Teams compares teams,
+   so it needs a second one; Team PI and Rolling 5 both read the active team's
    sprints, so they need at least one recorded sprint. They come back the moment
    the data does — and because it's the *active* team's sprints, switching to a
    team you haven't recorded anything for takes them away again.
 
-   A shared view keeps its own rule for All teams: the sender decides whether the
+   A shared view keeps its own rule for Compare Teams: the sender decides whether the
    comparison travels with the link, and a link carrying two teams may still say
    no. That check used to sit in openSharedView(), which ran once; it lives here
    now so there is one place that decides what the row contains. */
@@ -5769,9 +5779,16 @@ function renderTabs() {
   const team = activeTeam();
   const shown = {
     sprint:  true,
-    /* Current PI needs a PI to be current. Without one the whole view is a table
-       of six empty slots and a picker with nothing in it — and the tab row is the
-       one place that decides what is on offer, so it decides this too. */
+    /* Team PI needs a PI to be about. Without one the whole view is a table of
+       six empty slots and a picker with nothing in it — and the tab row is the one
+       place that decides what is on offer, so it decides this too.
+
+       It was called "Current PI" until the picker below made that a lie: the view
+       opens on the newest PI and then shows whichever one you choose, and the
+       choice is shared and saved, so picking PI 1 on the Sprint tab left a tab
+       labelled "current" showing the oldest. The pair Team PI / PI by Team names
+       what actually differs between the two views — the same PI, one team or all
+       of them. */
     pi:      state.pis.length > 0 && !!team && teamSprints(team.id).some(x => !!x.piId),
     /* ── Rolling 5 is offered to a team with nothing recorded ────────────────
        The rule this row keeps is "a tab is hidden because the view behind it has
@@ -5796,14 +5813,14 @@ function renderTabs() {
        on the ACTIVE team, because it isn't about one team. */
     /* Two PIs before there is a trend to look at — one point is a position, not a
        direction, and the view would be a chart of a single dot. It is a comparison
-       ACROSS teams like ART PI and All teams, so it takes the same shared-view
+       ACROSS teams like PI by Team and Compare Teams, so it takes the same shared-view
        rule: a sender who declined to publish one must not get it back here. */
     trend:   state.pis.length > 1
              && state.pis.some(p => state.sprints.some(x => x.piId === p.id))
              && (!viewOnly || !!(shareMeta && shareMeta.allTeams)),
     art:     state.pis.length > 0
              && state.arts.some(a => teamsInArt(state.teams, a.id).length > 0)
-             /* And in a shared view it takes All teams' rule as well, because it
+             /* And in a shared view it takes Compare Teams' rule as well, because it
                 is the same kind of thing: `allTeams` is the sender declining to
                 publish a comparison ACROSS their teams, and this view is one. A
                 link of two teams on one ART would otherwise hand the recipient
@@ -6471,15 +6488,19 @@ function renderRollingView() {
        file already keeps for the IP toggle one line into rollingToolbar, and for
        the tab row itself. Reported by Charles on 2026-08-26.
 
-       Only when there are NO sprints. A team whose sprints are all still running
-       is the case "count sprints that are still running" exists for, and a team
+       Only when there are NO sprints — `noneAtAll` below. A team whose sprints
+       are all still running is the case "count sprints that are still running"
+       exists for, and a team
        whose sprints are all excluded needs the same row to see what it did — in
        both of those the toolbar is the way out of the empty state, not decoration
        on it. */
-    viewsEl.innerHTML = (teamSprints(team.id).length ? rollingToolbar(includeSix, ipApplies) : '')
-      + `<div class="card empty">
+    /* Nothing on record at all, which is a different reader from the other two
+       empty states below and gets a different page — see the order at the end. */
+    const noneAtAll = !teamSprints(team.id).length;
+
+    const emptyCard = `<div class="card empty">
       <h2>${allExcluded ? 'Every Sprint Is Left Out'
-        : teamSprints(team.id).length ? 'No Finished Sprints Yet' : 'No Sprints Recorded Yet'}</h2>
+        : noneAtAll ? 'What This View Will Show' : 'No Finished Sprints Yet'}</h2>
       <p>${allExcluded
         /* Without this the page said "nothing finished" about a team whose sprints
            are all finished — the emptiest state of all, blaming the data for a
@@ -6489,18 +6510,38 @@ function renderRollingView() {
            ${excludedNames(team.id, includeSix)}. There is nothing left to average, so the
            trend and the capacity target have gone with it — turn one back on under
            <strong>Rolling ${ROLLING_WINDOW}</strong> on the sprint form.`
-        : teamSprints(team.id).length
+        : !noneAtAll
         ? `${esc(team.name)} has ${esc(openSprintsNote(team.id))} recorded, but nothing finished — the
            trend and the capacity target start once a sprint completes.`
-        : `Add some sprint data for ${esc(team.name)} and the rolling trend will build itself.`}</p>
-    </div>`
-    /* ── The one card that still works here ──────────────────────────────────
-       Everything else on this view is an average of sprints that do not exist.
-       The forecast is not: a typed velocity supplies its own rate, and the team
-       with no history is the team most often asked how long something will take.
-       Left out, the control that exists for exactly this team could only ever be
-       reached by a team that did not need it. */
-    + forecastCard(team, includeSix);
+        /* Written as what arrives rather than what is missing. "Add some sprint
+           data and the rolling trend will build itself" was an instruction to go
+           somewhere else, printed above the one card on the page that works. */
+        : `Once ${esc(team.name)} has a finished sprint, this fills with their last
+           ${ROLLING_WINDOW} — velocity and commitment completion on one chart, break-in,
+           removed and carryover on another, and a capacity target for the next sprint.
+           The forecast above works now, and will use that history in place of a typed
+           velocity as soon as there is any.`}</p>
+    </div>`;
+
+    /* ── Which card leads ────────────────────────────────────────────────────
+       The forecast is the one card here that does not need a recorded sprint: a
+       typed velocity supplies its own rate, and the team with no history is the
+       team most often asked how long something will take. That is also why the
+       tab is offered to a team with nothing recorded at all — left out, the
+       control that exists for exactly this team could only ever be reached by a
+       team that did not need it.
+
+       So for THAT team the forecast goes first and the empty card becomes a
+       footnote under it. A tab named after a five-sprint window, opening on a
+       card that leads with the absence of five sprints, is an apology for itself
+       — and it is the first thing a new team ever sees here.
+
+       The other two empty states keep the old order. Those teams have sprints on
+       record and came here to find out why they are not in the average: the
+       reason has to be the first thing on the page, not the second. */
+    viewsEl.innerHTML = (noneAtAll ? '' : rollingToolbar(includeSix, ipApplies))
+      + (noneAtAll ? forecastCard(team, includeSix) + emptyCard
+                   : emptyCard + forecastCard(team, includeSix));
     wireRollingToolbar();
     wireForecast(team, includeSix);
     return;
@@ -7439,9 +7480,9 @@ function wireRollingToolbar() {
 
 /* ── View 4: the whole history ──────────────────────────────────────────────
    Every other per-team view looks through a window: Rolling 5 takes the last
-   five, Current PI takes six. Both are the right shape for the question they
+   five, Team PI takes six. Both are the right shape for the question they
    answer, and between them they meant a team with three PIs behind it had
-   eighteen sprints that could never be seen sprint by sprint — PI trend smooths
+   eighteen sprints that could never be seen sprint by sprint — PI Trend smooths
    the same history into one point per PI, which is where a team's history stops
    being visible and starts being summarised.
 
@@ -7484,7 +7525,7 @@ function renderHistoryView() {
         pis.length ? ` across ${plural(pis.length, 'PI')}` : ''} — ${esc(labels[0])} →
         ${esc(labels[labels.length - 1])}. This is the only view with no window:
         <strong>Rolling ${ROLLING_WINDOW}</strong> shows the recent habit and
-        <strong>PI trend</strong> shows one point per PI, and neither can show where a
+        <strong>PI Trend</strong> shows one point per PI, and neither can show where a
         team turned.${open.length ? ` ${plural(open.length, 'sprint')} still in flight
         ${open.length === 1 ? 'is' : 'are'} drawn but left out of the figures.` : ''}${
         excluded.length ? ` ${andList(excluded.map(s => esc(sprintLabel(s))))} ${
@@ -7592,7 +7633,7 @@ function renderHistoryView() {
           data: all.map(s => metrics(s).velocity),
           ...seriesBar('--c-velocity'), maxBarThickness: 40 },
         /* An unfinished sprint's percentage is left out rather than plotted part-done:
-           the same rule the Current PI chart follows, and over a long run a dive to
+           the same rule the Team PI chart follows, and over a long run a dive to
            zero at the right-hand end would drag the fitted line with it. */
         { type: 'line', label: 'Commitment completion %', yAxisID: 'y1', order: 1,
           data: commits,
@@ -7629,7 +7670,7 @@ function renderHistoryView() {
    five-sprint window; this is the only one that is PI-grained over time, and the
    only place the question "are we getting better?" can be asked at all.
 
-   It shares `settings.artFilter` with ART PI and All teams — one filter, one
+   It shares `settings.artFilter` with PI by Team and Compare Teams — one filter, one
    stored value, and moving between the three keeps the scope you were looking at.
    The headline is predictability, because that is what an RTE puts on the I&A
    slide; the points figures sit beside it because a train can move one without
@@ -7707,7 +7748,7 @@ function renderPiTrendView() {
         <span class="muted">${unscored.map(r => esc(r.pi.name)).join(', ')} ${
           unscored.length === 1 ? 'has' : 'have'} no business value recorded, so the
         predictability line skips ${unscored.length === 1 ? 'it' : 'them'}. Record it on the
-        <strong>Current PI</strong> tab and the line fills in.</span></p>`
+        <strong>Team PI</strong> tab and the line fills in.</span></p>`
     : '';
 
   viewsEl.innerHTML = artToolbar(shown.length, hiddenCount) + `
@@ -7754,7 +7795,7 @@ function renderPiTrendView() {
       <p class="sub">Oldest PI first. <strong>Predictability</strong> is each team's own measure
         averaged — every team counting once, which is what makes it comparable across PIs that
         cover different teams. <strong>Complete %</strong> is pooled: every point added up and
-        the percentage taken once, matching the Current PI tab and the Agile Operations
+        the percentage taken once, matching the Team PI tab and the Agile Operations
         Dashboard.</p>
       <div class="tablewrap">
       <table id="trendTable" aria-label="Every PI, oldest first">
@@ -7918,7 +7959,7 @@ function piCapacityCard(teams, includeSix) {
    predictability measure — which is defined at train level in SAFe and has
    nowhere else it could live.
 
-   It shares `settings.artFilter` with All teams rather than keeping a second
+   It shares `settings.artFilter` with Compare Teams rather than keeping a second
    picker of its own. One filter, one stored value, and moving between the two
    views keeps the scope you were looking at — two pickers that mean the same
    thing and disagree is worse than either.
@@ -8008,7 +8049,7 @@ function renderArtPiView() {
         <h2>Nothing Recorded in ${esc(pi.name)}</h2>
         <p>${shown.length === 1 ? 'This team has' : 'None of these teams has'} a sprint in
            <strong>${esc(pi.name)}</strong>. Pick another PI above, or look at
-           <strong>Rolling ${ROLLING_WINDOW}</strong> and <strong>All teams</strong>, which
+           <strong>Rolling ${ROLLING_WINDOW}</strong> and <strong>Compare Teams</strong>, which
            don't work by PI.</p>
       </div>`;
     wireArtToolbar();
@@ -8030,7 +8071,7 @@ function renderArtPiView() {
           elsewhere.length === 1 ? 'has' : 'have'} no sprints recorded in ${esc(pi.name)}, so
         ${elsewhere.length === 1 ? 'it is' : 'they are'} left out of every figure here. A team
         that doesn't run PIs lives on the <strong>Rolling ${ROLLING_WINDOW}</strong> and
-        <strong>All teams</strong> views instead.</span></p>`
+        <strong>Compare Teams</strong> views instead.</span></p>`
     : '';
 
   const missingNote = pred.missing.length
@@ -8038,7 +8079,7 @@ function renderArtPiView() {
         <span class="muted">${pred.missing.map(t => esc(t.name)).join(', ')} — no business value
         has been recorded for ${pred.missing.length === 1 ? 'it' : 'them'} in ${esc(pi.name)}, so
         ${pred.missing.length === 1 ? 'it is' : 'they are'} out of the predictability figures
-        and in every points figure. Record it on the <strong>Current PI</strong> tab, or click
+        and in every points figure. Record it on the <strong>Team PI</strong> tab, or click
         the team below.</span></p>`
     : '';
 
@@ -8181,7 +8222,7 @@ function renderArtPiView() {
     </div>`;
 
   wireArtToolbar();
-  /* Clicking a team lands on ITS Current PI, on the PI you were already looking
+  /* Clicking a team lands on ITS Team PI, on the PI you were already looking
      at — that is where the objectives are recorded and where the row's figures
      come from, so it's the page anyone following up on a row actually wants. */
   viewsEl.querySelectorAll('tr.clickable').forEach(tr => {
@@ -8247,7 +8288,7 @@ function renderArtPiView() {
 /* `extra` lets a view put ANOTHER scope control in this same card rather than
    stacking a second one under it. Both pickers narrow the same page, so two cards
    sitting one above the other read as two unrelated settings and cost a whole
-   card's worth of height to say it — the ART PI view puts its PI picker here.
+   card's worth of height to say it — the PI by Team view puts its PI picker here.
    `extra.note` joins the muted line for the same reason; a second status line
    floating in its own box is the same problem one level down. */
 function artToolbar(shownCount, hiddenCount, extra) {
@@ -8295,7 +8336,7 @@ function artToolbar(shownCount, hiddenCount, extra) {
 }
 
 /* Wires every scope control in that one card, so a view that adds one needn't
-   remember to wire it on each of its exit paths — the ART PI view has three. */
+   remember to wire it on each of its exit paths — the PI by Team view has three. */
 function wireArtToolbar() {
   const sel = document.getElementById('artFilter');
   if (sel) sel.onchange = () => {
@@ -8399,7 +8440,7 @@ function renderTeamsView() {
   /* The scope goes in the heading and in both footer rows, so a screenshot of one
      table still says which teams it covered — the picker above it is off-screen the
      moment anyone scrolls. */
-  const heading = art ? esc(art.name) : noArt ? 'Teams Without An ART' : 'All Teams';
+  const heading = art ? esc(art.name) : noArt ? 'Teams Without An ART' : 'Every Team';
   const scopeLabel = art ? `All teams on ${esc(art.name)}`
     : noArt ? 'All teams with no ART' : 'All teams';
 
@@ -8494,7 +8535,7 @@ function renderTeamsView() {
     if (!hit.length) return '';
     return `<p class="sub exnote"><span class="badge">⚑ Sprints left out</span>
       <span class="muted">${hit.map(r => `${esc(r.team.name)} — ${excludedNames(r.team.id, includeSix)}`)
-        .join('; ')}. They still count on the Sprint and Current PI views.</span></p>`;
+        .join('; ')}. They still count on the Sprint and Team PI views.</span></p>`;
   };
 
   const artTag = (team) => {
@@ -8657,7 +8698,7 @@ function renderTeamsView() {
     </div>`;
 
   viewsEl.querySelectorAll('tr.clickable').forEach(tr => {
-    /* Same as All teams above: render() destroys the button that was pressed. */
+    /* Same as Compare Teams above: render() destroys the button that was pressed. */
     const go = (fromKeyboard) => {
       state.settings.activeTeamId = tr.dataset.id;
       state.settings.view = 'rolling';
@@ -8897,8 +8938,9 @@ function closeOnBackdropClick(dlg) {
    The sprint label is rebuilt from the lists in hand for the same reason — it is
    `sprintLabel`'s wording over the state it was given. */
 const SEARCH_CAP = 80;
-const SEARCH_VIEW_LABEL = { sprint: 'Sprint', pi: 'Current PI', rolling: 'Rolling 5',
-  history: 'History', trend: 'PI Trend', art: 'ART PI', teams: 'All Teams' };
+/* The tab row's own words -- see VIEW_NAMES. Kept under this name because the
+   Find list and its tests read it, not because there is a second list. */
+const SEARCH_VIEW_LABEL = VIEW_NAMES;
 function searchApp(st, query) {
   const q = String(query || '').trim().toLowerCase();
   if (q.length < 2) return { hits: [], more: 0 };
@@ -8999,7 +9041,7 @@ function renderSearchResults() {
       : '<p class="hint">Type at least two characters.</p>';
 }
 /* Set what the hit points at, then let renderTabs() have the last word on the
-   view: a PI hit asks for Current PI, and if the team it landed on has nothing
+   view: a PI hit asks for Team PI, and if the team it landed on has nothing
    in that PI the tab isn't on offer, so the fallback to Sprint happens by itself
    rather than needing a second copy of those rules here. */
 function goToSearchHit(h) {
@@ -9009,7 +9051,7 @@ function goToSearchHit(h) {
   if ('piId' in h) state.settings.activePiId = piKey(h.piId);
   if (h.sprintNumber) state.settings.activeSprintNum = h.sprintNumber;
   /* A PI hit carries no team of its own, so it lands on one that actually has
-     sprints in that PI — otherwise Current PI opens on six empty slots and
+     sprints in that PI — otherwise Team PI opens on six empty slots and
      reads as a miss. */
   if (h.kind === 'PI' && !(state.sprints || []).some(
       x => x.piId === h.piId && x.teamId === state.settings.activeTeamId)) {
@@ -10029,7 +10071,7 @@ function openManage() { renderManage(); openModal(manageDialog); }
    rather than fixed to the order things were added in. PI order has always been
    this app's sense of time — the rolling window walks back through it — and had
    these arrows already; teams and ARTs get them because their order is read too,
-   down every picker and every All teams table, and because the order you add
+   down every picker and every Compare Teams table, and because the order you add
    teams in is rarely the order you want to read them in a year later.
    Reordering permutes an array that was always there, so it stores and syncs
    with no new field and no version bump.
@@ -11246,7 +11288,7 @@ function buildSharePayload({ teamIds, includeAllTeams, scope }) {
       && (!pl.piId || usedPis.has(pl.piId))),
     /* Business value for the teams and PIs that made it through — three numbers
        and two ids, nothing identifying, exactly like a plan. It travels for the
-       same reason: without it a shared link's Current PI and ART PI views would
+       same reason: without it a shared link's Team PI and PI by Team views would
        quietly show fewer figures than the screen the link was made from, which
        reads as the recipient's copy being broken. A PI the window cut away takes
        its objectives with it. */
@@ -11344,7 +11386,7 @@ async function openSharedView() {
     const team = activeTeam();
     if (team) focusLatestSprint(team.id);
     /* The banner is fixed for the life of the page, so it's set here rather than
-       inside render(), which runs on every interaction. The All teams tab used to
+       inside render(), which runs on every interaction. The Compare Teams tab used to
        be hidden here too; renderTabs() owns that now, and reads shareMeta — set
        just above — for the same decision. */
     F('shareBar').innerHTML = shareBanner();
@@ -11688,12 +11730,12 @@ F('shareOpenBtn').onclick = () => {
                                    down 1 over the window
      Team New Start      no ART    a brand-new team — thin history · ⚑ a one-off
                                    availability whose carryover then fills the
-                                   whole figure · the "no ART" group on All teams
+                                   whole figure · the "no ART" group on Compare Teams
                                    · two sprints, so its Trend cell is the "—"
                                    case: not enough for a direction
 
    Two ARTs of two, plus TWO teams in neither — Team New Start and Team No PI — is
-   the arrangement where the All teams filter and its "no ART" group both do
+   the arrangement where the Compare Teams filter and its "no ART" group both do
    something. Every figure below is
    load-bearing; the sample-data tests pin each finding so tidying the numbers
    can't quietly leave a first run with nothing to look at.
@@ -11716,7 +11758,7 @@ function loadSample() {
 
   /* Three PIs, because a trend needs somewhere to go. Two points are a line and
      tell you nothing about whether a train is steadying or drifting; three are the
-     fewest that read as a direction, which is what the PI trend tab is for. */
+     fewest that read as a direction, which is what the PI Trend tab is for. */
   const pi0 = { id: uid(), name: 'PI 2026.1' };
   const piA = { id: uid(), name: 'PI 2026.2' };
   const piB = { id: uid(), name: 'PI 2026.3' };
@@ -11888,7 +11930,7 @@ function loadSample() {
   /* (The forecast box is seeded further down, at the settings — it holds no
      stored data, so it is not part of this payload.) */
 
-  /* ── PI business value, for the ART PI view ──────────────────────────────
+  /* ── PI business value, for the PI by Team view ──────────────────────────────
      Four of the five teams are scored, and each is a different reading of the
      band — the point being that predictability is a two-sided measure and a demo
      that only ever shows teams under the band teaches it as a one-sided one.
@@ -12056,7 +12098,7 @@ document.getElementById('teamSel').onchange = (e) => {
 
 /* Arrow keys move along the tabs and switch view as they go, which is what a
    tablist is expected to do once only one of its tabs is in the tab order. Hidden
-   tabs are skipped — a shared view without the All teams panel shouldn't have an
+   tabs are skipped — a shared view without the Compare Teams panel shouldn't have an
    invisible stop on the end of the row. */
 const visibleTabs = () => [...document.querySelectorAll('.tab')].filter(t => !t.hidden);
 
