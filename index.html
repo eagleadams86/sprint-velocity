@@ -2547,7 +2547,15 @@ function blankState() {
        shared by every team and this figure is one team's. */
     objectives: [],
     settings: { activeTeamId: null, activePiId: null, includeSprint6InRolling: false,
-                includeInProgress: false, view: 'sprint', artFilter: null }
+                includeInProgress: false, view: 'sprint', artFilter: null,
+                /* The typed velocity and the planning screen. Saved since
+                   2026-08-26 so a reload keeps the forecast a reader typed —
+                   the one thing on that screen worth the storage, because it is
+                   an estimate they thought about rather than a figure they can
+                   read off again. `forecastTypedOn` is a TRIBOOL: null means
+                   nobody has pressed the tick and the data decides. */
+                forecastRateLo: '', forecastRateHi: '',
+                forecastTypedOn: null, forecastPlanning: false }
   };
 }
 
@@ -2857,7 +2865,20 @@ function sanitizeIds(data) {
     data.settings = keepKnown(data.settings, {
       activeTeamId: 'idOrNull', activePiId: 'idOrNull', activeSprintNum: 'sprintNum',
       artFilter: 'idOrNull', includeSprint6InRolling: 'bool',
-      includeInProgress: 'bool', view: 'view', targets: 'targets' });
+      includeInProgress: 'bool', view: 'view', targets: 'targets',
+      /* Numbers and a tribool — the rule this whitelist keeps. `forecastTypedOn`
+         must NOT be 'bool': that coerces, and a coerced null would record "the
+         reader unticked it" for a reader who never touched it, which is the one
+         thing the third state exists to prevent.
+
+         NO SCHEMA BUMP. The doc on SCHEMA says a settings field earns one where
+         an older build silently stripping it would go on to state something
+         WRONG — targets did, because the tiles would judge every figure against
+         boundaries the file said had been changed. Stripping these four costs a
+         restored forecast and nothing else: the card falls back to the history
+         it can see, and says so as it always did. */
+      forecastRateLo: 'num', forecastRateHi: 'num',
+      forecastTypedOn: 'tribool', forecastPlanning: 'bool' });
   }
   /* The top level too — with the share-meta keys allowed through, because a
      share payload crosses this same boundary and the shared-view banner is
@@ -5653,7 +5674,7 @@ function render() {
      nothing recorded: the moment a team exists the forecast belongs to it, on
      Rolling 5 where the rest of that team's figures are. */
   if (!state.teams.length) {
-    if (forecastPlanning && !viewOnly) renderPlanning(); else renderWelcome();
+    if (state.settings.forecastPlanning && !viewOnly) renderPlanning(); else renderWelcome();
     return;
   }
 
@@ -5825,13 +5846,15 @@ function renderWelcome() {
       <p><strong>Restore a Backup</strong> reads a Sprint Predictability export.</p>
       <p><strong>Forecast Ahead</strong> is for work that has not started. You type a velocity
         and a number of story points, and it says how many sprints that would take — the same
-        answer this app gives from a real team's history, dealt from your estimate instead.
-        Nothing is recorded and nothing is kept.</p>
+        answer this app gives from a real team's history, dealt from your estimate instead. No
+        team and no sprint is recorded; the velocity is kept so a reload brings it back.</p>
     </div></div>`;
   document.getElementById('welcomeAddBtn').onclick = () => { openManage(); addTeam(); };
   document.getElementById('welcomeSampleBtn').onclick = loadSample;
   document.getElementById('welcomeRestoreBtn').onclick = () => openModal(F('dataDialog'));
-  document.getElementById('welcomePlanBtn').onclick = () => { forecastPlanning = true; render(); };
+  document.getElementById('welcomePlanBtn').onclick = () => {
+    state.settings.forecastPlanning = true; save(); render();
+  };
 }
 
 /* The planning screen: the forecast card, and the way back. No team exists, so
@@ -5840,17 +5863,21 @@ function renderWelcome() {
 function renderPlanning() {
   viewsEl.innerHTML = forecastCard(null, false) + `
     <div class="card empty" style="padding:18px">
-      <p style="margin:0">Nothing here is recorded or kept — reload and this screen is gone.
-        To keep a forecast, and to have it drawn from what a team really finishes rather than
-        from a number you typed, start a team instead.</p>
+      <p style="margin:0">No team, no sprint and no record of the work — the velocity you type
+        is kept, so a reload brings this back as you left it. To have a forecast drawn from what
+        a team really finishes rather than from a number you typed, start a team.</p>
       <div class="row" style="justify-content:center;margin-top:14px;gap:10px">
         <button class="btn primary" id="planAddBtn">Start a Team</button>
         <button class="btn" id="planBackBtn">Back</button>
       </div>
     </div>`;
   wireForecast(null, false);
-  F('planAddBtn').onclick = () => { forecastPlanning = false; openManage(); addTeam(); };
-  F('planBackBtn').onclick = () => { forecastPlanning = false; render(); };
+  F('planAddBtn').onclick = () => {
+    state.settings.forecastPlanning = false; save(); openManage(); addTeam();
+  };
+  F('planBackBtn').onclick = () => {
+    state.settings.forecastPlanning = false; save(); render();
+  };
 }
 
 /* ── Which sprint numbers a picker offers ───────────────────────────────────
@@ -6667,9 +6694,11 @@ let forecastPoints = '';
    then follows the data — on where there is no rate to measure, off where there
    is. A plain boolean could not tell an unticked box from an untouched one, and
    a reader who unticks it over a brand-new team must keep it unticked. */
-let forecastRateLo = '';
-let forecastRateHi = '';
-let forecastTypedOn = null;
+/* Read and written through `state.settings`, not held beside it. Two copies of
+   one value is how a saved figure and a shown figure start disagreeing, and this
+   one is written from four places. `fcs()` is only ever a shorthand for the
+   settings object, so there is exactly one source. */
+const fcs = () => state.settings;
 
 /* Cleared when the active team changes, and that is the point rather than
    tidiness: "5 to 10 points a sprint" is a statement about ONE team, and the
@@ -6693,12 +6722,10 @@ let forecastTypedOn = null;
    rate itself is deliberately not saved either, so a persisted flag would bring
    back a planning screen with the numbers already gone out of it. The screen
    says so, so nobody loses work they thought was kept. */
-let forecastPlanning = false;
-
 function forecastClearTypedRate() {
-  forecastRateLo = '';
-  forecastRateHi = '';
-  forecastTypedOn = null;
+  fcs().forecastRateLo = '';
+  fcs().forecastRateHi = '';
+  fcs().forecastTypedOn = null;
 }
 
 /* Whether this team has a rate to forecast FROM — the same two conditions
@@ -6712,7 +6739,8 @@ function forecastHasRate(teamId, includeSix) {
 }
 
 const forecastTypedTicked = (teamId, includeSix) =>
-  forecastTypedOn === null ? !forecastHasRate(teamId, includeSix) : forecastTypedOn;
+  fcs().forecastTypedOn == null ? !forecastHasRate(teamId, includeSix)
+                                : !!fcs().forecastTypedOn;
 
 /* The typed pair, or null when there is not a usable one. A single number is
    allowed and means a flat rate — the range simply closes. */
@@ -6721,7 +6749,7 @@ function forecastTypedRange() {
     const x = parseFloat(v);
     return Number.isFinite(x) && x > 0 ? Math.min(FORECAST_RATE_MAX, x) : null;
   };
-  const lo = n(forecastRateLo), hi = n(forecastRateHi);
+  const lo = n(fcs().forecastRateLo), hi = n(fcs().forecastRateHi);
   if (lo === null && hi === null) return null;
   const a = lo === null ? hi : lo, b = hi === null ? lo : hi;
   return { slow: Math.min(a, b), fast: Math.max(a, b) };
@@ -6899,11 +6927,11 @@ function forecastCard(team, includeSix) {
         <div id="forecastRateWrap" class="row" style="gap:8px"${ticked ? '' : ' hidden'}>
           <span>Points a sprint</span>
           <input type="number" id="forecastRateLo" min="0" max="${FORECAST_RATE_MAX}" step="1"
-            inputmode="numeric" style="width:80px" value="${esc(forecastRateLo)}"
+            inputmode="numeric" style="width:80px" value="${esc(fcs().forecastRateLo)}"
             aria-label="Typed velocity, cautious end" placeholder="e.g. 25">
           <span>to</span>
           <input type="number" id="forecastRateHi" min="0" max="${FORECAST_RATE_MAX}" step="1"
-            inputmode="numeric" style="width:80px" value="${esc(forecastRateHi)}"
+            inputmode="numeric" style="width:80px" value="${esc(fcs().forecastRateHi)}"
             aria-label="Typed velocity, optimistic end" placeholder="e.g. 35">
         </div>
       </div>
@@ -6932,12 +6960,15 @@ function wireForecast(team, includeSix) {
   /* The press ENDS the default's opinion, in either direction — which is the
      whole reason `forecastTypedOn` has three states rather than two. */
   tick.onchange = () => {
-    forecastTypedOn = tick.checked;
+    fcs().forecastTypedOn = tick.checked;
     wrap.hidden = !tick.checked;
-    redraw();
+    save(); redraw();
   };
-  lo.oninput = () => { forecastRateLo = lo.value; redraw(); };
-  hi.oninput = () => { forecastRateHi = hi.value; redraw(); };
+  /* Saved on every keystroke, like every other box in this app that persists —
+     there is no blur to wait for on a control somebody may read the answer off
+     and then close the tab. */
+  lo.oninput = () => { fcs().forecastRateLo = lo.value; save(); redraw(); };
+  hi.oninput = () => { fcs().forecastRateHi = hi.value; save(); redraw(); };
 }
 
 /* The actionable takeaway from the rolling window: what to commit to at the next
@@ -11954,15 +11985,16 @@ window.__svTestHooks = { raisesKeyboard, reorderById,
      cases by the setter itself — leaving a rate behind would silently re-answer
      every later forecast test from it. */
   svTypedRate: (lo, hi, on) => {
-    forecastRateLo = lo === undefined ? '' : String(lo);
-    forecastRateHi = hi === undefined ? '' : String(hi);
-    forecastTypedOn = on === undefined ? null : on;
+    state.settings.forecastRateLo = lo === undefined ? '' : String(lo);
+    state.settings.forecastRateHi = hi === undefined ? '' : String(hi);
+    state.settings.forecastTypedOn = on === undefined ? null : on;
   },
-  svTypedRateState: () => ({ lo: forecastRateLo, hi: forecastRateHi, on: forecastTypedOn }),
+  svTypedRateState: () => ({ lo: state.settings.forecastRateLo,
+    hi: state.settings.forecastRateHi, on: state.settings.forecastTypedOn }),
   /* The planning screen's own flag, settable for the same reason: it is a
      module-level let, and a suite that pressed the button would otherwise leave
      the app on that screen for every case after it. */
-  svPlanning: (on) => { forecastPlanning = !!on; },
+  svPlanning: (on) => { state.settings.forecastPlanning = !!on; },
   forecastHasRate, forecastTypedTicked, forecastTypedRange,
   /* `const` at the top level of a classic script is not a property of window,
      so the two version numbers have to be handed over deliberately or the

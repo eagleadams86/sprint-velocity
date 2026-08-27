@@ -1064,10 +1064,12 @@ extra fortnight of calendar per crossing. The dates account for that. It also sa
 the work fits in the delivery sprints left in the current PI, which is the question this one
 usually turns into.
 
-**Nothing is typed here is saved**, and that's deliberate. A backlog total is only a number,
+**The story points box isn't saved**, and that's deliberate. A backlog total is only a number,
 so the numbers-and-dates rule would allow storing it — but it goes stale the moment somebody
 grooms the backlog, and a saved figure would have the app confidently forecasting from a
-total nobody has checked since. Asking each time costs one box and can't be wrong.
+total nobody has checked since. Asking each time costs one box and can't be wrong. The typed
+velocity beside it *is* saved, and the difference is the point: a velocity is an estimate you
+reasoned about, a backlog total is a figure you can read off again in a second.
 
 Past **two PIs** it keeps the sprint count, drops the dates and says why. A rate taken from a
 five-sprint window can't speak to the next hundred: the team, the backlog and the way you
@@ -1089,10 +1091,10 @@ and it answers, having recorded nothing.
 The first three buttons are the family's, in the family's order; the fourth is this app's own,
 as Flow Metrics' and Golf Handicap's fourth buttons are theirs.
 
-**Nothing on that screen is kept**, and it says so. The rate isn't saved for the reason below,
-so a screen that survived a reload would come back with the numbers already gone out of it —
-better to be plainly temporary than to look permanent and not be. There's a way back to the
-welcome card, and a *Start a Team* beside it for when the answer is worth keeping.
+**No team and no sprint is recorded** — but the screen and the velocity on it are kept, so a
+reload brings your forecast back as you left it. There's a way back to the welcome card, and a
+*Start a Team* beside it for when the answer is worth keeping properly. The story points box
+still asks again, for the reason under *How Long Would It Take?*.
 
 #### A Velocity You Type, for a Team That Hasn't Got One
 
@@ -1137,9 +1139,14 @@ there checked over a card that had just said it had sprints to draw from. The ba
 the points box deliberately *doesn't* go with it: that is a statement about the work, not about
 who is doing it, and comparing the same scope across two teams is why people switch.
 
-Like the points box, **the typed rate isn't saved** — same reasoning, one step further: a
-velocity typed weeks ago and forgotten is worse than a box that asks again. **Delete all data**
-clears both, since "starting fresh" is a claim about what is on screen.
+**The typed rate is saved** — it rides in settings beside the two rolling toggles, as numbers
+and a tribool, which is what the numbers-and-dates rule allows. It earns the storage where the
+points box doesn't: an estimate somebody reasoned about is worth bringing back, and losing it to
+a stray refresh is the annoyance. It carries **no schema bump**, because an older build
+stripping it costs a restored forecast and nothing more — the card falls back to the history it
+can see and says so, which is very different from the wrong figures a stripped `targets` would
+have produced. **Delete all data** clears it, since "starting fresh" is a claim about what is
+on screen.
 
 Both the tick and its boxes sit in the card's **head**, beside the points box. They were under
 the answer to begin with, which meant the answer's own length decided where they were: ticking

@@ -93,7 +93,7 @@ function ok(cond, note) { if (!cond) throw new Error(note || 'expected truthy');
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 403;
+const EXPECTED = 404;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -3628,6 +3628,13 @@ t('sprints are whole, and it rounds UP — you do not finish in 4.4 of them', ()
   });
 });
 t('no points, no forecast — and a team that has finished nothing says so', () => {
+  /* The typed rate is SAVED since 2026-08-26, and `withState` restores the four
+     lists but not settings — so a rate left in this browser (by a reader, or by
+     a case further down this file) would answer "a team with no window at all"
+     for a reason that has nothing to do with it. Cleared here rather than
+     tolerated: the assertion is about having no history, not about having no
+     rate typed. */
+  w.__svTestHooks.svTypedRate();
   withState(capacityFixture(), () => {
     eq(w.forecast('t1', 0, false), null);
     eq(w.forecast('t1', -5, false), null);
@@ -3905,6 +3912,9 @@ t('the welcome card offers a fourth way in, and it creates nothing', () => {
      could be reached only by first creating a team and finding Rolling 5. */
   withState({ teams: [], pis: [], sprints: [] }, () => {
     typed();
+    /* And OFF the planning screen to begin with — it persists now, so a browser
+       that was left on it renders that instead of the card under test. */
+    w.__svTestHooks.svPlanning(false);
     w.render();
     const doc = w.document;
     const labels = [...doc.querySelectorAll('.welcome button')].map(b => b.textContent.trim());
@@ -3925,6 +3935,36 @@ t('the welcome card offers a fourth way in, and it creates nothing', () => {
     w.__svTestHooks.svPlanning(false);
   });
   typed();
+});
+t('the typed velocity and the planning screen SURVIVE a reload', () => {
+  /* Asked for by Charles (2026-08-26): losing an estimate you reasoned about to
+     a stray refresh is the annoyance. They ride in settings as numbers and a
+     tribool — what the numbers-and-dates rule allows — and cross the same
+     boundary every other saved value does. */
+  const spec = w.sanitizeIds(w.coerceShape({
+    teams: [{ id: 't1', name: 'A' }], arts: [], pis: [], sprints: [],
+    settings: { forecastRateLo: 25, forecastRateHi: 35,
+      forecastTypedOn: true, forecastPlanning: true }
+  })).settings;
+  eq([spec.forecastRateLo, spec.forecastRateHi], [25, 35], 'the rate crosses the boundary');
+  eq(spec.forecastTypedOn, true, 'and the press with it');
+  eq(spec.forecastPlanning, true, 'and the screen it was typed on');
+  /* A TRIBOOL, not a bool. `!!null` would record "the reader unticked it" for a
+     reader who never touched it, which is the one thing the third state exists
+     to prevent — and it would then override the data-driven default for ever. */
+  const untouched = w.sanitizeIds(w.coerceShape({
+    teams: [{ id: 't1', name: 'A' }], arts: [], pis: [], sprints: [],
+    settings: { forecastTypedOn: null }
+  })).settings;
+  eq('forecastTypedOn' in untouched, false,
+    'an untouched tick is not written as false — absent survives as absent');
+  /* Rubbish is dropped rather than stored, like every other value here. */
+  const junk = w.sanitizeIds(w.coerceShape({
+    teams: [{ id: 't1', name: 'A' }], arts: [], pis: [], sprints: [],
+    settings: { forecastRateLo: 'banana', forecastTypedOn: 'yes' }
+  })).settings;
+  eq('forecastRateLo' in junk, false, 'a rate that is not a number does not get in');
+  eq('forecastTypedOn' in junk, false, 'nor a tick that is not a boolean');
 });
 t('the planning screen answers from a typed velocity with no team at all', () => {
   withState({ teams: [], pis: [], sprints: [] }, () => {
