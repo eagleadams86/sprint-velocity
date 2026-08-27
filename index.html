@@ -7057,11 +7057,11 @@ function forecastCard(team, includeSix) {
           <span>Points a sprint</span>
           <input type="number" id="forecastRateLo" min="0" max="${FORECAST_RATE_MAX}" step="1"
             inputmode="numeric" style="width:80px" value="${esc(fcs().forecastRateLo)}"
-            aria-label="Typed velocity, cautious end" placeholder="e.g. 25">
+            aria-label="Points a sprint, cautious end" placeholder="e.g. 25">
           <span>to</span>
           <input type="number" id="forecastRateHi" min="0" max="${FORECAST_RATE_MAX}" step="1"
             inputmode="numeric" style="width:80px" value="${esc(fcs().forecastRateHi)}"
-            aria-label="Typed velocity, optimistic end" placeholder="e.g. 35">
+            aria-label="Points a sprint, optimistic end" placeholder="e.g. 35">
         </div>
       </div>
     </div>
@@ -7079,11 +7079,11 @@ function forecastCard(team, includeSix) {
           <span>Scope grows by (%)</span>
           <input type="number" id="fcGrowthLo" min="0" max="${FORECAST_GROWTH_MAX}" step="1"
             inputmode="numeric" style="width:70px" value="${esc(fcs().forecastGrowthLo)}"
-            aria-label="Scope growth, lowest" placeholder="0">
+            aria-label="Scope grows by (%), lowest" placeholder="0">
           <span>to</span>
           <input type="number" id="fcGrowthHi" min="0" max="${FORECAST_GROWTH_MAX}" step="1"
             inputmode="numeric" style="width:70px" value="${esc(fcs().forecastGrowthHi)}"
-            aria-label="Scope growth, highest" placeholder="0">
+            aria-label="Scope grows by (%), highest" placeholder="0">
         </label>
         <label class="row" style="gap:8px">
           <span>Sprints nobody is delivering</span>

@@ -93,7 +93,7 @@ function ok(cond, note) { if (!cond) throw new Error(note || 'expected truthy');
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 412;
+const EXPECTED = 413;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -4211,6 +4211,44 @@ t('both together, and the answer names the scope it actually used', () => {
     eq(f.slow, 8, 'ceil(125 / 20) = 7, plus the same one');
   });
   adjust();
+});
+t('every range box announces the words on screen (WCAG 2.5.3)', () => {
+  /* An aria-label REPLACES the visible one, so a box reading "Points a sprint"
+     that announced itself as "Typed velocity, cautious end" could not be reached
+     by a voice-control user saying what they can see. Found by the 2026-08-26
+     audit, which axe passed clean on both apps: its label-in-name rule covers
+     only elements whose visible text IS their content, so an input with a
+     separate label and its own aria-label goes straight past it.
+
+     "to" is stripped because it is the separator BETWEEN the two boxes and
+     belongs to neither — without that, the high box of every pair reads as a
+     failure for a word that is not its label. */
+  const doc = w.document;
+  withState({ teams: [], pis: [], sprints: [] }, () => {
+    typed(); adjust();
+    w.__svTestHooks.svPlanning(true);
+    w.render();
+    const f = doc.getElementById('forecastAdjust'); if (f) f.open = true;
+    const norm = (t) => (t || '').replace(/\s+/g, ' ').trim().toLowerCase()
+      .replace(/(^to\b|\bto$)/g, '').trim();
+    let checked = 0;
+    [...doc.querySelectorAll('#forecastCard input, .card input')].forEach(el => {
+      const aria = el.getAttribute('aria-label');
+      const wrap = el.closest('label');
+      if (!aria || !wrap) return;
+      const shown = norm(wrap.textContent);
+      if (!shown) return;
+      checked++;
+      ok(norm(aria).includes(shown),
+        '#' + el.id + ' announces "' + aria + '" over a label reading "' + shown + '"');
+    });
+    /* A sweep that reached nothing passes every assertion in it — count what it
+       actually saw before believing the result. */
+    ok(checked >= 3, 'and the sweep reached the boxes at all', checked + ' checked');
+    w.__svTestHooks.svPlanning(false);
+    w.render();
+  });
+  typed(); adjust();
 });
 t('a shut fold can never hide an adjustment', () => {
   /* The summary counts them, and it is the only thing standing between a folded
