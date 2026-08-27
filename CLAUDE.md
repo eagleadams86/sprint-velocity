@@ -646,13 +646,19 @@ but Charles had ever actually signed in.)
   specific date four years out is a straight-faced absurdity. It also bounds the slot walk
   against a mistyped backlog, and suppresses the does-it-fit-this-PI clause, which is not a
   question anybody has about 5,000 sprints.
-- **The forecast's input is the one number on the page that is NOT stored, deliberately.** A
-  backlog total is only a number, so the numbers-and-dates rule would allow it — but it goes
-  stale the moment anyone grooms the backlog, and a saved figure would have the app
-  confidently forecasting from a total nobody has checked since. `forecastPoints` is a plain
-  module-level string. That also means **`wireForecast` re-renders THIS CARD'S result region
-  only, never `render()`** — a full re-render rebuilds the input and takes the caret with it,
-  so every keystroke would land in a fresh empty box.
+- **Every field on the forecast card is stored, the backlog total included** (2026-08-27; the
+  rate, growth, lost sprints and fold since 2026-08-26). This line used to say the opposite and
+  the argument was real — a backlog total goes stale the moment anyone grooms the backlog, so a
+  stored one has the app forecasting from a figure nobody has checked since. It lost to the
+  thing that actually happened: a reload kept every knob on the card and threw away only the
+  number that made sense of them. `forecastPoints` lives in `state.settings` with its four
+  siblings, on the same `keepKnown` whitelist and under the same **no schema bump** reasoning —
+  an older build stripping it costs a restored total and nothing else, because the card asks
+  again and the placeholder says what it is asking for. **A new field here must be added to that
+  whitelist or it will be deliberately stripped on the way back in**, which is the general rule
+  and the one this field was missing. Unchanged: **`wireForecast` re-renders THIS CARD'S result
+  region only, never `render()`** — a full re-render rebuilds the input and takes the caret with
+  it, so every keystroke would land in a fresh empty box. The `save()` beside that redraw is new.
 - **Carry-over does not shrink with the team.** `carryoverFills` exists because work already
   carried in comes off the top of a smaller sprint, so a big adjustment can leave no room for
   new work at all. It's the most actionable thing the feature surfaces — keep it visible.
@@ -1641,6 +1647,31 @@ page out of five is not a convention.
   (`.field input`) and by class (`.ctl`) instead — element selectors, which have no
   equivalent gap — and the lottery pages style their few fields per component. Those three
   are deliberately NOT converted; don't "finish the job" by giving them a type list.
+- **A BOX IS AS WIDE AS WHAT GOES IN IT (2026-08-27).** A width is right for a name or a
+  pasted export, whose length nobody can predict, and wrong for a number, where the length is
+  written in the markup two attributes away: the eight boxes in Targets were 523px each for a
+  percentage that cannot exceed 400, and a story-point count in the sprint form was 249px.
+  `input[type=number]` takes `calc(var(--digits, 4) * 1ch + 38px)`; **`--digits` IS the `max`
+  attribute, in digits, and belongs on the same tag** — the two are one fact and splitting them
+  is how they drift. The 38px is padding, border and the spinner no engine reports a width for.
+  The **default of 4** is the right answer for the boxes that genuinely have no maximum (a
+  sprint's committed points is a number this app does not bound); a box that DOES declare a
+  `max` must declare digits enough for it, and where a **placeholder** is wider than the digits
+  — `then` and `now` on the team-size boxes, `e.g. 120` on the backlog total — the digits answer
+  to the placeholder instead. A `max` written as `${CONST}` must take its digits from the same
+  constant. The suite checks all of that against the source, and it caught a deliberately
+  narrowed box on the first run.
+  It replaced five hand-set inline widths (110/80/76/70/64px), each set by eye and none checked
+  against its own box — which is exactly how Flow Metrics ended up with a target box four
+  characters wide holding a five-character number. `input[type=date]` gets a figure of its own
+  (170px), deliberately generous: what it holds is the LOCALE's rendering of a date.
+  **`width: 100%` on a container rule beats the shared one**, so `.grid.two > div > input` and
+  `.grid-fields > div > input` exclude number and date by `:not([type=number]):not([type=date])`
+  rather than the shared rule being given more specificity — the claim those rules make ("a box
+  for words of unknown length fills its cell") is worth keeping. `.grid-fields` keeps handing
+  every input its `margin-top: auto` and `height: 40px`, which are what hold a row of mixed
+  fields on one line; only the width and the 260px ceiling are excluded.
+  **Sprint Predictability is the design lead**, and Flow Metrics carries the same rule.
 - **Decorative glyphs on buttons are `aria-hidden` everywhere, not just in the header.** The
   header row got the treatment on 2026-08-21 and the rest of the app did not, so a screen
   reader still read "downwards black arrow, Export JSON" in every dialog. Around 50 buttons

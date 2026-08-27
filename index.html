@@ -403,6 +403,39 @@ input[type=password] {
      2026-08-22; the other five apps were swept and fixed 2026-08-23. */
   min-height: calc(1.5em + 16px);
 }
+/* ── A BOX IS AS WIDE AS WHAT GOES IN IT (2026-08-27) ────────────────────────
+   Charles reported this in Flow Metrics — "make these fields a reasonable width
+   based on the data in them" — and this app had it worse: the eight boxes in the
+   Targets window were 523px each for a percentage that cannot exceed 400, and
+   the sprint form gave a story-point count 249px. A width is right for a team
+   name or a pasted export, whose length nobody can predict, and wrong for a
+   number, where the length is written in the markup two attributes away.
+
+   `--digits` IS THE `max` ATTRIBUTE, IN DIGITS, and it belongs on the same tag:
+   the two are one fact and splitting them is how they drift. THE DEFAULT IS 4,
+   which is the right answer for the boxes here that genuinely have no maximum —
+   a sprint's committed points is a number the app does not bound, and four
+   digits is past anything a sprint holds.
+
+   The 38px is the chrome around the digits: 18px of padding, 2px of border, and
+   the spinner, which no engine will report a width for. `max-width: 100%` is
+   what stops any of them overflowing a phone-width column.
+
+   It replaces four hand-set inline widths as well (110px, 80px, 76px, 70px, 64px
+   — five, in fact), each set by eye and none of them checked against the value
+   its own box accepts. That is exactly how Flow Metrics ended up with a target
+   box four characters wide holding a five-character number. Where a PLACEHOLDER
+   is wider than the digits — "then" and "now" on the team-size boxes — the
+   digits answer to the placeholder instead, and the suite checks both.
+
+   SV is the design lead for this chrome: the same rule is in Flow Metrics. */
+input[type=number] { width: calc(var(--digits, 4) * 1ch + 38px); max-width: 100%; }
+/* A date has no digit count to read off the markup, and what it has to hold is
+   the LOCALE's rendering of one — a browser set to spell the month out needs
+   more room than 11/18/2026, and one showing mm/dd/yyyy in an empty box needs
+   more than a filled one. So this is deliberately generous rather than snug, and
+   still well under what the field was taking. */
+input[type=date], input[type=month] { width: 170px; max-width: 100%; }
 /* A search field is drawn natively with its own inset shape, which ignores the
    border and radius above — the same move the pack makes for date fields, and
    for the same reason. It takes Chromium's native × with it; a search box that
@@ -1076,7 +1109,13 @@ label.field { display: block; font-size: var(--fs-xs); color: var(--text-seconda
    Flow Metrics' `label` rule gives. */
 .grid.two > div > label { flex: 0 0 auto; display: block; font-size: var(--fs-xs);
   color: var(--text-secondary); font-weight: var(--fw-semibold); margin-bottom: 4px; }
-.grid.two > div > input, .grid.two > div > select { width: 100%; }
+/* Everything here fills its cell EXCEPT a number or a date, which since
+   2026-08-27 are as wide as what goes in them — see the `--digits` rule. Written
+   as an exclusion rather than by raising that rule's specificity, because this
+   one is a claim worth keeping: a box for words of unknown length should fill
+   the cell it is given. */
+.grid.two > div > input:not([type=number]):not([type=date]),
+.grid.two > div > select { width: 100%; }
 /* TWO ACROSS, always, for a section whose fields come in PAIRS. `auto-fit` puts
    as many as will fit on a line, which for the four predictability figures is
    three and then a lonely fourth — and those four are two pairs, a band floor
@@ -1099,8 +1138,15 @@ label.field { display: block; font-size: var(--fs-xs); color: var(--text-seconda
    two-digit number, and the lone reason picker in Rolling 5 came out 1032px
    wide. The track still stretches — the labels stay spread across the row — but
    the box under it stops at a width you can actually aim at. */
+/* The 260px ceiling above was this fault half-fixed: it stopped a two-digit box
+   at 260px instead of 336px, where what it wanted was to be as wide as two
+   digits. Since 2026-08-27 numbers and dates size themselves and take neither
+   the width nor the ceiling; the bottom alignment and the height are still
+   theirs, because those are what keep a row of mixed fields on one line. */
 .grid-fields > div > input,
-.grid-fields > div > select { width: 100%; margin-top: auto; height: 40px; max-width: 260px; }
+.grid-fields > div > select { margin-top: auto; height: 40px; }
+.grid-fields > div > input:not([type=number]):not([type=date]),
+.grid-fields > div > select { width: 100%; max-width: 260px; }
 dialog {
   border: 1px solid var(--border-strong); border-radius: var(--radius);
   background: var(--bg-card); color: var(--text-primary);
@@ -1935,11 +1981,11 @@ main:focus { outline: none; }
   <div class="grid two" style="margin-top:var(--sp-5)">
       <div>
         <label class="field" for="t_completionGreen">On target at or above (%)</label>
-        <input type="number" id="t_completionGreen" min="1" max="200" step="1" inputmode="numeric">
+        <input type="number" id="t_completionGreen" style="--digits:3" min="1" max="200" step="1" inputmode="numeric">
       </div>
       <div>
         <label class="field" for="t_completionRed">Red below (%)</label>
-        <input type="number" id="t_completionRed" min="0" max="200" step="1" inputmode="numeric">
+        <input type="number" id="t_completionRed" style="--digits:3" min="0" max="200" step="1" inputmode="numeric">
       </div>
     </div>
 
@@ -1951,11 +1997,11 @@ main:focus { outline: none; }
   <div class="grid two" style="margin-top:var(--sp-5)">
       <div>
         <label class="field" for="t_churnGreen">On target at or below (%)</label>
-        <input type="number" id="t_churnGreen" min="0" max="200" step="1" inputmode="numeric">
+        <input type="number" id="t_churnGreen" style="--digits:3" min="0" max="200" step="1" inputmode="numeric">
       </div>
       <div>
         <label class="field" for="t_churnRed">Red above (%)</label>
-        <input type="number" id="t_churnRed" min="0" max="200" step="1" inputmode="numeric">
+        <input type="number" id="t_churnRed" style="--digits:3" min="0" max="200" step="1" inputmode="numeric">
       </div>
     </div>
 
@@ -1967,19 +2013,19 @@ main:focus { outline: none; }
   <div class="grid two pairs" style="margin-top:var(--sp-5)">
       <div>
         <label class="field" for="t_predLow">Band floor (%)</label>
-        <input type="number" id="t_predLow" min="1" max="400" step="1" inputmode="numeric">
+        <input type="number" id="t_predLow" style="--digits:3" min="1" max="400" step="1" inputmode="numeric">
       </div>
       <div>
         <label class="field" for="t_predHigh">Band ceiling (%)</label>
-        <input type="number" id="t_predHigh" min="1" max="400" step="1" inputmode="numeric">
+        <input type="number" id="t_predHigh" style="--digits:3" min="1" max="400" step="1" inputmode="numeric">
       </div>
       <div>
         <label class="field" for="t_predUnderRed">Red below (%)</label>
-        <input type="number" id="t_predUnderRed" min="0" max="400" step="1" inputmode="numeric">
+        <input type="number" id="t_predUnderRed" style="--digits:3" min="0" max="400" step="1" inputmode="numeric">
       </div>
       <div>
         <label class="field" for="t_predOverRed">Red above (%)</label>
-        <input type="number" id="t_predOverRed" min="1" max="400" step="1" inputmode="numeric">
+        <input type="number" id="t_predOverRed" style="--digits:3" min="1" max="400" step="1" inputmode="numeric">
       </div>
     </div>
 
@@ -2109,7 +2155,7 @@ main:focus { outline: none; }
       <div class="grid-fields">
         <div>
           <label class="field" for="a_pct">Team availability (%)</label>
-          <input type="number" id="a_pct" min="0" max="200" step="5" inputmode="numeric"
+          <input type="number" id="a_pct" style="--digits:3" min="0" max="200" step="5" inputmode="numeric"
                  aria-describedby="adjustPctHint">
         </div>
         <div>
@@ -2140,12 +2186,12 @@ main:focus { outline: none; }
       <div class="row" style="margin-top:12px;gap:8px;flex-wrap:wrap;align-items:center">
         <span class="muted" style="font-size:var(--fs-xs)">Team size:</span>
         <label class="sr-only" for="a_peopleThen">People on the team during that sprint</label>
-        <input type="number" id="a_peopleThen" min="1" max="99" step="1" inputmode="numeric"
-               style="width:64px" placeholder="then">
+        <input type="number" id="a_peopleThen" style="--digits:4" min="1" max="99" step="1"
+               inputmode="numeric" placeholder="then">
         <span class="muted" style="font-size:var(--fs-xs)" aria-hidden="true">→</span>
         <label class="sr-only" for="a_peopleNow">People on the team now</label>
-        <input type="number" id="a_peopleNow" min="1" max="99" step="1" inputmode="numeric"
-               style="width:64px" placeholder="now">
+        <input type="number" id="a_peopleNow" style="--digits:4" min="1" max="99" step="1"
+               inputmode="numeric" placeholder="now">
         <span class="muted" style="font-size:var(--fs-xs)">for</span>
         <label class="sr-only" for="a_peopleSprint">Which sprint to scale</label>
         <select id="a_peopleSprint" style="width:auto"></select>
@@ -2192,15 +2238,15 @@ main:focus { outline: none; }
       <div class="grid-fields">
         <div>
           <label class="field" for="bv_planned">Planned (committed)</label>
-          <input type="number" id="bv_planned" min="0" max="999" step="1" inputmode="numeric">
+          <input type="number" id="bv_planned" style="--digits:3" min="0" max="999" step="1" inputmode="numeric">
         </div>
         <div>
           <label class="field" for="bv_actual">Achieved</label>
-          <input type="number" id="bv_actual" min="0" max="999" step="1" inputmode="numeric">
+          <input type="number" id="bv_actual" style="--digits:3" min="0" max="999" step="1" inputmode="numeric">
         </div>
         <div>
           <label class="field" for="bv_stretch">Achieved from stretch</label>
-          <input type="number" id="bv_stretch" min="0" max="999" step="1" inputmode="numeric">
+          <input type="number" id="bv_stretch" style="--digits:3" min="0" max="999" step="1" inputmode="numeric">
         </div>
       </div>
       <p class="sub" style="margin:10px 0 0">Add up the business value your ART assigned to this
@@ -2558,7 +2604,7 @@ function blankState() {
                    an estimate they thought about rather than a figure they can
                    read off again. `forecastTypedOn` is a TRIBOOL: null means
                    nobody has pressed the tick and the data decides. */
-                forecastRateLo: '', forecastRateHi: '',
+                forecastRateLo: '', forecastRateHi: '', forecastPoints: '',
                 forecastTypedOn: null, forecastPlanning: false,
                 /* The two adjustments, and whether their fold is open. Numbers
                    and a bool, like everything else kept here. */
@@ -2885,7 +2931,7 @@ function sanitizeIds(data) {
          boundaries the file said had been changed. Stripping these four costs a
          restored forecast and nothing else: the card falls back to the history
          it can see, and says so as it always did. */
-      forecastRateLo: 'num', forecastRateHi: 'num',
+      forecastRateLo: 'num', forecastRateHi: 'num', forecastPoints: 'num',
       forecastTypedOn: 'tribool', forecastPlanning: 'bool',
       forecastGrowthLo: 'num', forecastGrowthHi: 'num',
       forecastLostSprints: 'num', forecastAdjustOpen: 'bool' });
@@ -6775,15 +6821,24 @@ function renderRollingView() {
 }
 
 /* ── The forecast card ──────────────────────────────────────────────────────
-   The one number on this page the app does NOT store, and deliberately. A
-   backlog size is only a number, so the numbers-and-dates rule would allow it —
-   but it goes stale the moment anybody grooms the backlog, and a saved figure
-   would have the app confidently forecasting from a total nobody has checked
-   since. Asking each time costs one box and cannot be wrong.
+   SAVED, since 2026-08-27, and this reverses what this comment used to say. The
+   argument for asking each time was that a backlog total goes stale the moment
+   anybody grooms the backlog, so a stored one would have the app forecasting
+   confidently from a figure nobody had checked since. That is a real risk and it
+   is the smaller one: what actually happened is that a reader typed a total,
+   read the answer, reloaded for any reason at all, and came back to an empty box
+   — and every OTHER field on this card had been saved since 2026-08-26, so the
+   reload kept the rate, the growth, the lost sprints and the fold, and lost only
+   the number that made sense of them. Charles asked for it on 2026-08-27.
 
-   That also means it never re-renders the view: typing recalculates this card's
-   result region on its own, so the caret stays in the box. */
-let forecastPoints = '';
+   It lives in `state.settings` with those four rather than beside them, on the
+   same whitelist and under the same NO SCHEMA BUMP reasoning: an older build
+   stripping it costs a restored total and nothing else, because the card asks
+   again and says on the box what it is asking for.
+
+   It still never re-renders the view: typing recalculates this card's result
+   region on its own, so the caret stays in the box. What is new beside that is a
+   `save()`, which is the shape the rate boxes already had. */
 
 /* ── A velocity you type, for a team that has not got one ────────────────────
    The card above rests on `nextSprintTarget`, which rests on finished sprints.
@@ -6792,9 +6847,11 @@ let forecastPoints = '';
    numbers, an optimistic end and a cautious one, dealt exactly where the mean
    and the floor would have gone.
 
-   IN MEMORY, NOT STORED, like `forecastPoints` beside it and for the reason
-   given there: a rate typed weeks ago and forgotten is worse than a box that
-   asks again. Nothing here touches the saved state or its schema.
+   STORED, in `state.settings` — since 2026-08-26 for the rate and 2026-08-27
+   for the backlog total beside it, so every field on this card now survives a
+   reload together. The line this replaced said the opposite, and was already
+   wrong the day the rate was saved; a comment describing the previous design is
+   worse than no comment at all.
 
    THREE-STATE, deliberately. `null` is "the reader has not said", and the tick
    then follows the data — on where there is no rate to measure, off where there
@@ -6904,7 +6961,7 @@ const forecastTypedRate = (teamId, includeSix) =>
   forecastTypedTicked(teamId, includeSix) ? forecastTypedRange() : null;
 
 function forecastResultHtml(team, includeSix) {
-  const points = Math.max(0, Math.round(parseFloat(forecastPoints) || 0));
+  const points = Math.max(0, Math.round(parseFloat(fcs().forecastPoints) || 0));
   /* Null on the planning screen, where no team exists yet. Every sentence below
      that would have named one says "it" instead — inventing a subject would be
      the card claiming a team that is not there. */
@@ -7085,8 +7142,12 @@ function forecastCard(team, includeSix) {
       <div class="row" style="gap:16px;font-size:var(--fs-sm)">
         <label class="row" style="gap:8px">
           <span>Story points</span>
-          <input type="number" id="forecastPoints" min="0" step="1" inputmode="numeric"
-            style="width:110px" value="${esc(forecastPoints)}" placeholder="e.g. 120">
+          <!-- Eight, and NOT from a max — this box has none. Its PLACEHOLDER is
+               "e.g. 120", which is wider than any total anybody types into it,
+               and a box that clips its own instruction is worse than one with a
+               little room to spare. -->
+          <input type="number" id="forecastPoints" style="--digits:8" min="0" step="1"
+            inputmode="numeric" value="${esc(fcs().forecastPoints || '')}" placeholder="e.g. 120">
         </label>
         <label class="row" style="gap:8px">
           <input type="checkbox" id="forecastTyped"${ticked ? ' checked' : ''}>
@@ -7095,11 +7156,13 @@ function forecastCard(team, includeSix) {
         <div id="forecastRateWrap" class="row" style="gap:8px"${ticked ? '' : ' hidden'}>
           <span>Points a sprint</span>
           <input type="number" id="forecastRateLo" min="0" max="${FORECAST_RATE_MAX}" step="1"
-            inputmode="numeric" style="width:80px" value="${esc(fcs().forecastRateLo)}"
+            inputmode="numeric" style="--digits:${String(FORECAST_RATE_MAX).length}"
+            value="${esc(fcs().forecastRateLo)}"
             aria-label="Points a sprint, cautious end" placeholder="e.g. 25">
           <span>to</span>
           <input type="number" id="forecastRateHi" min="0" max="${FORECAST_RATE_MAX}" step="1"
-            inputmode="numeric" style="width:80px" value="${esc(fcs().forecastRateHi)}"
+            inputmode="numeric" style="--digits:${String(FORECAST_RATE_MAX).length}"
+            value="${esc(fcs().forecastRateHi)}"
             aria-label="Points a sprint, optimistic end" placeholder="e.g. 35">
         </div>
       </div>
@@ -7117,17 +7180,20 @@ function forecastCard(team, includeSix) {
         <label class="row" style="gap:8px">
           <span>Scope grows by (%)</span>
           <input type="number" id="fcGrowthLo" min="0" max="${FORECAST_GROWTH_MAX}" step="1"
-            inputmode="numeric" style="width:70px" value="${esc(fcs().forecastGrowthLo)}"
+            inputmode="numeric" style="--digits:${String(FORECAST_GROWTH_MAX).length}"
+            value="${esc(fcs().forecastGrowthLo)}"
             aria-label="Scope grows by (%), lowest" placeholder="0">
           <span>to</span>
           <input type="number" id="fcGrowthHi" min="0" max="${FORECAST_GROWTH_MAX}" step="1"
-            inputmode="numeric" style="width:70px" value="${esc(fcs().forecastGrowthHi)}"
+            inputmode="numeric" style="--digits:${String(FORECAST_GROWTH_MAX).length}"
+            value="${esc(fcs().forecastGrowthHi)}"
             aria-label="Scope grows by (%), highest" placeholder="0">
         </label>
         <label class="row" style="gap:8px">
           <span>Sprints nobody is delivering</span>
           <input type="number" id="fcLost" min="0" max="${FORECAST_LOST_MAX}" step="1"
-            inputmode="numeric" style="width:70px" value="${esc(fcs().forecastLostSprints)}"
+            inputmode="numeric" style="--digits:${String(FORECAST_LOST_MAX).length}"
+            value="${esc(fcs().forecastLostSprints)}"
             aria-label="Sprints nobody is delivering" placeholder="0">
         </label>
       </div>
@@ -7161,7 +7227,9 @@ function wireForecast(team, includeSix) {
     const out = document.getElementById('forecastResult');
     if (out) out.innerHTML = forecastResultHtml(team, includeSix);
   };
-  box.oninput = () => { forecastPoints = box.value; redraw(); };
+  /* `save()`, like the two rate boxes below it — this is stored now. Still no
+     render(): the caret has to stay where the reader is typing. */
+  box.oninput = () => { fcs().forecastPoints = box.value; save(); redraw(); };
 
   const tick = document.getElementById('forecastTyped');
   const wrap = document.getElementById('forecastRateWrap');
@@ -9807,7 +9875,7 @@ function renderScaleRows() {
       <span class="muted" style="font-size:var(--fs-xs);min-width:9ch">finished ${fmtNum(w.done)}</span>
       <label class="sr-only" for="a_scale_${i}">Scale ${esc(w.label)} (%)</label>
       <input type="number" id="a_scale_${i}" data-scale-id="${esc(w.id)}" value="${w.scale}"
-             min="0" max="200" step="1" inputmode="numeric" style="width:76px">
+             min="0" max="200" step="1" inputmode="numeric" style="--digits:3">
       <span class="muted" style="font-size:var(--fs-xs)">%</span>
       <span class="muted" id="a_scaled_${i}" style="font-size:var(--fs-xs)"></span>
     </div>`).join('');
@@ -11114,11 +11182,10 @@ F('clearBackupBtn').onclick = downloadBackup;
 F('clearCancel').onclick = () => clearDialog.close();
 F('clearConfirm').onclick = () => {
   state = blankState();
-  /* The two things this card holds outside `state`. They are in memory rather
-     than saved, so a reload would have cleared them anyway — but "Everything
-     deleted — starting fresh" is a claim about what is ON SCREEN, and a backlog
-     total and a typed velocity left sitting in the card is not starting fresh. */
-  forecastPoints = '';
+  /* The backlog total goes with `state` now that it lives in settings, so
+     blankState() above has already taken it. The typed rate still needs its own
+     clear, and still for the same reason: "Everything deleted — starting fresh"
+     is a claim about what is ON SCREEN. */
   forecastClearTypedRate();
   forecastClearAdjustments();
   save();
@@ -11987,14 +12054,14 @@ function loadSample() {
      The confirm text above is what points at the other four teams — a first run
      that lands somewhere good but says nothing about the rest is how the headroom
      note went unnoticed the first time round. */
-  /* The forecast box is not stored data — it is a question, asked fresh each time
-     (see forecastPoints) — so the demo seeds it in memory instead. Without this a
+  /* Seeded like every other demo figure, and stored with them since 2026-08-27.
+     Without this a
      first run reaches the card and finds an empty box with an instruction in it,
      which demonstrates nothing; with it, every team's Rolling 5 shows a worked
      forecast the moment you get there. 120 points is chosen to land differently
      on different teams: inside the PI for nobody, 6 sprints for Team Live Sprint,
      7 to 8 for Team Overcommitted with its swings pulling the two ends apart. */
-  forecastPoints = '120';
+  state.settings.forecastPoints = '120';
 
   state.settings.activeTeamId = t2.id;
   state.settings.activePiId = piB.id;
@@ -12219,7 +12286,7 @@ window.__svTestHooks = { raisesKeyboard, reorderById,
   csvCell, toCsv, toTsv,
   /* A plain module-level `let`, so a getter rather than the value itself — the
      suite needs what it holds AFTER loadSample() has run, not at export time. */
-  svForecastPoints: () => forecastPoints,
+  svForecastPoints: () => fcs().forecastPoints,
   /* The typed velocity, same reason and the same shape. It has to be SETTABLE
      too: the whole control is three module-level lets, and a suite that could
      only read them would be testing the default and nothing else. Reset between

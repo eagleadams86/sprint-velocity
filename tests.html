@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 416;
+const EXPECTED = 418;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -1838,13 +1838,34 @@ t('two teams record none at all, so the tile is absent rather than showing zero'
 });
 t('the demo seeds the forecast box, so a first run sees it working', () => {
   withSample((id) => {
-    /* Not stored data — it is a question asked fresh each time — so the demo
-       seeds it in memory. Without it, a first run reaches the card and finds an
-       empty box with an instruction in it, which demonstrates nothing. */
+    /* Seeded like every other demo figure. Without it, a first run reaches the
+       card and finds an empty box with an instruction in it, which demonstrates
+       nothing. */
     const f = w.forecast(id('Team Overcommitted'), Number(w.__svTestHooks.svForecastPoints()), false);
     ok(f && f.fast > 0, 'the seeded figure produces a real forecast');
     ok(f.slow > f.fast, 'and on the swingy team the two ends are apart, which is the point');
   });
+});
+t('the backlog total is SAVED, so a reload does not throw it away', () => {
+  /* Charles, 2026-08-27. It was the last field on this card still held in
+     memory: the rate, the growth, the lost sprints and the fold had all been
+     saved since 2026-08-26, so a reload kept every knob and lost only the number
+     that made sense of them.
+
+     Pinned at the two boundaries it has to cross rather than by reading it back
+     off the module — `blankState` is where it gets a home and `sanitize` is
+     where an unlisted key is deliberately stripped, and a field that misses
+     either one comes back empty with nothing on screen to say why. */
+  withSample(() => {
+    eq(w.svGet().settings.forecastPoints, '120',
+      'the demo\u2019s figure is IN the saved state rather than beside it in memory');
+  });
+  const kept = w.sanitizeIds({ schema: w.SCHEMA, teams: [], pis: [], arts: [], sprints: [],
+    plans: [], objectives: [], settings: { forecastPoints: 250, somethingElse: 'x' } });
+  eq(kept.settings.forecastPoints, 250,
+    'and it survives the whitelist a restore or a reload comes in through');
+  ok(!('somethingElse' in kept.settings),
+    'which is still a whitelist — adding this field did not leave a door open');
 });
 t('the demo carries three PIs, and its predictability CLIMBS across them', () => {
   withSample(() => {
@@ -5356,6 +5377,51 @@ t('the theme picker repaints that colour from the pack, never from a literal', (
   const applyTheme = APP_SRC.match(/function applyTheme\(\)[\s\S]*?\n}/)[0];
   ok(/paintThemeColor\(\)/.test(applyTheme),
     'and applyTheme() must call it, or a Light window keeps a midnight title bar');
+});
+t('a box is as wide as what goes in it', () => {
+  /* Charles asked for this in Flow Metrics on 2026-08-27 — "make these fields a
+     reasonable width based on the data in them" — and this app had it worse: the
+     eight boxes in Targets were 523px each for a percentage that cannot exceed
+     400. A width is right for a name or a pasted export, whose length nobody can
+     predict, and wrong for a number, where the length is written in the markup
+     two attributes away.
+
+     A SOURCE check rather than a measured one, because every frame this suite
+     opens is 1px wide and has no layout to read. What it pins is the CONVENTION,
+     which is the thing a later edit breaks: the pairing of `--digits` with the
+     `max` beside it, and the absence of the hand-set inline widths it replaced. */
+  ok(APP_SRC && APP_SRC.length > 1000, 'the app source loaded — every NOT below is empty without it');
+  ok(/input\[type=number\]\s*\{[^}]*var\(--digits/.test(APP_SRC),
+    'the shared rule sizes a number box from --digits');
+  ok(/input\[type=date\][^{]*\{[^}]*width:/.test(APP_SRC),
+    'and a date box has a width of its own rather than filling its cell');
+
+  const boxes = APP_SRC.match(/<input[^>]*type="number"[^>]*>/g) || [];
+  ok(boxes.length > 20, 'the sweep found the number boxes', boxes.length + ' of them');
+
+  const inline = boxes.filter(b => /style="[^"]*\bwidth:/.test(b));
+  eq(inline.length, 0,
+    'none of them carries a hand-set width any more — five did, each set by eye '
+    + 'and none checked against the value its own box accepts', inline.join(' | ').slice(0, 200));
+
+  const bad = [];
+  for (const b of boxes) {
+    const max = (b.match(/\bmax="([^"]*)"/) || [])[1];
+    const dig = (b.match(/--digits:\s*([^;"]+)/) || [])[1];
+    const id = (b.match(/\bid="([^"]*)"/) || [])[1] || '?';
+    if (!max) continue;                       /* no maximum, so the default of 4 answers */
+    if (!dig) { bad.push(id + ' has a max and no --digits'); continue; }
+    /* A max written as a template expression has to be paired with a --digits
+       built from the SAME constant, or the two drift the day it changes. */
+    const expr = max.match(/\$\{(\w+)\}/);
+    if (expr) {
+      if (!dig.includes(expr[1])) bad.push(id + ' takes its max from ' + expr[1] + ' and its width from ' + dig);
+      continue;
+    }
+    const need = String(Number(max)).length;
+    if (Number(dig) < need) bad.push(id + ' accepts "' + max + '" (' + need + ' characters) and is sized for ' + dig);
+  }
+  eq(bad, [], 'and every one is sized for the maximum it accepts');
 });
 t('the manifest itself is a real one, scoped to this app and no wider', async () => {
   const res = await bustFetch('manifest.webmanifest');

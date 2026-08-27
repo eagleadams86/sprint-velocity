@@ -1080,12 +1080,12 @@ extra fortnight of calendar per crossing. The dates account for that. It also sa
 the work fits in the delivery sprints left in the current PI, which is the question this one
 usually turns into.
 
-**The story points box isn't saved**, and that's deliberate. A backlog total is only a number,
-so the numbers-and-dates rule would allow storing it — but it goes stale the moment somebody
-grooms the backlog, and a saved figure would have the app confidently forecasting from a
-total nobody has checked since. Asking each time costs one box and can't be wrong. The typed
-velocity beside it *is* saved, and the difference is the point: a velocity is an estimate you
-reasoned about, a backlog total is a figure you can read off again in a second.
+**The story points box is saved**, along with everything else on this card. It wasn't until
+2026-08-27, and the argument against was real: a backlog total goes stale the moment somebody
+grooms the backlog, so a stored one has the app forecasting confidently from a figure nobody has
+checked since. What actually happened is smaller and more annoying — the rate, the growth, the
+lost sprints and the fold had all been saved since 2026-08-26, so a reload kept every knob on the
+card and threw away only the number that made sense of them.
 
 Past **two PIs** it keeps the sprint count, drops the dates and says why. A rate taken from a
 five-sprint window can't speak to the next hundred: the team, the backlog and the way you
@@ -1150,10 +1150,10 @@ open by its own shortcut. *Teams & PIs*, *Back Up* and *Targets* stay, each for 
 the first is how you get a team, the second carries *Restore*, and the third is configuration
 the first figure you record will be judged by. Both come back the moment a team exists.
 
-**No team and no sprint is recorded** — but the screen and the velocity on it are kept, so a
-reload brings your forecast back as you left it. There's a way back to the welcome card, and a
-*Start a Team* beside it for when the answer is worth keeping properly. The story points box
-still asks again, for the reason under *How Long Would It Take?*.
+**No team and no sprint is recorded** — but the screen and everything on it is kept, the backlog
+total included since 2026-08-27, so a reload brings your forecast back exactly as you left it.
+There's a way back to the welcome card, and a *Start a Team* beside it for when the answer is
+worth keeping properly.
 
 #### A Velocity You Type, for a Team That Hasn't Got One
 
