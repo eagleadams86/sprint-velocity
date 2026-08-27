@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 418;
+const EXPECTED = 420;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -1845,6 +1845,44 @@ t('the demo seeds the forecast box, so a first run sees it working', () => {
     ok(f && f.fast > 0, 'the seeded figure produces a real forecast');
     ok(f.slow > f.fast, 'and on the swingy team the two ends are apart, which is the point');
   });
+});
+t('Reset to No Adjustments undoes the fold, and is dead while there is nothing to undo', () => {
+  /* Flow Metrics' button, brought over on 2026-08-27 at Charles's request.
+
+     Pinned as LOGIC plus a source check rather than by driving the card:
+     `withSample` stubs `render`, so there is no rendered forecast card in this
+     suite to click. The two halves are what the source check is for — the button
+     and the summary above it are two readings of the same count, and typing in
+     these boxes does not re-render the card, so a handler that wrote only the
+     summary left "2 settings on" sitting over a dead button. It did exactly that
+     for the first ten minutes this button existed. */
+  const H = w.__svTestHooks;
+  const st = w.svGet();
+  const keep = { lo: st.settings.forecastGrowthLo, hi: st.settings.forecastGrowthHi,
+                 lost: st.settings.forecastLostSprints };
+  try {
+    st.settings.forecastGrowthLo = ''; st.settings.forecastGrowthHi = '';
+    st.settings.forecastLostSprints = '';
+    eq(H.forecastAdjustCount(), 0, 'nothing set, nothing to undo');
+
+    /* The LOW end alone. `forecastGrowth` returns hi = max(lo, hi), so this is a
+       setting the forecast really does read, and the count must say so — a
+       button that stayed dead here would be dead over a live adjustment. */
+    st.settings.forecastGrowthLo = '20';
+    eq(H.forecastAdjustCount(), 1, 'the low end alone counts');
+    st.settings.forecastLostSprints = '2';
+    eq(H.forecastAdjustCount(), 2, 'and both of them together');
+
+    H.forecastClearAdjustments();
+    eq([st.settings.forecastGrowthLo, st.settings.forecastGrowthHi,
+        st.settings.forecastLostSprints], ['', '', ''],
+      'the undo empties every field in the fold');
+    eq(H.forecastAdjustCount(), 0, 'so the count is back to nothing');
+  } finally {
+    st.settings.forecastGrowthLo = keep.lo;
+    st.settings.forecastGrowthHi = keep.hi;
+    st.settings.forecastLostSprints = keep.lost;
+  }
 });
 t('the backlog total is SAVED, so a reload does not throw it away', () => {
   /* Charles, 2026-08-27. It was the last field on this card still held in
@@ -5377,6 +5415,19 @@ t('the theme picker repaints that colour from the pack, never from a literal', (
   const applyTheme = APP_SRC.match(/function applyTheme\(\)[\s\S]*?\n}/)[0];
   ok(/paintThemeColor\(\)/.test(applyTheme),
     'and applyTheme() must call it, or a Light window keeps a midnight title bar');
+});
+t('the button and the summary are written from one place', () => {
+  ok(APP_SRC && APP_SRC.length > 1000, 'the app source loaded — every check below is empty without it');
+  ok(/id="fcAdjustReset"/.test(APP_SRC), 'the fold carries a Reset button');
+  ok(/forecastAdjustCount\(\)\s*\?\s*''\s*:\s*' disabled'/.test(APP_SRC),
+    'whose disabled state at render time comes from the count, not from a second opinion');
+  const sync = (APP_SRC.match(/const syncAdjustChrome = \(\) => \{[\s\S]*?\n  \};/) || [''])[0];
+  ok(sync, 'and typing goes through one function that updates the chrome');
+  ok(/forecastAdjustSummary\(\)/.test(sync) && /resetBtn\.disabled/.test(sync),
+    'which writes BOTH the summary and the button — the two readings cannot drift '
+    + 'apart if nothing can update one without the other', sync.slice(0, 160));
+  ok(/syncAdjustChrome\(\)/.test(APP_SRC.match(/const adjust = \(id, key\)[\s\S]*?\n  \};/)[0]),
+    'and the box handler calls it rather than reaching past it to the summary');
 });
 t('a box is as wide as what goes in it', () => {
   /* Charles asked for this in Flow Metrics on 2026-08-27 — "make these fields a

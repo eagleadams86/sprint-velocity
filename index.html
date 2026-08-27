@@ -7203,15 +7203,49 @@ function forecastCard(team, includeSix) {
         ends pair with the two rates, least growth at the fastest. A sprint nobody is delivering
         in is a shutdown or a fortnight of leave; the IP sprint is already stepped over on its
         own.</p>
+      <!-- ── The one control that undoes the others ────────────────────────
+           Flow Metrics' button, brought over on 2026-08-27 at Charles's request.
+           A rule above it, because it is the only control here that undoes every
+           other one and a button flush against the last line of prose reads as
+           more prose.
+
+           DISABLED WHILE THERE IS NOTHING TO UNDO, from the same count the
+           summary above is written from — a live button under "Adjust for what
+           you know" would be the orphaned-control complaint in a smaller shape.
+
+           IT UNDOES THIS FOLD, not the whole card. The typed velocity and the
+           backlog total sit ABOVE the fold and are a different control: this
+           block is called "Adjust for what you know" and the button is scoped to
+           exactly what that block holds, which is also what its summary counts.
+           (Flow Metrics' button reaches its typed pace only because the tick
+           lives INSIDE its block.) -->
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        <button type="button" class="btn small" id="fcAdjustReset"${
+          forecastAdjustCount() ? '' : ' disabled'}>Reset to No Adjustments</button>
+      </div>
     </details>
     <div id="forecastResult">${forecastResultHtml(team, includeSix)}</div>
   </div>`;
 }
 
 /* A shut fold must never hide an adjustment, so the summary counts them. */
-function forecastAdjustSummary() {
+/* HOW MANY OF THE TWO ARE ON. Its own function since 2026-08-27, when the Reset
+   button arrived and needed the same answer: a summary saying "1 setting on"
+   over a dead button, or a live button under "Adjust for what you know", is the
+   sort of disagreement nothing on screen contradicts.
+
+   Read through `forecastGrowth`/`forecastLostSprints` rather than off the stored
+   strings, so it counts what the forecast will actually READ. That matters for
+   the growth pair: `forecastGrowth` returns `hi: max(lo, hi)`, so a reader who
+   fills in only the low end has still set something, and both this and the
+   button agree that they have. */
+function forecastAdjustCount() {
   const g = forecastGrowth(), lost = forecastLostSprints();
-  const on = (g.hi > 0 ? 1 : 0) + (lost > 0 ? 1 : 0);
+  return (g.hi > 0 ? 1 : 0) + (lost > 0 ? 1 : 0);
+}
+
+function forecastAdjustSummary() {
+  const on = forecastAdjustCount();
   return on
     ? `Adjusted for what you know <strong>\u2014 ${on} setting${on === 1 ? '' : 's'} on</strong>`
     : 'Adjust for what you know';
@@ -7254,18 +7288,39 @@ function wireForecast(team, includeSix) {
      the caret out of the box being typed in. */
   const fold = document.getElementById('forecastAdjust');
   const sum = fold && fold.querySelector('summary');
+  const resetBtn = document.getElementById('fcAdjustReset');
+  /* BOTH, in one place. The summary and the button are two readings of the same
+     count, and typing does not re-render the card — so a handler that updated
+     only the summary left "2 settings on" sitting over a dead Reset button. It
+     did exactly that for the first ten minutes this button existed. */
+  const syncAdjustChrome = () => {
+    const on = forecastAdjustCount();
+    if (sum) sum.innerHTML = forecastAdjustSummary();
+    if (resetBtn) resetBtn.disabled = !on;
+  };
   const adjust = (id, key) => {
     const el = document.getElementById(id);
     if (el) el.oninput = () => {
       fcs()[key] = el.value;
       save();
-      if (sum) sum.innerHTML = forecastAdjustSummary();
+      syncAdjustChrome();
       redraw();
     };
   };
   adjust('fcGrowthLo', 'forecastGrowthLo');
   adjust('fcGrowthHi', 'forecastGrowthHi');
   adjust('fcLost', 'forecastLostSprints');
+  /* A FULL `render()`, and it is the one press on this card that wants one: the
+     three boxes are written from state, so redrawing the result region alone
+     would clear the figures and leave the numbers sitting in the inputs. Nobody
+     is mid-keystroke when they press a button, so the caret rule the rest of
+     this function is built around does not apply. */
+  if (resetBtn) resetBtn.onclick = () => {
+    forecastClearAdjustments();
+    save();
+    render();
+    toast('Adjustments cleared \u2014 this is the plain forecast again');
+  };
   if (fold) fold.ontoggle = () => {
     if (fcs().forecastAdjustOpen === fold.open) return;
     fcs().forecastAdjustOpen = fold.open;
@@ -12287,6 +12342,10 @@ window.__svTestHooks = { raisesKeyboard, reorderById,
   /* A plain module-level `let`, so a getter rather than the value itself — the
      suite needs what it holds AFTER loadSample() has run, not at export time. */
   svForecastPoints: () => fcs().forecastPoints,
+  /* The fold's own count and its undo, so the suite can pin what the Reset
+     button is wired to without needing a rendered card — `withSample` stubs
+     `render`, so there is no DOM for a card test to drive. */
+  forecastAdjustCount, forecastClearAdjustments,
   /* The typed velocity, same reason and the same shape. It has to be SETTABLE
      too: the whole control is three module-level lets, and a suite that could
      only read them would be testing the default and nothing else. Reset between

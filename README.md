@@ -1113,6 +1113,11 @@ at the slowest — so each end of the answer is one coherent story rather than a
 Scope *shrink* is refused outright: it's a way to forecast your way to a date, not a risk
 anybody plans for.
 
+**Reset to No Adjustments** clears both, and is **disabled while there is nothing to clear** —
+Flow Metrics' button, brought over on 2026-08-27. It undoes *this fold* and nothing else: the
+typed velocity and the backlog total sit above it and are a different control, and the button is
+scoped to exactly what the block it lives in holds, which is also what its summary counts.
+
 **Lost sprints are added flat.** A sprint that delivers nothing contributes nothing and shifts
 everything after it by exactly one, so where it falls can't change the finish. They're kept
 separate from the delivery count all the way down, because the slot walk converts *delivering*
