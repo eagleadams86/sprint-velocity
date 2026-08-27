@@ -93,7 +93,7 @@ function ok(cond, note) { if (!cond) throw new Error(note || 'expected truthy');
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 397;
+const EXPECTED = 400;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -3870,6 +3870,83 @@ t('the card is REACHABLE for a team with nothing recorded', () => {
       w.render();
     }
   });
+});
+t('the two boxes are really HIDDEN when the box is unticked', () => {
+  /* Not a styling nicety — they were on screen the whole time. `[hidden]` and
+     `.row { display: flex }` are the same specificity and `.row` is declared
+     later, so the hidden attribute lost the cascade and did nothing at all.
+     Reported by Charles on 2026-08-26. Read the COMPUTED style: asserting
+     `.hidden` here would have passed throughout the bug. */
+  withState({ teams: [{ id: 'bare', name: 'Not Started' }], pis: [], sprints: [] }, () => {
+    const st = w.svGet();
+    const prevTeam = st.settings.activeTeam, prevView = st.settings.view;
+    st.settings.activeTeam = 'bare';
+    st.settings.view = 'rolling';
+    typed(undefined, undefined, false);
+    try {
+      w.render();
+      const wrap = w.document.getElementById('forecastRateWrap');
+      eq(w.getComputedStyle(wrap).display, 'none', 'unticked, the boxes are gone from the page');
+      typed(undefined, undefined, true);
+      w.render();
+      eq(w.getComputedStyle(w.document.getElementById('forecastRateWrap')).display !== 'none', true,
+        'and ticked, they are back');
+    } finally {
+      st.settings.activeTeam = prevTeam;
+      st.settings.view = prevView;
+      typed();
+      w.render();
+    }
+  });
+});
+t('every input this card takes sits in its HEAD, above the answer', () => {
+  /* The tick and its boxes used to sit under the result, where the result's own
+     length decided where they were: ticking it added four lines of caveat above
+     them and walked the controls down the page under the pointer. */
+  withState(capacityFixture(), () => {
+    const st = w.svGet();
+    const prevTeam = st.settings.activeTeam, prevView = st.settings.view;
+    st.settings.activeTeam = 't1';
+    st.settings.view = 'rolling';
+    typed();
+    try {
+      w.render();
+      const head = w.document.getElementById('forecastPoints').closest('.cardhead');
+      ok(!!head, 'the points box is in a card head');
+      ['forecastTyped', 'forecastRateLo', 'forecastRateHi'].forEach(id =>
+        ok(!!head.querySelector('#' + id), id + ' is in the same head'));
+      const result = w.document.getElementById('forecastResult');
+      ok(head.compareDocumentPosition(result) & Node.DOCUMENT_POSITION_FOLLOWING,
+        'and the answer comes after all of them, so it can grow without moving them');
+    } finally {
+      st.settings.activeTeam = prevTeam;
+      st.settings.view = prevView;
+      typed();
+      w.render();
+    }
+  });
+});
+t('a typed rate belongs to ONE team, and does not follow you to the next', () => {
+  /* "5 to 10 points a sprint" is a statement about one team and the press that
+     put it there is too. Left standing, a tick pressed for a team with no
+     history followed the reader to a team with plenty and sat there checked over
+     a card that had just told them it had sprints to draw from. */
+  typed(40, 40, true);
+  const before = w.__svTestHooks.svTypedRateState();
+  eq([before.lo, before.hi, before.on], ['40', '40', true], 'set for the team on screen');
+  const sel = w.document.getElementById('teamSel');
+  const prev = sel.value;
+  const other = [...sel.options].map(o => o.value).find(v => v && v !== prev);
+  if (other) {
+    sel.value = other;
+    sel.dispatchEvent(new w.Event('change', { bubbles: true }));
+    const after = w.__svTestHooks.svTypedRateState();
+    eq([after.lo, after.hi, after.on], ['', '', null],
+      'switching team clears the rate AND the press, so the default answers again');
+    sel.value = prev;
+    sel.dispatchEvent(new w.Event('change', { bubbles: true }));
+  }
+  typed();
 });
 t('an absurd rate is clamped rather than believed', () => {
   withState(capacityFixture(), () => {

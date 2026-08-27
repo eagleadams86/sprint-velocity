@@ -481,6 +481,13 @@ select.ctl:hover { border-color: var(--text-muted); }
 /* An explicit display beats the hidden attribute's UA rule, so hiding the row
    needs saying again here. */
 .tabs[hidden] { display: none; }
+/* `.row` below sets `display: flex` at the SAME specificity as `[hidden]` above
+   and is declared later, so on a flex row the hidden attribute did nothing at
+   all — the typed-velocity boxes stayed on screen unticked, reported by Charles
+   on 2026-08-26. An id beats a class, so this settles it for the one element
+   that needs both. Anything else that is a `.row` AND hides itself needs the
+   same treatment; there is nothing else today. */
+#forecastRateWrap[hidden] { display: none; }
 /* Carrying the same surface and border as .btn, so an unselected tab reads as a
    button you can press rather than a line of text. It was only the selected one
    that looked clickable, which is backwards — that's the one you're already on. */
@@ -6621,6 +6628,23 @@ let forecastRateLo = '';
 let forecastRateHi = '';
 let forecastTypedOn = null;
 
+/* Cleared when the active team changes, and that is the point rather than
+   tidiness: "5 to 10 points a sprint" is a statement about ONE team, and the
+   press that put it there is too. Left standing, a tick pressed for a team with
+   no history followed the reader to a team with plenty and sat there checked
+   over a card that had just told them it did have sprints to draw from —
+   reported by Charles on 2026-08-26. Clearing the press is what lets the default
+   answer again for the team now on screen.
+
+   `forecastPoints` deliberately does NOT go with it: a backlog total is a
+   statement about the work, not about who is doing it, and comparing the same
+   scope across two teams is the reason somebody switches. */
+function forecastClearTypedRate() {
+  forecastRateLo = '';
+  forecastRateHi = '';
+  forecastTypedOn = null;
+}
+
 /* Whether this team has a rate to forecast FROM — the same two conditions
    `forecast()` refuses on, asked in one place so the tick's default and the
    card's own refusal cannot disagree about what "no history" means. */
@@ -6790,30 +6814,36 @@ function forecastCard(team, includeSix) {
   return `<div class="card">
     <div class="row spread cardhead">
       <h2>How Long Would It Take?${helpBtn('forecast', 'the forecast')}</h2>
-      <label class="row" style="gap:8px;font-size:var(--fs-sm)">
-        <span>Story points</span>
-        <input type="number" id="forecastPoints" min="0" step="1" inputmode="numeric"
-          style="width:110px" value="${esc(forecastPoints)}" placeholder="e.g. 120">
-      </label>
-    </div>
-    <div id="forecastResult">${forecastResultHtml(team, includeSix)}</div>
-    <div style="margin-top:12px">
-      <label class="row" style="gap:8px;font-size:var(--fs-sm)">
-        <input type="checkbox" id="forecastTyped"${ticked ? ' checked' : ''}>
-        <span>Use a velocity I type instead of this history</span>
-      </label>
-      <div id="forecastRateWrap" class="row" style="gap:8px;margin-top:8px;font-size:var(--fs-sm)"${
-        ticked ? '' : ' hidden'}>
-        <span>Points a sprint</span>
-        <input type="number" id="forecastRateLo" min="0" max="${FORECAST_RATE_MAX}" step="1"
-          inputmode="numeric" style="width:90px" value="${esc(forecastRateLo)}"
-          aria-label="Typed velocity, cautious end" placeholder="e.g. 25">
-        <span>to</span>
-        <input type="number" id="forecastRateHi" min="0" max="${FORECAST_RATE_MAX}" step="1"
-          inputmode="numeric" style="width:90px" value="${esc(forecastRateHi)}"
-          aria-label="Typed velocity, optimistic end" placeholder="e.g. 35">
+      <!-- ── Every input this card takes, in one place ──────────────────────
+           The tick and its two boxes used to sit UNDER the answer, where the
+           answer's own length decided where they were: ticking it added four
+           lines of caveat above them and the controls walked down the page
+           under the pointer. Reported by Charles on 2026-08-26. Up here they
+           are beside the points box they belong with, and nothing below them
+           can move them. -->
+      <div class="row" style="gap:16px;font-size:var(--fs-sm)">
+        <label class="row" style="gap:8px">
+          <span>Story points</span>
+          <input type="number" id="forecastPoints" min="0" step="1" inputmode="numeric"
+            style="width:110px" value="${esc(forecastPoints)}" placeholder="e.g. 120">
+        </label>
+        <label class="row" style="gap:8px">
+          <input type="checkbox" id="forecastTyped"${ticked ? ' checked' : ''}>
+          <span>Use a velocity I type</span>
+        </label>
+        <div id="forecastRateWrap" class="row" style="gap:8px"${ticked ? '' : ' hidden'}>
+          <span>Points a sprint</span>
+          <input type="number" id="forecastRateLo" min="0" max="${FORECAST_RATE_MAX}" step="1"
+            inputmode="numeric" style="width:80px" value="${esc(forecastRateLo)}"
+            aria-label="Typed velocity, cautious end" placeholder="e.g. 25">
+          <span>to</span>
+          <input type="number" id="forecastRateHi" min="0" max="${FORECAST_RATE_MAX}" step="1"
+            inputmode="numeric" style="width:80px" value="${esc(forecastRateHi)}"
+            aria-label="Typed velocity, optimistic end" placeholder="e.g. 35">
+        </div>
       </div>
     </div>
+    <div id="forecastResult">${forecastResultHtml(team, includeSix)}</div>
   </div>`;
 }
 
@@ -10749,6 +10779,12 @@ F('clearBackupBtn').onclick = downloadBackup;
 F('clearCancel').onclick = () => clearDialog.close();
 F('clearConfirm').onclick = () => {
   state = blankState();
+  /* The two things this card holds outside `state`. They are in memory rather
+     than saved, so a reload would have cleared them anyway — but "Everything
+     deleted — starting fresh" is a claim about what is ON SCREEN, and a backlog
+     total and a typed velocity left sitting in the card is not starting fresh. */
+  forecastPoints = '';
+  forecastClearTypedRate();
   save();
   clearDialog.close();
   render();
@@ -11713,6 +11749,7 @@ F('themeSel').onchange = (e) => {
 
 document.getElementById('teamSel').onchange = (e) => {
   state.settings.activeTeamId = e.target.value;
+  forecastClearTypedRate();
   /* In a shared view, follow the new team to its latest data. Your own copy keeps
      the sprint you were last looking at — that's a working position you chose,
      not a starting point someone handed you. */

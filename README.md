@@ -1109,8 +1109,20 @@ stopped being true of this one: the rest of the view steps aside as it always di
 forecast card is what's left. Hidden, the control built for a team with no history could only
 ever have been reached by a team that had some.
 
+**It belongs to one team.** Switching teams clears both the rate and the press, because "5 to
+10 points a sprint" is a statement about one team and so is the decision to type it — without
+that, a tick pressed for a team with no history followed you to a team with plenty and sat
+there checked over a card that had just said it had sprints to draw from. The backlog total in
+the points box deliberately *doesn't* go with it: that is a statement about the work, not about
+who is doing it, and comparing the same scope across two teams is why people switch.
+
 Like the points box, **the typed rate isn't saved** — same reasoning, one step further: a
-velocity typed weeks ago and forgotten is worse than a box that asks again.
+velocity typed weeks ago and forgotten is worse than a box that asks again. **Delete all data**
+clears both, since "starting fresh" is a claim about what is on screen.
+
+Both the tick and its boxes sit in the card's **head**, beside the points box. They were under
+the answer to begin with, which meant the answer's own length decided where they were: ticking
+it added four lines of caveat above them and walked the controls down the page.
 
 ### When a Team Has Room for More
 
