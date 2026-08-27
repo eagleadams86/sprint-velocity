@@ -6340,7 +6340,19 @@ function renderRollingView() {
     .filter(isCounted).filter(x => includeSix || !isIpSlot(x)).length > 0;
 
   if (!rs.length) {
-    viewsEl.innerHTML = rollingToolbar(includeSix, ipApplies) + `<div class="card empty">
+    /* ── The toolbar goes when there is nothing for it to govern ─────────────
+       Both toggles are about which recorded sprints reach the average, and with
+       none recorded at all they are two controls over nothing — the rule this
+       file already keeps for the IP toggle one line into rollingToolbar, and for
+       the tab row itself. Reported by Charles on 2026-08-26.
+
+       Only when there are NO sprints. A team whose sprints are all still running
+       is the case "count sprints that are still running" exists for, and a team
+       whose sprints are all excluded needs the same row to see what it did — in
+       both of those the toolbar is the way out of the empty state, not decoration
+       on it. */
+    viewsEl.innerHTML = (teamSprints(team.id).length ? rollingToolbar(includeSix, ipApplies) : '')
+      + `<div class="card empty">
       <h2>${allExcluded ? 'Every Sprint Is Left Out'
         : teamSprints(team.id).length ? 'No Finished Sprints Yet' : 'No Sprints Recorded Yet'}</h2>
       <p>${allExcluded

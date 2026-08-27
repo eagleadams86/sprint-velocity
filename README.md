@@ -1073,6 +1073,12 @@ Past **two PIs** it keeps the sprint count, drops the dates and says why. A rate
 five-sprint window can't speak to the next hundred: the team, the backlog and the way you
 size things will all have moved long before you get there.
 
+**With nothing recorded at all the two rolling toggles go too.** Both decide which *recorded*
+sprints reach the average, so over an empty team they are controls with nothing to govern —
+the same rule the IP toggle and the tab row already keep. A team whose only sprint is still
+running keeps them, because *"count sprints that are still running"* is the way out of that
+particular empty state rather than decoration on it.
+
 #### A Velocity You Type, for a Team That Hasn't Got One
 
 Everything above rests on finished sprints — and the team most often asked *"how long will

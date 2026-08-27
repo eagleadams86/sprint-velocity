@@ -93,7 +93,7 @@ function ok(cond, note) { if (!cond) throw new Error(note || 'expected truthy');
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 400;
+const EXPECTED = 401;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -3898,6 +3898,41 @@ t('the two boxes are really HIDDEN when the box is unticked', () => {
       w.render();
     }
   });
+});
+t('the rolling toolbar goes when there is nothing for it to govern', () => {
+  /* Both toggles decide which RECORDED sprints reach the average, so with none
+     recorded they are two controls over nothing. Reported by Charles on
+     2026-08-26. The line it draws is the interesting half: a team whose only
+     sprint is still running is the case "count sprints that are still running"
+     exists for, and there the toolbar is the way OUT of the empty state rather
+     than decoration on it. */
+  const st = w.svGet();
+  const prevTeam = st.settings.activeTeam, prevView = st.settings.view;
+  const at = (data, label, want) => withState(data, () => {
+    st.settings.activeTeam = 'bare';
+    st.settings.view = 'rolling';
+    w.render();
+    eq(!!w.document.getElementById('incProgress'), want, label);
+  });
+  typed();
+  try {
+    at({ teams: [{ id: 'bare', name: 'Not Started' }], pis: [], sprints: [] },
+      'nothing recorded at all — the toolbar goes', false);
+    /* A sprint with dates spanning today is "active", which is exactly what the
+       toggle rescues. No committedCompleted, so the window is still empty. */
+    const day = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+    at({ teams: [{ id: 'bare', name: 'Not Started' }], pis: [],
+         sprints: [{ id: 'r1', teamId: 'bare', piId: null, sprintNumber: 1,
+           startDate: day(-3), endDate: day(7), committed: 30, committedCompleted: 0,
+           totalCompleted: 0, added: 0, removed: 0, carriedIn: 0, carriedOut: 30,
+           addedThenRemoved: 0 }] },
+      'a sprint still running keeps it — that toggle is the way out of this state', true);
+  } finally {
+    st.settings.activeTeam = prevTeam;
+    st.settings.view = prevView;
+    typed();
+    w.render();
+  }
 });
 t('every input this card takes sits in its HEAD, above the answer', () => {
   /* The tick and its boxes used to sit under the result, where the result's own
