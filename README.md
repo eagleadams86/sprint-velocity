@@ -1915,6 +1915,18 @@ and no frameworks: the page either says "All N tests pass" in green or lists wha
 Run it whenever those functions change; it needs the local server, since `file://` iframes
 are blocked in some browsers.
 
+**And a smoke walk, because everything above is a pure function.** Pinning the arithmetic
+leaves the largest part of the file — the render layer — never executed at all, so a throw
+inside a view would ship green. A coverage run on 2026-08-27 measured exactly that:
+`renderTeamsView` (24KB), `renderPiView`, `renderHistoryView`, `renderPiTrendView` and 111
+others sat at zero, and four of the seven tabs had never been drawn by anything. The walk
+loads the demo in a second, full-size frame and visits every tab **once per team** — four of
+the views are decided per team, so staying on the team the demo lands on would leave whole
+views undrawn — then presses every button that isn't destructive and fails if the frame
+throws or a view comes back empty. Verified by breaking `renderTeamsView` on purpose.
+Nothing it does can write: `save()` and `confirm()` are replaced in that frame before
+anything is pressed, and the saved board is read back at the end and compared.
+
 **It only runs on localhost, and enforces that itself.** The test code writes nothing, but
 the iframe boots the real app — and GitHub Pages publishes `tests.html` next to it, at
 `/sprint-velocity/tests.html`, where that iframe would be reading and writing somebody's real

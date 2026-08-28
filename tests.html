@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 425;
+const EXPECTED = 426;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -2967,6 +2967,135 @@ t('the sign-in button and the cloud hooks are gone', () => {
     'and no cloud hooks left behind for a caller to find');
   ok(!/syncChoiceDialog/.test(code),
     'the which-copy-do-you-want dialog went with it');
+});
+
+/* ── The render smoke walk ──────────────────────────────────────────────────
+   Everything else in this file calls a pure function or reads index.html as
+   text. That covers the velocity arithmetic and the boundaries very well and
+   leaves the LARGEST part of the app — the render layer — never executed at
+   all: a coverage run on 2026-08-27 put renderTeamsView (24KB), renderPiView
+   (14KB), renderHistoryView (10KB), renderPiTrendView (10KB) and 111 others at
+   zero. Four of the seven tabs had never been drawn by anything. A throw in any
+   of them would have shipped green.
+
+   So this walks the app the way a person does: load the demo, visit every tab
+   the app is offering, press every button that isn't destructive, and record
+   anything the frame throws while it happens. It cannot tell a right figure
+   from a wrong one — that is what the four hundred tests around it are for —
+   but it is the difference between "the maths is right" and "the app runs".
+
+   NOTHING IT DOES CAN WRITE. `save()` and `confirm()` are top-level function
+   declarations in a classic script, so they are properties of the frame's
+   window and are replaced with a no-op and a yes before anything is pressed.
+   That matters more here than the read-only rule usually does: a tab click
+   calls save(), the demo IS a state, and an unstubbed walk would have written
+   six example teams over the reader's own board on the shared origin. The
+   backup and the comparison in the finally are the proof rather than the
+   intention — see the assertion at the end.
+
+   ITS OWN FRAME, AT A REAL SIZE. The suite's other frames are 1x1px, where a
+   render draws into a box with no room and proves nothing. */
+t('the app actually runs — every tab drawn, every window opened', async () => {
+  const before = localStorage.getItem('sv-data');
+  const f = document.createElement('iframe');
+  f.setAttribute('data-sv-tests', '');
+  f.setAttribute('aria-hidden', 'true');
+  f.style.cssText = 'position:absolute;left:-9999px;width:1360px;height:1600px;border:0';
+  try {
+    await new Promise((resolve) => { f.onload = resolve; f.src = 'index.html' + BUST; document.body.appendChild(f); });
+    const wf = f.contentWindow, df = wf.document;
+    ok(typeof wf.loadSample === 'function', 'the app must expose loadSample to the frame');
+
+    const errs = [];
+    wf.addEventListener('error', (e) => errs.push(String(e.message)));
+    wf.addEventListener('unhandledrejection', (e) => errs.push('unhandled rejection: ' + e.reason));
+
+    let saves = 0;
+    wf.save = () => { saves++; };            // counted, not merely silenced
+    wf.confirm = () => true;
+    wf.alert = () => {};
+    wf.loadSample();
+
+    const drawn = {};
+    const views = df.getElementById('views');
+    /* Only the tabs the app is OFFERING: renderTabs() hides a view that has
+       nothing to say, and clicking a hidden one would be testing a state the
+       app deliberately does not put a reader in. */
+    /* ONCE PER TEAM, through the header's own picker. Four of the seven tabs are
+       decided per team — History only appears once a team has more than the
+       rolling window recorded, Team PI only once its sprints carry a PI — so a
+       walk that stayed on the team the demo lands on would leave whole views
+       undrawn and report a clean sweep. The demo names each team for the case
+       it shows, and this is the walk asking to see all six. */
+    const picker = df.getElementById('teamSel');
+    ok(picker && picker.options.length >= 5, 'the demo should fill the team picker',
+       picker ? picker.options.length : 'no picker');
+    const teamIds = [...(picker ? picker.options : [])].map((o) => o.value);
+    const seenTabs = new Set();
+    teamIds.forEach((id) => {
+      if (picker.value !== id) {
+        picker.value = id;
+        picker.dispatchEvent(new wf.Event('change', { bubbles: true }));
+      }
+      const tabs = [...df.querySelectorAll('.tab')].filter((t) => !t.hidden);
+      tabs.forEach((tab) => {
+        tab.click();
+        seenTabs.add(tab.dataset.view);
+        /* A view that drew NOTHING is the failure this is really looking for: a
+           render that threw half way leaves the panel present and empty, which
+           no "did it throw" check on its own would notice. Kept per team, so a
+           view that draws for one team and not another is not hidden by the
+           team that worked. */
+        drawn['tab:' + tab.dataset.view + '@' + id] = views ? views.textContent.trim().length : 0;
+      });
+    });
+    /* Every view in the app, not merely every view the first team offered. */
+    ok(seenTabs.size >= 6, 'the six demo teams between them should reach nearly every view',
+       [...seenTabs].join(', '));
+
+    /* Every button the app is showing, except the ones that destroy something.
+       This is what opens the windows through their REAL openers — a dialog
+       opened by showModal alone is empty in exactly the way a broken one is. */
+    const closeAll = () => df.querySelectorAll('dialog[open]').forEach((d) => { try { d.close(); } catch (e) { /* already shut */ } });
+    /* The list is a SNAPSHOT and the app redraws as it is walked, so each button
+       is re-checked at the moment it is pressed rather than trusted from when it
+       was collected. Without that the walk presses controls the app has already
+       taken off the screen — a detached button still runs its handler — and
+       reports the resulting throw as an app bug. It did: switching to a SUMMARY
+       year correctly removes "Mark <month> entered", and the walk went on to
+       press the removed one and blamed markMonthEntered for the TypeError. */
+    const live = (b) => b.isConnected && b.offsetParent !== null && !b.disabled;
+    const buttons = [...df.querySelectorAll('button')].filter(live);
+    let opened = 0;
+    buttons.forEach((b) => {
+      if (!live(b)) return;
+      if (/delete|clear|remove|erase|reset|unassign/i.test(b.textContent || '')) return;
+      b.click();
+      const dlg = [...df.querySelectorAll('dialog')].find((d) => d.open);
+      if (dlg) {
+        opened++;
+        const len = dlg.textContent.trim().length;
+        if (!drawn['window:' + dlg.id] || len > drawn['window:' + dlg.id]) drawn['window:' + dlg.id] = len;
+      }
+      closeAll();
+    });
+
+    eq(errs.length, 0, 'the frame threw during the walk: ' + errs.join(' | '));
+    Object.keys(drawn).filter((k) => k.indexOf('tab:') === 0).forEach((k) =>
+      ok(drawn[k] > 0, 'the ' + k.slice(4) + ' view rendered no text at all', drawn[k]));
+    ok(opened >= 4, 'pressing the app’s own buttons should have opened several windows', opened);
+    Object.keys(drawn).filter((k) => k.indexOf('window:') === 0).forEach((k) =>
+      ok(drawn[k] > 40, k + ' opened with nothing in it', drawn[k]));
+    ok(saves > 0, 'sanity: the walk really did reach code that would have written, '
+      + 'so the stub is doing work rather than sitting unused', saves);
+  } finally {
+    f.remove();
+    /* The proof, not the intention: read the key back and compare. A stub that
+       stopped working would show up here as a changed document rather than as a
+       comment nobody re-checked. */
+    const after = localStorage.getItem('sv-data');
+    eq(after, before, 'the walk wrote to the reader’s own saved board');
+  }
 });
 
 t('booting the app deletes the keys sync left behind', () => {

@@ -821,6 +821,24 @@ but Charles had ever actually signed in.)
   bare ⚑/⚖ markers on the Compare Teams table, which are aria-hidden spans with an `.sr-only`
   sentence beside them rather than `.badge` elements, and which otherwise exported a sprint
   count of 4 as the text `4 ⚑` and cost the column its numbers.
+- **`tests.html` carries a render SMOKE WALK, and it is not a substitute for the tests
+  around it.** Everything else in that file calls a pure function or reads `index.html` as
+  text, which left the render layer entirely unexecuted — measured on 2026-08-27, and the
+  measurement is the point: `renderTeamsView` (24KB), `renderPiView`, `renderHistoryView`, `renderPiTrendView` and 111
+  others sat at zero, and four of the seven tabs had never been drawn. A throw in any of them
+  would have shipped green. The walk boots a SECOND, FULL-SIZE frame (the suite's own is
+  1x1px, where a render draws into a box with no room and proves nothing), populates it,
+  visits every view and opens every window, and fails if the frame throws OR if a panel
+  comes back empty — the second half matters, because a render that threw half way leaves an
+  element that is present and with nothing in it, which no "did it throw" check would notice.
+  **It writes nothing**, and that is enforced rather than intended: `save()` and `confirm()` are top-level declarations in a classic script, so they are
+  properties of the frame's window and are replaced before anything is pressed — a tab click
+  calls save(), and an unstubbed walk would have written six demo teams over the reader's own
+  board on the shared origin. `sv-data` is read back at the end and compared. The walk visits
+  every tab ONCE PER TEAM, because four of the views are decided per team.
+  Verified by breaking a render on purpose and watching the suite go red where nothing else
+  did — do that again if you ever doubt it is still connected. The starter carries the same
+  walk, so a new app inherits one.
 - **Rows are padded to the widest row.** The PI table's empty slots are one cell with
   `colspan`, which would otherwise emit a two-column row in a nine-column file — valid CSV,
   and every spreadsheet then reads the rest of that row against the wrong headings.
