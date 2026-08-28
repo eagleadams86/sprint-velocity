@@ -825,19 +825,30 @@ but Charles had ever actually signed in.)
   `colspan`, which would otherwise emit a two-column row in a nine-column file — valid CSV,
   and every spreadsheet then reads the rest of that row against the wrong headings.
 - **A CSV is the one place text leaves this app for somewhere it can be INTERPRETED, and it
-  is escaped accordingly.** A cell opening `=`, `+` or `@` is a formula to Excel, Numbers and
-  Sheets alike, so `csvCell()` prefixes it with an apostrophe — the same reasoning as `esc()`
-  for HTML, in a different grammar. `FORMULA_LEAD` deliberately exempts a real negative
-  number (`-5`), because quoting it would break the arithmetic people export a CSV to do,
-  while `-alpha` is still guarded. Quoting is separate and triggers on `"`, `,` or a newline
+  is escaped accordingly.** A cell opening with one of OWASP's six leads — `=` `+` `-` `@`
+  TAB CR — is a formula to Excel, Numbers and Sheets alike, so `csvCell()` prefixes it with
+  an apostrophe: the same reasoning as `esc()` for HTML, in a different grammar. The tab and
+  the carriage return are in the set because a reader that strips the leading whitespace then
+  finds the formula underneath.
+  **`PLAIN_NUMBER` is the carve-out, and the question it asks is "is the WHOLE cell a
+  number?"** — a real figure (`-5`, `+4.3`) goes through, because quoting it would break the
+  arithmetic people export a CSV to do. Until 2026-08-27 this was a lookahead,
+  `^-(?![0-9.])`, which asked only whether the character after the sign was a digit and so
+  let `-3abc`, `-1+1` and `-3+cmd|' /c calc'!A0` straight out of the app; it also sent every
+  leading `+` to the escape, which would have made a signed figure text. **The same two lines
+  are now in all seven exporters in the family** (here, Flow Metrics, Golf Handicap, PAPTrack,
+  the starter and both lottery pages) — a change to the rule belongs in all of them.
+  `toTsv()` carries the identical guard: the clipboard lands in the same spreadsheet the file
+  would have opened in, so it is not the safer door. Quoting is separate and triggers on `"`,
+  `,` or a newline
   — and **the comma case is not hypothetical**: `fmtNum()` groups thousands, so a four-figure
   points total arrives as `1,234` and an unquoted row silently gains a column.
-  **Money Map has its own `csvCell()`, written independently and to a different shape**: it
-  takes an `isText` flag and guards only the cells it knows are text, which is possible there
-  because it builds its rows from state and knows which is which. This one scrapes the DOM
-  and cannot, hence the value-based exemption for negatives. They are not the same function
-  and needn't be — but if the guard is ever widened, widen both, and check the other's
-  reasoning before assuming this one is behind.
+  **Money Map is the one deliberate exception**: its `csvCell()` takes an `isText` flag and
+  guards only the cells it knows are text, which is possible there because it builds its rows
+  from state and knows which is which. This one scrapes the DOM and cannot, hence the
+  value-based carve-out. That is a different answer to the same question rather than a repo
+  that is behind — but if the guard is ever widened, widen both, and check its reasoning
+  before assuming so.
 - **Two clipboard routes, then a message.** `navigator.clipboard` needs a secure context and,
   in several browsers, a permission or a trusted gesture; `execCommand('copy')` is deprecated
   and is what works when the first is refused. If both fail the toast points at the CSV

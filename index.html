@@ -5169,15 +5169,30 @@ function tableToRows(table) {
 
    A leading apostrophe is the standard defence: Excel, Numbers and Sheets all
    read it as "this is text", and it is visible enough in a plain-text file that
-   nobody is misled about what happened. It only ever goes on a cell that starts
-   with one of the four characters, so an ordinary figure is untouched — and a
-   NEGATIVE NUMBER is deliberately left alone, since `-3` is a number everywhere
-   and quoting it would break the arithmetic people export a CSV to do. */
-const FORMULA_LEAD = /^[=+@]|^-(?![0-9.])/;
+   nobody is misled about what happened. A NUMBER is deliberately left alone,
+   since `-3` is a number everywhere and quoting it would break the arithmetic
+   people export a CSV to do.
+
+   THE CARVE-OUT IS "IS THE WHOLE CELL A NUMBER?", not "does the lead look
+   numeric". This used to be a lookahead — `^-(?![0-9.])` — which asked only
+   whether the character after the sign was a digit, and so let `-3abc`, `-1+1`
+   and `-3+cmd|' /c calc'!A0` straight out undefused. Asking the whole cell
+   closes that and relaxes in the other direction too: `+4.3` now goes through
+   as the number it is.
+
+   The lead set is OWASP's full list — `=` `+` `-` `@` TAB CR — not the four
+   printable ones. A cell opening with a tab or a carriage return is the same
+   attack wearing a coat: some readers strip the whitespace and then find a
+   formula underneath. Neither can begin a number, so the carve-out is
+   untouched by their being here. This is the family's one CSV rule; the same
+   two lines are in Flow Metrics, Golf Handicap, PAPTrack, the starter and both
+   lottery pages, and a change to it belongs in all seven. */
+const FORMULA_LEAD = /^[=+@\-\t\r]/;
+const PLAIN_NUMBER = /^[+-]?[0-9]+(\.[0-9]+)?$/;
 
 function csvCell(v) {
   let s = String(v == null ? '' : v);
-  if (FORMULA_LEAD.test(s)) s = "'" + s;
+  if (FORMULA_LEAD.test(s) && !PLAIN_NUMBER.test(s)) s = "'" + s;
   /* Quote whenever the delimiter, a quote or a newline is in play — and note that
      fmtNum() groups thousands with a comma in most locales, so a four-figure
      points total reaches here as "1,234" and MUST be quoted or the row gains a
@@ -5195,7 +5210,7 @@ const toCsv = (rows) => rows.map(r => r.map(csvCell).join(',')).join('\r\n');
    agrees on. */
 const toTsv = (rows) => rows.map(r => r.map(v => {
   const s = String(v == null ? '' : v);
-  return FORMULA_LEAD.test(s) ? "'" + s : s;
+  return (FORMULA_LEAD.test(s) && !PLAIN_NUMBER.test(s)) ? "'" + s : s;
 }).join('\t')).join('\r\n');
 
 /* The same ⓘ a tile carries, for use beside a heading or a column name — the one

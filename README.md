@@ -1450,10 +1450,14 @@ Percentages come out as they're shown — `84.6%`, not `0.8462` — because thes
 reports, and the [decimal rule](#the-metrics) that stops a figure contradicting its own
 colour applies just as much on a slide.
 
-**Cells that a spreadsheet would run as a formula are defused.** A name beginning `=`, `+`
-or `@` gets a leading apostrophe, so opening the file can't execute anything. Everything the
-app renders to HTML is escaped for the same class of reason; a CSV is simply another place
-text goes somewhere it can be interpreted. A genuine negative number is left alone.
+**Cells that a spreadsheet would run as a formula are defused.** A name beginning `=`, `+`,
+`-` or `@` — or with a tab or a carriage return in front of one of them — gets a leading
+apostrophe, so opening the file can't execute anything. Everything the app renders to HTML is
+escaped for the same class of reason; a CSV is simply another place text goes somewhere it can
+be interpreted, and the clipboard copy carries the identical guard, because a paste lands in
+the same spreadsheet the file would have opened in. **A genuine number is left alone** — the
+test is whether the whole cell is a number, not whether the character after the sign happens
+to be a digit, so `-5` and `+4.3` go through while `-1+1` and `-3abc` do not.
 
 The buttons work in a [shared read-only link](#sharing-a-read-only-link) too. Everything else
 a shared view takes away, it takes away because it would *write*; this writes nothing and can

@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 422;
+const EXPECTED = 425;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -3688,6 +3688,30 @@ t('a real negative number is left alone — quoting it would break the arithmeti
   eq(w.__svTestHooks.csvCell('-0.5'), '-0.5');
   eq(w.__svTestHooks.csvCell('-alpha'), "'-alpha", 'but a dash followed by text is not a number');
 });
+/* The carve-out asks whether the WHOLE cell is a number. It used to be a
+   lookahead — `^-(?![0-9.])` — which asked only whether the character after the
+   sign was a digit, and these are what walked straight through it. */
+t('a cell that merely STARTS like a number is not one', () => {
+  eq(w.__svTestHooks.csvCell('-3abc'), "'-3abc", 'which the old lookahead let straight past');
+  eq(w.__svTestHooks.csvCell('-1+1'), "'-1+1", 'a sum is not a number');
+  eq(w.__svTestHooks.csvCell("-3+cmd|' /c calc'!A0"), "'-3+cmd|' /c calc'!A0",
+     'a DDE payload wearing a negative digit for a hat');
+  eq(w.__svTestHooks.csvCell('-0.5-cmd|x'), "'-0.5-cmd|x", 'and one wearing a decimal');
+});
+/* Relaxed in the other direction by the same rewrite: a signed POSITIVE number
+   is a number, where the lookahead sent every leading plus to the escape. */
+t('a signed positive number goes through, a leading plus that is not does not', () => {
+  eq(w.__svTestHooks.csvCell('+4.3'), '+4.3');
+  eq(w.__svTestHooks.csvCell('+1'), '+1', 'sign, digits, nothing else');
+  eq(w.__svTestHooks.csvCell("+cmd|' /c calc'!A1"), "'+cmd|' /c calc'!A1");
+});
+/* TAB and CR ride in the lead set beside the four printable characters: a reader
+   that strips the whitespace finds the formula underneath. Neither can begin a
+   number, so the carve-out above is untouched by their being there. */
+t('a cell opening with a tab or a carriage return is defused too', () => {
+  eq(w.__svTestHooks.csvCell('\tHYPERLINK("x")'), '"\'\tHYPERLINK(""x"")"');
+  eq(w.__svTestHooks.csvCell('\rcmd'), '"\'\rcmd"');
+});
 t('the thousands separator is quoted, or the row silently gains a column', () => {
   /* fmtNum() groups with a comma in most locales, so a four-figure points total
      reaches the CSV as 1,234. This is the bug that would look like corrupt data. */
@@ -3705,6 +3729,10 @@ t('the clipboard flavour is TAB separated, and carries the same guard', () => {
      paste as a grid — a pasted CSV lands as one column and needs Text to Columns. */
   eq(w.__svTestHooks.toTsv([['Team', 'Done'], ['Kestrel', '30']]), 'Team\tDone\r\nKestrel\t30');
   eq(w.__svTestHooks.toTsv([['=1+1']]), "'=1+1");
+  /* The clipboard lands in the same spreadsheet the file would have opened in,
+     so it carries the rule in BOTH directions, carve-out included. */
+  eq(w.__svTestHooks.toTsv([['-3abc']]), "'-3abc", 'the TSV guard asks of the whole cell too');
+  eq(w.__svTestHooks.toTsv([['-5']]), '-5', 'and lets a real number through');
 });
 
 group('CSV export — reading the table off the page');
