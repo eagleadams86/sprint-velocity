@@ -207,6 +207,34 @@ but Charles had ever actually signed in.)
   sub-heading stacked directly above it: the one element on the card meant to catch the eye
   was the only thing not aligned. Same trap as the `.tile-help` spacing rule below — a margin
   written for one position is wrong in the other.
+- **A WINDOW IS NAMED FOR THE HEADING IT SITS BESIDE, IN TITLE CASE** (2026-08-27, from a
+  sweep of all 129 help windows in the family after Money Map's due block was split). Two
+  things changed here and both were this app alone.
+  - **Titles are Title Case now** — 37 of the 45 were sentence case ("Commitment
+    completion", "PI predictability", "Done so far"), against Title Case in every other
+    app and in every other heading in this one. `#helpTitle` is a heading; the standing
+    rule covers it. **A tile LABEL is not a heading and is untouched** — it renders
+    uppercase from `.tile .label`'s `text-transform` anyway, so the two never had to
+    match character for character, which is why this could drift unnoticed.
+    `PI`/`ART`/`BV` are preserved; small words stay lowercase mid-title ("Average per
+    Sprint", "Teams in the Band"). "Done So Far" is capitalised because *so far* is an
+    adverbial phrase, not a preposition — the one the mechanical pass got wrong.
+  - **Three windows were opening from two headings each**, which is the other half of the
+    one-dot rule. On PI by Team, "ART predictability" and "Teams in the band" both opened
+    a window titled for the first; a "Commitment completion" tile opened one titled "ART
+    total", which names the row at the foot of the table and not the tile beside the
+    reader. Both tiles have their own entry now (`artInBand`, `artCommitCompletion`), each
+    cross-referring to the other method rather than restating it. On PI Trend, two tiles
+    inside a card headed **What the Next PI Could Hold** both opened a window of exactly
+    that name — so the dot moved onto the card heading and off both tiles, which is the
+    hoist Money Map's `monthRows` already made: an explanation that answers for the CARD
+    is drawn once, on the card.
+  - **A blanket source sweep is NOT how this is tested, and that is deliberate.** A
+    `tile(...)` scan cannot tell one view from another, nor two mutually exclusive
+    branches of one view apart — `renderSprintView` names `breakIn` and `removed` twice
+    each, in its in-progress branch and its finished branch, and only ever draws one. It
+    went in as a sweep first and reported exactly those. The three fixes are pinned
+    individually instead; the general form needs the DOM with data on all seven views.
 - **THE INFO DOT AND THE HELP WINDOW ARE FAMILY-WIDE BLOCKS, DECLARED PROPERTY BY PROPERTY,
   AND THE SAME IN EVERY APP THAT HAS ONE (2026-08-23).** A change to either belongs in all of
   them.

@@ -4190,7 +4190,7 @@ const ROLLING_WINDOW_NOTE = `Only finished sprints count, unless you've switched
 
 const METRIC_HELP = {
   /* Sprint view — finished */
-  commitCompletion: { title: 'Commitment completion', target: TARGET_COMPLETION,
+  commitCompletion: { title: 'Commitment Completion', target: TARGET_COMPLETION,
     body: `How much of what the team signed up for at the start of the sprint they actually
       finished. This is the clearest single read on predictability — whether a plan made with
       this team can be relied on.` },
@@ -4211,34 +4211,34 @@ const METRIC_HELP = {
       capacity it counts won't be free next time.` },
 
   /* Capacity adjustments */
-  availability: { title: 'Team availability', target: null,
+  availability: { title: 'Team Availability', target: null,
     body: `How much of a normal sprint the team will actually have, as a percentage — for leave,
       public holidays, a change of team or someone on call. It scales the recommendation only; the
       history behind it is untouched.` },
-  excludedSprint: { title: 'Sprint left out', target: null,
+  excludedSprint: { title: 'Sprint Left Out', target: null,
     body: `A sprint deliberately kept out of the rolling window because it would mislead the
       forecast — a major incident, a re-baselining of the points, or a sprint most of the team was
       away for. Its own figures still show everywhere else.` },
 
   /* Sprint view — still running */
-  doneSoFar: { title: 'Done so far', target: null,
+  doneSoFar: { title: 'Done So Far', target: null,
     body: `Committed points finished so far, out of what the team signed up for. The sprint
       is still running, so this isn't a result yet.` },
   pace: { title: 'Pace', target: null,
     body: `How much of the commitment is done, against how far through the sprint you are.
       Work tends to land in a lump near the end rather than evenly, so treat this as a rough
       steer for a conversation, not a verdict.` },
-  sprintGoal: { title: 'Sprint goal', target: 'No target — it is a yes or no, recorded by the team.',
+  sprintGoal: { title: 'Sprint Goal', target: 'No target — it is a yes or no, recorded by the team.',
     body: `Whether the sprint achieved what it was <em>for</em>. Deliberately not derived from the
       points: a team can finish 95% of its commitment and miss the one outcome the sprint was
       planned around, or drop half the points and still deliver the goal. Only the team can
       answer it, so it is a question on the sprint form rather than a calculation.` },
-  goalsMet: { title: 'Sprint goals met', target: 'No target — a rate, not a percentage against a threshold.',
+  goalsMet: { title: 'Sprint Goals Met', target: 'No target — a rate, not a percentage against a threshold.',
     body: `How often this team achieved what the sprint was for, across the window. It counts only
       the sprints somebody actually answered the question about, and the caption says how many that
       was. A team that lands its points and misses its goals is planning the wrong work; the two
       figures disagreeing is the useful part.` },
-  forecast: { title: 'How long would it take?', target: 'No target — it is a range, and the width of the range is the point.',
+  forecast: { title: 'How Long Would It Take?', target: 'No target — it is a range, and the width of the range is the point.',
     body: `<p>The capacity card fixes the sprint and asks how much fits; <strong>this fixes the
       work and asks how many sprints</strong>.</p>
       <p>It uses <em>committed points finished</em>, never velocity — velocity counts the
@@ -4247,22 +4247,22 @@ const METRIC_HELP = {
       arriving anyway.</p>
       <p><strong>Nothing is saved</strong>: a backlog total goes stale as soon as anyone grooms
       it.</p>` },
-  carriedIn: { title: 'Carried in', target: null,
+  carriedIn: { title: 'Carried In', target: null,
     body: `Unfinished points inherited from last sprint. They're part of this sprint's
       commitment, so they take up capacity before any new work does.` },
 
   /* Team PI */
-  piCommitCompletion: { title: 'PI commitment completion', target: TARGET_COMPLETION,
+  piCommitCompletion: { title: 'PI Commitment Completion', target: TARGET_COMPLETION,
     body: `<p>Every committed point across the PI's counted sprints, against how much of it
       got finished.</p>
       <p>Because it's one big total, <strong>a large sprint moves it more than a small
       one</strong> — the same pooled method the Agile Operations Dashboard uses, so this is the
       PI figure that reconciles with it.</p>` },
-  piAvgCompletion: { title: 'Average per sprint', target: TARGET_COMPLETION,
+  piAvgCompletion: { title: 'Average per Sprint', target: TARGET_COMPLETION,
     body: `The mean of each sprint's own completion, so every sprint counts equally whatever
       its size. A big gap between this and the PI figure means one sprint is skewing the
       total.` },
-  piDelivered: { title: 'Total delivered', target: null,
+  piDelivered: { title: 'Total Delivered', target: null,
     body: `Every point completed across the PI, including work that broke in mid-sprint.` },
   piBreakIn: { title: 'Break-in', target: TARGET_CHURN,
     body: `The average of each counted sprint's break-in across this PI — how much unplanned
@@ -4275,18 +4275,18 @@ const METRIC_HELP = {
      both edges and why the upper one is there. Everything else on this page is
      "higher is better" or "lower is better"; a reader who assumes the same here
      will read 130% as the best team on the train. */
-  piPredictability: { title: 'PI predictability', target: TARGET_PREDICTABILITY,
+  piPredictability: { title: 'PI Predictability', target: TARGET_PREDICTABILITY,
     body: `<p>The business value this team actually delivered against the value it committed
       to at PI planning — <strong>SAFe's own predictability measure</strong>.</p>
       <p>It is a different question from commitment completion: that one asks whether the points
       landed, this one asks whether the <em>objectives</em> did.</p>
       <p>Value from stretch objectives counts in what was delivered but never in what was
       committed, which is <strong>what lets an honest figure sit above 100%</strong>.</p>` },
-  trendPredictability: { title: 'PI predictability', target: TARGET_PREDICTABILITY,
+  trendPredictability: { title: 'PI Predictability', target: TARGET_PREDICTABILITY,
     body: `The latest PI's measure, and how far it moved from the one before. Each team's own
       measure averaged, so it stays comparable across PIs that covered different teams — a
       train that grew didn't get better because there is more of it.` },
-  trendCommitment: { title: 'Commitment completion', target: TARGET_COMPLETION,
+  trendCommitment: { title: 'Commitment Completion', target: TARGET_COMPLETION,
     body: `Every committed point across the PI's counted sprints, pooled — the same method the
       Team PI tab and the Agile Operations Dashboard use. A train can move this without
       moving predictability, or the reverse, and that gap is usually the conversation.` },
@@ -4294,58 +4294,87 @@ const METRIC_HELP = {
     body: `Total points completed in the PI, break-in included. Unlike predictability this is a
       raw total, so it moves with the size of the train as well as with how it did — read it
       next to the team count.` },
-  trendTeams: { title: 'Teams counted', target: null,
+  trendTeams: { title: 'Teams Counted', target: null,
     body: `How many teams had sprints in this PI. It is here because the points columns are
       totals: a PI covering five teams will out-deliver one covering two whatever either did,
       and predictability is the figure that survives the comparison.` },
-  piCapacity: { title: 'What the next PI could hold', target: null,
+  piCapacity: { title: 'What the Next PI Could Hold', target: null,
     body: `Each team's next-sprint target multiplied by the delivery sprints in a PI, added up.
       It inherits the whole method from the Rolling ${ROLLING_WINDOW} tab, availability
       adjustments included — a starting point for PI planning, not a quota, and it assumes
       every sprint goes to planned work.` },
-  artPredictability: { title: 'ART predictability', target: TARGET_PREDICTABILITY,
+  artPredictability: { title: 'ART Predictability', target: TARGET_PREDICTABILITY,
     body: `Each team's own measure, averaged — so <em>every team counts once</em>, whatever
       the size of its plan. That is the measure SAFe defines and the one an RTE reports at
       Inspect &amp; Adapt. Teams with nothing recorded are left out and named beneath it. For
       the other method — all the value pooled, so a team that planned more pulls harder — see
       the <strong>ART total</strong> row at the foot of the table below.` },
-  artTotalRow: { title: 'ART total', target: TARGET_PREDICTABILITY,
+  /* THE BAND TILE'S OWN WINDOW (2026-08-27). It opened `artPredictability` —
+     the same window the tile above it opens, whose body is entirely about the
+     per-team-average method and says nothing about a band. Two different tiles,
+     one explanation, and a title naming only the first of them; the same fault
+     the Money page's three section cards had. */
+  artInBand: { title: 'Teams in the Band', target: null,
+    body: `<p>How many teams landed <em>inside</em> the predictability band, out of the teams
+      with business value recorded. The rest are named in the table below, so this figure is a
+      count you can act on rather than a score.</p>
+      <p>The band is the one place in this app with <strong>two edges that both matter</strong>.
+      Under it is the familiar problem. <em>Over</em> it is a finding too — a team delivering
+      far more value than it planned is one whose planning is not describing its work, and the
+      conversation is about the plan rather than the delivery.</p>
+      <p>Which is why this is a count and not an average: averaging a two-sided measure lets a
+      team well over the band cancel out a team well under it, and reports a train where
+      neither problem exists. Set the edges under Targets.</p>` },
+
+  artTotalRow: { title: 'ART Total', target: TARGET_PREDICTABILITY,
     body: `<p>Every point and every unit of business value across the train added into one
       total, with each percentage taken once at the end — so <em>a bigger team pulls
       harder</em>.</p>
       <p>This is <strong>the pooled method</strong>, the one the Agile Operations Dashboard uses
       for points. For the per-team average that SAFe's predictability measure is defined as, see
       the <em>ART predictability</em> tile at the top of this view.</p>` },
-  bvPlanned: { title: 'Planned business value', target: null,
+  /* THE TILE, NOT THE ROW (2026-08-27). This tile opened `artTotalRow` — a
+     window titled "ART total", which names the row at the foot of the table and
+     not the tile beside the reader. Same subject (the pooled method), different
+     question: the row pools everything the train did, this pools one measure. */
+  artCommitCompletion: { title: 'Commitment Completion', target: TARGET_COMPLETION,
+    body: `<p>Every committed point across the train and every point of it delivered, added up
+      first and divided once at the end — so <em>a bigger team pulls harder</em> on this figure
+      than a small one.</p>
+      <p>It is the pooled method, the same one the <strong>ART total</strong> row at the foot of
+      the table uses; that row applies it to business value as well. For the method that counts
+      every team once whatever the size of its plan, see the <em>ART predictability</em> tile.</p>` },
+
+  bvPlanned: { title: 'Planned Business Value', target: null,
     body: `The value of the objectives the team committed to at PI planning. <strong>Stretch
       objectives are deliberately not in it</strong> — they were never a commitment, and
       counting them here would penalise a team for planning them at all.` },
-  bvDelivered: { title: 'Business value delivered', target: null,
+  bvDelivered: { title: 'Business Value Delivered', target: null,
     body: `The value actually achieved — the committed objectives that landed, plus anything
       the stretch objectives delivered. It's the top half of the predictability measure.` },
 
   /* Rolling 5 */
-  rollCompletion: { title: 'Avg commitment completion', target: TARGET_COMPLETION,
+  rollCompletion: { title: 'Avg Commitment Completion', target: TARGET_COMPLETION,
     body: `Mean commitment completion over the last ${ROLLING_WINDOW} counted sprints. The
       trend across the window says far more about the team than any single sprint does.
       ${ROLLING_WINDOW_NOTE}` },
-  rollBreakIn: { title: 'Avg break-in', target: TARGET_CHURN,
+  rollBreakIn: { title: 'Avg Break-in', target: TARGET_CHURN,
     body: `Mean break-in across the window — how much unplanned work turns up in a typical
       sprint for this team. ${ROLLING_WINDOW_NOTE}` },
-  rollRemoved: { title: 'Avg removed', target: TARGET_CHURN,
+  rollRemoved: { title: 'Avg Removed', target: TARGET_CHURN,
     body: `Mean removed work across the window — how much of the commitment typically gets
       pulled back out before the end. ${ROLLING_WINDOW_NOTE}` },
-  rollCarryover: { title: 'Avg carryover', target: TARGET_CHURN,
+  rollCarryover: { title: 'Avg Carryover', target: TARGET_CHURN,
     body: `Mean carryover across the window — the habitual spill from one sprint into the
       next. ${ROLLING_WINDOW_NOTE}` },
   /* History — the view with no window. Each of these says how it differs from the
      figure of the same name on Rolling 5, because that is the only question a
      reader who has both tabs open is going to have. */
-  histCount: { title: 'Sprints recorded', target: null,
+  histCount: { title: 'Sprints Recorded', target: null,
     body: `Every sprint on record for this team, in-flight and left-out ones included — this
       view has no window. The foot says how many of them count towards an average; the rest
       are marked in the table.` },
-  histCompletion: { title: 'Commitment completion', target: TARGET_COMPLETION,
+  histCompletion: { title: 'Commitment Completion', target: TARGET_COMPLETION,
     body: `Every committed point this team has ever recorded against how much of it got
       finished — pooled, so a big sprint pulls harder than a small one. It is the same
       arithmetic as Comparison 2 on Compare Teams, over the whole history rather than the last
@@ -4356,12 +4385,12 @@ const METRIC_HELP = {
       Trend column on Compare Teams over the whole history instead of a window — and the two can
       disagree, which is worth knowing: a team can be climbing over three PIs and sliding over
       the last five sprints.` },
-  histSpread: { title: 'Best and worst', target: null,
+  histSpread: { title: 'Best and Worst', target: null,
     body: `The highest and lowest commitment completion this team has recorded, over the
       counted sprints. The gap between them is what an average cannot tell you: two teams both
       averaging 85% — one running 84, 85, 86 and one running 40, 100, 115 — need different
       conversations.` },
-  histTotalRow: { title: 'Whole history', target: null,
+  histTotalRow: { title: 'Whole History', target: null,
     body: `Every counted sprint pooled into one total and divided once, the same method the
       Team PI total and Comparison 2 use. In-flight sprints and any sprint left out of the
       rolling average sit in the table above but not in this row.` },
@@ -4378,7 +4407,7 @@ const METRIC_HELP = {
       <p><strong>Every other figure on this page is a level</strong>, and two teams sitting on
       the same level can be going opposite ways.</p>
       <p>It needs ${MIN_TREND_POINTS} sprints — two points make a slope, not a trend.</p>` },
-  teamsGoals: { title: 'Sprint goals', target: 'No target — a count, not a percentage against a threshold.',
+  teamsGoals: { title: 'Sprint Goals', target: 'No target — a count, not a percentage against a threshold.',
     body: `<p>How many sprints in the window met their goal, out of <strong>the sprints
       somebody <em>answered the question about</em></strong> — so the denominator can be smaller
       than the sprint count to its left, and the difference is spoken to a screen reader.</p>
@@ -4386,13 +4415,13 @@ const METRIC_HELP = {
       full under the heading above. It is the one finding the coloured figures on this row
       cannot make, because they are all answering whether the points landed rather than whether
       the sprint did what it was for.</p>` },
-  teamsMean: { title: 'Average of sprints', target: TARGET_COMPLETION,
+  teamsMean: { title: 'Average of Sprints', target: TARGET_COMPLETION,
     body: `<p>Each sprint's own percentage is worked out first, then those percentages are
       averaged — so <em>every sprint counts equally</em> whatever its size.</p>
       <p>This is <strong>the better read on a team's habit</strong>: one unusually big sprint
       can't drown out the rest. The pooled table below answers the other question.</p>
       <p>${ROLLING_WINDOW_NOTE}</p>` },
-  teamsPooled: { title: 'Pooled totals', target: TARGET_COMPLETION,
+  teamsPooled: { title: 'Pooled Totals', target: TARGET_COMPLETION,
     body: `<p>Every point across the window is added into one total and the percentage taken
       once at the end — so <em>a bigger sprint pulls harder</em> than a small one.</p>
       <p>This is <strong>the better read on the body of work as a whole</strong>, and it's the
@@ -4400,7 +4429,7 @@ const METRIC_HELP = {
       it — <strong>as long as any sprint you've left out of the rolling average is unselected in
       the Dashboard too</strong>, or it will still be in their total and not in this one.</p>
       <p>${ROLLING_WINDOW_NOTE}</p>` },
-  actualComplete: { title: 'Actual complete', target: null,
+  actualComplete: { title: 'Actual Complete', target: null,
     body: `Everything delivered — break-in work included — against what was committed at the
       start. It goes above 100% when a team finished more than it signed up for, which says
       throughput was high, not that the plan held.` },
@@ -4412,7 +4441,7 @@ const METRIC_HELP = {
      to its help, which still has to name the method OUTRIGHT (the standing rule:
      no figure picks a method silently) and say where the other one lives. The
      entries for the removed rows are gone rather than left unreferenced. */
-  piTotalRow: { title: 'PI total', target: null,
+  piTotalRow: { title: 'PI Total', target: null,
     body: `<p>Every point across this PI's counted sprints added into one total, with each
       percentage taken once at the end — so <em>a bigger sprint pulls harder</em> than a small
       one.</p>
@@ -4422,7 +4451,7 @@ const METRIC_HELP = {
       <em>average per sprint</em> tile at the top of this view, or the Rolling
       ${ROLLING_WINDOW} table.</p>` },
 
-  rollAvgRow: { title: 'Average per sprint', target: null,
+  rollAvgRow: { title: 'Average per Sprint', target: null,
     body: `<p>Each sprint's own percentage is worked out first, then those percentages are
       averaged, so <em>every sprint counts equally</em> whatever its size. Its committed and
       velocity figures are per-sprint means.</p>
@@ -4431,7 +4460,7 @@ const METRIC_HELP = {
       <p>For the pooled method, which weights a sprint by how much was committed to it, see the
       <em>PI total</em> row on Team PI or Comparison 2 on Compare Teams.</p>` },
 
-  rollVelocity: { title: 'Avg velocity', target: null,
+  rollVelocity: { title: 'Avg Velocity', target: null,
     body: `Mean points completed per sprint across the window, break-in included. The target
       capacity below deliberately uses <em>committed points finished</em> instead, which is
       lower — committing to velocity over-commits the team. ${ROLLING_WINDOW_NOTE}` }
@@ -8032,7 +8061,7 @@ function piCapacityCard(teams, includeSix) {
   const anyFloor = withFloor.length > 0;
 
   return `<div class="card">
-    <h2>What the Next PI Could Hold</h2>
+    <h2>What the Next PI Could Hold${helpBtn('piCapacity', 'what the next PI could hold')}</h2>
     <p class="sub">Each team's next-sprint target across <strong>${plural(slots, 'delivery sprint')}</strong>${
       includeSix ? '' : ' — sprint 6 is the IP sprint and delivers none of it'}. A starting
       point for PI planning, not a quota: it assumes every sprint goes to planned work, and
@@ -8040,7 +8069,7 @@ function piCapacityCard(teams, includeSix) {
       each team's figure.</p>
     <div class="tiles">
       ${tile('Across the PI', fmtNum(Math.round(total)), null,
-        `points from ${plural(rows.length, 'team')}`, true, 'piCapacity')}
+        `points from ${plural(rows.length, 'team')}`, true)}
       ${anyFloor ? tile('If it has to hold', fmtNum(Math.round(floor)), null,
         withFloor.length === rows.length
           ? 'each team at the commitment it has met in all but one sprint'
@@ -8049,7 +8078,7 @@ function piCapacityCard(teams, includeSix) {
           : `${withFloor.length} of ${plural(rows.length, 'team')} at the commitment they have
              met in all but one sprint — the rest have no floor below their average,
              so they count at it`,
-        false, 'piCapacity') : ''}
+        false) : ''}
     </div>
     ${outside.length ? `<p class="sub exnote" style="margin-top:14px">
       <span class="badge">⚑ Not counted here</span>
@@ -8258,11 +8287,11 @@ function renderArtPiView() {
           true, 'artPredictability')}
         ${tile('Teams in the band', pred.scored ? `${inBand} of ${pred.scored}` : '—', null,
           `inside ${tgt().predLow}–${tgt().predHigh}% — the rest are named in the table`,
-          false, 'artPredictability')}
+          false, 'artInBand')}
         ${tile('Commitment completion', fmtPct(artCommitPct, 'completion'),
           rag(artCommitPct, 'completion'),
           `${fmtNum(artDone)} of ${fmtNum(artCommitted)} committed points, pooled`,
-          false, 'artTotalRow')}
+          false, 'artCommitCompletion')}
         ${/* `rows`, not `shown`: artVelocity is summed over the teams that have a
              sprint in THIS PI, and the ones the view has just named in notInPiNote
              contribute nothing to it. Counting them in the caption is the silent

@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 420;
+const EXPECTED = 422;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -2716,6 +2716,69 @@ t('every dot draws an "i", and every dot has words behind it', () => {
     'and a key handed in from a spec draws no dot at all when the table has no entry');
   eq(keys.filter((k) => !H[k].title || String(H[k].body || '').length < 60).join(', '), '',
     'each entry is headed and actually explains something');
+});
+t('a window is named for the heading it sits beside, in Title Case', () => {
+  /* TWO RULES, ONE SWEEP (2026-08-27, after Money Map's due block was split and
+     every help window in the family was checked against the heading it opens
+     from). This app was the only one whose titles were sentence case — 34 of 45
+     against Title Case everywhere else — and the standing rule is that a
+     heading is Title Case. `#helpTitle` is a heading; a tile LABEL is not, and
+     is untouched (it renders uppercase from CSS anyway). */
+  const H = TG().METRIC_HELP;
+  const SMALL = ['a', 'an', 'the', 'and', 'or', 'nor', 'but', 'of', 'in', 'on', 'at',
+    'to', 'for', 'by', 'as', 'per', 'vs', 'with', 'from', 'into', 'than', 'up', 'over'];
+  const KEEP = ['PI', 'ART', 'BV', 'RTE', 'SAFe', 'IP'];
+  const badCase = Object.keys(H).filter((k) => {
+    const words = String(H[k].title).split(' ');
+    return words.some((w, i) => {
+      const core = w.replace(/[^A-Za-z-]/g, '');
+      if (!core || KEEP.indexOf(core) >= 0 || core === core.toUpperCase()) return false;
+      const small = SMALL.indexOf(core.toLowerCase()) >= 0;
+      if (i > 0 && i < words.length - 1 && small) return false;
+      return core[0] !== core[0].toUpperCase();
+    });
+  });
+  eq(badCase.join(', '), '', 'every window title is Title Case, like every other heading '
+    + 'in this app and every help title in the family');
+});
+t('no two headings on one view open the identical window', () => {
+  /* THE OTHER HALF OF THE ONE-DOT RULE, and this app was breaking it in three
+     places until 2026-08-27. On PI by Team, "ART predictability" and "Teams in
+     the band" both opened a window titled for the first of them, and a
+     "Commitment completion" tile opened one titled "ART total" — the row at the
+     foot of the table, not the tile beside the reader. On PI Trend, two tiles
+     inside a card headed "What the Next PI Could Hold" both opened a window of
+     exactly that name, which is the hoist Money Map's monthRows already made:
+     an explanation that answers for the CARD is drawn once, on the card.
+     THE THREE CASES ARE PINNED INDIVIDUALLY, and a blanket source sweep is
+     deliberately NOT what does it. A `tile(...)` scan cannot tell one view from
+     another, nor two mutually exclusive branches of one view apart — the sprint
+     view names `breakIn` and `removed` twice each, in the in-progress branch
+     and the finished branch, and only ever draws one of them. It went in as a
+     sweep first and reported exactly those as failures. The general form of
+     this check needs the DOM with data planted on all seven views, which this
+     file does not do; what it can hold is the shape each fix left behind. */
+  const src = stripComments(APP_SRC);
+  ok(/<h2>What the Next PI Could Hold\$\{helpBtn\('piCapacity'/.test(src),
+    'the capacity explanation sits on the card it answers for, not on two tiles inside it');
+  eq(TG().METRIC_HELP.piCapacity.title, 'What the Next PI Could Hold',
+    'and the window is named for that heading, exactly');
+  const H = TG().METRIC_HELP;
+  ok(H.artInBand && /two edges/.test(String(H.artInBand.body)),
+    'the band tile has its own window, and it explains the thing only that tile shows — '
+    + 'a band with two edges that both matter');
+  ok(H.artCommitCompletion && /pooled/.test(String(H.artCommitCompletion.body)),
+    'and the pooled commitment-completion tile has one naming itself rather than the '
+    + 'total row at the foot of the table');
+  /* The wiring, not just the entries: an entry nothing points at is a second
+     copy waiting to drift, and re-pointing either tile back at the window above
+     it is exactly the regression this pair exists to catch. */
+  ok(/'Teams in the band'[\s\S]{0,300}'artInBand'\)/.test(src),
+    'the band tile opens its own window');
+  ok(/'Commitment completion'[\s\S]{0,300}'artCommitCompletion'\)/.test(src),
+    'and the pooled tile opens its own');
+  eq((src.match(/'artPredictability'\)/g) || []).length, 1,
+    'so ART predictability is claimed by exactly one tile');
 });
 t('a long note is paragraphs, and it bolds the claim it turns on', () => {
   /* Every entry was a single paragraph until 2026-08-23, and nine of them ran
