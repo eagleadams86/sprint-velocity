@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 426;
+const EXPECTED = 429;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -5951,6 +5951,233 @@ t('a click on the label still selects, exactly as before', () => {
 });
 t('a focus with no press behind it guards nothing — a Tab has no caret to place', () => {
   eq(spinProbe(w, (box) => { spinFocusIn(w, box); }), false);
+});
+
+/* ────────────────────────────────────────────────────────── */
+group('One chart, filling the window');
+
+/* Flow Metrics' feature (2026-08-21), ported here on 2026-08-30 — the two apps
+   share their chrome, so a chart in one and a chart in the other have to behave
+   the same way. The phrase that shaped it, "with the menu still visible", is
+   the whole design: it is why this is a plain overlay under a sticky header
+   rather than the Fullscreen API or a modal <dialog>, both of which take the
+   header away. The first assertions here are what stop a later tidy-up from
+   quietly turning it into one of those.
+
+   IT NEEDS ITS OWN FRAME, and a real one. The suite's shared frame is 1x1px, so
+   every rectangle read from it is zero and "the chart got taller" would pass on
+   a chart that was never laid out. This one is 1280x900 with the sample data in
+   it, and `save`/`confirm` are stubbed before anything is pressed — this app's
+   plan lives on the same shared origin as everyone else's. */
+t('a chart fills the window under a header that stays live', async () => {
+  const f = document.createElement('iframe');
+  f.setAttribute('data-sv-tests', '');
+  f.setAttribute('aria-hidden', 'true');
+  f.style.cssText = 'position:absolute;left:-9999px;width:1280px;height:900px;border:0';
+  await new Promise((resolve) => {
+    f.onload = resolve;
+    f.src = 'index.html?maxi=' + Date.now();
+    document.body.appendChild(f);
+  });
+  try {
+    const W = f.contentWindow, D = W.document;
+    W.save = () => {};
+    W.confirm = () => true;
+    W.alert = () => {};
+    ok(typeof W.loadSample === 'function', 'the app must expose loadSample to the frame');
+    W.loadSample();
+    await new Promise((r) => setTimeout(r, 300));
+
+    const overlay = D.getElementById('chartMaxi');
+    ok(overlay, 'the page carries the overlay a maximised card is moved into');
+    eq(W.getComputedStyle(D.querySelector('header')).zIndex, '20',
+       'the header sits on a layer of its own');
+    ok(Number(W.getComputedStyle(overlay).zIndex) < 20,
+       'and the overlay is painted UNDER it, so the team picker and the rest of the row '
+       + 'stay visible and clickable', W.getComputedStyle(overlay).zIndex);
+    ok(!D.querySelector('.wrap').contains(overlay),
+       'the overlay is outside .wrap — which is marked inert while it is open');
+    eq(overlay.tagName, 'DIV',
+       'and it is a plain div: a real <dialog> is promoted to the top layer, which would '
+       + 'paint over the very header this exists to keep');
+
+    /* Rolling 5 draws two charts, which is what makes it the view to test on:
+       one card up, another still on the page behind it. */
+    D.querySelector('.tab[data-view="rolling"]').click();
+    await new Promise((r) => setTimeout(r, 350));
+    const withCharts = [...D.querySelectorAll('#views .chartbox canvas')]
+      .map((c) => c.closest('.card'));
+    ok(withCharts.length >= 2, 'Rolling 5 draws more than one chart', withCharts.length);
+    eq(D.querySelectorAll('#views .chart-max').length, withCharts.length,
+       'every card that draws a chart carries a button, and nothing else does');
+    /* The COMPUTED DISPLAY, never the `hidden` property. `.chart-max` declares
+       `display: flex`, and an author rule beats the browser's own
+       `[hidden] { display: none }` whatever their specificities — so the
+       attribute reads true over a button anybody can see. That is exactly how a
+       folded card in Money Map came to offer a button that did nothing
+       (2026-08-30), and an assertion on `.hidden` is deaf to it. */
+    const shown = (btn) => W.getComputedStyle(btn).display !== 'none';
+    ok([...D.querySelectorAll('#views .chart-max')].every(shown),
+       'and every one is on offer, because every one has a chart under it');
+
+    const cardOf = (id) => D.getElementById(id).closest('.card');
+    const roll = cardOf('rollChart');
+    const btn = roll.querySelector(':scope > .chart-max');
+    ok(btn.parentElement === roll, 'the button is a child of the CARD');
+    ok(W.getComputedStyle(roll).position === 'relative',
+       'which the card is the positioning context for');
+
+    /* ── A REAL press, not a synthetic one ──────────────────────────────────
+       `btn.click()` makes the BUTTON the target and is blind to the thing that
+       broke this on the day it shipped in Money Map: a real pointer lands on
+       the `<path>` inside the icon, the handler rewrites that icon, and the
+       detached path answers null to every `closest()` a delegated handler
+       further up asks. `pointer-events: none` on the icon is what makes the
+       button the smallest thing under the pointer. So the press below is driven
+       the way a browser drives one — ask what is under the middle of the button,
+       and dispatch on that. */
+    const pressTarget = (card) => {
+      const b = card.querySelector(':scope > .chart-max');
+      b.scrollIntoView({ block: 'center' });
+      const r = b.getBoundingClientRect();
+      return D.elementFromPoint(Math.round(r.left + r.width / 2),
+                                Math.round(r.top + r.height / 2));
+    };
+    ok(pressTarget(roll) === btn,
+       'what a pointer hits in the middle of the button IS the button, so rewriting the '
+       + 'icon mid-click cannot orphan the event target',
+       (pressTarget(roll) || {}).tagName);
+
+    const home = { parent: roll.parentElement,
+                   at: [...roll.parentElement.children].indexOf(roll) };
+    const live = W.chartIn(roll);
+    ok(live, 'the card has a live Chart.js instance behind it');
+    pressTarget(roll).dispatchEvent(new W.MouseEvent('click', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 250));
+    ok(roll.parentElement === overlay, 'pressing it moves the card into the overlay');
+    ok(W.maxiCard() === roll, 'and the app knows which card is up');
+    ok(W.chartIn(roll) === live, 'the same chart instance — the card was moved, not copied');
+    ok(live.canvas === roll.querySelector('canvas'),
+       'and it still owns the canvas that is now on screen');
+    ok(overlay.classList.contains('open'), 'the overlay is showing');
+    ok(D.querySelector('.wrap').inert, 'the page underneath is out of the tab order');
+    ok(D.body.classList.contains('maxi-open'), 'and it is not scrolling behind the chart');
+    eq(W.getComputedStyle(D.documentElement).getPropertyValue('--maxi-top').trim(),
+       Math.round(D.querySelector('header').getBoundingClientRect().height) + 'px',
+       'the overlay starts exactly where the header ends — measured, never guessed');
+    ok(/Leave full screen/.test(btn.getAttribute('aria-label')),
+       'the button now says how to get out', btn.getAttribute('aria-label'));
+    /* THE CHART ACTUALLY GOT BIGGER. Without this the whole group could pass on
+       a card moved into a box with no height. */
+    const boxH = roll.querySelector('.chartbox').getBoundingClientRect().height;
+    ok(boxH > 400, 'and the chart box fills what is left of the window', Math.round(boxH));
+
+    pressTarget(roll).dispatchEvent(new W.MouseEvent('click', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 250));
+    ok(roll.parentElement === home.parent, 'pressing it again puts the card back');
+    eq([...roll.parentElement.children].indexOf(roll), home.at,
+       'in the same place on the view it came from');
+    eq(D.querySelectorAll('.chart-slot').length, 0, 'and the placeholder is cleared away');
+    ok(W.maxiCard() === null, 'nothing is maximised');
+    ok(!D.querySelector('.wrap').inert, 'the page is reachable again');
+    ok(!D.body.classList.contains('maxi-open'), 'and scrolling again');
+
+    /* Escape is the second way out; a click on the backdrop is the third, and is
+       this app's rule for every dialog — which is why the overlay keeps a margin
+       round the card for that click to land on. */
+    btn.click();
+    await new Promise((r) => setTimeout(r, 200));
+    D.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    ok(W.maxiCard() === null, 'Escape closes it');
+    ok(Number(W.getComputedStyle(overlay).paddingTop.replace('px', '')) > 0,
+       'and there is a margin round the card for a click-outside to land on');
+
+    /* …but not while a dialog is open on top of it. A ⓘ pressed on a maximised
+       chart is exactly that case, and Escape there belongs to the dialog. */
+    btn.click();
+    await new Promise((r) => setTimeout(r, 200));
+    const help = D.getElementById('helpDialog');
+    help.showModal();
+    D.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    ok(W.maxiCard() === roll, 'Escape with a dialog open leaves the chart up');
+    help.close();
+    W.closeMaxi();
+
+    /* ── The one thing this app has to do that Flow Metrics does not ────────
+       Every view rebuilds viewsEl.innerHTML wholesale, so the maximised card
+       would be orphaned and its placeholder thrown away with the markup round
+       it. The team picker sits in the header that deliberately stays live over a
+       maximised chart, so changing team is the ordinary path, not an edge case. */
+    btn.click();
+    await new Promise((r) => setTimeout(r, 250));
+    const before = W.chartIn(W.maxiCard());
+    const picker = D.getElementById('teamSel');
+    const other = [...picker.options].map((o) => o.value)
+      .filter((v) => v && v !== picker.value)[0];
+    ok(other, 'the sample data gives a second team to switch to');
+    picker.value = other;
+    picker.dispatchEvent(new W.Event('change', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 450));
+    if (W.maxiCard()) {
+      eq(W.maxiCard().querySelector('canvas').id, 'rollChart',
+         'a re-render under a maximised chart leaves the SAME chart up, found again by '
+         + 'its canvas id');
+      ok(W.chartIn(W.maxiCard()) !== before,
+         'and it is the REBUILT chart — the card up here is the one being drawn into, '
+         + 'which is the whole reason the card is moved rather than copied');
+      eq(D.querySelectorAll('.chart-slot').length, 1,
+         'with exactly one placeholder holding its seat, not one per render');
+      W.closeMaxi();
+    } else {
+      /* A team with nothing to plot draws no chart, and the window must come
+         down rather than hold an orphaned card over the page. */
+      ok(!D.querySelector('.wrap').inert,
+         'a team with nothing to plot brings the window down and hands the page back');
+      eq(D.querySelectorAll('.chart-slot').length, 0, 'with no placeholder left behind');
+    }
+
+    /* ── On a phone the card's own paragraph is the thing in the way ─────────
+       The frame is narrowed rather than a second one booted: a media query is
+       evaluated against the FRAME's viewport, so this is the real rule firing,
+       not a string found in the source. */
+    f.style.width = '380px';
+    f.style.height = '760px';
+    await new Promise((r) => setTimeout(r, 250));
+    D.querySelector('.tab[data-view="rolling"]').click();
+    await new Promise((r) => setTimeout(r, 400));
+    const narrow = D.querySelector('#views .chartbox canvas');
+    if (narrow) {
+      const card = narrow.closest('.card');
+      card.querySelector(':scope > .chart-max').click();
+      await new Promise((r) => setTimeout(r, 300));
+      const sub = card.querySelector(':scope > .sub');
+      if (sub) eq(W.getComputedStyle(sub).display, 'none',
+         'the sub goes at phone width, where it is a third of the window');
+      ok(card.querySelector('.chartbox').getBoundingClientRect().height > 240,
+         'and the chart gets what the paragraph was using',
+         Math.round(card.querySelector('.chartbox').getBoundingClientRect().height));
+      W.closeMaxi();
+    }
+  } finally { f.remove(); }
+});
+
+t('the full-screen button is furniture, so it never prints', () => {
+  ok(APP_SRC, 'index.html was not read — the fetch test above must run first');
+  ok(APP_SRC.includes('.chart-max, #chartMaxi,'),
+    'a full-screen chart is a thing you do to a SCREEN — on paper the page IS the '
+    + 'window, and the card prints where it sits');
+});
+
+t('a hidden full-screen button actually goes', () => {
+  ok(APP_SRC, 'index.html was not read — the fetch test above must run first');
+  /* `.chart-max` declares `display: flex`, and an author rule beats the
+     browser's own `[hidden] { display: none }` whatever their specificities. */
+  ok(APP_SRC.includes('.chart-max[hidden] { display: none; }'),
+    'or `btn.hidden = true` records the right thing and leaves the button on screen, '
+    + 'offering a chart that is not drawn — found in Money Map on 2026-08-30');
+  ok(APP_SRC.includes('.chart-max svg { pointer-events: none; }'),
+    'and the icon is never the event target, so rewriting it mid-click cannot orphan '
+    + 'what a delegated handler further up will ask about');
 });
 
 async function run() {

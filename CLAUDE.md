@@ -1524,6 +1524,51 @@ but Charles had ever actually signed in.)
 - The scope is `./`, never absolute: on the local server the app is at the root,
   not under `/sprint-velocity/`, and an absolute scope is simply invalid there.
 
+## One chart, filling the window (2026-08-30)
+
+**Every card that draws a chart carries a ⤢ button that lifts the card into a
+fixed overlay filling the window under the header.** Flow Metrics' feature
+(2026-08-21) — these two apps share their chrome, so a change to it in one
+belongs in the other; Money Map and the starter carry it too. It is NOT the
+Fullscreen API and NOT a modal `<dialog>`: the phrase that shaped it is "with
+the menu still visible", and both of those take the header away.
+`#chartMaxi` is an ordinary fixed div at z-index 15 against the header's 20,
+starting at `--maxi-top` (the header's MEASURED height) and outside `.wrap`,
+which goes `inert` while it is open.
+
+**The card is MOVED, not copied.** Every chart is drawn into a canvas found by
+id and a theme change destroys and rebuilds all of them; a second canvas up
+there would leave those redraws painting the copy left on the page. A hidden
+`.chart-slot` holds the card's seat.
+
+**The one thing this app has to do that Flow Metrics does not:** every view
+rebuilds `viewsEl.innerHTML` wholesale, so the maximised card would be orphaned
+and its placeholder thrown away with the markup round it. `render()` calls
+`maxiSuspend()` as its first line and `maxiResume(id)` at both of its exits: the
+card comes down, the view is drawn again, and the card carrying the same CANVAS
+ID goes back up. Nothing paints in between, so there is no flicker. This is the
+ordinary path — the team picker sits in the header that deliberately stays live.
+For the same reason the buttons are added at the end of every render
+(`syncMaxiButtons`) rather than once at boot as they are there.
+
+**Two traps, both found the day this shipped, both fixed in all four apps that
+carry the feature:**
+- **`.chart-max svg { pointer-events: none; }`** — pressing the button rewrites
+  its own innerHTML to the arrows-in icon, which DETACHES whatever the pointer
+  landed on, and a detached node answers null to every `closest()` a delegated
+  handler further up asks. Money Map's card heading acted on that null and
+  folded the card instead of filling the window.
+- **`.chart-max[hidden] { display: none; }`** — `.chart-max` declares
+  `display: flex`, and an author rule beats the browser's own
+  `[hidden] { display: none }` whatever the specificities. `btn.hidden = true`
+  read back true over a button anybody could see, offering a chart that is not
+  drawn. **A test that asserts `btn.hidden` is deaf to this**: read the computed
+  display.
+
+`maxiCard()`, `openMaxi(card)`, `closeMaxi()`, `maxiReady(card)` and
+`chartIn(card)` are top-level function declarations, so the suite drives the
+real thing through the frame's window.
+
 ## The Manage Dialog's Rows (2026-08-20)
 
 Teams, ARTs and PIs are all edited the same way now, and the same way Flow Metrics edits

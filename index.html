@@ -1017,6 +1017,86 @@ td.trend { white-space: nowrap; color: var(--text-secondary); }
 /* ── Charts ─────────────────────────────────────────────────────────────── */
 .chartbox { position: relative; height: 320px; margin-top: 8px; }
 .chartbox.short { height: 260px; }
+
+/* ── One chart, filling the window ───────────────────────────────────────────
+   Flow Metrics' feature (2026-08-21), ported here on 2026-08-30 — the two apps
+   share their chrome, so a chart in one and a chart in the other have to behave
+   the same way. A chart box is 320px tall on a page of six cards: the right size
+   for reading a view through, the wrong size for looking hard at one chart.
+
+   It is NOT the Fullscreen API and NOT a modal <dialog>, and the same reason
+   rules both out: the header has to stay visible and usable. requestFullscreen()
+   takes the browser's own chrome away along with the page's, and a modal dialog
+   is promoted to the top layer, which paints over the header and makes it inert.
+   What is here is an ordinary fixed overlay starting below the sticky header —
+   z-index 15 against the header's 20 — so the team picker, the theme and the
+   rest of the row stay live while a chart fills the space under them. That is
+   what makes it worth having at all: you can change team and watch the same
+   chart redraw without dropping out of it.
+
+   The ground is the page's own --bg rather than a translucent scrim: the card
+   covers all but a 20px margin, and a scrim over that margin leaves a band of
+   the chart underneath ghosting through at the bottom edge, right where the eye
+   goes to read an x axis. The margin stays, because it is what a click-outside
+   lands on. */
+.card:has(> .chartbox, > figure .chartbox) { position: relative; }
+/* The heading keeps clear of the button, so a long chart name never runs under
+   it — and the far corner is what keeps the button apart from a heading's ⓘ,
+   which stays beside the words it explains. */
+.card:has(> .chartbox, > figure .chartbox) > h2 { padding-right: 34px; }
+.chart-max { position: absolute; top: 13px; right: 13px; z-index: 1;
+  display: flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; padding: 0; min-height: 0;
+  border-radius: var(--radius-sm); border: 1px solid var(--border-control);
+  background: transparent; color: var(--text-secondary); cursor: pointer; }
+.chart-max:hover { color: var(--text-primary); background: var(--surface-alt);
+  border-color: var(--text-secondary); }
+/* The icon is never the thing that was clicked. Pressing this button rewrites
+   its own innerHTML to the arrows-in icon, which DETACHES whatever the pointer
+   actually landed on — and a detached node answers null to every `closest()` a
+   delegated handler further up might ask. Nothing here acts on a null answer
+   today; Money Map's heading band did, and pressing the button there folded the
+   card instead of filling the window (2026-08-30). One line closes the class. */
+.chart-max svg { pointer-events: none; }
+/* ── A hidden button must actually GO ───────────────────────────────────────
+   `.chart-max` declares `display: flex`, and an AUTHOR rule beats the browser's
+   own `[hidden] { display: none }` whatever their specificities — so
+   `btn.hidden = true` set the attribute, read back true, and left the button on
+   screen. Reported by Charles on 2026-08-30: a folded card still offered a
+   full-screen button, and pressing it did nothing, because maxiReady() had
+   correctly said there was nothing to show. A button that does nothing is
+   worse than no button.
+
+   The same trap is written up against `.mrow[hidden]` in Money Map, for the
+   same reason and with the same one-line answer. A test that asserts
+   `btn.hidden` is asserting the attribute, which was never the thing in doubt;
+   the assertion has to read the COMPUTED DISPLAY. */
+.chart-max[hidden] { display: none; }
+#chartMaxi { position: fixed; left: 0; right: 0; bottom: 0; top: var(--maxi-top, 0px);
+  z-index: 15; background: var(--bg); padding: 20px; display: none; }
+#chartMaxi.open { display: flex; }
+@media (max-width: 640px) {
+  #chartMaxi { padding: 10px; }
+  /* On a phone a card's opening paragraph is four or five lines of an 812px
+     window, and pressing the button would give back a chart barely taller than
+     the one already on the page. It goes at this width and only at this width:
+     on a desktop it costs two lines and says what the figures ARE. The words are
+     on the page it came from, one press of Escape away. */
+  #chartMaxi > .card > .sub { display: none; }
+}
+/* The card fills what is left and the chart fills the card. `min-height: 0` is
+   what lets a flex child actually shrink rather than pushing the card past the
+   bottom of the window; `height: auto` undoes the fixed 320, or the 260 of a
+   `.short` box. The <figure> the Sprint view wraps its box in is made a flex
+   column too, or the box inside it would have nothing to grow into. */
+#chartMaxi > .card { flex: 1 1 auto; display: flex; flex-direction: column;
+  min-height: 0; width: auto; margin: 0; }
+#chartMaxi > .card > figure { flex: 1 1 auto; display: flex; flex-direction: column;
+  min-height: 0; }
+#chartMaxi .chartbox { flex: 1 1 auto; height: auto; min-height: 0; }
+/* Keeps the page still behind the overlay: scrolling what you cannot see reads
+   as the window having lost its place when the chart comes back down. */
+body.maxi-open { overflow: hidden; }
 .charts2 { display: grid; gap: 18px; grid-template-columns: 1fr; }
 @media (min-width: 900px) { .charts2 { grid-template-columns: 1fr 1fr; } }
 figcaption { font-size: var(--fs-xs); color: var(--text-secondary); margin-bottom: 6px; }
@@ -1459,6 +1539,9 @@ footer .applink { margin: 0 19px 0 auto; }
      button on it is a screenshot pretending to be a document. */
   .skip, .tabs, .headbar > select, .headbar > button, .headbar > label,
   #toast, [data-export], .tile-help, .rowacts, #shareBar button,
+  /* A full-screen chart is a thing you do to a SCREEN. On paper the page IS the
+     window, and the card prints where it sits. */
+  .chart-max, #chartMaxi,
   .toolbarcard { display: none !important; }
   /* Row buttons are how a table cell opens an editor; on paper they are the label
      and nothing else. Stripped to plain text rather than hidden, or every table
@@ -1764,6 +1847,14 @@ main:focus { outline: none; }
   </footer>
 
 </div>
+
+<!-- Where a maximised chart card is MOVED to — empty until then. Outside
+     `.wrap`, which is marked inert while it is open, and outside the header,
+     which deliberately is not: the whole design is that the row of controls
+     stays live over a chart filling the window. `role="dialog"` rather than a
+     real <dialog> for the reason the CSS records — the top layer would paint
+     over the header this exists to keep. -->
+<div id="chartMaxi" role="dialog"></div>
 
 <!-- Two elements inside it now: the sentence, and an optional button. A toast used
      to be textContent and nothing else — that is what made Undo impossible, and why
@@ -5386,6 +5477,298 @@ function destroyCharts() {
   Object.keys(charts).forEach(k => { charts[k].destroy(); delete charts[k]; });
 }
 
+/* ── One chart, filling the window ───────────────────────────────────────────
+   Flow Metrics' feature, ported here on 2026-08-30 — the two apps share their
+   chrome, so a change to this in one belongs in the other. The CSS above records
+   why it is a plain overlay under the sticky header rather than the Fullscreen
+   API or a modal <dialog>; what follows is the behaviour.
+
+   THE CARD IS MOVED, NOT COPIED, which is the load-bearing decision. Every chart
+   is drawn into a canvas found BY ID, and a theme change destroys and rebuilds
+   all of them; a second canvas up here would leave those redraws painting the
+   copy left behind on the page while the chart being looked at quietly went
+   stale. Moving the real card means a redraw mid-view simply draws into the
+   canvas in front of you. A hidden placeholder holds the card's seat so it goes
+   back exactly where it came from.
+
+   THE ONE THING THIS APP HAS TO DO THAT FLOW METRICS DOES NOT: every view here
+   rebuilds `viewsEl.innerHTML` wholesale, so the card up here would be orphaned
+   and the placeholder holding its seat thrown away with the markup around it.
+   render() lifts a maximised chart down before it rewrites anything and puts it
+   back up afterwards, BY CANVAS ID — maxiSuspend and maxiResume below. That is
+   not an edge case: the team picker sits in the header this overlay deliberately
+   leaves live, and changing team re-renders. Flow Metrics' chart cards are
+   static markup, so it builds its buttons once at boot and never needs any of
+   this; here syncMaxiButtons() runs at the end of every render.
+
+   Three ways out, because a thing covering the window must never feel like a
+   trap: the same button (now an arrows-in icon), Escape, and a click on the
+   backdrop — this app's rule for every dialog, and the reason the overlay keeps
+   a margin round the card rather than filling the window edge to edge. */
+
+/* Inline SVG rather than a glyph: ⤢ is drawn by whatever font the platform picks
+   and is a different size on every one, and an <img> would be a file fetch on a
+   page that ships its own CSP. `currentColor`, so both icons take the button's
+   colour in all four themes. */
+const MAXI_ICON = {
+  out: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"'
+     + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"'
+     + ' focusable="false"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/>'
+     + '<path d="M3 21l7-7"/></svg>',
+  in:  '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"'
+     + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"'
+     + ' focusable="false"><path d="M20 10h-6V4"/><path d="M4 14h6v6"/><path d="M14 10l7-7"/>'
+     + '<path d="M10 14l-7 7"/></svg>'
+};
+
+let maxiSlot = null;      /* the hidden placeholder holding the card's seat */
+let maxiScrollY = 0;      /* where the page was, to put it back on the way out */
+let maxiHadFocus = false; /* was the reader working inside the card when it went? */
+
+/* Which card is filling the window, read off the DOM rather than held in a
+   variable of its own: the overlay holds exactly one card or none, and a
+   variable would be a second copy of that fact to keep in step. */
+function maxiCard() {
+  return document.getElementById('chartMaxi').firstElementChild || null;
+}
+
+/* Every card that draws a chart, wherever it is now — the maximised one is in
+   the overlay rather than in #views, and it still needs its button dressing. */
+function chartCards() {
+  const seen = new Set();
+  const out = [];
+  const all = document.querySelectorAll('#views .chartbox canvas, #chartMaxi .chartbox canvas');
+  for (const cv of all) {
+    const card = cv.closest('.card');
+    if (card && !seen.has(card)) { seen.add(card); out.push(card); }
+  }
+  return out;
+}
+
+/* The live Chart.js instance behind a card. `charts` is keyed by canvas id,
+   which is exactly what the card holds one of. */
+function chartIn(card) {
+  const cv = card.querySelector('.chartbox canvas');
+  return (cv && charts[cv.id]) || null;
+}
+
+/* Worth maximising only when there is really a chart under it — a view that had
+   nothing to plot draws the card and no chart, and a bigger box shows no more of
+   an empty state than a small one does. */
+function maxiReady(card) {
+  return !!card && !!chartIn(card);
+}
+
+/* The chart's name, without the ⓘ that shares the line with some of them. */
+function maxiName(card) {
+  const h2 = card.querySelector(':scope > h2, :scope > .cardhead > h2');
+  if (!h2) return 'this chart';
+  const clone = h2.cloneNode(true);
+  clone.querySelectorAll('button, a').forEach(el => el.remove());
+  return clone.textContent.trim() || 'this chart';
+}
+
+function dressMaxiBtn(card) {
+  const btn = card.querySelector(':scope > .chart-max');
+  if (!btn) return;
+  const up = card === maxiCard();
+  btn.innerHTML = up ? MAXI_ICON.in : MAXI_ICON.out;
+  btn.setAttribute('aria-label', up
+    ? `Leave full screen — ${maxiName(card)}`
+    : `Fill the window with ${maxiName(card)}`);
+  btn.title = up ? 'Leave full screen (Esc)' : 'Fill the window with this chart';
+}
+
+/* Called at the end of every render: give a freshly drawn card its button, take
+   the button away from a card with nothing under it, and bring the window back
+   down if what was filling it has just gone. */
+function syncMaxiButtons() {
+  const up = maxiCard();
+  if (up && !maxiReady(up)) closeMaxi();
+  for (const card of chartCards()) {
+    let btn = card.querySelector(':scope > .chart-max');
+    if (!btn) {
+      btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'chart-max';
+      /* The card is looked up from the button at click time rather than captured,
+         so a copy of this made later cannot close over a card that has gone. */
+      btn.onclick = () => openMaxi(btn.closest('.card'));
+      /* Appended to the CARD, not to the heading: several of these headings are
+         rewritten as a row with an export button in them, and a button inside
+         one would be thrown away and rebuilt with it. */
+      card.appendChild(btn);
+    }
+    btn.hidden = !maxiReady(card);
+    dressMaxiBtn(card);
+  }
+}
+
+/* The header wraps to two or three rows on a phone, and its height is the one
+   number this layout is pinned to — so it is measured, never guessed. */
+function measureMaxiTop() {
+  const h = document.querySelector('header').getBoundingClientRect().height;
+  document.documentElement.style.setProperty('--maxi-top', `${Math.round(h)}px`);
+}
+
+/* Moving the card up and putting it back. Kept apart from open/close because
+   render() does exactly this pair around a rewrite of the page, and must not
+   touch the scroll position while it does. */
+function attachMaxi(card) {
+  maxiSlot = document.createElement('div');
+  maxiSlot.className = 'chart-slot';
+  maxiSlot.hidden = true;
+  card.parentNode.insertBefore(maxiSlot, card);
+
+  const ov = document.getElementById('chartMaxi');
+  ov.appendChild(card);
+  measureMaxiTop();
+  ov.classList.add('open');
+  ov.setAttribute('aria-label', `${maxiName(card)}, full screen`);
+  dressMaxiBtn(card);
+  const ch = chartIn(card);
+  if (ch) ch.resize();
+}
+
+/* Returns the card that was up, or null. */
+function detachMaxi() {
+  const card = maxiCard();
+  if (!card) return null;
+  if (maxiSlot && maxiSlot.parentNode) maxiSlot.parentNode.insertBefore(card, maxiSlot);
+  if (maxiSlot) maxiSlot.remove();
+  maxiSlot = null;
+  const ov = document.getElementById('chartMaxi');
+  ov.classList.remove('open');
+  ov.removeAttribute('aria-label');
+  return card;
+}
+
+function openMaxi(card) {
+  const up = maxiCard();
+  if (up === card) { closeMaxi(); return; }   /* the button toggles */
+  if (up) closeMaxi();
+  if (!maxiReady(card)) return;
+
+  /* THE PAGE GOES TO THE TOP FIRST, and this is an iOS fix, not tidiness. This
+     overlay starts below the sticky header precisely so the row of controls
+     stays usable — but `body { overflow: hidden }` stops the body being a scroll
+     container, and a `position: sticky` header in a container that no longer
+     scrolls goes back to its place in the document flow. Maximise from halfway
+     down a phone screen and the header is then off-screen above, leaving the
+     strip this overlay deliberately kept clear showing page content instead of
+     the menu — which is the whole feature. At scroll 0 the header's natural
+     place IS the top of the viewport, so it stays where the layout assumes. The
+     scroll is put back on the way out. Visible only on a real iOS device —
+     Chromium keeps the header pinned either way — and found in the Simulator on
+     2026-08-23, while porting this feature to the starter. */
+  maxiScrollY = window.scrollY;
+  window.scrollTo(0, 0);
+
+  attachMaxi(card);
+  document.body.classList.add('maxi-open');
+  /* The page underneath leaves the tab order while it is out of sight. The
+     header is NOT inside .wrap, so it stays reachable — which is the point. */
+  document.querySelector('.wrap').inert = true;
+  if (maxiHeaderWatch) maxiHeaderWatch.observe(document.querySelector('header'));
+  card.querySelector('.chart-max').focus();
+}
+
+function closeMaxi() {
+  const card = detachMaxi();
+  if (!card) return;
+  document.body.classList.remove('maxi-open');
+  /* After the overflow comes off, or the body is not a scroll container yet and
+     the position is dropped on the floor. */
+  window.scrollTo(0, maxiScrollY);
+  document.querySelector('.wrap').inert = false;
+  if (maxiHeaderWatch) maxiHeaderWatch.disconnect();
+  dressMaxiBtn(card);
+  const ch = chartIn(card);
+  if (ch) ch.resize();
+  /* Back to the button that opened it, which is now back in its card — a
+     keyboard user who pressed it must not be dropped at the top of the page. */
+  const btn = card.querySelector(':scope > .chart-max');
+  if (btn && !btn.hidden) btn.focus();
+}
+
+/* ── Living through a re-render ─────────────────────────────────────────────
+   render() calls these two around its rewrite of #views. Between them nothing is
+   painted, so the window never flickers: the card comes down, the markup holding
+   it is thrown away, the view is drawn again, and the card carrying the SAME
+   canvas id goes back up. */
+function maxiSuspend() {
+  const card = maxiCard();
+  if (!card) { maxiHadFocus = false; return null; }
+  maxiHadFocus = card.contains(document.activeElement);
+  const cv = card.querySelector('.chartbox canvas');
+  detachMaxi();
+  return cv ? cv.id : null;
+}
+
+function maxiResume(id) {
+  syncMaxiButtons();
+  const cv = id ? document.getElementById(id) : null;
+  const card = cv ? cv.closest('.card') : null;
+  if (card && maxiReady(card)) {
+    attachMaxi(card);
+    /* The element that had focus went out with the old markup. The way back in
+       is the button that opened this, not the top of a page nobody can see. */
+    if (maxiHadFocus) { const b = card.querySelector('.chart-max'); if (b) b.focus(); }
+    return;
+  }
+  /* What was up has gone — another view, a team with nothing to plot. Hand the
+     page back rather than hold an empty window over it. */
+  if (id) {
+    document.body.classList.remove('maxi-open');
+    document.querySelector('.wrap').inert = false;
+    if (maxiHeaderWatch) maxiHeaderWatch.disconnect();
+  }
+}
+
+/* A ResizeObserver on the header rather than a window resize listener, and the
+   phone is why: that row wraps to two or three lines, and it does so for reasons
+   that are not a window resize at all — picking a team with a longer name is
+   enough. The observer sees the box change however it happened, and it sees
+   window resizes too, because the header's width moves with them. It runs only
+   while a chart is up. */
+const maxiHeaderWatch = ('ResizeObserver' in window) ? new ResizeObserver(() => {
+  const card = maxiCard();
+  if (!card) return;
+  measureMaxiTop();
+  const ch = chartIn(card);
+  if (ch) ch.resize();
+}) : null;
+
+/* A click on the backdrop closes, the same as every dialog in this app — and
+   with the same two details: the hit test is against the card's box rather than
+   `e.target`, and the press has to have STARTED outside, so dragging a pointer
+   off the edge of a chart doesn't slam it shut. */
+(() => {
+  const ov = document.getElementById('chartMaxi');
+  const outside = (e) => {
+    const card = maxiCard();
+    if (!card) return false;
+    const r = card.getBoundingClientRect();
+    return e.clientX < r.left || e.clientX > r.right
+        || e.clientY < r.top  || e.clientY > r.bottom;
+  };
+  let startedOutside = false;
+  ov.addEventListener('mousedown', (e) => { startedOutside = outside(e); });
+  ov.addEventListener('click', (e) => {
+    if (startedOutside && outside(e)) closeMaxi();
+    startedOutside = false;
+  });
+})();
+
+/* Escape closes — unless a dialog is open on top of it, in which case Escape
+   belongs to the dialog. A ⓘ pressed on a maximised chart is exactly that case. */
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || !maxiCard()) return;
+  if (document.querySelector('dialog[open]')) return;
+  e.preventDefault();
+  closeMaxi();
+});
+
 /* Ordinary least squares over the point index — the dashed trend line the
    sibling Team Dashboard app draws on every chart, ported here for the
    velocity bars. Nulls are skipped, so a gap doesn't drag the line.
@@ -5828,6 +6211,11 @@ function renderHeaderButtons() {
 }
 
 function render() {
+  /* A chart filling the window is lifted back down onto the page before the
+     markup under it is thrown away, and put back up at the end — see maxiSuspend.
+     Nothing is painted in between, so the window doesn't flicker. First line of
+     render(), because everything below rewrites viewsEl. */
+  const wasMaxi = maxiSuspend();
   renderTeamPicker();
   destroyCharts();
   renderHeaderButtons();
@@ -5840,6 +6228,7 @@ function render() {
      Rolling 5 where the rest of that team's figures are. */
   if (!state.teams.length) {
     if (state.settings.forecastPlanning && !viewOnly) renderPlanning(); else renderWelcome();
+    maxiResume(wasMaxi);
     return;
   }
 
@@ -5850,6 +6239,9 @@ function render() {
   else if (view === 'trend')   renderPiTrendView();
   else if (view === 'art')     renderArtPiView();
   else                         renderTeamsView();
+  /* After the view, because that is where the charts are built and a card with
+     no chart under it offers no button. */
+  maxiResume(wasMaxi);
 }
 
 /* Which views are worth offering, and which one is on screen. A tab is only ever

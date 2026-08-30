@@ -573,6 +573,15 @@ rather than dragging them down.
   carries a [**Trend**](#which-way-each-team-is-going) column and a [**Sprint
   goals**](#the-goals-column-and-the--finding) one.
 
+**Any chart fills the window.** Every card that draws one carries a ⤢ button in its
+top-right corner; press it and that chart alone fills the screen under the header. **The
+header stays where it is and stays usable** — change team, or the theme, and the chart
+redraws in front of you, still full screen. Escape, the same button (now an arrows-in
+icon), or a click on the margin round the card brings it back down, and the page is where
+you left it. On a phone the card's opening paragraph steps aside so the chart gets the
+room it was using. It is the same feature, and the same behaviour, as in the sibling Flow
+Metrics app.
+
 The last three look **across** teams rather than into the one you've selected, so they sit
 apart from the other four in the tab row.
 
