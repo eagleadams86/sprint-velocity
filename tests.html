@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 429;
+const EXPECTED = 430;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -2036,6 +2036,24 @@ t('the import template comes out of a demo team as a real, re-importable file', 
     eq(plan.rows.filter(r => r.record).length, rows.length - 1, 'every row usable');
     eq(plan.rows.every(r => r.action === 'overwrite'), true,
       'and every one lands back on the sprint it came from');
+  });
+});
+t('an import error quotes at most 40 characters of the cell that failed', () => {
+  withSample((id) => {
+    /* The echo is what makes a typo findable, and the cap is what keeps it
+       from being a disclosure: the cell most likely to run long is a Jira
+       summary in a paste that was never meant for this box, and an error row
+       must not put a readable copy of one on screen. Display only — nothing
+       an error row shows is ever stored — but the diagnostics rule is
+       point-don't-echo, and 40 characters is pointing. */
+    const summary = 'Implement the quarterly reconciliation export for the payments platform team';
+    const plan = w.parseImport('sprint\tteam\n3\t' + summary, null);
+    const problem = plan.rows[0].problem;
+    eq(plan.rows[0].record, null, 'the row failed (no such team)');
+    ok(problem.includes(summary.slice(0, 40) + '\u2026'),
+      'the first 40 characters and an ellipsis are quoted', problem);
+    ok(!problem.includes(summary),
+      'the full cell is not', problem);
   });
 });
 t('Team Live Sprint is deliberately unscored — its PI is still running', () => {

@@ -11355,6 +11355,19 @@ function parseImport(text, fallbackTeamId) {
   /* Matched on a squashed, case-folded name for the same reason the headings are:
      "Team Baseline" out of a spreadsheet and "team baseline" typed by hand are the
      same team, and failing the row over a capital reads as the app being broken. */
+  /* An error row quotes the cell that failed — that is what makes a typo
+     findable in a fifty-row paste — but it quotes at most the first 40
+     characters. The paste box is for figures, and the cell most likely to be
+     longer than that is a Jira summary in a paste that was never meant for
+     this box; an error message must not put a readable copy of one on screen.
+     Display only, never stored, and escaped at the render — this cap is the
+     diagnostics rule (point, don't echo) applied to the echo that earns its
+     keep. */
+  const echoCell = (v) => {
+    v = String(v);
+    return v.length > 40 ? v.slice(0, 40) + '\u2026' : v;
+  };
+
   const teamByName = new Map(state.teams.map(t => [importKey(t.name), t]));
   const piByName = new Map(state.pis.map(pi => [importKey(pi.name), pi]));
 
@@ -11374,7 +11387,7 @@ function parseImport(text, fallbackTeamId) {
     const team = raw.team ? teamByName.get(importKey(raw.team)) : teamById(fallbackTeamId);
     if (!team) {
       row.problem = raw.team
-        ? `No team called “${raw.team}” — add it in Teams & PIs first, then paste again. `
+        ? `No team called “${echoCell(raw.team)}” — add it in Teams & PIs first, then paste again. `
           + 'This never creates one.'
         : 'No team to put this on. Name one in a team column, or pick a team first.';
       rows.push(row); continue;
@@ -11384,7 +11397,7 @@ function parseImport(text, fallbackTeamId) {
     if (raw.pi) {
       pi = piByName.get(importKey(raw.pi));
       if (!pi) {
-        row.problem = `No PI called “${raw.pi}” — add it in Teams & PIs, or clear the cell to `
+        row.problem = `No PI called “${echoCell(raw.pi)}” — add it in Teams & PIs, or clear the cell to `
           + 'record the sprint outside a PI.';
         rows.push(row); continue;
       }
@@ -11392,7 +11405,7 @@ function parseImport(text, fallbackTeamId) {
 
     const n = Math.round(parseFloat(raw.sprintNumber));
     if (!Number.isFinite(n) || n < 1 || n > MAX_SPRINT_NO) {
-      row.problem = `“${raw.sprintNumber || ''}” isn’t a sprint number.`;
+      row.problem = `“${echoCell(raw.sprintNumber || '')}” isn’t a sprint number.`;
       rows.push(row); continue;
     }
     if (pi && n > SPRINTS_PER_PI) {
@@ -11411,7 +11424,7 @@ function parseImport(text, fallbackTeamId) {
       const v = raw[key];
       if (v === undefined || v === '') { nums[key] = 0; continue; }
       const f = parseFloat(String(v).replace(/,/g, ''));
-      if (!Number.isFinite(f)) { bad = `“${v}” in ${key} isn’t a number.`; break; }
+      if (!Number.isFinite(f)) { bad = `“${echoCell(v)}” in ${key} isn’t a number.`; break; }
       nums[key] = Math.max(0, Math.round(f));
     }
     if (bad) { row.problem = bad; rows.push(row); continue; }
@@ -11419,7 +11432,7 @@ function parseImport(text, fallbackTeamId) {
     for (const key of ['startDate', 'endDate']) {
       const v = raw[key];
       if (v && !DATE_ONLY.test(v)) {
-        bad = `“${v}” isn’t a date. Format dates as YYYY-MM-DD — a spreadsheet will do it `
+        bad = `“${echoCell(v)}” isn’t a date. Format dates as YYYY-MM-DD — a spreadsheet will do it `
           + 'with Format cells.';
         break;
       }
