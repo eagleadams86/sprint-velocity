@@ -1777,7 +1777,9 @@ page out of five is not a convention.
 - **Decorative glyphs on buttons are `aria-hidden` everywhere, not just in the header.** The
   header row got the treatment on 2026-08-21 and the rest of the app did not, so a screen
   reader still read "downwards black arrow, Export JSON" in every dialog. Around 50 buttons
-  across the family were wrapped in the same pass. The sync button is the exception that
-  proves it: its label is rewritten with `textContent` as the state changes, so a span there
-  would be blown away — it carries an `aria-label`, re-stated in every branch of `updateUI()`
-  so it can never be left describing the previous state.
+  across the family were wrapped in the same pass. The sync button was the exception that
+  proved it (until it went with sync on 2026-08-20): its label was rewritten with
+  `textContent` as the state changed, so a span there would have been blown away — it carried
+  an `aria-label`, re-stated in every branch of its `updateUI()` so it could never be left
+  describing the previous state. The pattern still applies to any control whose label is
+  rewritten with `textContent`.

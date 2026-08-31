@@ -1717,9 +1717,9 @@ main:focus { outline: none; }
          aria-hidden: a screen reader announcing "downwards white arrow, Back up"
          is noise, and the word beside it is already the whole label. The glyphs
          are Money Map's own where the button exists there — ⇩ Back up, ↗ Share,
-         ⚙ for settings — so the same action looks the same in every app. ☁️ Sign
-         in to sync keeps its emoji: the sync module rewrites that label as the
-         state changes, and it is the one control here about somewhere else. -->
+         ⚙ for settings — so the same action looks the same in every app. (☁️ Sign
+         in to sync kept its emoji — its module rewrote the label as the state
+         changed — until it went with sync on 2026-08-20.) -->
     <button class="btn small" id="manageBtn" type="button" title="Add or rename teams, group them into ARTs, and manage PIs"><span aria-hidden="true">☰</span> Teams &amp; PIs</button>
     <!-- ⚙ is Money Map's settings glyph, so the same kind of action wears the same
          mark in both apps. The word is "Targets" rather than "Settings" because
@@ -2000,8 +2000,8 @@ main:focus { outline: none; }
 
     <!-- There is deliberately NO free-text notes field on this form. This app
          records Jira figures copied out of a work system, and a comment box is
-         the one place sensitive detail could ride along into localStorage and
-         the synced cloud copy — so only numbers and dates are ever saved. Don't
+         the one place sensitive detail could ride along into localStorage, a
+         backup file or a share link — so only numbers and dates are ever saved. Don't
          add one back. The "Why" above is a fixed list of codes for exactly this
          reason (see REASONS) — it must never become a text box. -->
 
@@ -2461,7 +2461,7 @@ main:focus { outline: none; }
 const STORAGE_KEY = 'sv-data';
 
 /* ── The data format number, and what makes stale code safe ─────────────────
-   It rides into localStorage, the cloud document and a backup file as
+   It rides into localStorage and every backup file as
    `version`, and every boundary below refuses a copy carrying a HIGHER one —
    see haltForNewerData().
 
@@ -2658,7 +2658,7 @@ function blankState() {
     /* An ART (Agile Release Train) is a grouping of teams, and nothing more: a
        team carries an optional `artId` and every figure in the app is still
        worked out per team. The list is here beside teams and PIs so it travels
-       through save/load, import/export, the cloud document and share links
+       through save/load, import/export and share links
        without any of them learning a new shape. */
     arts: [],
     pis: [],
@@ -2711,9 +2711,9 @@ function blankState() {
    uid() only ever produces [a-z0-9].
 
    That assumption breaks at the three places data comes in from outside — a
-   share link, an imported file, the cloud document — because all three are just
-   somebody's JSON. An id like `x"><img src=q onerror=…>` closes the attribute
-   and opens a tag, and the browser runs it: the read-only guard on save() is no
+   share link, an imported file, the saved copy in localStorage (which anyone
+   can hand-edit) — because all three are just somebody's JSON. An id like
+   `x"><img src=q onerror=…>` closes the attribute and opens a tag, and the browser runs it: the read-only guard on save() is no
    defence, since injected script isn't going through save().
 
    Cleaning them once here beats escaping at each render site, which is a list
@@ -2725,7 +2725,7 @@ function blankState() {
 
    The second half of the same job is referential integrity. Cleaning an id makes
    it safe to write into an attribute; it doesn't make it point at anything. A
-   hand-edited backup or a truncated cloud document can hold a sprint whose piId
+   hand-edited backup or a truncated file can hold a sprint whose piId
    (or teamId) names a PI that isn't in the same payload, and nothing throws —
    which is the problem. teamSprints() and rollingSprints() both count that
    sprint, while every PI-based view can't show it, because its PI never reaches
@@ -2764,7 +2764,7 @@ function adjustmentNote(n) {
 }
 
 /* The shape guard in front of every copy that arrives from outside — the saved
-   copy, an imported file, a share link, the cloud document. sanitizeIds() below
+   copy, an imported file, a share link. sanitizeIds() below
    cleans the ids *inside* the lists; this makes sure the lists are lists at
    all. Without it, Object.assign(blankState(), parsed) happily sets teams to
    "junk" or leaves a null entry in an array, and the first teamById()/render()
@@ -2898,7 +2898,7 @@ function sanitizeIds(data) {
       } else if (kind === 'status') {
         out[k] = STATUSES.includes(v) ? v : 'auto';
       } else if (kind === 'view') {
-        /* One of the four real view names, or the default — a stored view was
+        /* One of the real view names, or the default — a stored view was
            typed 'label' once, which let any 120-char string sit in settings
            until the next render corrected it. */
         out[k] = VIEWS.includes(v) ? v : 'sprint';
@@ -6316,7 +6316,7 @@ function renderTabs() {
 
   /* A view can't stay on screen once its tab has gone. The stored value is
      corrected in memory and left for the next save to persist — a render must
-     not write, least of all push to the cloud. */
+     not write. */
   let view = state.settings.view || 'sprint';
   if (!shown[view]) view = state.settings.view = 'sprint';
 
@@ -7593,12 +7593,12 @@ function forecastCard(team, includeSix) {
           <span>Points a sprint</span>
           <input type="number" id="forecastRateLo" min="0" max="${FORECAST_RATE_MAX}" step="1"
             inputmode="numeric" style="--digits:${String(FORECAST_RATE_MAX).length}"
-            value="${esc(fcs().forecastRateLo)}"
+            value="${esc(fcs().forecastRateLo || '')}"
             aria-label="Points a sprint, cautious end" placeholder="e.g. 25">
           <span>to</span>
           <input type="number" id="forecastRateHi" min="0" max="${FORECAST_RATE_MAX}" step="1"
             inputmode="numeric" style="--digits:${String(FORECAST_RATE_MAX).length}"
-            value="${esc(fcs().forecastRateHi)}"
+            value="${esc(fcs().forecastRateHi || '')}"
             aria-label="Points a sprint, optimistic end" placeholder="e.g. 35">
         </div>
       </div>
@@ -7617,19 +7617,19 @@ function forecastCard(team, includeSix) {
           <span>Scope grows by (%)</span>
           <input type="number" id="fcGrowthLo" min="0" max="${FORECAST_GROWTH_MAX}" step="1"
             inputmode="numeric" style="--digits:${String(FORECAST_GROWTH_MAX).length}"
-            value="${esc(fcs().forecastGrowthLo)}"
+            value="${esc(fcs().forecastGrowthLo || '')}"
             aria-label="Scope grows by (%), lowest" placeholder="0">
           <span>to</span>
           <input type="number" id="fcGrowthHi" min="0" max="${FORECAST_GROWTH_MAX}" step="1"
             inputmode="numeric" style="--digits:${String(FORECAST_GROWTH_MAX).length}"
-            value="${esc(fcs().forecastGrowthHi)}"
+            value="${esc(fcs().forecastGrowthHi || '')}"
             aria-label="Scope grows by (%), highest" placeholder="0">
         </label>
         <label class="row" style="gap:8px">
           <span>Sprints nobody is delivering</span>
           <input type="number" id="fcLost" min="0" max="${FORECAST_LOST_MAX}" step="1"
             inputmode="numeric" style="--digits:${String(FORECAST_LOST_MAX).length}"
-            value="${esc(fcs().forecastLostSprints)}"
+            value="${esc(fcs().forecastLostSprints || '')}"
             aria-label="Sprints nobody is delivering" placeholder="0">
         </label>
       </div>
@@ -11705,7 +11705,7 @@ const SHARE_FORMAT = 1;
    marker says how the bytes are packed, this says what shape is inside them.
    It travels as `v`, and decodeShare() refuses a higher one — a colleague on a
    newer build should get "ask for a fresh link" rather than a view silently
-   missing whatever their build added. Unlike SCHEMA there is no cloud copy at
+   missing whatever their build added. Unlike SCHEMA there is no saved copy at
    stake, so nothing is written and nothing halts. */
 /* 2 — the payload gained `objectives`. 3 — sprints gained `goalMet`. Both are
    additive, and an older build would open the link and simply show neither; they
@@ -12727,8 +12727,8 @@ if (viewOnly) {
   else if (bootUnassigned) toast(unassignedNote(bootUnassigned));
   /* Anything the boundary scrubbed — legacy sprint notes, a stray key, a value
      of the wrong type — is written back cleaned, so it's gone from localStorage
-     now and, because save() stamps this copy as the newest, gone from the
-     synced cloud document as soon as sync starts. One save at boot, only when
+     now. (When the app synced, the same save also stamped this copy newest for
+     the cloud push; sync went on 2026-08-20.) One save at boot, only when
      something was actually removed or repaired. The toast is for notes alone:
      that's the one case where a person's own writing went away and deserves a
      sentence; a pruned stray key is plumbing. */
