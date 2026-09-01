@@ -3134,8 +3134,17 @@ function sanitizeIds(data) {
          Written out rather than CALLING piKey(), which is the whole point of the
          warning at the top of this function: piKey is a `const` several hundred
          lines below `let state = load()`, so at boot it is still in its temporal
-         dead zone and the call throws — taking the entire saved copy with it. */
-      const key = p.teamId + ' ' + (p.piId || null) + ' ' + p.sprintNumber;
+         dead zone and the call throws — taking the entire saved copy with it.
+
+         The separator is a space, the same one the objectives key below uses:
+         both ids have been through clean() by this line, so each matches ID_OK
+         and cannot contain one. It was a literal NUL byte until 2026-09-01, on
+         the usual "a character the data can never hold" reasoning — but the id
+         guard had already made that unnecessary, the byte never reached the
+         string (the HTML parser turns a raw NUL in script data into U+FFFD, so
+         the separator was really the replacement character), and it made grep,
+         awk and sed read this whole file as binary and match nothing SILENTLY. */
+      const key = p.teamId + ' ' + (p.piId || null) + ' ' + p.sprintNumber;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
