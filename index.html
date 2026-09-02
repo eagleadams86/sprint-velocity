@@ -9772,17 +9772,23 @@ function updateStatusHint() {
 ['f_status', 'f_start', 'f_end'].forEach(id =>
   F(id).addEventListener('change', updateStatusHint));
 
-/* Moving the form to a different PI or sprint changes which sprint precedes it —
-   and which dates the cadence lands on. */
-['f_pi', 'f_num'].forEach(id => F(id).addEventListener('change', () => {
+/* Moving the form to a different sprint changes which sprint precedes it — and
+   which dates the cadence lands on. */
+F('f_num').addEventListener('change', () => {
   maybePrefillCarriedIn();
   maybePrefillDates();
-}));
+});
 
 /* Changing the PI changes which numbers are on offer — six slots inside one, the
-   team's running sequence outside. Rebuilt here rather than inside the listener
-   above because it has to keep the chosen number where it still exists, and that
-   is a different job from re-projecting the dates. */
+   team's running sequence outside — AND which sprint precedes the form, so it
+   does both jobs, in that order (2026-09-01). Until then the PI picker had two
+   listeners: the projection above ran first, for whatever number the form was
+   still showing, and only then did this one discover that number had no slot in
+   the new PI and drop the picker to Sprint 1 — without projecting again. A new
+   sprint 7 moved into an empty PI saved as Sprint 1 carrying slot 7's dates,
+   which put it in the future and its status on `planned`, so a real finished
+   sprint stayed out of every average. The list is rebuilt first now, and the
+   dates and carried-in are projected for the slot the form actually lands on. */
 F('f_pi').addEventListener('change', () => {
   if (!editing) return;
   const want = Number(F('f_num').value);
@@ -9790,6 +9796,8 @@ F('f_pi').addEventListener('change', () => {
   /* The number may not survive the move — a PI only has six slots. Falling back
      to the first option keeps the form on a slot that actually exists. */
   if (!F('f_num').value) F('f_num').selectedIndex = 0;
+  maybePrefillCarriedIn();
+  maybePrefillDates();
   checkSprintForm();
 });
 

@@ -6198,6 +6198,42 @@ t('a hidden full-screen button actually goes', () => {
     + 'what a delegated handler further up will ask about');
 });
 
+group('the sprint form, moved into a PI (2026-09-01 audit)');
+/* One team, PI 1 with three dated fortnightly sprints, PI 2 empty. A new PI-less
+   sprint 7 moved into PI 2 has no slot 7 there: the picker must fall to Sprint 1
+   and the dates must be PI 2 · S1's — until 2026-09-01 the projection ran for
+   slot 7 first, and the form saved Sprint 1 under slot 7's dates. */
+t('moving a new sprint into a PI rebuilds its number BEFORE the dates are projected', () => {
+  const dated = [['2026-01-05', '2026-01-16'], ['2026-01-19', '2026-01-30'], ['2026-02-02', '2026-02-13']];
+  const fx = {
+    teams: [{ id: 't1', name: 'Team One' }], arts: [], plans: [],
+    pis: [{ id: 'p1', name: 'PI 1' }, { id: 'p2', name: 'PI 2' }],
+    sprints: dated.map(([a, b], i) => ({ id: 's' + (i + 1), teamId: 't1', piId: 'p1',
+      sprintNumber: i + 1, startDate: a, endDate: b, committed: 10, committedCompleted: 10,
+      totalCompleted: 10, added: 0, removed: 0, carriedIn: 0, carriedOut: 0, addedThenRemoved: 0 }))
+  };
+  withState(fx, () => {
+    const d = w.document;
+    try {
+      w.openSprint('t1', null, 7);
+      eq(d.getElementById('f_num').value, '7', 'the form opens on the PI-less slot it was asked for');
+      eq(d.getElementById('f_start').value, '', 'a PI-less slot projects nothing from a PI’d run');
+      const pi = d.getElementById('f_pi');
+      pi.value = 'p2';
+      pi.dispatchEvent(new w.Event('change', { bubbles: true }));
+      const want = w.cadenceDates('t1', 'p2', 1);
+      ok(want && want.startDate, 'PI 2 · S1 has a projected date to compare against');
+      eq(d.getElementById('f_num').value, '1', 'slot 7 does not exist in a PI, so the form falls to Sprint 1');
+      eq(d.getElementById('f_start').value, want.startDate,
+         'and the dates are PI 2 · S1’s — not the ones slot 7 would have had');
+      eq(d.getElementById('f_end').value, want.endDate);
+      ok(!d.getElementById('dateHint').hidden, 'with the note saying where they came from');
+    } finally {
+      d.getElementById('sprintDialog').close();
+    }
+  });
+});
+
 async function run() {
   w = document.getElementById('app').contentWindow;
   /* A frame that never got the app is a SETUP problem — the folder isn't being

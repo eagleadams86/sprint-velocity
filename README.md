@@ -519,7 +519,10 @@ any of it is filled in.
 
 Like carried-in, it only ever fills empty boxes, and only for a sprint you haven't saved
 yet. A note under the fields says which sprint the dates came from. Type your own and they
-stick — including through a change of sprint number. **Sprints already recorded without
+stick — including through a change of sprint number. Moving a new sprint into a different PI
+first puts its number on a slot that PI has, then projects the dates for *that* slot — until
+2026-09-01 the dates were projected for the old number first, so a sprint 7 moved into a PI
+saved as Sprint 1 carrying slot 7's dates, which put it in the future and out of the averages. **Sprints already recorded without
 dates are left alone**, deliberately: dating them would flip them out of "complete" and pull
 real history out of your averages.
 

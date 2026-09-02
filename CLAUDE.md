@@ -1783,3 +1783,17 @@ page out of five is not a convention.
   an `aria-label`, re-stated in every branch of its `updateUI()` so it could never be left
   describing the previous state. The pattern still applies to any control whose label is
   rewritten with `textContent`.
+
+## Six Fixes From the 2026-09-01 Audit
+
+A bug audit of the three work apps on 2026-09-01 (three auditors, each finding
+reproduced headless before it was reported) found six here that the suite did not
+cover. Each has a test now, proven to fail first by reverting the fix.
+
+- **The PI picker rebuilds the number list BEFORE projecting dates (fix 1).** `#f_pi` had two `change` listeners: the shared prefill one (registered first, for `f_pi`
+  and `f_num`) and the list-rebuild one. So the dates were projected for the number the form
+  was still showing, and only then did the rebuild find that number had no slot in the new PI
+  and drop the picker to Sprint 1 — without projecting again. A new sprint 7 moved into an
+  empty PI saved as Sprint 1 with slot 7's dates and status `planned`. The prefill listener is
+  now `f_num`-only and the PI listener rebuilds, then calls `maybePrefillCarriedIn()` and
+  `maybePrefillDates()` itself. Order of registration was the whole bug.
