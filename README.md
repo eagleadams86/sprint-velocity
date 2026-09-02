@@ -6,6 +6,10 @@ completion, break-in, carryover and velocity, and flags each one against your ta
 
 **Live:** https://eagleadams86.github.io/sprint-velocity/
 
+**Download:** [the app as one file](https://github.com/eagleadams86/sprint-velocity/releases/latest) — double-click it and it
+runs, with no server, no install and no internet.
+[What differs from the website](#a-single-file-you-can-send-someone).
+
 Built for Scrum Masters running several teams on a SAFe-style cadence: six sprints to a
 Program Increment, with sprint 6 reserved for innovation and planning — though
 [**PIs are entirely optional**](#pis-are-optional), and a team running plain Scrum with
@@ -1977,6 +1981,12 @@ The hosted app is four files served from GitHub Pages — `index.html`, the pale
 plus a manifest and icons. That is the right shape for a website and the wrong shape for
 *"can you send me that thing you showed me"*: download `index.html` on its own and you get
 an unstyled page with no charts.
+
+**[⬇ Download the current build](https://github.com/eagleadams86/sprint-velocity/releases/latest)** — it is attached to the
+latest release as `sprint-predictability.html`. Put it somewhere permanent rather than leaving
+it in Downloads, then double-click it. Your figures are kept by the browser it opens in, not by
+the file, so **Back Up** is how you move them to another machine. The file does not update
+itself — come back to that page when you want a newer one.
 
 `build-single.py` folds it into **one HTML file** that runs by double-clicking it. No
 server, no internet, no install, nothing to put anywhere:
