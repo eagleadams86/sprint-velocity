@@ -1614,6 +1614,26 @@ its own — Charles asked for the two to match, and the two apps share their chr
   only written when `renderManage` runs. It writes nothing to storage, so the read-only
   promise still holds — and the last test puts the app's own rows back.
 
+## The Settings-Window Furniture Is Shared, Rules Included (2026-09-02)
+
+`.manage-head`, `.manage-note`, `.grid.two` and — since 2026-09-02 — **`.manage-sec`** are one
+set of parts used by the four windows that hold app-wide settings: Flow Metrics' *Settings* and
+*Teams, ARTs & Stages*, this app's *Targets*, and Golf Handicap's *League Handicap*.
+
+- **`.manage-sec` is a section and the rule that ends it:** `border-top: 1px solid
+  var(--border-strong)`, `padding-top`/`margin-top` from `--sp-7`, and `:first-of-type` takes
+  the spacing without the rule — above the first section is the window's own heading or the
+  sentence describing the whole window, and a line under either reads as the end of a section
+  rather than the start of one.
+- **It came from Flow Metrics**, whose Settings window Charles read as "big and a bit hard to
+  read": six unrelated settings under two headings. This window has three short sections and
+  would not have earned the complaint alone; it took the rule the same day because the four
+  windows are read as one screen, and a divider in some of them is drift rather than design.
+- **The spacing lives on the section, not on the heading row.** Every heading row carried its
+  own inline `margin-top` (16, 18 or 20px depending on the window) until this change.
+- No new colour, no fill, no shadow (pack rule 14), and `.manage-head` itself is unchanged, so
+  nothing here touches the theme pack.
+
 ## Fields, Dialogs and Scroll Boxes (2026-08-20)
 
 - **Every modal opens through `openModal(dlg)`, never `showModal()` directly.**

@@ -1179,6 +1179,23 @@ label.field { display: block; font-size: var(--fs-xs); color: var(--text-seconda
    and a two-line label still put their inputs on the same line. */
 .manage-head { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text-primary); }
 .manage-note { color: var(--text-secondary); font-size: var(--fs-xs); margin: 4px 0 0; }
+/* ── One section of a settings window, and the rule that ends it ────────────
+   Flow Metrics' furniture, mirrored here the day it was written (2026-09-02):
+   Charles read its Settings window as "big and a bit hard to read" — a stack of
+   things you set, each a bold 15px line in a column of 13px prose with nothing
+   to say where one stopped. This window is shorter and would not have earned
+   the complaint on its own, but the two are read side by side, so a rule in one
+   and not the other is the drift rather than the design.
+
+   A 1px rule in `--border-strong` and nothing else: no new colour, no fill, no
+   shadow (pack rule 14), and `.manage-head` itself is untouched. The spacing
+   lives here rather than on each heading row, where it was an inline
+   `margin-top` repeated per section. */
+.manage-sec { margin-top: var(--sp-7); padding-top: var(--sp-7); border-top: 1px solid var(--border-strong); }
+/* The first section takes the spacing and not the rule — above it is the
+   window's own heading, or the sentence describing the whole window, and a line
+   under either reads as the end of a section rather than the start of one. */
+.manage-sec:first-of-type { margin-top: var(--sp-6); padding-top: 0; border-top: 0; }
 .grid.two { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   align-items: end; }
 .grid.two > div { display: flex; flex-direction: column; justify-content: flex-end; }
@@ -2065,60 +2082,66 @@ main:focus { outline: none; }
     them to your own and the whole app follows, in this browser. They travel in a
     <strong>share link</strong> too, so whoever you send figures to reads them the way you do.</p>
 
-  <div class="row spread" style="margin-top:16px">
-    <strong class="manage-head">Commitment completion — higher is better</strong>
-  </div>
-  <p class="manage-note">Between the two is amber.</p>
-  <div class="grid two" style="margin-top:var(--sp-5)">
-      <div>
-        <label class="field" for="t_completionGreen">On target at or above (%)</label>
-        <input type="number" id="t_completionGreen" style="--digits:3" min="1" max="200" step="1" inputmode="numeric">
-      </div>
-      <div>
-        <label class="field" for="t_completionRed">Red below (%)</label>
-        <input type="number" id="t_completionRed" style="--digits:3" min="0" max="200" step="1" inputmode="numeric">
-      </div>
+  <section class="manage-sec">
+    <div class="row spread">
+      <strong class="manage-head">Commitment completion — higher is better</strong>
     </div>
+    <p class="manage-note">Between the two is amber.</p>
+    <div class="grid two" style="margin-top:var(--sp-5)">
+        <div>
+          <label class="field" for="t_completionGreen">On target at or above (%)</label>
+          <input type="number" id="t_completionGreen" style="--digits:3" min="1" max="200" step="1" inputmode="numeric">
+        </div>
+        <div>
+          <label class="field" for="t_completionRed">Red below (%)</label>
+          <input type="number" id="t_completionRed" style="--digits:3" min="0" max="200" step="1" inputmode="numeric">
+        </div>
+      </div>
+  </section>
 
-  <div class="row spread" style="margin-top:20px">
-    <strong class="manage-head">Break-in, removed and carryover — lower is better</strong>
-  </div>
-  <p class="manage-note">All three share one pair — they are
-      the same measure of a plan not holding, read three ways.</p>
-  <div class="grid two" style="margin-top:var(--sp-5)">
-      <div>
-        <label class="field" for="t_churnGreen">On target at or below (%)</label>
-        <input type="number" id="t_churnGreen" style="--digits:3" min="0" max="200" step="1" inputmode="numeric">
-      </div>
-      <div>
-        <label class="field" for="t_churnRed">Red above (%)</label>
-        <input type="number" id="t_churnRed" style="--digits:3" min="0" max="200" step="1" inputmode="numeric">
-      </div>
+  <section class="manage-sec">
+    <div class="row spread">
+      <strong class="manage-head">Break-in, removed and carryover — lower is better</strong>
     </div>
+    <p class="manage-note">All three share one pair — they are
+        the same measure of a plan not holding, read three ways.</p>
+    <div class="grid two" style="margin-top:var(--sp-5)">
+        <div>
+          <label class="field" for="t_churnGreen">On target at or below (%)</label>
+          <input type="number" id="t_churnGreen" style="--digits:3" min="0" max="200" step="1" inputmode="numeric">
+        </div>
+        <div>
+          <label class="field" for="t_churnRed">Red above (%)</label>
+          <input type="number" id="t_churnRed" style="--digits:3" min="0" max="200" step="1" inputmode="numeric">
+        </div>
+      </div>
+  </section>
 
-  <div class="row spread" style="margin-top:20px">
-    <strong class="manage-head">PI predictability — a band, missable from either side</strong>
-  </div>
-  <p class="manage-note">Above the ceiling is a finding too:
-      a train that reliably lands well over it committed to less than it could deliver.</p>
-  <div class="grid two pairs" style="margin-top:var(--sp-5)">
-      <div>
-        <label class="field" for="t_predLow">Band floor (%)</label>
-        <input type="number" id="t_predLow" style="--digits:3" min="1" max="400" step="1" inputmode="numeric">
-      </div>
-      <div>
-        <label class="field" for="t_predHigh">Band ceiling (%)</label>
-        <input type="number" id="t_predHigh" style="--digits:3" min="1" max="400" step="1" inputmode="numeric">
-      </div>
-      <div>
-        <label class="field" for="t_predUnderRed">Red below (%)</label>
-        <input type="number" id="t_predUnderRed" style="--digits:3" min="0" max="400" step="1" inputmode="numeric">
-      </div>
-      <div>
-        <label class="field" for="t_predOverRed">Red above (%)</label>
-        <input type="number" id="t_predOverRed" style="--digits:3" min="1" max="400" step="1" inputmode="numeric">
-      </div>
+  <section class="manage-sec">
+    <div class="row spread">
+      <strong class="manage-head">PI predictability — a band, missable from either side</strong>
     </div>
+    <p class="manage-note">Above the ceiling is a finding too:
+        a train that reliably lands well over it committed to less than it could deliver.</p>
+    <div class="grid two pairs" style="margin-top:var(--sp-5)">
+        <div>
+          <label class="field" for="t_predLow">Band floor (%)</label>
+          <input type="number" id="t_predLow" style="--digits:3" min="1" max="400" step="1" inputmode="numeric">
+        </div>
+        <div>
+          <label class="field" for="t_predHigh">Band ceiling (%)</label>
+          <input type="number" id="t_predHigh" style="--digits:3" min="1" max="400" step="1" inputmode="numeric">
+        </div>
+        <div>
+          <label class="field" for="t_predUnderRed">Red below (%)</label>
+          <input type="number" id="t_predUnderRed" style="--digits:3" min="0" max="400" step="1" inputmode="numeric">
+        </div>
+        <div>
+          <label class="field" for="t_predOverRed">Red above (%)</label>
+          <input type="number" id="t_predOverRed" style="--digits:3" min="1" max="400" step="1" inputmode="numeric">
+        </div>
+      </div>
+  </section>
 
   <!-- A live region, so a rule broken while typing is spoken as well as shown. Save
        is disabled alongside it: a target set that contradicts itself would colour
