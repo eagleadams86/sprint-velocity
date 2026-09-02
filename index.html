@@ -2891,6 +2891,12 @@ function sanitizeIds(data) {
       } else if (kind === 'num') {
         const n = Number(v);
         if (Number.isFinite(n)) out[k] = n;
+      } else if (kind === 'numOrBlank') {
+        /* A number, or '' meaning "nothing typed" — the typed forecast fields,
+           which blankState() states as '' and the planning card reads back as
+           empty. '' is a value here, not a defect to repair. */
+        if (v === '') out[k] = '';
+        else { const n = Number(v); if (Number.isFinite(n)) out[k] = n; }
       } else if (kind === 'date') {
         out[k] = (typeof v === 'string' && DATE_RE.test(v)) ? v : '';
       } else if (kind === 'bool') {
@@ -2975,6 +2981,10 @@ function sanitizeIds(data) {
       /* 'targets' counts its own repairs one level down — the rebuilt object can
          never be `===` the one that came in, so the general test would call every
          boot a scrub and save() on each one. */
+      /* A null tribool is dropped above, but it is not a REPAIR: null is how
+         blankState() states "not recorded", and adoptState() puts it straight
+         back, so counting it had the boot scrub saving on every load. */
+      if (kind === 'tribool' && v === null) continue;
       if (kind !== 'targets' && (!(k in out) || out[k] !== v)) sanitizeIds.pruned++;
     }
     return out;
@@ -3022,10 +3032,14 @@ function sanitizeIds(data) {
          boundaries the file said had been changed. Stripping these four costs a
          restored forecast and nothing else: the card falls back to the history
          it can see, and says so as it always did. */
-      forecastRateLo: 'num', forecastRateHi: 'num', forecastPoints: 'num',
+      /* `numOrBlank`, not `num`: blankState() states these six as '' — nothing
+         typed — and read as `num` the boundary turned '' into 0 and counted a
+         repair, on every boot, so boot save()d every time and `pruned` could
+         never mean anything (2026-09-01). */
+      forecastRateLo: 'numOrBlank', forecastRateHi: 'numOrBlank', forecastPoints: 'numOrBlank',
       forecastTypedOn: 'tribool', forecastPlanning: 'bool',
-      forecastGrowthLo: 'num', forecastGrowthHi: 'num',
-      forecastLostSprints: 'num', forecastAdjustOpen: 'bool' });
+      forecastGrowthLo: 'numOrBlank', forecastGrowthHi: 'numOrBlank',
+      forecastLostSprints: 'numOrBlank', forecastAdjustOpen: 'bool' });
   }
   /* The top level too — with the share-meta keys allowed through, because a
      share payload crosses this same boundary and the shared-view banner is

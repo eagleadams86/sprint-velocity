@@ -1231,7 +1231,10 @@ but Charles had ever actually signed in.)
   which never persist because `save()` is a no-op there. `notes` is still counted separately
   in `sanitizeIds.strippedNotes` (it gets the boot toast — a person's own writing went
   away); everything else lands in `sanitizeIds.pruned` (a silent boot `save()`, so the scrub
-  reaches localStorage immediately). Rebuilt objects only ever gain keys that are present
+  reaches localStorage immediately — and ONLY when something was scrubbed: since 2026-09-01
+  the six typed forecast fields are `numOrBlank`, so their stated `''` is a value rather than
+  a repair, and a null tribool is absent rather than repaired; before that every boot counted
+  at least one and saved). Rebuilt objects only ever gain keys that are present
   and valid, so the boundary can never create a key holding `undefined` — the `cleanKey`
   rule above. **A new stored field must be added to the
   `keepKnown` spec or it will be silently stripped** — that's the point, and the same-named
@@ -1823,3 +1826,11 @@ cover. Each has a test now, proven to fail first by reverting the fix.
   (`editing.sprintNumber` 16, save writes S1). `renderSprintView` clamps the number it READS
   to `SPRINTS_PER_PI` when a PI is set and does not save it — the stored position stays the
   reader's and follows them back to the PI-less team.
+
+- **A blank state has nothing for the boot scrub to repair (fix 5).** `blankState()` states the six typed forecast fields as `''` and `forecastTypedOn` as
+  null; `keepKnown` read `''` as `num` → 0 (a repair) and dropped the null tribool (a repair),
+  and `adoptState()` then reinstated the null from `blankState()`, so the next boot counted it
+  again: `pruned` was 7 on a clean first boot and 1 for ever after, and the "one save at boot,
+  only when something was actually removed or repaired" comment was false. `numOrBlank` keeps
+  `''` as `''`; a null tribool skips the count. Sprint figures stay `num` — there `''` → 0 is
+  the documented "Blank Means Zero".

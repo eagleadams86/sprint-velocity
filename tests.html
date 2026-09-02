@@ -6316,6 +6316,27 @@ t('a sprint number a PI has no slot for is read as Sprint 1 — picker, card and
   });
 });
 
+group('the boot scrub and a blank state (2026-09-01 audit)');
+t('a blank state passes the boundary untouched — boot has nothing to save', () => {
+  const blank = JSON.parse(JSON.stringify(w.blankState()));
+  const out = w.sanitizeIds(w.coerceShape(blank));
+  eq(w.sanitizeIds.pruned, 0, 'nothing pruned, so boot does not save() — it used to count 7, then 1 for ever');
+  eq(out.settings.forecastRateLo, '', 'an unset typed rate stays blank rather than becoming 0');
+  ok(!('forecastTypedOn' in out.settings) || out.settings.forecastTypedOn === null,
+     'the tribool is absent or null, never false');
+  w.sanitizeIds(w.coerceShape(JSON.parse(JSON.stringify(w.adoptState(out)))));
+  eq(w.sanitizeIds.pruned, 0, 'and the copy adoptState() makes of it is clean on the next boot too');
+});
+t('the typed forecast fields still refuse anything that is not a number', () => {
+  const blank = JSON.parse(JSON.stringify(w.blankState()));
+  blank.settings.forecastRateLo = 'ten';
+  blank.settings.forecastPoints = '12';
+  const out = w.sanitizeIds(w.coerceShape(blank));
+  ok(!('forecastRateLo' in out.settings), 'a word is dropped');
+  eq(out.settings.forecastPoints, 12, 'a numeric string is pinned to a number');
+  eq(w.sanitizeIds.pruned, 2, 'both counted — the drop and the pin — so boot writes the clean copy once');
+});
+
 async function run() {
   w = document.getElementById('app').contentWindow;
   /* A frame that never got the app is a SETUP problem — the folder isn't being
