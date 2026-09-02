@@ -2050,20 +2050,40 @@ main:focus { outline: none; }
 
 <dialog id="manageDialog" aria-labelledby="manageDialogTitle">
   <h3 id="manageDialogTitle">Teams, ARTs &amp; PIs</h3>
-  <div class="row spread"><strong style="font-size:var(--fs-sm)">Teams</strong>
-    <button class="btn small" id="addTeamBtn">+ Add Team</button></div>
-  <div class="tablewrap"><table aria-label="Teams"><tbody id="teamRows"></tbody></table></div>
-  <div class="row spread" style="margin-top:20px"><strong style="font-size:var(--fs-sm)">ARTs</strong>
-    <button class="btn small" id="addArtBtn">+ Add ART</button></div>
-  <p class="sub muted" style="font-size:var(--fs-xs);margin:4px 0 0">An Agile Release Train groups teams
-    together. It's a label only — every figure is still worked out per team — and the
-    <strong>Compare Teams</strong> view gains a filter for it. Teams need not be on one.</p>
-  <div class="tablewrap"><table aria-label="Agile Release Trains"><tbody id="artRows"></tbody></table></div>
-  <div class="row spread" style="margin-top:20px"><strong style="font-size:var(--fs-sm)">Program Increments</strong>
-    <button class="btn small" id="addPiBtn">+ Add PI</button></div>
-  <p class="sub muted" style="font-size:var(--fs-xs);margin:4px 0 0">Each PI holds 6 sprints. They're listed
-    oldest first — that order is what the rolling window walks back through.</p>
-  <div class="tablewrap"><table aria-label="Program Increments"><tbody id="piRows"></tbody></table></div>
+  <!-- ── THREE SECTIONS, EACH IN ITS OWN <section class="manage-sec"> ────────
+       This window is the design lead for Flow Metrics' Teams window — its
+       markup says so in a comment — and on 2026-09-02 the sibling took the
+       family's ruled sections while this one kept three heading rows carrying
+       an inline `margin-top:20px` and an inline `font-size` apiece. The Targets
+       window here took the rule the same day, on the argument that the family's
+       settings windows are one screen wearing four names; the window the
+       sibling COPIED was the one left out. The two are read side by side, so a
+       rule in one and not the other is the drift rather than the design.
+
+       Nothing new: `.manage-head`, `.manage-note` and `.manage-sec` are already
+       in this file for the Targets window. The heading rows keep no inline
+       margin now — a section is one element, and the space above a heading
+       cannot drift per dialog again. -->
+  <section class="manage-sec">
+    <div class="row spread"><strong class="manage-head">Teams</strong>
+      <button class="btn small" id="addTeamBtn">+ Add Team</button></div>
+    <div class="tablewrap"><table aria-label="Teams"><tbody id="teamRows"></tbody></table></div>
+  </section>
+  <section class="manage-sec">
+    <div class="row spread"><strong class="manage-head">ARTs</strong>
+      <button class="btn small" id="addArtBtn">+ Add ART</button></div>
+    <p class="manage-note">An Agile Release Train groups teams
+      together. It's a label only — every figure is still worked out per team — and the
+      <strong>Compare Teams</strong> view gains a filter for it. Teams need not be on one.</p>
+    <div class="tablewrap"><table aria-label="Agile Release Trains"><tbody id="artRows"></tbody></table></div>
+  </section>
+  <section class="manage-sec">
+    <div class="row spread"><strong class="manage-head">Program Increments</strong>
+      <button class="btn small" id="addPiBtn">+ Add PI</button></div>
+    <p class="manage-note">Each PI holds 6 sprints. They're listed
+      oldest first — that order is what the rolling window walks back through.</p>
+    <div class="tablewrap"><table aria-label="Program Increments"><tbody id="piRows"></tbody></table></div>
+  </section>
   <div class="row" style="justify-content:flex-end;margin-top:18px">
     <button class="btn primary" id="manageCloseBtn">Done</button>
   </div>

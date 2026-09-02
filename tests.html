@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 439;
+const EXPECTED = 440;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -3452,6 +3452,29 @@ function withManageRows(fn) {
   return withState(MANAGE_FIXTURE, () => { w.renderManage(); return fn(); });
 }
 
+/* ── The three sections are ruled off from each other ───────────────────────
+   This window is the design lead for Flow Metrics' Teams window, and on
+   2026-09-02 the sibling took the family's `.manage-sec` rule while the window
+   it had copied kept three heading rows carrying an inline `margin-top:20px`
+   apiece. The Targets window here took the rule the same day. The two apps are
+   read side by side, so a rule in one and not the other is the drift rather
+   than the design — pinned as the whole list, because a fourth thing to manage
+   has to say which section it is rather than run into the one above it. */
+t('three sections, each headed by its name and ruled off from the one above', () => {
+  const dlg = w.document.getElementById('manageDialog');
+  eq([...dlg.querySelectorAll('.manage-head')].map(e => e.textContent),
+     ['Teams', 'ARTs', 'Program Increments'],
+     'three sections, each headed by its name');
+  ok([...dlg.querySelectorAll('.manage-head')].every(h => h.closest('section.manage-sec')),
+     'each one inside its own section, like the sibling app and like Targets');
+  const rule = w.getComputedStyle(dlg.querySelectorAll('.manage-sec')[1]);
+  ok(parseFloat(rule.borderTopWidth) >= 1 && rule.borderTopStyle === 'solid',
+     'with a rule between one section and the next');
+  eq(w.getComputedStyle(dlg.querySelector('.manage-sec')).borderTopWidth, '0px',
+     'and none above the first, where it would underline the window’s own heading');
+  eq([...dlg.querySelectorAll('.row.spread')].filter(r => r.style.marginTop).length, 0,
+     'and no heading row carries an inline margin — the spacing is the section’s');
+});
 t('every row carries an editable name box rather than a Rename button', () => withManageRows(() => {
   eq(w.document.querySelectorAll('#manageDialog [data-rename-team], #manageDialog [data-rename-art], '
      + '#manageDialog [data-rename-pi]').length, 0, 'no Rename buttons anywhere');

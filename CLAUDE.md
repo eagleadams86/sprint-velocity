@@ -1631,6 +1631,16 @@ set of parts used by the four windows that hold app-wide settings: Flow Metrics'
   windows are read as one screen, and a divider in some of them is drift rather than design.
 - **The spacing lives on the section, not on the heading row.** Every heading row carried its
   own inline `margin-top` (16, 18 or 20px depending on the window) until this change.
+- **`Teams, ARTs & PIs` took it the same week, and was very nearly missed.** The first pass
+  did Targets alone, on the settings-window argument above, which left the window Flow
+  Metrics names in its own markup as the design lead for its Teams window as the one without
+  the rule the copy had. Its three headings were bare `<strong style="font-size:…">` in rows
+  carrying `margin-top:20px`, and its two notes were `.sub.muted` with the size and margin
+  written out inline; they are `.manage-head` and `.manage-note` now, which also lifts the
+  notes from `--text-muted` to the family's `--text-secondary`. **The rule is not "the
+  settings windows" but "the windows the two apps are read side by side"** — a section
+  heading in one and not the other is drift wherever it sits. Pinned as the whole list, so a
+  fourth thing to manage has to say which section it is.
 - No new colour, no fill, no shadow (pack rule 14), and `.manage-head` itself is unchanged, so
   nothing here touches the theme pack.
 

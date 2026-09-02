@@ -951,6 +951,11 @@ pointer, and moving something with the keyboard keeps your place on it.
 Adding is the same shape: **+ Add** puts a row in with a working default name and lands the
 cursor in it, already selected, so typing replaces it.
 
+**The three lists are ruled off from each other**, each under its own heading, the way the
+**Targets** window and both of Flow Metrics' settings windows are. A hairline between
+sections is the whole of it — it says where one list stops without adding a colour, a box or
+a shadow.
+
 The [Flow Metrics](https://eagleadams86.github.io/team-dashboard/) **Teams & ARTs** window
 works identically — the two apps share their chrome, so a row is a row in both.
 
