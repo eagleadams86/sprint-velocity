@@ -1385,7 +1385,10 @@ but Charles had ever actually signed in.)
   runs **before `usedPis`** in `buildSharePayload()`, or a link cut back to this PI still
   carries the names of the PIs it no longer reaches. Unlike `rollingSprints()` it applies
   neither `isCounted()` nor the IP-sprint rule: a link carries what was recorded, and the
-  recipient's own views count or exclude it by the usual rules.
+  recipient's own views count or exclude it by the usual rules. **A PI window never carries
+  pre-PI sprints (2026-09-01)** — they rank -1 in program order, and `-1 > newest - n` let them
+  through whenever the window reached past the first PI, while both notes said earlier history
+  was excluded; with no PI in the payload at all the window is the whole history.
 - **The window's exclusions are never silent, on both sides.** A team the window leaves empty
   is dropped from the payload (never *all* of them — `decodeShare()` refuses a teamless
   payload) and named in the dialog, because shipping it lands the recipient on an empty sprint
@@ -1805,3 +1808,10 @@ cover. Each has a test now, proven to fail first by reverting the fix.
   does not start with a key AND has a whole tab-cell matching `JIRA_TOTAL_CELL` (`^…$`): the
   header's last cell in a tabbed copy, a line of its own in a flattened one. Section-header
   lines keep the old loose match — they are identified by `JIRA_SECTIONS` first.
+
+- **A PI window never carries pre-PI history (fix 3).** `trimShareSprints` ranked a PI-less sprint -1 and kept `at(s) > newest - n`, so "the last
+  2 PIs" over a one-PI history shipped every pre-PI sprint while `shareScopeNote` said "This
+  link holds the last 2 PIs" and `shareRangeNote` said "earlier history isn't included". In the
+  one feature whose point is limiting what leaves the browser, the control promised less than
+  it sent. Pre-PI sprints are dropped under a PI scope now; `newest < 0` (no PI at all) still
+  means everything. Sprint scopes are unchanged — they count sprints.

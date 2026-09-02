@@ -6268,6 +6268,29 @@ t('a total is still read from its own cell, in both shapes', () => {
   eq(w.totalCell('Story points (3) on the epic card'), null, 'and never from a cell with other words in it');
 });
 
+group('a PI window and pre-PI history (2026-09-01 audit)');
+t('a PI window never carries history from before the first PI', () => {
+  const onePi = [{ id: 'p1' }];
+  const mixed = [
+    { id: 'u1', teamId: 'A', piId: null, sprintNumber: 1 },
+    { id: 'u2', teamId: 'A', piId: null, sprintNumber: 2 },
+    { id: 'u3', teamId: 'A', piId: null, sprintNumber: 3 },
+    { id: 'a1', teamId: 'A', piId: 'p1', sprintNumber: 1 },
+    { id: 'a2', teamId: 'A', piId: 'p1', sprintNumber: 2 },
+  ];
+  eq(ids(w.trimShareSprints(mixed, onePi, { kind: 'pi', n: 2 })), ['a1', 'a2'],
+     '"the last 2 PIs" of a one-PI history is that PI — the three pre-PI sprints are the '
+     + 'earlier history the banner says is left out, and used to ship anyway');
+  eq(ids(w.trimShareSprints(mixed, onePi, { kind: 'pi', n: 1 })), ['a1', 'a2'], 'and so is "this PI only"');
+  eq(ids(w.trimShareSprints(mixed, onePi, { kind: 'pi', n: 99 })), ['a1', 'a2'],
+     'however far back the window reaches');
+  const noPi = mixed.filter(s => !s.piId);
+  eq(ids(w.trimShareSprints(noPi, [], { kind: 'pi', n: 1 })), ['u1', 'u2', 'u3'],
+     'with no PI at all there is nothing to cut by, so a PI window is the whole history');
+  eq(ids(w.trimShareSprints(mixed, onePi, { kind: 'sprint', n: 4 })), ['a1', 'a2', 'u2', 'u3'],
+     'a SPRINT window still reaches back across the boundary — that one counts sprints, not PIs');
+});
+
 async function run() {
   w = document.getElementById('app').contentWindow;
   /* A frame that never got the app is a SETUP problem — the folder isn't being

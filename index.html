@@ -11822,7 +11822,16 @@ function trimShareSprints(sprints, pis, scope) {
 
   if (scope.kind === 'pi') {
     const newest = sprints.reduce((m, s) => Math.max(m, at(s)), -1);
-    return sprints.filter(s => at(s) > newest - scope.n);
+    /* History from before the first PI is EARLIER HISTORY — which is what the
+       dialog and the recipient's banner both say a PI window leaves out — so it
+       never travels under one (2026-09-01). It did whenever the window reached
+       past the first PI: a one-PI team on "the last 2 PIs" shipped its five
+       pre-PI sprints too, because a PI-less sprint ranks -1 and -1 > 0 - 2. In
+       the one feature whose whole point is limiting what leaves the browser,
+       the control promised less than it sent. With no PI in the payload at all
+       there is nothing to cut by, and the window is the whole history. */
+    if (newest < 0) return sprints;
+    return sprints.filter(s => at(s) >= 0 && at(s) > newest - scope.n);
   }
 
   const byTeam = new Map();

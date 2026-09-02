@@ -1755,6 +1755,12 @@ The dialog says what you'd expect it to say and one thing you might not:
   **their Rolling 5 will then average fewer sprints than yours does** — trimming below five
   changes the figures rather than just the size of the link.
 
+History from before your first PI never travels under a PI option: it is earlier history,
+which is exactly what the dialog and the recipient's banner say a PI window leaves out. (Until
+2026-09-01 it went along whenever the window reached further back than your first PI, so a
+one-PI team on *the last 2 PIs* shared its whole pre-PI run.) The sprint options still reach
+across that boundary, because they count sprints rather than PIs.
+
 Whoever opens a trimmed link is told so in the banner at the top, so a figure that doesn't
 match yours has a visible reason. They aren't told how much history sits behind it.
 
