@@ -1797,3 +1797,11 @@ cover. Each has a test now, proven to fail first by reverting the fix.
   empty PI saved as Sprint 1 with slot 7's dates and status `planned`. The prefill listener is
   now `f_num`-only and the PI listener rebuilds, then calls `maybePrefillCarriedIn()` and
   `maybePrefillDates()` itself. Order of registration was the whole bug.
+
+- **A section total is a cell that is nothing but the total (fix 2).** `JIRA_TOTAL` was tested on every line before `JIRA_KEY`, and a match `continue`d — so a
+  row summarised "Show story points (3) on the epic card" overwrote the section's claimed total
+  with 3 and vanished as a row; the checksum fired with a false message and "Use These Numbers"
+  would save the wrong figures. `totalCell(line)` now returns a total only from a line that
+  does not start with a key AND has a whole tab-cell matching `JIRA_TOTAL_CELL` (`^…$`): the
+  header's last cell in a tabbed copy, a line of its own in a flattened one. Section-header
+  lines keep the old loose match — they are identified by `JIRA_SECTIONS` first.

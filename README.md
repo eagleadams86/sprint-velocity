@@ -360,7 +360,10 @@ It works out every figure and shows you exactly how before filling anything in:
 
 Two things make this trustworthy rather than a guess. Jira prints its own **Story Points (N)**
 total in each section header, so the app cross-checks its reading against Jira's and tells
-you if they disagree. And issues with no estimate (`-`) count as zero rather than being
+you if they disagree. A total is only ever read from a cell that is nothing but the total, so
+a story whose summary happens to say *story points (3)* is a row like any other (until
+2026-09-01 it was read as the section's total, skipped as a row, and the checksum then blamed
+Jira for the difference). And issues with no estimate (`-`) count as zero rather than being
 skipped.
 
 ### Stories Re-Sized Mid-Sprint

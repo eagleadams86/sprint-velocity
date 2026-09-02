@@ -4907,6 +4907,25 @@ const JIRA_TOTAL    = new RegExp('story\\s*points\\s*\\(\\s*([\\d.\\-]+)'
    "[NAO 2012 Server Upgrade]" can't be mistaken for one. `-` means no estimate. */
 const JIRA_POINTS   = /^\d+(?:\.\d+)?$/;
 
+/* Jira's section total, and ONLY that: a cell that is the whole expression —
+   "Story Points (13)" on a line of its own in a flattened copy, or as the last
+   cell of the header row in a tabbed one. A line that starts with an issue key
+   is a row, whatever its summary says. Until 2026-09-01 every line was tested
+   for the total before it was tested for a key, so a story summarised "Show
+   story points (3) on the epic card" was read as the section's total: the row
+   itself was skipped, the claimed figure became 3, and the checksum then said
+   Jira's total and the rows disagreed — blaming the report for the parser's
+   own mistake, with "Use These Numbers" ready to save the wrong figures. */
+const JIRA_TOTAL_CELL = new RegExp('^' + JIRA_TOTAL.source + '\\s*$', 'i');
+function totalCell(line) {
+  if (JIRA_KEY.test(line)) return null;
+  for (const cell of line.split('\t')) {
+    const m = cell.trim().match(JIRA_TOTAL_CELL);
+    if (m) return m;
+  }
+  return null;
+}
+
 /* An estimate cell → { start, current }, or null when the cell isn't an estimate
    at all. `-` is no estimate, which counts as 0 on whichever side it appears —
    confirmed against two real reports, where summing each side reproduces Jira's
@@ -4983,7 +5002,7 @@ function parseJiraSprintReport(text) {
       if (t) claimed[cur] = parseTotal(t);
       continue;
     }
-    const t = line.match(JIRA_TOTAL);
+    const t = totalCell(line);
     if (t) { if (cur) claimed[cur] = parseTotal(t); continue; }
     if (!cur) continue;
 

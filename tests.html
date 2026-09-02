@@ -6234,6 +6234,40 @@ t('moving a new sprint into a PI rebuilds its number BEFORE the dates are projec
   });
 });
 
+group('a summary that mentions story points (2026-09-01 audit)');
+t('a row whose summary says "story points (3)" is a row, not the section total', () => {
+  const p = w.parseJiraSprintReport([
+    'Completed Issues',
+    'Key\tSummary\tIssue Type\tStatus\tStory Points (13)',
+    'ABC-1\tBuild the thing\tStory\tDone\t5',
+    'ABC-2\tShow story points (3) on the epic card\tStory\tDone\t3',
+    'ABC-3\tFix the thing\tBug\tDone\t5',
+  ].join('\n'));
+  eq(p.found, 3, 'all three rows are read — the middle one used to be skipped');
+  const d = w.deriveFromJira(p);
+  eq(d.totalCompleted, 13, 'and they add up to what the header claims');
+  ok(d.checks.every(c => c.ok), 'so the checksum reconciles instead of blaming Jira: '
+    + JSON.stringify(d.checks.map(c => [c.section, c.ok])));
+});
+t('the same in a flattened copy, where the summary sits on a line of its own', () => {
+  const p = w.parseJiraSprintReport([
+    'Completed Issues', 'Story Points (8)',
+    'ABC-1', 'Show story points (3) on the epic card', 'Story', '5',
+    'ABC-2', 'Second thing', 'Story', '3',
+  ].join('\n'));
+  eq(p.flattened, true);
+  eq(p.found, 2);
+  ok(w.deriveFromJira(p).checks.every(c => c.ok), 'the header total is the only total read');
+});
+t('a total is still read from its own cell, in both shapes', () => {
+  eq(w.parseJiraSprintReport(TABBED).claimed.completed, w.parseTotal(w.totalCell('Story Points (13)')),
+     'the last cell of a tabbed header');
+  eq(w.parseJiraSprintReport(FLATTENED).claimed.completed, w.parseTotal(w.totalCell('Story Points (8)')),
+     'a line of its own in a flattened copy');
+  eq(w.totalCell('ABC-9\tStory Points (4)\tStory'), null, 'never from a line that starts with a key');
+  eq(w.totalCell('Story points (3) on the epic card'), null, 'and never from a cell with other words in it');
+});
+
 async function run() {
   w = document.getElementById('app').contentWindow;
   /* A frame that never got the app is a SETUP problem — the folder isn't being
