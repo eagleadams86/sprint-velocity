@@ -1399,7 +1399,10 @@ but Charles had ever actually signed in.)
   recipient sees, not just the length of the link. The recipient's banner says a window is in
   force, built by `shareRangeNote()` from `range: { kind, n }` — **two numbers, never a
   sentence the sender wrote**, so a hand-edited link has no text to inject — and deliberately
-  without a total, so the sender isn't publishing how much history exists behind it.
+  without a total, so the sender isn't publishing how much history exists behind it. Since
+  2026-09-01 `sanitizeIds` PINS it beside `label` and `sharedAt`: `kind` ∈ {pi, sprint}, `n` a
+  whole number from 1 to `MAX_SPRINT_NO`, anything else dropped — `n: '1e400'` printed "the
+  last Infinity PIs".
 - **"As much as fits" bisects, and must keep checking `shareSeq` between trials.** Link length
   only grows with the window, so `fitShareWindow()` binary-searches it in about six encodes
   instead of fifty. It searches sprints, not PIs: a PI step is six sprints and overshoots by
@@ -1834,3 +1837,10 @@ cover. Each has a test now, proven to fail first by reverting the fix.
   only when something was actually removed or repaired" comment was false. `numOrBlank` keeps
   `''` as `''`; a null tribool skips the count. Sprint figures stay `num` — there `''` → 0 is
   the documented "Blank Means Zero".
+
+- **The share range is pinned at the boundary (fix 6).** `range` was in `TOP` (allowed through) but, unlike `label` and `sharedAt` right below it,
+  never typed: `{ kind: 'pi', n: '1e400' }` rendered "It holds the last Infinity PIs". Only
+  `kind`/`n` are ever read, numerically, so no script could ride in — but a value the banner
+  prints is a value this pass pins. Now: kind must be `pi` or `sprint`, `n` is floored and
+  clamped to `[1, MAX_SPRINT_NO]`, a stray key goes, and a non-object or unknown kind is
+  dropped (the banner then says nothing about a window). A well-formed range counts no repair.

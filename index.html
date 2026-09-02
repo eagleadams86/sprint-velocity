@@ -3063,6 +3063,25 @@ function sanitizeIds(data) {
     if (!Number.isFinite(n)) { delete data.sharedAt; sanitizeIds.pruned++; }
     else if (n !== data.sharedAt) { data.sharedAt = n; sanitizeIds.pruned++; }
   }
+  /* And the range, which the same banner reads through shareRangeNote(): a
+     kind the note knows and a whole number of at least one, capped where the
+     sprint numbers are. It crossed un-pinned until 2026-09-01, and
+     `{ kind: 'pi', n: '1e400' }` printed "It holds the last Infinity PIs". No
+     script could ride in — only `kind` and `n` are read, numerically — but a
+     value the banner prints is a value this pass pins. An unknown kind, or
+     anything that is not an object, is dropped rather than repaired: the banner
+     then says nothing about a window, the honest reading of one it cannot name. */
+  if ('range' in data) {
+    const r = data.range;
+    const kind = r && typeof r === 'object' && (r.kind === 'pi' || r.kind === 'sprint') ? r.kind : null;
+    const n = kind ? Number(r.n) : NaN;
+    if (!kind || Number.isNaN(n)) { delete data.range; sanitizeIds.pruned++; }
+    else {
+      const pinned = { kind, n: Math.min(MAX_SPRINT_NO, Math.max(1, Math.floor(n))) };
+      if (Object.keys(r).length !== 2 || r.n !== pinned.n) sanitizeIds.pruned++;
+      data.range = pinned;
+    }
+  }
 
   /* A team pointing at an ART that isn't in the same payload is un-grouped rather
      than dropped: unlike an orphaned sprint it changes no figure — every number in

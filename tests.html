@@ -6337,6 +6337,28 @@ t('the typed forecast fields still refuse anything that is not a number', () => 
   eq(w.sanitizeIds.pruned, 2, 'both counted — the drop and the pin — so boot writes the clean copy once');
 });
 
+group('the share range crosses the boundary pinned (2026-09-01 audit)');
+t('the range is two pinned values, like the label and the date beside it', () => {
+  const base = { teams: [], arts: [], pis: [], sprints: [], settings: {} };
+  const pin = (range) => w.sanitizeIds(Object.assign({}, base, { range })).range;
+  eq(pin({ kind: 'pi', n: '1e400' }), { kind: 'pi', n: 999 },
+     'an absurd count is clamped to the sprint-number ceiling — it used to print "the last Infinity PIs"');
+  eq(pin({ kind: 'sprint', n: 2.7 }), { kind: 'sprint', n: 2 }, 'a fraction is floored');
+  eq(pin({ kind: 'pi', n: 0 }), { kind: 'pi', n: 1 }, 'and nothing goes below one');
+  eq(pin({ kind: 'pi', n: -1e400 }), { kind: 'pi', n: 1 });
+  eq(pin({ kind: 'sprint', n: 10 }), { kind: 'sprint', n: 10 }, 'a real window is untouched');
+  eq(pin({ kind: 'pi', n: 2, note: '<b>hi</b>' }), { kind: 'pi', n: 2 }, 'a stray key on it goes');
+  const dropped = (range) => !('range' in w.sanitizeIds(Object.assign({}, base, { range })));
+  ok(dropped({ kind: 'sentence', n: 2 }), 'an unknown kind is dropped');
+  ok(dropped({ kind: 'pi', n: 'two' }), 'and so is a count that is not a number');
+  ok(dropped('the last 2 PIs'), 'and anything that is not an object');
+  ok(dropped(null));
+  eq(w.shareRangeNote({ kind: 'pi', n: 999 }), ' It holds the last 999 PIs — earlier history isn’t included.',
+     'what the banner prints at the ceiling — a number, never Infinity');
+  w.sanitizeIds(Object.assign({}, base, { range: { kind: 'pi', n: 2 } }));
+  eq(w.sanitizeIds.pruned, 0, 'a well-formed range counts as no repair');
+});
+
 async function run() {
   w = document.getElementById('app').contentWindow;
   /* A frame that never got the app is a SETUP problem — the folder isn't being
