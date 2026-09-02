@@ -1606,6 +1606,13 @@ its own — Charles asked for the two to match, and the two apps share their chr
   writing anything — this suite is read-only about storage and must stay that way.
 - **Ends are disabled rather than hidden**: a button that vanishes at the top of a list makes
   the row jump and moves the delete under the pointer.
+- **A PI row's count says what it is counting** (2026-09-02). It read a bare "17 sprints",
+  four lines under the section's own note saying *Each PI holds 6 sprints* — so "6 sprints"
+  beside PI 2026.1 read as a PI that was full, and 17 as one holding three times what a PI
+  can hold. The figure was right throughout: it is every TEAM's sprints in that PI, which is
+  the sentence the Delete PI dialog has always used ("17 sprints across 4 teams are in this
+  PI"). The row says the same thing now, and an empty PI reads "No sprints yet" rather than
+  "0 sprints across 0 teams". Nothing else on the row moved.
 - **`moveInList` restores focus after the re-render**, or moving something with the keyboard
   loses your place entirely — the row is rebuilt, so the focused button no longer exists. If
   it lands disabled, focus goes to its opposite number on the same row.

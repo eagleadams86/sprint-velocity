@@ -10875,10 +10875,23 @@ function renderManage() {
       <td>${rowActs('art', a, i, state.arts.length)}</td></tr>`).join('')
     : '<tr><td class="muted">No ARTs yet.</td></tr>';
 
-  F('piRows').innerHTML = state.pis.length ? state.pis.map((p, i) => `
+  /* ── "17 sprints" ACROSS HOW MANY TEAMS ──────────────────────────────────
+     The count is every team's sprints in that PI, and it sat four lines under
+     a note reading "Each PI holds 6 sprints" — so "6 sprints" beside PI 2026.1
+     read as a PI that was full, and PI 2026.3's 17 read as a PI holding three
+     times what a PI can hold. Two different meanings of one word, four lines
+     apart. The Delete PI dialog has always worded it correctly ("17 sprints
+     across 4 teams are in this PI"); this is that sentence, on the row. */
+  F('piRows').innerHTML = state.pis.length ? state.pis.map((p, i) => {
+    const inPi = state.sprints.filter(s => s.piId === p.id);
+    const teamsHit = new Set(inPi.map(s => s.teamId)).size;
+    return `
     <tr>${nameCell('pi', p, i)}
-      <td class="muted">${plural(state.sprints.filter(s => s.piId === p.id).length, 'sprint')}</td>
-      <td>${rowActs('pi', p, i, state.pis.length)}</td></tr>`).join('')
+      <td class="muted">${inPi.length
+        ? `${plural(inPi.length, 'sprint')} across ${plural(teamsHit, 'team')}`
+        : 'No sprints yet'}</td>
+      <td>${rowActs('pi', p, i, state.pis.length)}</td></tr>`;
+  }).join('')
     : '<tr><td class="muted">No PIs yet.</td></tr>';
 
   /* The teams table wires its own — see renderManageTeamRows. What is left is the

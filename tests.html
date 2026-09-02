@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 440;
+const EXPECTED = 441;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -3474,6 +3474,32 @@ t('three sections, each headed by its name and ruled off from the one above', ()
      'and none above the first, where it would underline the window’s own heading');
   eq([...dlg.querySelectorAll('.row.spread')].filter(r => r.style.marginTop).length, 0,
      'and no heading row carries an inline margin — the spacing is the section’s');
+});
+/* ── A PI row's count says what it is counting ──────────────────────────────
+   It read a bare "17 sprints", four lines under a note saying "Each PI holds 6
+   sprints" — so "6 sprints" read as a PI that was full and 17 as one holding
+   three times what a PI can hold. The figure was right all along: it is every
+   team's sprints in that PI, which is what the Delete PI dialog has always said
+   out loud. Held against the sentence, not the number. */
+t('a PI row says how many teams its sprints are spread across', () => {
+  const fixture = {
+    teams: [{ id: 'ft1', name: 'One' }, { id: 'ft2', name: 'Two' }],
+    arts: [], pis: [{ id: 'fp1', name: 'PI One' }, { id: 'fp2', name: 'PI Two' }],
+    sprints: [
+      { id: 'fs1', teamId: 'ft1', piId: 'fp1', sprintNumber: 1 },
+      { id: 'fs2', teamId: 'ft1', piId: 'fp1', sprintNumber: 2 },
+      { id: 'fs3', teamId: 'ft2', piId: 'fp1', sprintNumber: 1 }
+    ]
+  };
+  withState(fixture, () => {
+    w.renderManage();
+    const cells = [...w.document.querySelectorAll('#piRows tr')]
+      .map(tr => tr.children[1].textContent.trim());
+    eq(cells[0], '3 sprints across 2 teams',
+       'the count is every team’s sprints in that PI, and the row says so');
+    eq(cells[1], 'No sprints yet',
+       'and an empty PI says nothing is in it rather than "0 sprints across 0 teams"');
+  });
 });
 t('every row carries an editable name box rather than a Rename button', () => withManageRows(() => {
   eq(w.document.querySelectorAll('#manageDialog [data-rename-team], #manageDialog [data-rename-art], '

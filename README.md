@@ -951,6 +951,11 @@ pointer, and moving something with the keyboard keeps your place on it.
 Adding is the same shape: **+ Add** puts a row in with a working default name and lands the
 cursor in it, already selected, so typing replaces it.
 
+**A PI row says how many teams its sprints are spread across** — "17 sprints across 4
+teams", not a bare "17 sprints". A PI holds six sprints *per team*, and the count beside its
+name is every team's, so the row says which it means rather than leaving the two readings
+four lines apart.
+
 **The three lists are ruled off from each other**, each under its own heading, the way the
 **Targets** window and both of Flow Metrics' settings windows are. A hairline between
 sections is the whole of it — it says where one list stops without adding a colour, a box or
