@@ -6291,6 +6291,31 @@ t('a PI window never carries history from before the first PI', () => {
      'a SPRINT window still reaches back across the boundary — that one counts sprints, not PIs');
 });
 
+group('a sprint number carried across teams (2026-09-01 audit)');
+t('a sprint number a PI has no slot for is read as Sprint 1 — picker, card and form agree', () => {
+  const fx = { teams: [{ id: 't1', name: 'Team One' }], arts: [], plans: [],
+               pis: [{ id: 'p1', name: 'PI 1' }], sprints: [] };
+  withState(fx, () => {
+    const st = w.svGet(), before = Object.assign({}, st.settings), d = w.document;
+    try {
+      /* The position a PI-less team on its sprint 16 leaves behind. */
+      st.settings.activeTeamId = 't1'; st.settings.activePiId = 'p1'; st.settings.activeSprintNum = 16;
+      w.renderSprintView();
+      eq(d.getElementById('numSel').value, '1', 'the picker is on Sprint 1');
+      ok(/no data for sprint 1 of PI 1/.test(d.getElementById('views').textContent),
+         'and the card names the slot the picker shows, not one the PI does not have');
+      d.getElementById('editSprintBtn').click();
+      eq(d.getElementById('sprintDialogTitle').textContent, 'Team One — PI 1 · Sprint 1',
+         'and Add Sprint opens that slot, with its title and its picker agreeing');
+      eq(d.getElementById('f_num').value, '1');
+      eq(st.settings.activeSprintNum, 16, 'the stored position is not rewritten — it is the reader’s');
+    } finally {
+      d.getElementById('sprintDialog').close();
+      Object.assign(st.settings, before);
+    }
+  });
+});
+
 async function run() {
   w = document.getElementById('app').contentWindow;
   /* A frame that never got the app is a SETUP problem — the folder isn't being

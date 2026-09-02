@@ -6517,7 +6517,14 @@ function renderSprintView() {
   let piId = stored && piById(stored) ? stored
     : (stored === null && (hasUnassigned || !pis.length)) ? null
     : pis.length ? pis[pis.length - 1].id : null;
-  const numSel = state.settings.activeSprintNum || 1;
+  /* Clamped to the PI's six slots. The number is kept across a team switch on
+     purpose — a working position — but a PI-less team's sprint 16 is not a slot
+     any PI has: the picker fell back to showing Sprint 1 while the card said
+     "no data for sprint 16 of PI 2026.3" and Add Sprint opened a form titled
+     Sprint 16 with Sprint 1 selected (2026-09-01). Not saved: the stored
+     position stays the reader's, and follows them back to the PI-less team. */
+  const storedNum = state.settings.activeSprintNum || 1;
+  const numSel = piId && storedNum > SPRINTS_PER_PI ? 1 : storedNum;
   const s = findSprint(team.id, piId, numSel);
   const m = s ? metrics(s) : null;
   const offerNoPi = !pis.length || hasUnassigned || piId === null;

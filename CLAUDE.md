@@ -1815,3 +1815,11 @@ cover. Each has a test now, proven to fail first by reverting the fix.
   one feature whose point is limiting what leaves the browser, the control promised less than
   it sent. Pre-PI sprints are dropped under a PI scope now; `newest < 0` (no PI at all) still
   means everything. Sprint scopes are unchanged — they count sprints.
+
+- **A sprint number a PI has no slot for reads as Sprint 1 (fix 4).** `activeSprintNum` is kept across a team switch on purpose (a working position), but a
+  PI-less team's sprint 16 carried onto a PI'd team gave three answers at once: the picker
+  showed Sprint 1 (no option matched), the empty card said "no data for sprint 16 of PI
+  2026.3", and Add Sprint opened a form titled Sprint 16 with Sprint 1 selected
+  (`editing.sprintNumber` 16, save writes S1). `renderSprintView` clamps the number it READS
+  to `SPRINTS_PER_PI` when a PI is set and does not save it — the stored position stays the
+  reader's and follows them back to the PI-less team.
