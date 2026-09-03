@@ -107,6 +107,12 @@
       var bar = document.querySelector('meta[name="theme-color"]');
       if (bar) bar.setAttribute('content', '#f5f5f3');
     }
+    /* And the pin, for the same reason as the theme: the tab row either is stuck
+       to the top or it is not, and settling that a frame late is a page that
+       visibly jumps as it opens. Only the attribute goes on here — the offset it
+       reads is measured once there is a layout to measure. */
+    if (localStorage.getItem('sv-pin') === '1')
+      document.documentElement.dataset.pin = 'on';
   } catch (e) {}
 </script>
 <link rel="stylesheet" href="theme.css">
@@ -510,10 +516,87 @@ select.ctl:hover { border-color: var(--text-muted); }
    below the row, but that symmetry only read as the tabs sitting oddly far apart
    from each other. The 20px margin below stays — that one separates the row from
    the view under it, which is a different job. */
-.tabs { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+/* The row carries the tablist and the pin button; the 20px that was the
+   tablist's own bottom margin belongs to it now, for the reason the pin block
+   further down records. */
+.tabrow { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+/* `flex: 1 1 auto` with `min-width: 0`, or a flex item will not shrink below its
+   content — and it is also what puts the pin button at the far end of the row. */
+.tabs { display: flex; gap: 12px; flex-wrap: wrap; flex: 1 1 auto; min-width: 0; }
 /* An explicit display beats the hidden attribute's UA rule, so hiding the row
-   needs saying again here. */
+   needs saying again here. render() hides the TABS, not the row around them, so
+   this is still the rule that has to exist. */
 .tabs[hidden] { display: none; }
+.tabrow[hidden] { display: none; }
+
+/* ── Pinning the tab row ────────────────────────────────────────────────────
+   Charles asked for this on 2026-09-03, having asked for it in Flow Metrics
+   first: the tab row held at the top of the window while the page scrolls under
+   it. OFF by default and toggled by the button at the end of the row — pinned
+   chrome is bought with vertical space, and that is a trade only the reader can
+   make.
+
+   THE TAB ROW AND NOTHING ELSE, which is where this differs from its sibling.
+   Flow Metrics pins the tabs AND a control strip, because that strip is shared
+   markup sitting outside the panel and means the same thing on both of its
+   number views. Everything under the tabs here is INSIDE `#views` and is
+   rewritten per view — the PI picker on Sprint, an ART picker on three of the
+   others, two toolbar cards on Compare Teams — so there is no second row that is
+   the same row from one view to the next. The tab row is the shared chrome, and
+   it is what pins.
+
+   THE OFFSET IS MEASURED, NEVER WRITTEN DOWN. The app header above this wraps to
+   two or three rows on a phone, so `top` reads a custom property that
+   measurePinTop() writes from a real rectangle — the same way `--maxi-top` is
+   written for the full-screen chart. A literal here is wrong on the first phone
+   that opens the page.
+
+   THE MARGIN BECOMES PADDING. A margin is transparent, so pinned, the page
+   scrolled through a 20px window under the row. Same 20px and the same total
+   height — so toggling causes no reflow — but owned now by the element that has
+   to paint it.
+
+   `--bg` AND NOT `--bg-card`. The header is a band deliberately lifted OFF the
+   page and wears the card colour to say so. This row sits ON the page and shows
+   `--bg` through today, so `--bg` is the one value that makes pinning change
+   nothing except "content no longer shows through". No colour is invented here.
+
+   Z-INDEX 12 IS PENNED IN ON BOTH SIDES: under the header's 20, which has to
+   stay over it, and under `#chartMaxi`'s 15, because a maximised chart covers
+   the page and `.wrap` is inert underneath it — chrome showing through would
+   look live and answer nothing. */
+.pinbtn {
+  flex: 0 0 auto; align-self: center;
+  display: flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; padding: 0; border-radius: var(--radius-sm);
+  border: 1px solid var(--border-control); background: transparent;
+  color: var(--text-secondary); cursor: pointer;
+}
+.pinbtn:hover { color: var(--text-primary); background: var(--surface-alt);
+  border-color: var(--text-secondary); }
+/* Pinned, the button wears the accent — but the ICON changes with it, so the
+   state is never resting on a hue. */
+html[data-pin] .pinbtn { color: var(--accent); border-color: var(--accent); }
+/* The icon must never be the thing that was clicked. This button rewrites its
+   own contents on press, which DETACHES the <path> a real pointer landed on, and
+   a detached node has no ancestors for anything upstream to ask about — the
+   class of bug written up against `.chart-max svg`, where it cost a folded card
+   in Money Map. A synthetic `.click()` cannot reproduce it. */
+.pinbtn svg { pointer-events: none; }
+@media (pointer: coarse) { .pinbtn { width: 40px; height: 40px; } }
+
+html[data-pin] .tabrow {
+  position: sticky; top: var(--pin-top, 0px); z-index: 12;
+  background: var(--bg);
+  margin-bottom: 0; padding-bottom: 20px;
+}
+/* Nothing in the app scrolls the page to an element — every focus() it makes
+   passes `preventScroll`. The BROWSER's own Tab-key scrolling does, though, and
+   it knows nothing about a pinned row, so a control tabbed into lands behind it.
+   `--pin-clear` is the height of everything actually stuck. */
+html[data-pin] #views :is(button, a[href], input, select, textarea, [tabindex]) {
+  scroll-margin-top: var(--pin-clear, 0px);
+}
 /* `.row` below sets `display: flex` at the SAME specificity as `[hidden]` above
    and is declared later, so on a flex row the hidden attribute did nothing at
    all — the typed-velocity boxes stayed on screen unticked, reported by Charles
@@ -1590,12 +1673,16 @@ footer .applink { margin: 0 19px 0 auto; }
 
   /* The furniture. Every one of these is a control: a printed page with a Copy
      button on it is a screenshot pretending to be a document. */
-  .skip, .tabs, .headbar > select, .headbar > button, .headbar > label,
+  .skip, .tabs, .pinbtn, .headbar > select, .headbar > button, .headbar > label,
   #toast, [data-export], .tile-help, .rowacts, #shareBar button,
   /* A full-screen chart is a thing you do to a SCREEN. On paper the page IS the
      window, and the card prints where it sits. */
   .chart-max, #chartMaxi,
   .toolbarcard { display: none !important; }
+  /* A pinned row would otherwise print ONCE, over the top of whatever the first
+     page happens to start with. `.tabs` above is hidden, but `.tabrow` outlives
+     it — it is the element carrying the sticky. */
+  .tabrow { position: static !important; }
   /* Row buttons are how a table cell opens an editor; on paper they are the label
      and nothing else. Stripped to plain text rather than hidden, or every table
      would print with an empty first column. */
@@ -1837,6 +1924,12 @@ main:focus { outline: none; }
        each tab drives (aria-controls), and a single stop in the tab order rather
        than one per tab. tabindex is roved in render() alongside aria-selected;
        the arrow keys are wired at the foot of the page. -->
+  <!-- The row carries the tablist AND the pin button beside it. The button
+       cannot go INSIDE the tablist — a non-tab child there is a lie about what
+       the thing is — and the 20px that was the tablist's own bottom margin
+       belongs to the row now: pinned, that margin is the band the page scrolls
+       through, and only the element carrying it can paint it. -->
+  <div class="tabrow">
   <div class="tabs" role="tablist" aria-label="Views">
     <button class="tab" role="tab" id="tab-sprint"  aria-controls="views" data-view="sprint"  aria-selected="true"  tabindex="0">Sprint</button>
     <button class="tab" role="tab" id="tab-pi"      aria-controls="views" data-view="pi"      aria-selected="false" tabindex="-1">Team PI</button>
@@ -1845,6 +1938,12 @@ main:focus { outline: none; }
     <button class="tab" role="tab" id="tab-trend"   aria-controls="views" data-view="trend"   aria-selected="false" tabindex="-1">PI Trend</button>
     <button class="tab" role="tab" id="tab-art"     aria-controls="views" data-view="art"     aria-selected="false" tabindex="-1">PI by Team</button>
     <button class="tab" role="tab" id="tab-teams"   aria-controls="views" data-view="teams"   aria-selected="false" tabindex="-1">Compare Teams</button>
+  </div>
+    <!-- Dressed by dressPinBtn() — icon, accessible name and title all change
+         together, and there is no aria-pressed on top of them: the state would
+         then be announced twice and the two would have to be kept in agreement.
+         The same rule the full-screen button follows. -->
+    <button type="button" class="pinbtn" id="pinBtn"></button>
   </div>
 
   <!-- The tabpanel role goes on an inner div, not on <main> itself: putting it on
@@ -5972,6 +6071,118 @@ document.addEventListener('keydown', (e) => {
   maxiStep(e.key === 'ArrowRight' ? 1 : -1);
 });
 
+/* ── Pinning the tab row ────────────────────────────────────────────────────
+   The CSS is up in "Pinning the tab row"; this is the one measurement it reads
+   and the button that turns it on. Ported from Flow Metrics on 2026-09-03 at
+   Charles's word, and simpler than its copy there: that app pins a shared
+   control strip along with the tabs, and everything under the tabs here lives
+   inside `#views` and is rewritten per view, so the row is the whole band.
+
+   ONE ATTRIBUTE, ONE MEASURED OFFSET. `data-pin` on <html> is the whole state —
+   the head script sets it before first paint so the page doesn't jump — and
+   `--pin-top` / `--pin-clear` are where the row is told to stop and how far a
+   tabbed-to control has to clear it. Measured, because there is no number to
+   write down: the app header wraps to two or three rows on a phone. */
+
+/* Inline SVG for the reason MAXI_ICON gives — a glyph is a different size in
+   every platform's font, and an <img> is a fetch on a page that ships its own
+   CSP. Named by what PRESSING does, because that is what the button's accessible
+   name says too. */
+const PIN_ICON = {
+  pin:   '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"'
+       + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"'
+       + ' focusable="false"><path d="M7 4h10"/><path d="M9 4v6l-3 3v2h12v-2l-3-3V4"/>'
+       + '<path d="M12 17v5"/></svg>',
+  unpin: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"'
+       + ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"'
+       + ' focusable="false"><path d="M7 4h10"/><path d="M9 4v6l-3 3v2h12v-2l-3-3V4"/>'
+       + '<path d="M12 17v5"/><path d="M3 3l18 18"/></svg>'
+};
+
+/* Asked of the CASCADE rather than of a saved flag: it answers for the pin being
+   off and for the row not being on the page at all — a shared view with the tabs
+   hidden — with one question and no branch of its own. */
+const pinStuck = () => {
+  const row = document.querySelector('.tabrow');
+  return !!row && getComputedStyle(row).position === 'sticky';
+};
+
+function measurePinTop() {
+  const root = document.documentElement;
+  const head = document.querySelector('header');
+  const row = document.querySelector('.tabrow');
+  const h = head ? head.getBoundingClientRect().height : 0;
+  /* Zero when nothing is stuck, which is what makes the unpinned page and a
+     hidden tab row fall out with no branch of their own. */
+  const b = pinStuck() ? row.getBoundingClientRect().height : 0;
+  root.style.setProperty('--pin-top', `${Math.round(h)}px`);
+  /* Plus a little, so a control tabbed into isn't flush against the row. */
+  root.style.setProperty('--pin-clear', `${Math.round(h + b + 8)}px`);
+}
+
+function savedPin() {
+  try { return localStorage.getItem('sv-pin') === '1'; }
+  catch (e) { return false; }   /* private mode: the app draws, just unpinned */
+}
+
+/* The visible icon and the accessible name say the same thing — what pressing
+   this will DO next — and there is no aria-pressed on top of them: the state
+   would then be announced twice and the two would have to be kept in agreement.
+   The same rule the full-screen button follows. */
+function dressPinBtn() {
+  const btn = document.getElementById('pinBtn');
+  if (!btn) return;
+  const on = !!document.documentElement.dataset.pin;
+  btn.innerHTML = on ? PIN_ICON.unpin : PIN_ICON.pin;
+  btn.setAttribute('aria-label', on
+    ? 'Unpin the tabs — let them scroll with the page'
+    : 'Pin the tabs to the top of the page');
+  btn.title = on ? 'Unpin the tabs' : 'Pin the tabs to the top';
+}
+
+function applyPin(on) {
+  try { localStorage.setItem('sv-pin', on ? '1' : '0'); } catch (e) {}
+  if (on) document.documentElement.dataset.pin = 'on';
+  else delete document.documentElement.dataset.pin;
+  measurePinTop();
+  dressPinBtn();
+  if (pinWatch) {
+    pinWatch.disconnect();
+    if (on) {
+      pinWatch.observe(document.querySelector('header'));
+      pinWatch.observe(document.querySelector('.tabrow'));
+    }
+  }
+  /* NO render(). Nothing about the markup changes — this is paint and position
+     and nothing else — so the toggle keeps the reader's scroll place and their
+     focus, and no chart is rebuilt. */
+}
+
+/* Both boxes change height for reasons that are not a window resize: a longer
+   team name wrapping the header, a tab appearing when the team gains a sprint,
+   the row going away in a shared view. An observer catches every one without a
+   list of call sites to keep in step. Connected only while the pin is on. */
+const pinWatch = ('ResizeObserver' in window)
+  ? new ResizeObserver(() => measurePinTop()) : null;
+
+if (document.getElementById('pinBtn')) {
+  document.getElementById('pinBtn').onclick =
+    () => applyPin(!document.documentElement.dataset.pin);
+}
+/* The header and the row re-wrap on a resize whether or not the observer is
+   connected, and the offset is read on every paint. */
+addEventListener('resize', measurePinTop);
+/* A web font arriving after first paint changes both of these heights. */
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(measurePinTop);
+/* The attribute is already on <html> from the head script; this hangs the
+   observer and the icon off it, and measures once there is a layout. */
+applyPin(savedPin());
+
+/* For tests.html: the state and the door, so the suite can drive the real thing
+   rather than a copy of its reasoning. */
+window.svPin = { apply: applyPin, on: () => !!document.documentElement.dataset.pin,
+                 stuck: pinStuck, measure: measurePinTop };
+
 /* ── Living through a re-render ─────────────────────────────────────────────
    render() calls these two around its rewrite of #views. Between them nothing is
    painted, so the window never flickers: the card comes down, the markup holding
@@ -6513,6 +6724,7 @@ function render() {
   if (!state.teams.length) {
     if (state.settings.forecastPlanning && !viewOnly) renderPlanning(); else renderWelcome();
     maxiResume(wasMaxi);
+    measurePinTop();
     return;
   }
 
@@ -6526,6 +6738,12 @@ function render() {
   /* After the view, because that is where the charts are built and a card with
      no chart under it offers no button. */
   maxiResume(wasMaxi);
+  /* renderTabs() takes tabs away and puts them back, which rewraps the row and
+     changes the height `--pin-clear` is written from. The ResizeObserver in
+     applyPin sees this too; the call is here as well because an observer is
+     delivered with the next rendering step, and a render in a background window
+     has no next rendering step until the reader comes back to it. */
+  measurePinTop();
 }
 
 /* Which views are worth offering, and which one is on screen. A tab is only ever

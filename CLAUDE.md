@@ -1578,6 +1578,45 @@ carry the feature:**
 `chartIn(card)` are top-level function declarations, so the suite drives the
 real thing through the frame's window.
 
+## Pinning the tab row (2026-09-03)
+
+**The tab row held at the top of the window while the page scrolls under it**,
+off by default and toggled from a 📌 at the end of the row. Asked for in Flow
+Metrics first and mirrored here at Charles's word, so a change belongs in both —
+and in Money Map, which has the same button. `data-pin` on `<html>` set by the
+head script before first paint, `--pin-top` measured from the header's real
+rectangle, `sv-pin` in localStorage.
+
+- **THE TAB ROW AND NOTHING ELSE, and that is the difference from Flow Metrics.**
+  That app pins its tabs together with a control strip, because the strip is
+  shared markup outside the panel meaning the same thing on both its number
+  views. Everything under the tabs HERE is inside `#views` and is rewritten per
+  view — the PI picker on Sprint, an ART picker on three of the others, two
+  toolbar cards on Compare Teams — so there is no second row that is the same row
+  from one view to the next. Pinned by an assertion that the row's next sibling
+  IS `#views`, so a later port of the sibling's second row cannot happen by
+  accident.
+- **The margin became padding.** A margin is transparent, so pinned, the page
+  scrolled through a 20px window under the row. Same 20px, same total height —
+  which is what makes the toggle cost no reflow, asserted by measuring the view's
+  top and the document height both ways.
+- **`measurePinTop()` runs at the end of `render()`**, both exits, as well as
+  from the ResizeObserver: `renderTabs()` takes tabs away and puts them back,
+  which rewraps the row, and **an observer is delivered with the next rendering
+  step, which a background window does not have**.
+- **Z-index 12 is penned in on both sides**: under the header's 20 and under
+  `#chartMaxi`'s 15, because a maximised chart covers the page and `.wrap` is
+  inert underneath it.
+
+**No phone rule, deliberately.** Flow Metrics needs one because it pins two rows
+and has to drop one on a phone; there is only one row here. The cost is real and
+stated in the README instead: about 210px of header and 170 of wrapped tabs at
+375px, which is nearly half the screen — the reader can see it the moment they
+press and press again.
+
+Its own `t()` with its own 1280x900 frame: the shared frame is 1px wide, and a
+sticky offset measured there is measuring nothing.
+
 ## Stepping between charts in full screen (2026-09-03)
 
 **A `‹` and a `›` beside the ⤢ walk the charts on the view without coming back

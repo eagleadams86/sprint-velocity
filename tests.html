@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 442;
+const EXPECTED = 443;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -6362,6 +6362,111 @@ t('the arrows walk the charts on the view without coming back down', async () =>
     ok(!overlay.classList.contains('has-nav'),
        'and its heading keeps the room the arrows would have taken');
     W.closeMaxi();
+  } finally { f.remove(); }
+});
+
+/* ── Pinning the tab row ─────────────────────────────────────────────────────
+   Charles, 2026-09-03, having asked for it in Flow Metrics first: the tab row
+   held at the top of the window while the page scrolls under it, off until the
+   reader asks. THE TAB ROW AND NOTHING ELSE here — everything below the tabs
+   lives inside `#views` and is rewritten per view, so there is no second row
+   that is the same row from one view to the next, which is the difference from
+   the sibling and is asserted below.
+
+   ITS OWN FRAME, at a real size, for the same reason the full-screen tests have
+   one: the shared frame is 1px wide, and a sticky offset measured there is
+   measuring nothing. */
+t('the tab row can be pinned to the top', async () => {
+  const f = document.createElement('iframe');
+  f.setAttribute('data-sv-tests', '');
+  f.setAttribute('aria-hidden', 'true');
+  f.style.cssText = 'position:absolute;left:-9999px;width:1280px;height:900px;border:0';
+  await new Promise((resolve) => {
+    f.onload = resolve;
+    f.src = 'index.html?pin=' + Date.now();
+    document.body.appendChild(f);
+  });
+  try {
+    const W = f.contentWindow, D = W.document;
+    W.save = () => {};
+    W.confirm = () => true;
+    W.alert = () => {};
+    W.loadSample();
+    await new Promise((r) => setTimeout(r, 400));
+    W.scrollTo(0, 0);
+
+    const cs = (el) => W.getComputedStyle(el);
+    const rect = (el) => el.getBoundingClientRect();
+    const prop = (n) => cs(D.documentElement).getPropertyValue(n).trim();
+    const row = D.querySelector('.tabrow');
+    const btn = D.getElementById('pinBtn');
+    const head = D.querySelector('header');
+    const views = D.getElementById('views');
+
+    ok(!!row && !!btn, 'the page carries the row and the button');
+    ok(row.contains(D.querySelector('[role="tablist"]')) && row.contains(btn),
+       'the button is a SIBLING of the tablist inside the row — a non-tab child of a '
+       + 'tablist is a lie about what the thing is');
+    /* The difference from Flow Metrics, stated as an assertion so a later port of
+       its second row cannot happen by accident: nothing outside `#views` but the
+       row is pinnable here, because nothing else outside it is shared. */
+    ok(row.nextElementSibling === views,
+       'and the row is the last thing before the view — there is no shared strip '
+       + 'under it to pin, the way the sibling app has');
+
+    W.svPin.apply(false);
+    await new Promise((r) => setTimeout(r, 150));
+    eq(cs(row).position, 'static', 'unpinned, the row is in the flow like any other block');
+    ok(/^Pin the tabs/.test(btn.getAttribute('aria-label')),
+       'and the button says what pressing it will DO', btn.getAttribute('aria-label'));
+    const offTop = Math.round(rect(views).top + W.scrollY);
+    const offDoc = D.documentElement.scrollHeight;
+
+    /* A REAL press, not `applyPin`: the button rewrites its own icon, which
+       detaches whatever the pointer landed on — the class of bug that folded a
+       card in Money Map, and the reason `.pinbtn svg` is `pointer-events: none`. */
+    const r0 = rect(btn);
+    const hit = D.elementFromPoint(Math.round(r0.left + r0.width / 2),
+                                   Math.round(r0.top + r0.height / 2));
+    ok(hit === btn, 'what a pointer hits in the middle of the button IS the button',
+       hit && hit.tagName + '.' + hit.className);
+    hit.dispatchEvent(new W.MouseEvent('click', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 250));
+
+    ok(!!D.documentElement.dataset.pin, 'pressing it pins');
+    eq(W.localStorage.getItem('sv-pin'), '1', 'and remembers it for the next visit');
+    eq(cs(row).position, 'sticky', 'the row is stuck');
+    eq(prop('--pin-top'), Math.round(rect(head).height) + 'px',
+       'exactly where the header ends — MEASURED, because that row wraps to two or '
+       + 'three lines on a phone');
+    ok(Number(cs(row).zIndex) > 4 && Number(cs(row).zIndex) < 15,
+       'painted under the header and under a full-screen chart, which covers the page',
+       cs(row).zIndex);
+    ok(/^Unpin the tabs/.test(btn.getAttribute('aria-label')),
+       'and the button now says how to get out', btn.getAttribute('aria-label'));
+    /* The margin became padding, which is what keeps the 20px band inside the box
+       that has to paint it — and what makes the toggle cost no reflow. */
+    eq(cs(row).marginBottom, '0px', 'its margin was swapped for padding');
+    eq(cs(row).paddingBottom, '20px', 'the same 20px, so the total height is unchanged');
+    eq(Math.round(rect(views).top + W.scrollY), offTop,
+       'and NOTHING MOVED: the view is where it was');
+    eq(D.documentElement.scrollHeight, offDoc, 'and the page is the same height');
+    ok(parseFloat(prop('--pin-clear')) >= Math.round(rect(row).height),
+       'a control tabbed into clears the whole row, not just the header',
+       prop('--pin-clear'));
+
+    /* A render throws `#views` away and rebuilds it, and renderTabs() can take a
+       tab away with it — so the offset is re-read at the end of every render and
+       not only when the observer happens to be delivered. */
+    D.querySelector('.tab[data-view="rolling"]').click();
+    await new Promise((r) => setTimeout(r, 400));
+    eq(cs(row).position, 'sticky', 'a change of view leaves the row pinned');
+    eq(prop('--pin-top'), Math.round(rect(head).height) + 'px', 'and still measured');
+
+    W.svPin.apply(false);
+    await new Promise((r) => setTimeout(r, 150));
+    eq(W.localStorage.getItem('sv-pin'), '0', 'unpinning is remembered too');
+    eq(cs(row).position, 'static', 'and the row is back in the flow');
   } finally { f.remove(); }
 });
 

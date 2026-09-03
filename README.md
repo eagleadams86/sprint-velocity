@@ -598,6 +598,22 @@ same feature, and the same behaviour, as in the sibling Flow Metrics app.
 The last three look **across** teams rather than into the one you've selected, so they sit
 apart from the other four in the tab row.
 
+**Pin the tab row to the top.** The 📌 at its far end holds the row against the top of the
+window while the page scrolls underneath, so you can change view from halfway down a long
+one without scrolling back up. **It is off until you ask for it**, because pinned chrome is
+bought with vertical space and only you can make that trade; press it again to let the row
+scroll away, and it is remembered for next time. Nothing else moves when you pin — the page
+is exactly the height it was. It is the same feature, and the same button, as in Money Map
+and Flow Metrics.
+
+**The row, and nothing under it.** Flow Metrics pins its tabs together with the control
+strip beneath them, because that strip is shared and means the same thing on both of its
+views. Everything under the tabs here belongs to the view you are on — the PI picker on
+Sprint, an ART picker on three of the others, two toolbar cards on Compare Teams — so there
+is no second row that is the same row from one view to the next. On a phone the cost is
+worth knowing before you press it: the header takes about 210px there and the seven tabs
+wrap to roughly 170 more, so nearly half the screen is chrome while it is pinned.
+
 They also share **one ART picker**, and it starts on *All ARTs*. That is worth saying out
 loud, because it is what the names of these three tabs are careful *not* to claim: **PI by
 Team** covers every team you have until you narrow it, and **Compare Teams** covers only
