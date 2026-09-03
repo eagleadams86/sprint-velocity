@@ -597,6 +597,30 @@ html[data-pin] .tabrow {
 html[data-pin] #views :is(button, a[href], input, select, textarea, [tabindex]) {
   scroll-margin-top: var(--pin-clear, 0px);
 }
+
+/* ── ONE ROW THAT SCROLLS SIDEWAYS, NOT THREE THAT WRAP ─────────────────────
+   Asked for by Charles on 2026-09-03, straight after the pin and for the pin's
+   sake: the seven tabs need about 800px to sit on one line, so on a phone they
+   wrapped to three rows — 170px of a screen whose header already takes 210, and
+   pinned that was nearly half the window given over to chrome before a figure
+   appeared. One row that scrolls sideways is 42px, and renderTabs() nudges the
+   chosen tab into view so the one you are on is never off an end.
+
+   THE PIN BUTTON IS NOT IN THE SCROLLER. It sits in `.tabrow` beside the
+   tablist, which is the whole reason that wrapper exists — inside `.tabs` it
+   would scroll away with them, and a control you have to go looking for is worse
+   than one that costs a row.
+
+   Harmless when the tabs fit: a nowrap flex row with `overflow-x: auto` only
+   scrolls when there is something to scroll. 820px is where the seven of them
+   stop fitting, measured rather than guessed — six come to 670 and the button
+   another 38. Money Map has drawn its tabs this way since it grew them; this is
+   the same rule. */
+@media (max-width: 820px) {
+  .tabs { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px;
+    scrollbar-width: thin; }
+  .tab { flex: 0 0 auto; white-space: nowrap; }
+}
 /* `.row` below sets `display: flex` at the SAME specificity as `[hidden]` above
    and is declared later, so on a flex row the hidden attribute did nothing at
    all — the typed-velocity boxes stayed on screen unticked, reported by Charles
@@ -6829,6 +6853,24 @@ function renderTabs() {
        view below costs one press rather than four. */
     t.tabIndex = on ? 0 : -1;
   });
+  /* On a phone the row scrolls sideways instead of wrapping, so the chosen tab
+     can sit off an end. Nudged only when it actually is — a row that re-centres
+     on a tab you can already see would shuffle on every render — and by
+     RECTANGLE rather than offsetLeft, whose offsetParent is the page, so those
+     numbers and `scrollLeft` are in different frames. Never `scrollIntoView`:
+     that is free to scroll the PAGE as well to satisfy the vertical axis, and
+     jumping the reader down the page on a tab press is not what was asked for.
+     On a desktop the row never overflows and this is a no-op. Money Map's rule,
+     and its arithmetic. */
+  const bar = document.querySelector('.tabs');
+  const chosen = bar && bar.querySelector(`.tab[data-view="${view}"]`);
+  if (chosen && bar.scrollWidth > bar.clientWidth) {
+    const b = bar.getBoundingClientRect(), t = chosen.getBoundingClientRect();
+    if (b.width > 0) {
+      if (t.left < b.left) bar.scrollLeft += t.left - b.left;
+      else if (t.right > b.right) bar.scrollLeft += t.right - b.right;
+    }
+  }
   /* The panel is labelled by its tab — unless the row is hidden, in which case
      naming it after a control nobody can see would be reading out a word that is
      not on the screen. Money Map's rule, and its wording. */

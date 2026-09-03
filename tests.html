@@ -6463,6 +6463,48 @@ t('the tab row can be pinned to the top', async () => {
     eq(cs(row).position, 'sticky', 'a change of view leaves the row pinned');
     eq(prop('--pin-top'), Math.round(rect(head).height) + 'px', 'and still measured');
 
+    /* ── At phone width the row is ONE line that scrolls ───────────────────
+       The other half of the same sum, added the same day: seven tabs need about
+       800px to sit on one line, so on a phone they wrapped to three rows — 170px
+       of a screen whose header already takes 210, which pinned was nearly half
+       the window. The frame is narrowed rather than a second one booted, so this
+       is the real rule firing rather than a string found in the source. */
+    f.style.width = '375px';
+    f.style.height = '812px';
+    await new Promise((r) => setTimeout(r, 350));
+    const bar = D.querySelector('.tabs');
+    eq(cs(bar).flexWrap, 'nowrap', 'at phone width the tab row does not wrap');
+    ok(bar.scrollWidth > bar.clientWidth,
+       'it scrolls sideways instead — there is more row than window',
+       bar.scrollWidth + ' vs ' + bar.clientWidth);
+    /* Measured against a TAB rather than against a number: the row also carries
+       the pin's 20px band and a scrollbar here, so a literal would be pinning
+       those as much as the thing it is about. */
+    const oneTab = rect(bar.querySelector('.tab')).height;
+    ok(rect(bar).height < oneTab * 2,
+       'so the tabs are one line rather than three',
+       Math.round(rect(bar).height) + 'px against a ' + Math.round(oneTab) + 'px tab');
+    eq(btn.parentElement, row,
+       'and the pin button is OUTSIDE the scroller, or it would scroll away with '
+       + 'the tabs and have to be gone looking for');
+    /* The nudge: choose the last tab and it comes into view, and the PAGE does
+       not move — `scrollIntoView` would have satisfied the vertical axis too. */
+    const tabsOn = [...bar.querySelectorAll('.tab')].filter((t) => !t.hidden);
+    const last = tabsOn[tabsOn.length - 1];
+    W.scrollTo(0, 0);
+    last.click();
+    await new Promise((r) => setTimeout(r, 400));
+    const bBox = bar.getBoundingClientRect(), tBox = last.getBoundingClientRect();
+    ok(tBox.left >= bBox.left - 1 && tBox.right <= bBox.right + 1,
+       'the chosen tab is nudged into view when it would sit off an end',
+       Math.round(tBox.left - bBox.left) + '..' + Math.round(tBox.right - bBox.right));
+    eq(W.scrollY, 0, 'and the page itself did not move to do it');
+
+    f.style.width = '1280px';
+    f.style.height = '900px';
+    await new Promise((r) => setTimeout(r, 350));
+    eq(cs(bar).flexWrap, 'wrap', 'and with room the row wraps as it always did');
+
     W.svPin.apply(false);
     await new Promise((r) => setTimeout(r, 150));
     eq(W.localStorage.getItem('sv-pin'), '0', 'unpinning is remembered too');

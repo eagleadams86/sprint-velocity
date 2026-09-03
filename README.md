@@ -610,9 +610,14 @@ and Flow Metrics.
 strip beneath them, because that strip is shared and means the same thing on both of its
 views. Everything under the tabs here belongs to the view you are on — the PI picker on
 Sprint, an ART picker on three of the others, two toolbar cards on Compare Teams — so there
-is no second row that is the same row from one view to the next. On a phone the cost is
-worth knowing before you press it: the header takes about 210px there and the seven tabs
-wrap to roughly 170 more, so nearly half the screen is chrome while it is pinned.
+is no second row that is the same row from one view to the next.
+
+**On a phone the tab row is one line that scrolls sideways**, rather than three that wrap.
+The seven tabs need about 800px to sit in a line, so they used to stack to three rows —
+170px of a screen whose header already takes 210, which pinned was nearly half the window
+gone before a figure appeared. One scrolling row is 42px, and the tab you choose is nudged
+into view if it would sit off an end. The 📌 stays put beside them rather than scrolling
+away with them. Money Map has drawn its tabs this way since it grew them.
 
 They also share **one ART picker**, and it starts on *All ARTs*. That is worth saying out
 loud, because it is what the names of these three tabs are careful *not* to claim: **PI by

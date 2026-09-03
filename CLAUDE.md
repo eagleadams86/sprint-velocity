@@ -1608,11 +1608,25 @@ rectangle, `sv-pin` in localStorage.
   `#chartMaxi`'s 15, because a maximised chart covers the page and `.wrap` is
   inert underneath it.
 
-**No phone rule, deliberately.** Flow Metrics needs one because it pins two rows
-and has to drop one on a phone; there is only one row here. The cost is real and
-stated in the README instead: about 210px of header and 170 of wrapped tabs at
-375px, which is nearly half the screen — the reader can see it the moment they
-press and press again.
+**No phone rule for the PIN, deliberately.** Flow Metrics needs one because it
+pins two rows and has to drop one on a phone; there is only one row here.
+
+**The tabs themselves became one scrolling row instead** (2026-09-03, asked for
+the same day and for the pin's sake). Seven tabs need about 800px in a line — six
+come to 670 and the button another 38 — so on a phone they wrapped to three rows,
+170px against a header of 210, which pinned was nearly half the screen. `nowrap`
+plus `overflow-x: auto` under 820px makes it 42, and it is harmless where they
+fit: a nowrap row only scrolls when there is something to scroll.
+- **The pin button is NOT in the scroller**, which is the whole reason `.tabrow`
+  exists as a wrapper — inside `.tabs` it would scroll away with them.
+- **renderTabs() nudges the chosen tab into view**, only when it is actually off
+  an end (a row that re-centres on a tab you can see shuffles on every render),
+  by RECTANGLE and not `offsetLeft` (whose offsetParent is the page, so the two
+  numbers are in different frames), and **never `scrollIntoView`** — that is free
+  to scroll the PAGE to satisfy the vertical axis. Money Map's arithmetic.
+- **The suite measures the row against a TAB, not against a number**: the row
+  also carries the pin's 20px band and a scrollbar, so a literal would be pinning
+  those as much as the thing it is about.
 
 Its own `t()` with its own 1280x900 frame: the shared frame is 1px wide, and a
 sticky offset measured there is measuring nothing.
