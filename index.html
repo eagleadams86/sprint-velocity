@@ -1199,9 +1199,23 @@ td.trend { white-space: nowrap; color: var(--text-secondary); }
    what lets a flex child actually shrink rather than pushing the card past the
    bottom of the window; `height: auto` undoes the fixed 320, or the 260 of a
    `.short` box. The <figure> the Sprint view wraps its box in is made a flex
-   column too, or the box inside it would have nothing to grow into. */
+   column too, or the box inside it would have nothing to grow into.
+
+   `min-width: 0` is the same word for the other axis, and it is here because the
+   overlay is a flex ROW. Without it a flex item's automatic minimum size is its
+   MIN-CONTENT width — and a Chart.js canvas carries a width in its own style
+   attribute, so a card that arrives remembering a wider box keeps it and hangs
+   over the padding, taking the heading's ⤢ with it. It arrives remembering one
+   because maximising lifts a card out of #views and the page below reflows:
+   Rolling 5's second chart goes full width when the first leaves, and does it
+   with no scrollbar, because `body.maxi-open` has just taken it away. `.wrap`
+   pads by 16 and this overlay by 20, so that card comes back eight pixels wider
+   than the window has room for, and the band jumps as you step between the two.
+   Money Map reported it on 2026-09-03 and the whole family was checked; Flow
+   Metrics, the starter and Golf Handicap take the word as hardening because
+   nothing on their pages ever goes full width. */
 #chartMaxi > .card { flex: 1 1 auto; display: flex; flex-direction: column;
-  min-height: 0; width: auto; margin: 0; }
+  min-height: 0; min-width: 0; width: auto; margin: 0; }
 #chartMaxi > .card > figure { flex: 1 1 auto; display: flex; flex-direction: column;
   min-height: 0; }
 #chartMaxi .chartbox { flex: 1 1 auto; height: auto; min-height: 0; }

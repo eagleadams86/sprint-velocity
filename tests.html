@@ -6314,6 +6314,34 @@ t('the arrows walk the charts on the view without coming back down', async () =>
     await new Promise((r) => setTimeout(r, 200));
     ok(W.maxiCard() === cards[1], 'and the first steps back to the last');
 
+    /* ── AND THE BAND DOES NOT MOVE WHILE YOU WALK ──────────────────────────
+       Money Map reported this on 2026-09-03 and Rolling 5 had it too. The
+       overlay is a flex ROW, so the card's automatic minimum size is its
+       MIN-CONTENT width, and a Chart.js canvas carries a width in its own style
+       attribute — a card that arrives remembering a wider box keeps it and hangs
+       over the padding, taking the ⤢ with it. It arrives remembering one because
+       maximising lifts a card out of #views and the page below reflows: the
+       chart left behind goes full width, and does it with no scrollbar, because
+       `body.maxi-open` has just taken it away. `min-width: 0` on the maximised
+       card is the fix; this measures BOTH charts against the window's own edge,
+       because what a reader sees is the difference between them. */
+    const innerRight = Math.round(overlay.getBoundingClientRect().right
+      - parseFloat(W.getComputedStyle(overlay).paddingRight));
+    ok(innerRight > 1000,
+       'the frame really laid the overlay out \u2014 a window measured at nothing '
+       + 'would agree with every card about everything', innerRight);
+    const drift = [];
+    for (let i = 0; i < 2; i++) {
+      const up = W.maxiCard();
+      const right = Math.round(up.getBoundingClientRect().right);
+      if (right !== innerRight) drift.push(W.maxiName(up) + ' at ' + right);
+      nextArrow.click();
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    ok(drift.length === 0,
+       'both charts fill the window to the very same edge, so the band of buttons '
+       + 'above them never moves', drift.join('; ') + ' \u2014 want ' + innerRight);
+
     /* A render throws #views away and builds it again; maxiResume puts the card
        back BY CANVAS ID, and the arrows have to be re-read after that and not
        before, or they are read against an empty overlay. */
