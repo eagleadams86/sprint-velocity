@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 441;
+const EXPECTED = 442;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -6228,6 +6228,143 @@ t('a chart fills the window under a header that stays live', async () => {
   } finally { f.remove(); }
 });
 
+/* ── Walking the charts on this view without coming back down ────────────────
+   Charles, 2026-09-03: arrows beside the leave-full-screen button that step
+   through the charts on the screen you came from. Here that screen is `#views`,
+   which this app rewrites wholesale for each tab — so the walk can never step
+   into a tab the reader is not looking at, and Rolling 5 is the view with two
+   charts on it to walk between.
+
+   The arrows live in the OVERLAY, not in a card, and that is what this test is
+   really for: `#views` is thrown away and rebuilt on every render, so a nav
+   inside a card would go with it — and a step detaches the very button being
+   pressed, which takes the keyboard's focus to <body>.
+
+   ITS OWN FRAME, at a real size, for the same reason the test above has one. */
+t('the arrows walk the charts on the view without coming back down', async () => {
+  const f = document.createElement('iframe');
+  f.setAttribute('data-sv-tests', '');
+  f.setAttribute('aria-hidden', 'true');
+  f.style.cssText = 'position:absolute;left:-9999px;width:1280px;height:900px;border:0';
+  await new Promise((resolve) => {
+    f.onload = resolve;
+    f.src = 'index.html?walk=' + Date.now();
+    document.body.appendChild(f);
+  });
+  try {
+    const W = f.contentWindow, D = W.document;
+    W.save = () => {};
+    W.confirm = () => true;
+    W.alert = () => {};
+    W.loadSample();
+    await new Promise((r) => setTimeout(r, 300));
+
+    const overlay = D.getElementById('chartMaxi');
+    const nav = D.getElementById('maxiNav');
+    const prevArrow = D.getElementById('maxiPrev');
+    const nextArrow = D.getElementById('maxiNext');
+    const shown = (el) => W.getComputedStyle(el).display !== 'none';
+    const nameUp = () => W.maxiName(W.maxiCard());
+
+    ok(nav.parentElement === overlay,
+       'the arrows are the overlay\u2019s own and not a card\u2019s \u2014 #views is thrown '
+       + 'away on every render, and a nav inside a card would go with it');
+    ok(!shown(nav), 'and they are not on the page while nothing is filling the window');
+    eq(D.querySelectorAll('#views .chart-max').length,
+       [...D.querySelectorAll('#views .card')].filter(c => c.querySelector('.chartbox canvas')).length,
+       'the arrows are not counted as chart buttons \u2014 still one of those per chart');
+
+    /* Rolling 5 is the view with two charts on it. */
+    D.querySelector('.tab[data-view="rolling"]').click();
+    await new Promise((r) => setTimeout(r, 400));
+    const cards = [...D.querySelectorAll('#views .card')].filter(c => c.querySelector('.chartbox canvas'));
+    eq(cards.length, 2, 'Rolling 5 draws two charts, so there is a walk to take');
+
+    cards[0].querySelector(':scope > .chart-max').click();
+    await new Promise((r) => setTimeout(r, 300));
+    ok(shown(nav), 'the arrows appear when a chart fills the window');
+    ok(overlay.classList.contains('has-nav'), 'and the heading is told to leave room');
+    eq(W.maxiGroup().length, 2, 'both charts on the view are on the walk');
+    ok(/Next chart — /.test(nextArrow.getAttribute('aria-label')),
+       'the arrow names the chart it lands on, not just a direction',
+       nextArrow.getAttribute('aria-label'));
+
+    const svgWas = nextArrow.firstElementChild;
+    nextArrow.focus();
+    nextArrow.click();
+    await new Promise((r) => setTimeout(r, 200));
+    ok(W.maxiCard() === cards[1], 'Next steps to the chart beside it');
+    ok(D.getElementById('views').contains(cards[0]),
+       'and the one that was up is back in its own seat');
+    eq(D.querySelectorAll('.chart-slot').length, 1,
+       'with exactly one placeholder held \u2014 the seat of whatever is up now');
+    ok(D.activeElement === nextArrow,
+       'the arrow still has the keyboard, so it can be pressed again');
+    ok(nextArrow.firstElementChild === svgWas,
+       'and the arrow itself was never rebuilt under the pointer');
+    ok(overlay.classList.contains('open') && D.querySelector('.wrap').inert,
+       'the window did not come down and go back up \u2014 same window, different chart');
+    ok(W.chartIn(W.maxiCard()) !== null,
+       'and the live Chart.js instance came with the card rather than a copy being drawn');
+
+    nextArrow.click();
+    await new Promise((r) => setTimeout(r, 200));
+    ok(W.maxiCard() === cards[0], 'the last chart steps forward to the first');
+    prevArrow.click();
+    await new Promise((r) => setTimeout(r, 200));
+    ok(W.maxiCard() === cards[1], 'and the first steps back to the last');
+
+    /* A render throws #views away and builds it again; maxiResume puts the card
+       back BY CANVAS ID, and the arrows have to be re-read after that and not
+       before, or they are read against an empty overlay. */
+    const upWas = nameUp();
+    W.render();
+    await new Promise((r) => setTimeout(r, 400));
+    eq(nameUp(), upWas, 'a re-render leaves the same chart filling the window');
+    ok(shown(nav), 'and the arrows are still there afterwards');
+    eq(W.maxiGroup().length, 2, 'with the walk read again rather than remembered');
+
+    /* The arrow keys do the same, but never out of a control: the team picker is
+       in the header and stays live over a maximised chart on purpose. */
+    /* BY NAME from here on, not by the element: the render above threw `#views`
+       away and built it again, so every card captured before it is a node that
+       is no longer in the document. */
+    const keyFrom = nameUp();
+    D.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    await new Promise((r) => setTimeout(r, 200));
+    ok(nameUp() !== keyFrom, 'Right steps to the next chart', nameUp());
+    D.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    await new Promise((r) => setTimeout(r, 200));
+    eq(nameUp(), keyFrom, 'and Left steps back');
+    const picker = D.querySelector('header select');
+    picker.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    await new Promise((r) => setTimeout(r, 200));
+    eq(nameUp(), keyFrom,
+       'an arrow pressed in a header picker is the picker\u2019s, not the walk\u2019s');
+
+    W.closeMaxi();
+    await new Promise((r) => setTimeout(r, 200));
+    eq(D.querySelectorAll('.chart-slot').length, 0,
+       'closing leaves no placeholder behind');
+    ok(!shown(nav), 'and the arrows go with the window');
+    ok(!overlay.classList.contains('has-nav'),
+       'so nothing is left holding space beside a heading');
+
+    /* A view with one chart has nothing to walk, and says so by showing nothing
+       rather than looping a single card back onto itself. */
+    D.querySelector('.tab[data-view="trend"]').click();
+    await new Promise((r) => setTimeout(r, 400));
+    const solo = D.querySelector('#views .chartbox canvas').closest('.card');
+    solo.querySelector(':scope > .chart-max').click();
+    await new Promise((r) => setTimeout(r, 300));
+    eq(W.maxiGroup().length, 1, 'the PI Trend view draws one chart');
+    ok(!shown(nav), 'so there are no arrows on it');
+    ok(!overlay.classList.contains('has-nav'),
+       'and its heading keeps the room the arrows would have taken');
+    W.closeMaxi();
+  } finally { f.remove(); }
+});
+
 t('the full-screen button is furniture, so it never prints', () => {
   ok(APP_SRC, 'index.html was not read — the fetch test above must run first');
   ok(APP_SRC.includes('.chart-max, #chartMaxi,'),
@@ -6242,9 +6379,12 @@ t('a hidden full-screen button actually goes', () => {
   ok(APP_SRC.includes('.chart-max[hidden] { display: none; }'),
     'or `btn.hidden = true` records the right thing and leaves the button on screen, '
     + 'offering a chart that is not drawn — found in Money Map on 2026-08-30');
-  ok(APP_SRC.includes('.chart-max svg { pointer-events: none; }'),
+  ok(APP_SRC.includes('.chart-max svg, .maxi-step svg { pointer-events: none; }'),
     'and the icon is never the event target, so rewriting it mid-click cannot orphan '
-    + 'what a delegated handler further up will ask about');
+    + 'what a delegated handler further up will ask about \u2014 for the step arrows '
+    + 'as well as the button they sit beside');
+  ok(APP_SRC.includes('.maxi-nav[hidden] { display: none; }'),
+    'and the arrows go the same way when the view has only one chart to walk');
 });
 
 group('the sprint form, moved into a PI (2026-09-01 audit)');

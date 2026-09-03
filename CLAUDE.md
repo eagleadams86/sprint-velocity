@@ -1578,6 +1578,39 @@ carry the feature:**
 `chartIn(card)` are top-level function declarations, so the suite drives the
 real thing through the frame's window.
 
+## Stepping between charts in full screen (2026-09-03)
+
+**A `‹` and a `›` beside the ⤢ walk the charts on the view without coming back
+down.** Charles asked for it on 2026-09-03; built first in Flow Metrics and
+ported here the same day, so a change belongs in both.
+
+- **The arrows live in the OVERLAY, not in a card**, and here that is doubly
+  load-bearing. A step moves one card out and another in, and a button inside the
+  card would be detached under the pointer mid-press — a detached button takes
+  the keyboard's focus to `<body>` with it. On top of that, `#views` is thrown
+  away and rebuilt on every render, so a nav inside a card would go with it.
+- **`maxiCard()` reads `#chartMaxi > .card`, not `firstElementChild`.** The
+  overlay is no longer empty when nothing is up: it holds the arrows and the live
+  region permanently.
+- **The walk is whatever `#views` holds**, which IS the view the reader is on,
+  because this app rewrites it wholesale per tab. There is no way to step into a
+  tab they are not looking at. Rolling 5 is the only view with two charts today,
+  so it is the only place the arrows appear.
+- **A step is `detachMaxi()` + `attachMaxi()`** — the same pair `render()` uses,
+  and for the same reason: nothing is painted between them, so the window never
+  blinks and the scroll position, the inert `.wrap` and `--maxi-top` are all left
+  alone. This is the same window with a different chart in it.
+- **`maxiResume()` re-reads the arrows AFTER `attachMaxi()`, not before.**
+  `syncMaxiButtons()` runs first, while the overlay is still empty, and correctly
+  reads the walk as nothing at all.
+- **`.maxi-nav` is positioned from a sum that includes the card's 1px BORDER**
+  (20 + 1 + 13 down; + 26 + 6 across), because an absolutely positioned box is
+  offset from its containing block's *padding* box.
+
+Its own `t()` with its own 1280x900 frame. **A test that holds a card across a
+render is holding a node that no longer exists** — `#views` was rebuilt under it,
+so the assertions after the re-render compare NAMES.
+
 ## The Manage Dialog's Rows (2026-08-20)
 
 Teams, ARTs and PIs are all edited the same way now, and the same way Flow Metrics edits
