@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 449;
+const EXPECTED = 450;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -7033,7 +7033,108 @@ t('and "Delete the sprints too" counts what it dropped', () => {
   }));
 });
 
+group('Undo is reachable after a delete made inside a modal window (2026-09-03 audit)');
+/* The toast is a popover so that it can be SEEN over a modal dialog (Copy link's
+   "Copied" is the case that has to work). But everything outside a modal dialog
+   is inert, popover or not — so an Undo raised from Teams, ARTs & PIs painted
+   over the window and could not be pressed, focused or tabbed to, and its ten
+   seconds ran out before Done was reached. A toast with a button now WAITS for
+   the window to close and starts its clock then; a notice with nothing to press
+   still shows at once. Pressability is proved two ways an inert button fails:
+   it takes focus, and a click dispatched on what elementFromPoint finds at its
+   centre puts the thing back. */
+t('a delete inside Teams, ARTs & PIs offers its Undo once the window closes — and it works', async () => {
+  await inFrame('undomodal', {}, async (W, D) => {
+    const st = W.svGet();
+    const el = D.getElementById('toast');
+    const btn = D.getElementById('toastAction');
+    const manage = D.getElementById('manageDialog');
+    const centreHit = () => {
+      const r = btn.getBoundingClientRect();
+      return D.elementFromPoint(Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2));
+    };
+    const pressUndo = async (what) => {
+      ok(el.classList.contains('show') && !btn.hidden,
+         'the toast is up with its Undo now that the window has closed (' + what + ')');
+      btn.focus();
+      ok(D.activeElement === btn,
+         'and the button takes focus — an inert one cannot (' + what + ')');
+      const hit = centreHit();
+      ok(hit === btn, 'a pointer at its centre lands on the button itself (' + what + ')',
+         hit && (hit.id || hit.className || hit.tagName));
+      hit.dispatchEvent(new W.MouseEvent('click', { bubbles: true }));
+      await wait(300);
+    };
+    const openManage = async () => {
+      D.getElementById('manageBtn').click();
+      await wait(200);
+      ok(manage.open, 'the window is open as a modal');
+    };
+    const closeManage = async () => {
+      D.getElementById('manageCloseBtn').click();
+      await wait(200);   /* `close` is dispatched as a queued task */
+      ok(!D.querySelector('dialog[open]'), 'the window has closed');
+    };
+
+    /* A plain notice still shows at once over the window. */
+    await openManage();
+    W.toast('Copied');
+    ok(el.classList.contains('show') && btn.hidden,
+       'a notice with nothing to press shows over the window immediately');
+
+    /* A team. */
+    const teams = st.teams.length;
+    const gone = st.teams[st.teams.length - 1].name;
+    D.querySelector('#teamRows tr:last-child [data-del-team]').click();
+    await wait(300);
+    eq(st.teams.length, teams - 1, 'the team is deleted');
+    ok(btn.hidden,
+       'but no Undo is on offer while the window is open — a popover under a modal '
+       + 'dialog is inert, so it would paint and could not be pressed');
+    await closeManage();
+    ok(new RegExp(gone + ' deleted').test(D.getElementById('toastText').textContent),
+       'the toast names the team', D.getElementById('toastText').textContent);
+    await pressUndo('team');
+    eq(st.teams.length, teams, 'and Undo puts the team back');
+    eq(st.teams[st.teams.length - 1].name, gone, 'the same team');
+
+    /* An ART. */
+    await openManage();
+    const arts = st.arts.length;
+    ok(arts > 0, 'the sample has an ART to delete');
+    D.querySelector('#artRows [data-del-art]').click();
+    await wait(300);
+    eq(st.arts.length, arts - 1, 'the ART is deleted');
+    ok(btn.hidden, 'no Undo on offer while the window is open (ART)');
+    await closeManage();
+    await pressUndo('ART');
+    eq(st.arts.length, arts, 'and Undo puts the ART back');
+
+    /* A PI, kept sprints — through the nested Delete PI window, whose own close
+       must not release the toast while the window under it is still open. */
+    await openManage();
+    const pis = st.pis.length;
+    const inPi = st.sprints.filter((s) => s.piId === st.pis[0].id).length;
+    ok(inPi > 0, 'the first sample PI has sprints');
+    D.querySelector('#piRows [data-del-pi]').click();
+    await wait(200);
+    ok(D.getElementById('delPiDialog').open, 'the Delete PI window is up over the first');
+    D.getElementById('delPiKeepBtn').click();
+    await wait(300);
+    eq(st.pis.length, pis - 1, 'the PI is deleted');
+    ok(!D.getElementById('delPiDialog').open && manage.open,
+       'its window closed and Teams, ARTs & PIs is still open');
+    ok(btn.hidden, 'no Undo on offer while the outer window is open (PI)');
+    await closeManage();
+    await pressUndo('PI');
+    eq(st.pis.length, pis, 'and Undo puts the PI back');
+    eq(st.sprints.filter((s) => s.piId === st.pis[0].id).length, inPi,
+       'with its sprints grouped under it again');
+  });
+});
+
 async function run() {
+
 
 
 

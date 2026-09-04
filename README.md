@@ -1605,7 +1605,11 @@ deleted with *Keep the sprints* comes back with the grouping restored rather tha
 sprints to re-file by hand.
 
 The countdown pauses while the toast has keyboard focus, so tabbing to the button doesn't
-race it.
+race it. A delete made *inside* the **Teams, ARTs & PIs** window — a team, an ART or a PI —
+shows its Undo once you close the window, and the ten seconds start then. While a window is
+open, everything outside it is inert, so a toast raised underneath would show an Undo that
+could not be pressed and run out before you reached *Done*; the list itself already shows
+the row gone. A notice with nothing to press (Copy link's "Copied") still appears at once.
 
 The confirmation before the delete **stays** anyway. There is only ever one toast on screen —
 a second replaces the first — so Undo is an offer rather than a guarantee, and an offer isn't

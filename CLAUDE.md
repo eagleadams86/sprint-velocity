@@ -1345,7 +1345,9 @@ but Charles had ever actually signed in.)
   the page moves and the dialog doesn't, which looks like the bug whether or not it is
   there. Reproduced and confirmed fixed in iOS Safari on the simulator.
 - **The toast is a POPOVER (`popover="manual"`), and that is the only way it can be seen
-  while a dialog is open.** A modal `<dialog>` sits in the browser's TOP LAYER, which paints
+  while a dialog is open** — seen, not pressed: a popover under a modal dialog is inert like
+  everything else outside it, which is why a toast WITH A BUTTON waits for the dialog to
+  close (fix 6 of the 2026-09-03 audit, at the end of this file). A modal `<dialog>` sits in the browser's TOP LAYER, which paints
   above every z-index in the ordinary document, so a toast fired from an open dialog was
   drawn under it AND under its backdrop — invisible, indistinguishable from a button that
   does nothing. It was reported that way in Money Map, about the share dialog's "Copy link",
@@ -2038,3 +2040,19 @@ ones that need a real size boot their own 1280x900 frame through `inFrame()`.
   both sentences; `unassignPiSprints()` still returns its count, nothing reads it now. Chosen
   over teaching `undoable()` a function-valued message: one line here against a second
   message shape in two helpers with one caller for it.
+
+- **Undo is reachable after a delete made inside a modal window (fix 6).** The toast is a
+  popover so it can be SEEN over a dialog, but a popover under a modal dialog is inert like
+  everything else outside it: deleting a team, an ART or a PI from Teams, ARTs & PIs raised an
+  Undo that painted over the window and could not be pressed, focused or tabbed to, and its
+  ten seconds ran out before Done was reached. `toast()` now HOLDS a toast that carries a
+  button while any `dialog[open]` exists (`toast._held`) and a capturing `close` listener on
+  the document releases it once no dialog is open — nested windows (Delete PI inside the
+  manage window) fall out of asking again. The clock starts when it shows, so the offer is
+  open for its whole window. A notice with nothing to press still shows at once (Copy link's
+  "Copied" is the case that has to work). Not raised inside the dialog's own markup: the toast
+  is one element the whole page shares, and the window's list already shows the row gone. One
+  toast, never a queue, held or shown: a later call replaces a held one. Proved in the suite
+  by focus (an inert button cannot take it) and a click on what `elementFromPoint` finds at
+  the button's centre, and headless with a real mouse click for all three deletes; `close`
+  fires for Done, Escape and a backdrop click alike.

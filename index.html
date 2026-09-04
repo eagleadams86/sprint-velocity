@@ -5682,6 +5682,24 @@ function dropToast(el) {
    it is the right one — what it means in practice is that Undo is an offer, not a
    guarantee, which is why the confirm() before a delete stays where it is. */
 function toast(msg, action) {
+  /* HELD UNTIL THE WINDOW CLOSES (2026-09-04, from the 2026-09-03 audit) — a
+     toast with a button, raised while a modal dialog is open. Being a popover
+     puts this in the top layer, so it is SEEN over the dialog, which is why it
+     became one; but everything outside a modal dialog is inert, popover or not.
+     An Undo raised from Teams, ARTs & PIs painted over the window and could not
+     be pressed, focused or tabbed to, and its ten seconds ran out before Done
+     was reached. A notice with nothing to press still shows at once — Copy
+     link's "Copied" is the case that has to work. A toast that has to be
+     PRESSED waits for the dialog to close and starts its clock then, so the
+     offer is open for its whole window. Not raised inside the dialog's own
+     markup: the toast is one element the whole page shares, and the window's
+     own list already shows the row gone. One toast, never a queue, held or
+     shown: a later call replaces a held one too. */
+  toast._held = null;
+  if (action && document.querySelector('dialog[open]')) {
+    toast._held = { msg, action };
+    return;
+  }
   const el = document.getElementById('toast');
   const btn = document.getElementById('toastAction');
   clearTimeout(toast._t);
@@ -5737,6 +5755,21 @@ toast._go = () => {
 document.getElementById('toast').addEventListener('focusin', () => clearTimeout(toast._t));
 document.getElementById('toast').addEventListener('focusout', () => toast._go());
 window.toast = toast;
+toast._held = null;
+
+/* The held toast is released by the dialog closing. `close` does not bubble, so
+   it is caught on the way DOWN — one capturing listener for every dialog, with
+   nothing to register per window. Nested windows (Delete PI inside Teams, ARTs
+   & PIs) fall out of asking again: the toast shows only once NO dialog is open,
+   so the inner window's close leaves it held for the outer one's. `close` is a
+   queued task and fires after the `open` attribute has gone, which is what the
+   check reads. */
+document.addEventListener('close', () => {
+  const held = toast._held;
+  if (!held || document.querySelector('dialog[open]')) return;
+  toast._held = null;
+  toast(held.msg, held.action);
+}, true);
 
 /* ═══════════════════════════════ Charts ═══════════════════════════════════
    Chart.js reads its colours from the CSS custom properties so the themes stay in
