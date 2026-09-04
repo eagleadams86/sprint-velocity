@@ -10298,6 +10298,19 @@ function goToSearchHit(h) {
   state.settings.view = h.view;
   save();
   render();
+  /* Where the keyboard is after the hit (2026-09-04). Closing the window hands
+     the focus back to whatever had it before — and after a ⌘K pressed from
+     nowhere in particular that is <body>, or the search box itself, now inside
+     a closed dialog where nothing can see it. A focus on nothing the reader can
+     see goes onto the tab of the view the hit landed on (renderTabs() has just
+     had the last word on which that is), without scrolling, so the next Tab
+     press starts from where the hit took them. A focus that IS somewhere
+     visible — the Find button after a real click on it — is left alone. Flow
+     Metrics' 6183b71 is the model. */
+  const had = document.activeElement;
+  const landing = document.querySelector('.tab[data-view="' + state.settings.view + '"]');
+  if (landing && (!had || had === document.body || !had.getClientRects().length))
+    landing.focus({ preventScroll: true });
 }
 F('findBtn').onclick = () => {
   const dlg = F('searchDialog');
@@ -10310,6 +10323,16 @@ F('findBtn').onclick = () => {
   F('searchBox').focus();
 };
 F('searchBox').addEventListener('input', renderSearchResults);
+/* Enter opens the FIRST hit (2026-09-04) — the one key a search box teaches,
+   and until now the only listener on the box was `input`, so Enter did nothing.
+   The same call a click on that hit makes; with nothing matching there is
+   nothing to go to and the window stays open. Nothing else about the box
+   changes. */
+F('searchBox').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+  e.preventDefault();
+  if (searchHits[0]) goToSearchHit(searchHits[0]);
+});
 F('searchResults').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-hit]');
   if (btn && searchHits[+btn.dataset.hit]) goToSearchHit(searchHits[+btn.dataset.hit]);

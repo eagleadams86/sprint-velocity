@@ -2083,3 +2083,17 @@ The leftovers of the same audit, fixed the next day. Each has a test in a group 
   gone, no commitment to measure against". Checked before rewording: no other branch of
   `sprintPace()` returns a null `donePct`, so there is no genuinely-nothing-done case to keep the
   old words for.
+
+- **Find: Enter opens the first hit, and the keyboard lands on the landed view's tab (fix 9 —
+  the family fix, same shape in Money Map and Flow Metrics).** Only an `input` listener was
+  wired to `#searchBox`, so Enter — the one key a search box teaches — did nothing; and closing
+  the window handed the focus back to whatever had it before, which after a ⌘K from nowhere is
+  `<body>`, or the box itself inside the now-closed dialog. A `keydown` on the box now opens
+  `searchHits[0]` through `goToSearchHit()` (the same call a click makes; with nothing matching
+  there is nothing to go to and the window stays open; nothing else about the box changes).
+  `goToSearchHit()` ends by reading `document.activeElement` AFTER `render()`, because
+  `renderTabs()` has the last word on the view: body, or an element with no client rects, goes
+  onto `.tab[data-view=state.settings.view]` with `{ preventScroll: true }`. A focus that is
+  somewhere visible is left alone — the Find button after a real click on it, and also a tab of
+  the row that the hit has just unselected (Find opened from a tab, hit to another view): that
+  is Flow Metrics' 6183b71 rule kept to the letter, so the three windows stay one shape.

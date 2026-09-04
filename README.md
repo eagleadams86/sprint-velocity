@@ -1687,7 +1687,15 @@ theme picker.
 **⌕ Find** in the header — or **⌘K** / **Ctrl-K** from anywhere — opens a search box over
 everything the app holds: your teams, the ARTs they're on, every PI, every sprint, and every
 planned capacity adjustment. Type two characters and the list narrows as you go; click a
-result and the app takes you to it.
+result — or press **Enter** for the top one — and the app takes you to it.
+
+**Where the keyboard lands.** Enter in the box does what a click on the first result does;
+with nothing matching it does nothing and the window stays open. After a result, the keyboard
+is on the tab of the view you landed on — unless it was already somewhere you can see (the
+*Find* button, after a click on it), which is left where it is. The same rule as Money Map
+and Flow Metrics. (Until 2026-09-04 Enter did nothing — only typing was wired up — and after
+a result the keyboard fell on nothing in particular: the page itself, or the search box
+inside the closed window.)
 
 It's the same window, in the same place, with the same shortcut as
 [Money Map's](https://github.com/eagleadams86/financial-plan) and

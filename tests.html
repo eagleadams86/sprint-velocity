@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 452;
+const EXPECTED = 454;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -7216,6 +7216,87 @@ t('committed 0 and 13 done reads "no commitment to measure against", never "noth
        'and the Pace tile says what is missing: a commitment', text.slice(0, 400));
     ok(!/nothing recorded as done/.test(text),
        'it never claims nothing was done — 13 points were', text.slice(0, 400));
+  });
+});
+
+group('Find: Enter opens the first hit, and the keyboard lands somewhere visible (2026-09-03 audit, round two)');
+/* The family Find window (⌘K), the same shape in Money Map and Flow Metrics.
+   Two faults here: only an `input` listener was wired to the box, so Enter —
+   the one key a search box teaches — did nothing; and closing the window
+   handed the focus back to whatever had it before, which after a ⌘K pressed
+   from nowhere in particular is <body>. Enter now opens the FIRST hit with the
+   same call a click on it makes (nothing, with nothing matching), and a focus
+   on nothing the reader can see goes onto the tab of the view the hit landed on. */
+const openFind = (W, D, q) => {
+  D.getElementById('findBtn').click();
+  const box = D.getElementById('searchBox');
+  box.value = q;
+  box.dispatchEvent(new W.Event('input', { bubbles: true }));
+  return box;
+};
+const pressEnter = (W, el) =>
+  el.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+t('Enter in the Find box opens the first hit — and with nothing matching, leaves the window open', async () => {
+  await inFrame('findenter', {}, async (W, D) => {
+    const st = W.svGet();
+    const dlg = D.getElementById('searchDialog');
+    const noPi = st.teams.find((x) => x.name === 'Team No PI');
+    const box = openFind(W, D, 'zzzz-nothing');
+    ok(dlg.open && !D.querySelector('#searchResults .hit'), 'the window is open with no hits');
+    pressEnter(W, box);
+    ok(dlg.open, 'Enter with nothing matching leaves the window open — there is nothing to go to');
+    box.value = 'No PI';
+    box.dispatchEvent(new W.Event('input', { bubbles: true }));
+    const first = D.querySelector('#searchResults .hit .hitwhere');
+    ok(first && /^Team No PI — team/.test(first.textContent), 'the first hit is the team itself',
+       first && first.textContent);
+    pressEnter(W, box);
+    ok(!dlg.open, 'Enter opens the first hit: the window closes');
+    eq(st.settings.activeTeamId, noPi.id, 'and the app is on Team No PI');
+    eq(D.getElementById('teamSel').value, noPi.id, 'picker included');
+  });
+});
+t('after a hit the keyboard is on the tab of the view it landed on, not on <body>', async () => {
+  await inFrame('findfocus', {}, async (W, D) => {
+    const st = W.svGet();
+    const where = () => {
+      const a = D.activeElement;
+      return a ? (a.id || a.tagName) : 'nothing';
+    };
+    const landed = (how) => {
+      const a = D.activeElement;
+      ok(a && a !== D.body && a.classList.contains('tab') && D.querySelector('.tabs').contains(a)
+         && a.getClientRects().length > 0,
+         how + ' the keyboard is on a visible tab in the tab row, not on <body>', where());
+      eq(a.getAttribute('aria-selected'), 'true', 'and it is the tab of the view on screen');
+      eq(a.dataset.view, st.settings.view, 'the view the hit landed on');
+    };
+    /* A click on a hit. The window was opened by the button's handler, not a
+       real press on it, so nothing visible had the focus before it opened. */
+    openFind(W, D, 'Team Overcommitted');
+    D.querySelector('#searchResults .hit').click();
+    ok(!D.getElementById('searchDialog').open, 'the hit closed the window');
+    eq(st.settings.view, 'sprint', 'a team hit lands on the Sprint tab');
+    landed('after a click on a hit,');
+    /* Enter, with the box focused, on a PI hit — a different tab. Again from a
+       focus on nothing: the first hit has just put the keyboard on the Sprint
+       tab, which is somewhere visible, and a visible focus is left alone by the
+       rule (the family's, from Flow Metrics' 6183b71) even when it is a tab of
+       this row that the hit has just unselected. */
+    D.activeElement.blur();
+    const box = openFind(W, D, 'PI 2026.2');
+    box.focus();
+    pressEnter(W, box);
+    ok(!D.getElementById('searchDialog').open, 'Enter closed the window');
+    eq(st.settings.view, 'pi', 'a PI hit lands on Team PI');
+    landed('after Enter on a hit,');
+    /* A focus that is already somewhere visible is left alone: a real press on
+       the Find button puts the focus there, and the window's close hands it back. */
+    const btn = D.getElementById('findBtn');
+    btn.focus();
+    openFind(W, D, 'Team Baseline');
+    D.querySelector('#searchResults .hit').click();
+    eq(where(), 'findBtn', 'the Find button that had the focus keeps it — nothing to repair');
   });
 });
 
