@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 443;
+const EXPECTED = 444;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -6723,7 +6723,90 @@ t('the range is two pinned values, like the label and the date beside it', () =>
   eq(w.sanitizeIds.pruned, 0, 'a well-formed range counts as no repair');
 });
 
+/* ═══════════════════ Fixes From the 2026-09-03 Audit ═══════════════════════
+   A second bug audit (2026-09-03, the day the pin, the scrolling tab row and the
+   full-screen stepping shipped) found six here. Each has a test below, proven
+   to fail first against the unfixed index.html.
+
+   Most of them need a frame with a REAL size and the sample data in it, the way
+   the full-screen group's tests do: the shared frame is 1px wide, and a focus
+   ring, a sticky row or a toast measured there is measuring nothing. The helper
+   boots one per test and stubs `save`/`confirm`/`alert` before anything is
+   pressed, as that group does — this app's plan lives on the same shared
+   origin as everyone else's. */
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+async function inFrame(tag, opts, fn) {
+  const o = Object.assign({ width: 1280, height: 900, sample: true }, opts || {});
+  const f = document.createElement('iframe');
+  f.setAttribute('data-sv-tests', '');
+  f.setAttribute('aria-hidden', 'true');
+  f.style.cssText = 'position:absolute;left:-9999px;width:' + o.width + 'px;height:'
+    + o.height + 'px;border:0';
+  await new Promise((resolve) => {
+    f.onload = resolve;
+    f.src = 'index.html?' + tag + '=' + Date.now();
+    document.body.appendChild(f);
+  });
+  try {
+    const W = f.contentWindow;
+    W.save = () => {};
+    W.confirm = () => true;
+    W.alert = () => {};
+    if (o.sample) { W.loadSample(); await wait(300); }
+    await fn(W, W.document, f);
+  } finally { f.remove(); }
+}
+
+group('a step lands the keyboard on the new chart (2026-09-03 audit)');
+/* Opening with ⤢ leaves the keyboard on that ⤢. A step then moves that card
+   back into the page, which is inert while the window is up — so the browser
+   dropped focus onto <body>, and the next arrow press went to nothing. The rule:
+   a step lands focus on the arrow that pressed it, or on the new card's ⤢, never
+   on the page underneath. */
+t('an arrow key pressed on the ⤢ lands the keyboard on the new card’s ⤢', async () => {
+  await inFrame('stepfocus', {}, async (W, D) => {
+    D.querySelector('.tab[data-view="rolling"]').click();
+    await wait(400);
+    const cards = [...D.querySelectorAll('#views .card')]
+      .filter((c) => c.querySelector('.chartbox canvas'));
+    eq(cards.length, 2, 'Rolling 5 draws two charts, so there is a step to take');
+    const overlay = D.getElementById('chartMaxi');
+    const btn = cards[0].querySelector(':scope > .chart-max');
+    btn.click();
+    await wait(300);
+    ok(W.maxiCard() === cards[0], 'the first card is up');
+    ok(D.activeElement === btn, 'and opening with ⤢ leaves the keyboard on it');
+
+    D.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    await wait(200);
+    ok(W.maxiCard() === cards[1], 'Right steps to the next chart');
+    const a = D.activeElement;
+    const where = a ? (a.id || a.className || a.tagName) : 'nothing';
+    ok(a && a !== D.body && a.isConnected && overlay.contains(a),
+       'and the keyboard is still in the window — the card that went back down is '
+       + 'inert, so focus left on its ⤢ falls to <body> and the next arrow goes nowhere',
+       where);
+    ok(a === cards[1].querySelector(':scope > .chart-max'),
+       'it is on the new card’s ⤢, the button that gets out again', where);
+    D.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
+    await wait(200);
+    ok(W.maxiCard() === cards[0] && D.activeElement === btn,
+       'Left steps back, and lands on that card’s ⤢ again');
+
+    /* An arrow pressed with the keyboard keeps it: the arrows live in the overlay
+       and are never moved, so nothing here may take focus off one. */
+    const next = D.getElementById('maxiNext');
+    next.focus();
+    next.click();
+    await wait(200);
+    ok(W.maxiCard() === cards[1] && D.activeElement === next,
+       'a step button that has the keyboard keeps it');
+    W.closeMaxi();
+  });
+});
+
 async function run() {
+
   w = document.getElementById('app').contentWindow;
   /* A frame that never got the app is a SETUP problem — the folder isn't being
      served, so index.html came back 404 — and without this every test throws

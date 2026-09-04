@@ -1976,3 +1976,19 @@ cover. Each has a test now, proven to fail first by reverting the fix.
   prints is a value this pass pins. Now: kind must be `pi` or `sprint`, `n` is floored and
   clamped to `[1, MAX_SPRINT_NO]`, a stray key goes, and a non-object or unknown kind is
   dropped (the banner then says nothing about a window). A well-formed range counts no repair.
+
+## Fixes From the 2026-09-03 Audit
+
+A second audit on 2026-09-03 — the day the pin, the scrolling tab row and the
+full-screen stepping shipped — found six here. Each has a test in a group named
+"(2026-09-03 audit)", proven to fail first against the unfixed index.html; the
+ones that need a real size boot their own 1280x900 frame through `inFrame()`.
+
+- **A step never leaves the keyboard on the page underneath (fix 1).** Opening with ⤢
+  focuses that ⤢; `maxiStep()` then moved its card back into `.wrap`, which is inert while
+  the window is up, so the browser dropped focus onto `<body>` and the next arrow press went
+  to nothing. The rule, in one sentence: a step lands focus on the arrow that pressed it, or
+  on the new card's ⤢, never on the page underneath. The arrows live in the overlay and are
+  never moved, so one holding focus keeps it; `maxiStep()` now only acts when the active
+  element is gone or outside `#chartMaxi`, and focuses the new card's ⤢ with `preventScroll`
+  like every other focus() here. Family-wide: Flow Metrics and Money Map had the same fault.

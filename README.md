@@ -592,7 +592,9 @@ you left it. On a phone the card's opening paragraph steps aside so the chart ge
 room it was using. **Beside the ⤢ are a ‹ and a ›** that step through the other charts on
 the view you came from — Rolling 5 is the view with two of them — wrapping round at both
 ends; the left and right arrow keys do the same, unless the caret is in a control, where
-an arrow belongs to that control. A view with one chart shows no arrows at all. It is the
+an arrow belongs to that control. A step leaves the keyboard where the next press can use
+it — on the arrow you pressed, or on the new card's ⤢ — never on the page underneath, so a
+second arrow press keeps stepping. A view with one chart shows no arrows at all. It is the
 same feature, and the same behaviour, as in the sibling Flow Metrics app.
 
 The last three look **across** teams rather than into the one you've selected, so they sit
