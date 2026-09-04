@@ -1725,7 +1725,9 @@ header controls, no Copy/CSV buttons, no ⓘ buttons, no scope pickers.
 Nothing is re-laid-out. A print stylesheet that rearranges things is a second design to keep in
 step with the first, and it always falls behind — so what prints is what you were looking at,
 cards, charts and all, with each card kept whole across a page break and each table's heading
-row repeated on every page it runs onto.
+row repeated on every page it runs onto. A chart filling the window is brought back down
+onto the page first, so it prints in its place among the others rather than going missing
+with the full-screen furniture; it stays down afterwards.
 
 Three details are deliberate:
 

@@ -1992,3 +1992,12 @@ ones that need a real size boot their own 1280x900 frame through `inFrame()`.
   never moved, so one holding focus keeps it; `maxiStep()` now only acts when the active
   element is gone or outside `#chartMaxi`, and focuses the new card's ⤢ with `preventScroll`
   like every other focus() here. Family-wide: Flow Metrics and Money Map had the same fault.
+
+- **Printing brings a full-screen chart down first (fix 2).** `#chartMaxi` is furniture and
+  the print rules hide it — with the card still inside it — and `printForPaper()`'s re-render
+  then put the card straight back up through `maxiResume()`, so the chart the reader was
+  looking hardest at was the one missing from the sheet. `printForPaper(true)` now calls
+  `closeMaxi()` FIRST, before the Light/Sepia early return (a reader on either needs the card
+  back just the same), the way Flow Metrics' `beforePrint()` always has. Both signals reach
+  it — `beforeprint` and the `print` media change — and the card stays down afterwards. The
+  print-rule comment that said the card "prints where it sits" was wrong and is rewritten.

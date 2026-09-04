@@ -1714,7 +1714,10 @@ footer .applink { margin: 0 19px 0 auto; }
   .skip, .tabs, .pinbtn, .headbar > select, .headbar > button, .headbar > label,
   #toast, [data-export], .tile-help, .rowacts, #shareBar button,
   /* A full-screen chart is a thing you do to a SCREEN. On paper the page IS the
-     window, and the card prints where it sits. */
+     window — and printForPaper() brings the card back DOWN onto the page before
+     anything is laid out for paper, so what this hides is an empty overlay. It
+     used to say the card "prints where it sits" (2026-09-04): it sat in here,
+     hidden with it, and the print re-render put it straight back up. */
   .chart-max, #chartMaxi,
   .toolbarcard { display: none !important; }
   /* A pinned row would otherwise print ONCE, over the top of whatever the first
@@ -6708,6 +6711,16 @@ function printMetaLine(view) {
 function printForPaper(on) {
   const el = document.documentElement;
   if (on) {
+    /* A CHART FILLING THE WINDOW COMES DOWN FIRST (2026-09-04, from the
+       2026-09-03 audit). The overlay is furniture and the print rules hide it —
+       with the card still inside it — and the re-render below then put the card
+       straight back up through maxiResume(), so the one chart the reader was
+       looking hard at was the one missing from the sheet. Before the theme
+       check, not after: a Light or Sepia reader returns early below and needs
+       the card back on the page just the same. Flow Metrics' beforePrint() does
+       exactly this. It stays down afterwards — the page printed is the page
+       left, and closeMaxi() has already put the scroll and the focus back. */
+    closeMaxi();
     if (printForPaper._was === null) printForPaper._was = el.getAttribute('data-theme');
     /* Light AND Sepia are both left alone, and Sepia is the one worth stating: it
        is a deliberate choice of a paper-coloured screen, so swapping it to Light on

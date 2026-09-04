@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 444;
+const EXPECTED = 445;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -6544,7 +6544,7 @@ t('the full-screen button is furniture, so it never prints', () => {
   ok(APP_SRC, 'index.html was not read — the fetch test above must run first');
   ok(APP_SRC.includes('.chart-max, #chartMaxi,'),
     'a full-screen chart is a thing you do to a SCREEN — on paper the page IS the '
-    + 'window, and the card prints where it sits');
+    + 'window; printForPaper() brings the card down first and the empty overlay is hidden');
 });
 
 t('a hidden full-screen button actually goes', () => {
@@ -6805,7 +6805,49 @@ t('an arrow key pressed on the ⤢ lands the keyboard on the new card’s ⤢', 
   });
 });
 
+group('printing while a chart fills the window (2026-09-03 audit)');
+/* The overlay is furniture and the print rules hide it — with the card still
+   inside it. Worse, printForPaper() re-renders for the theme swap and
+   maxiResume() put the card straight back up, so the one chart the reader was
+   looking hard at was the one missing from the sheet. Flow Metrics' beforePrint()
+   calls closeMaxi() first and is the model. Sepia is tested as well as Midnight,
+   because a reader already on a paper-coloured theme returns early from the swap
+   and needs the card back on the page just the same. */
+t('printing brings a full-screen chart back down onto the page first', async () => {
+  await inFrame('printmaxi', {}, async (W, D) => {
+    const el = D.documentElement;
+    const was = el.getAttribute('data-theme');
+    try {
+      for (const theme of ['midnight', 'sepia']) {
+        el.setAttribute('data-theme', theme);
+        D.querySelector('.tab[data-view="rolling"]').click();
+        await wait(400);
+        const card = D.querySelector('#views .chartbox canvas').closest('.card');
+        const id = card.querySelector('canvas').id;
+        card.querySelector(':scope > .chart-max').click();
+        await wait(300);
+        ok(W.maxiCard() === card, 'the card is up (' + theme + ')');
+        W.dispatchEvent(new W.Event('beforeprint'));
+        await wait(300);
+        ok(!D.querySelector('#chartMaxi > .card'),
+           'beforeprint on ' + theme + ' brings the card down — hidden with the '
+           + 'overlay it would be the one chart missing from the sheet');
+        const cv = D.getElementById(id);
+        ok(cv && D.getElementById('views').contains(cv.closest('.card')),
+           'and it is back in the view, canvas and all');
+        ok(!D.querySelector('.wrap').inert, 'with the page live again');
+        eq(D.querySelectorAll('.chart-slot').length, 0, 'and no placeholder left behind');
+        W.dispatchEvent(new W.Event('afterprint'));
+        await wait(300);
+        ok(!D.querySelector('#chartMaxi > .card'),
+           'the card stays down after printing — the page printed is the page left');
+      }
+    } finally { W.printForPaper(false); el.setAttribute('data-theme', was); }
+  });
+});
+
 async function run() {
+
 
   w = document.getElementById('app').contentWindow;
   /* A frame that never got the app is a SETUP problem — the folder isn't being
