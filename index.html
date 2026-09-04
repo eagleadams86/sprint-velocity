@@ -617,7 +617,19 @@ html[data-pin] #views :is(button, a[href], input, select, textarea, [tabindex]) 
    another 38. Money Map has drawn its tabs this way since it grew them; this is
    the same rule. */
 @media (max-width: 820px) {
-  .tabs { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px;
+  /* ROOM FOR THE FOCUS RING ON EVERY SIDE (2026-09-04, from the 2026-09-03
+     audit). `overflow-x: auto` forces the vertical axis to `auto` as well, so
+     this box clips at its padding edge — and with padding on the bottom only,
+     the 2px ring at its 2px offset was sliced off along the top of every tab,
+     the left of the first and the right of the last. Money Map's `.yearrail`
+     pattern: padding gives the ring its 4px, and a matching negative margin
+     takes the same 4px back, so the box grows INWARD and nothing on the page
+     moves. The bottom keeps the 4px it already had with no margin against it —
+     that 4px was already part of the row's height, and taking it back would
+     have moved the view up by 4px and changed the pinned band `--pin-clear` is
+     measured from. Row height, tab position and the pinned band are asserted
+     unchanged in tests.html. */
+  .tabs { flex-wrap: nowrap; overflow-x: auto; padding: 4px; margin: -4px -4px 0;
     scrollbar-width: thin; }
   .tab { flex: 0 0 auto; white-space: nowrap; }
 }
@@ -6909,8 +6921,15 @@ function renderTabs() {
   if (chosen && bar.scrollWidth > bar.clientWidth) {
     const b = bar.getBoundingClientRect(), t = chosen.getBoundingClientRect();
     if (b.width > 0) {
-      if (t.left < b.left) bar.scrollLeft += t.left - b.left;
-      else if (t.right > b.right) bar.scrollLeft += t.right - b.right;
+      /* Against the PADDING edge, not the box's (2026-09-04): the phone rule
+         gives the row 4px of padding so the focus ring has room, and a tab
+         landed flush with the outer edge is landed on the clip line — the End
+         key would bring the last tab in with its ring sliced off the right. */
+      const cs = getComputedStyle(bar);
+      const left = b.left + (parseFloat(cs.paddingLeft) || 0);
+      const right = b.right - (parseFloat(cs.paddingRight) || 0);
+      if (t.left < left) bar.scrollLeft += t.left - left;
+      else if (t.right > right) bar.scrollLeft += t.right - right;
     }
   }
   /* The panel is labelled by its tab — unless the row is hidden, in which case

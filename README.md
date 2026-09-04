@@ -619,7 +619,10 @@ The seven tabs need about 800px to sit in a line, so they used to stack to three
 170px of a screen whose header already takes 210, which pinned was nearly half the window
 gone before a figure appeared. One scrolling row is 42px, and the tab you choose is nudged
 into view if it would sit off an end. The 📌 stays put beside them rather than scrolling
-away with them. Money Map has drawn its tabs this way since it grew them.
+away with them. Money Map has drawn its tabs this way since it grew them. The row keeps
+4px of room round the tabs for the keyboard focus ring, on every side — it used to be
+clipped along the top and at the two ends — and the row is exactly the height it was, so
+the pinned band and everything under it are where they were.
 
 They also share **one ART picker**, and it starts on *All ARTs*. That is worth saying out
 loud, because it is what the names of these three tabs are careful *not* to claim: **PI by

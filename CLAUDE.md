@@ -1623,7 +1623,9 @@ fit: a nowrap row only scrolls when there is something to scroll.
   an end (a row that re-centres on a tab you can see shuffles on every render),
   by RECTANGLE and not `offsetLeft` (whose offsetParent is the page, so the two
   numbers are in different frames), and **never `scrollIntoView`** — that is free
-  to scroll the PAGE to satisfy the vertical axis. Money Map's arithmetic.
+  to scroll the PAGE to satisfy the vertical axis. Money Map's arithmetic — against
+  the scroller's PADDING edge since 2026-09-04, so a nudged tab lands with its
+  focus ring's room rather than on the clip line (fix 3 below).
 - **The suite measures the row against a TAB, not against a number**: the row
   also carries the pin's 20px band and a scrollbar, so a literal would be pinning
   those as much as the thing it is about.
@@ -2001,3 +2003,18 @@ ones that need a real size boot their own 1280x900 frame through `inFrame()`.
   back just the same), the way Flow Metrics' `beforePrint()` always has. Both signals reach
   it — `beforeprint` and the `print` media change — and the card stays down afterwards. The
   print-rule comment that said the card "prints where it sits" was wrong and is rewritten.
+
+- **The phone tab row has room for the focus ring on every side (fix 3).** `.tabs` under
+  820px is `overflow-x: auto`, which forces the vertical axis to `auto` too, so the scroller
+  clips at its padding box — and with `padding-bottom: 4px` only, the 2px ring at its 2px
+  offset was sliced off along the top of every tab, the left of the first and the right of the
+  last. Money Map's `.yearrail` pattern: `padding: 4px` with `margin: -4px -4px 0` — the
+  three sides that GAINED padding are pulled back by the same amount, so the box grows inward
+  and nothing moves; the bottom keeps the 4px it already had, with no margin against it,
+  because that 4px was already the row's own height and taking it back would have moved the
+  view up 4px and changed `--pin-clear`. Measured before and after at 375px: row 46px
+  unpinned and 66px pinned, view top 284px, `--pin-clear` 206/272px, first tab at (16, 218) —
+  all identical. The nudge in `renderTabs()` aims at the padding edge for the same reason: a
+  tab brought in by End used to land flush with the box, ring clipped by the very key a
+  keyboard reader presses. The test asserts the 4px on all four sides, the row's height and
+  the tab's place in it, and the nudge.

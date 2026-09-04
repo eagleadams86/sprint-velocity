@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 445;
+const EXPECTED = 446;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -6846,7 +6846,87 @@ t('printing brings a full-screen chart back down onto the page first', async () 
   });
 });
 
+group('the phone tab row has room for the focus ring (2026-09-03 audit)');
+/* `overflow-x: auto` forces the vertical axis to `auto` as well, so the scroller
+   clips at its padding box — and with padding on the bottom only, the 2px ring
+   at its 2px offset was sliced off along the top of every tab, the left of the
+   first and the right of the last. Money Map's `.yearrail` has the answer: the
+   padding gives the ring its room and a matching negative margin takes it back,
+   so nothing on the page moves. The row's height and the tab's place in it are
+   asserted, not just the room. */
+t('at phone width the ring has 4px inside the scroller on every side, and nothing moved', async () => {
+  await inFrame('ringroom', { width: 375, height: 812 }, async (W, D) => {
+    const rect = (el) => el.getBoundingClientRect();
+    const bar = D.querySelector('.tabs');
+    const row = D.querySelector('.tabrow');
+    eq(W.getComputedStyle(bar).flexWrap, 'nowrap', 'the frame is at phone width');
+    ok(bar.scrollWidth > bar.clientWidth, 'and the row scrolls', bar.scrollWidth + ' vs ' + bar.clientWidth);
+    const tabs = [...bar.querySelectorAll('.tab')].filter((t) => !t.hidden);
+    const first = tabs[0], last = tabs[tabs.length - 1];
+    /* The ring is 2px at a 2px offset (`:focus-visible` at the top of the
+       stylesheet), so 4px is the room it needs. Not read back here: the rule
+       only applies while a tab is focused, and a programmatic focus in an
+       off-screen frame is not reliably `:focus-visible`. */
+    bar.scrollLeft = 0;
+    await wait(50);
+    const inset = (a, b) => Math.round(a - b);
+    ok(inset(rect(first).top, rect(bar).top) >= 4,
+       'the first tab is 4px inside the scroller at the TOP — the ring was sliced off there',
+       inset(rect(first).top, rect(bar).top));
+    ok(inset(rect(first).left, rect(bar).left) >= 4,
+       'and 4px inside it on the LEFT', inset(rect(first).left, rect(bar).left));
+    ok(inset(rect(bar).bottom, rect(first).bottom) >= 4,
+       'and the 4px below stays', inset(rect(bar).bottom, rect(first).bottom));
+    bar.scrollLeft = bar.scrollWidth;
+    await wait(50);
+    ok(inset(rect(bar).right, rect(last).right) >= 4,
+       'scrolled to the end, the last tab is 4px inside on the RIGHT',
+       inset(rect(bar).right, rect(last).right));
+    ok(bar.clientHeight >= Math.round(rect(first).height) + 8,
+       'the scrollport covers the tab plus 4px above and below',
+       bar.clientHeight + ' for a ' + Math.round(rect(first).height) + 'px tab');
+    /* The NUDGE has to know about the room too: renderTabs() brings a chosen tab
+       in from off an end, and landing it flush with the box's edge is landing it
+       on the clip line — a keyboard reader pressing End is exactly who the ring
+       is for. Half a pixel of slack for sub-pixel tab widths. */
+    bar.scrollLeft = 0;
+    W.scrollTo(0, 0);
+    last.click();
+    await wait(400);
+    ok(rect(bar).right - rect(last).right >= 3.5,
+       'a tab nudged in from the right lands 4px inside, with its ring room',
+       rect(bar).right - rect(last).right);
+    bar.scrollLeft = bar.scrollWidth;
+    first.click();
+    await wait(400);
+    ok(rect(first).left - rect(bar).left >= 3.5,
+       'and one nudged in from the left the same', rect(first).left - rect(bar).left);
+    /* NOTHING MOVED: the room is inside the box, not added to the page. */
+    bar.scrollLeft = 0;
+    await wait(50);
+    eq(Math.round(rect(first).top), Math.round(rect(row).top),
+       'the tab still sits at the top of the row — the room did not push it down');
+    eq(Math.round(rect(row).bottom), Math.round(rect(bar).bottom),
+       'and the row ends where the scroller ends — it did not grow');
+    ok(inset(rect(bar).left, rect(row).left) < 0 && inset(rect(row).left, rect(first).left) === 0,
+       'the scroller reaches 4px past the row for the ring; the first tab is still on the '
+       + 'row’s own left edge', inset(rect(bar).left, rect(row).left));
+    /* The pinned band measures the row, and the row is the same height. */
+    const unpinnedH = Math.round(rect(row).height);
+    W.svPin.apply(true);
+    await wait(150);
+    const head = D.querySelector('header');
+    eq(W.getComputedStyle(D.documentElement).getPropertyValue('--pin-clear').trim(),
+       Math.round(rect(head).height + rect(row).height + 8) + 'px',
+       'the clearance is measured from the pinned row');
+    eq(Math.round(rect(row).height), unpinnedH + 20,
+       'and the pinned band is the row plus its 20px — the ring’s room added nothing');
+    W.svPin.apply(false);
+  });
+});
+
 async function run() {
+
 
 
   w = document.getElementById('app').contentWindow;
