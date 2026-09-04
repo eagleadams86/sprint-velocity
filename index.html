@@ -7261,8 +7261,13 @@ function renderSprintView() {
         ${inFlight ? `
         ${tile('Done so far', fmtNum(m.committedCompleted), null,
           `of ${fmtNum(m.committed)} committed points`, false, 'doneSoFar')}
-        ${pace ? tile('Pace', pace.label, pace.rag, pace.donePct === null
-          ? `${fmtPct(pace.elapsedPct)} of the sprint gone, nothing recorded as done yet`
+        ${/* A null donePct has ONE cause — sprintPace() answers it only for a
+             commitment of 0, which leaves no ratio to judge pace against — and
+             the sentence used to read it as "nothing recorded as done yet",
+             beside a Done-so-far tile showing 13 (2026-09-04, from the
+             2026-09-03 audit). It names what is actually missing now. */
+          pace ? tile('Pace', pace.label, pace.rag, pace.donePct === null
+          ? `${fmtPct(pace.elapsedPct)} of the sprint gone, no commitment to measure against`
           : `${fmtPct(pace.donePct)} of the commitment done, ${fmtPct(pace.elapsedPct)} of the sprint gone`,
           false, 'pace')
         : tile('Committed', fmtNum(m.committed), null, 'points signed up for')}

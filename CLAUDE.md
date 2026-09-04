@@ -2075,3 +2075,11 @@ The leftovers of the same audit, fixed the next day. Each has a test in a group 
   reader chose a new PI to record its first sprint in. The stored PI is not rewritten, like the
   stored number (fix 4 above): it is the reader's working position, waiting for them on the team
   they chose it on. A team with no sprints at all keeps it too, so Add Sprint opens in that PI.
+
+- **A running sprint with no commitment says so (fix 8).** `sprintPace()` answers
+  `donePct: null` in exactly one case — a commitment of 0, which leaves no ratio to judge pace
+  against — and the Pace tile's sentence read that null as "nothing recorded as done yet",
+  beside a Done-so-far tile showing 13. One sentence, one cause: it now reads "N% of the sprint
+  gone, no commitment to measure against". Checked before rewording: no other branch of
+  `sprintPace()` returns a null `donePct`, so there is no genuinely-nothing-done case to keep the
+  old words for.

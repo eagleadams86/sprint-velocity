@@ -469,7 +469,9 @@ overridden sprint stops looking after itself, and the form says so.
 
 While a sprint is running the Sprint view swaps the result tiles for a progress read: points
 done so far, **pace** (how much of the commitment is done against how much of the sprint has
-elapsed — a rough guide, since work lands in lumps near the end), and break-in and removed
+elapsed — a rough guide, since work lands in lumps near the end; a sprint committed at 0
+has no ratio to judge, so the tile says "no commitment to measure against" rather than
+pretending nothing was done), and break-in and removed
 flagged against the usual 15% target, because those *are* meaningful mid-sprint. The
 capacity target points at the running sprint and sits next to what the team actually
 committed, so an over-commitment can be descoped now rather than carried over later.

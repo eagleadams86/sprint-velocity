@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 451;
+const EXPECTED = 452;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -7177,6 +7177,45 @@ t('switching to Team No PI shows its PI-less sprints; switching back returns to 
     eq(D.getElementById('piSel').value, piB.id, 'back on Team Live Sprint the picker is on PI 2026.3 again');
     eq(D.getElementById('numSel').value, '4', 'on sprint 4');
     ok(/Team Live Sprint — PI 2026\.3 · S4/.test(views()), 'with that sprint’s card on screen', views().slice(0, 120));
+  });
+});
+
+group('a running sprint with no commitment says so (2026-09-03 audit, round two)');
+/* sprintPace() answers donePct: null in exactly one case — a commitment of 0,
+   which leaves no ratio to judge pace against — and the Pace tile read that null
+   as "nothing recorded as done yet", beside a Done-so-far tile showing 13. The
+   sentence now names the thing that is actually missing. A fresh frame, because
+   the sprint has to be running TODAY for the tile to exist at all. */
+t('committed 0 and 13 done reads "no commitment to measure against", never "nothing recorded as done"', async () => {
+  await inFrame('pace0', { sample: false }, async (W, D) => {
+    /* The app's todayISO() is a const arrow, out of the frame's reach; this is
+       the same local-date arithmetic. */
+    const shift = (days) => {
+      const d = new Date();
+      d.setDate(d.getDate() + days);
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+        + '-' + String(d.getDate()).padStart(2, '0');
+    };
+    const st = W.svGet();
+    st.teams.push({ id: 'pz1', name: 'Team Zero Commit' });
+    st.sprints.push({ id: 'pzs1', teamId: 'pz1', piId: null, sprintNumber: 1,
+      startDate: shift(-5), endDate: shift(8),
+      committed: 0, committedCompleted: 13, totalCompleted: 13,
+      added: 13, removed: 0, carriedIn: 0, carriedOut: 0 });
+    st.settings.activeTeamId = 'pz1'; st.settings.activePiId = null;
+    st.settings.activeSprintNum = 1; st.settings.view = 'sprint';
+    W.render();
+    const pace = W.sprintPace(st.sprints[0]);
+    ok(pace && pace.donePct === null, 'a zero commitment gives no done-percentage to judge by', pace);
+    const text = D.getElementById('views').textContent.replace(/\s+/g, ' ');
+    const tileOf = (label) => [...D.querySelectorAll('#views .tile')]
+      .find((el) => el.querySelector('.label').textContent.trim().startsWith(label));
+    eq(tileOf('Done so far').querySelector('.value').textContent.trim(), '13',
+       'the Done-so-far tile shows the 13 points');
+    ok(/of the sprint gone, no commitment to measure against/.test(text),
+       'and the Pace tile says what is missing: a commitment', text.slice(0, 400));
+    ok(!/nothing recorded as done/.test(text),
+       'it never claims nothing was done — 13 points were', text.slice(0, 400));
   });
 });
 
