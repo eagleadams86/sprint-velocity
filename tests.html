@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 446;
+const EXPECTED = 447;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -6925,7 +6925,60 @@ t('at phone width the ring has 4px inside the scroller on every side, and nothin
   });
 });
 
+group('a page with no tabs has no pin button either (2026-09-03 audit)');
+/* renderTabs() hid `.tabs` while there were no teams, but the 📌 sits in the
+   `.tabrow` round them — so the welcome card, the Forecast Ahead page and a
+   broken share link's page all carried one lone pin button, and pinned it became
+   a 46px sticky band holding one button. The ROW goes now, and pinStuck() asks
+   `hidden` as well as the cascade: a computed `position` is still `sticky` on a
+   row that is display:none. */
+t('the welcome card, Forecast Ahead and a broken link show no lone 📌', async () => {
+  await inFrame('lonepin', { sample: false }, async (W, D) => {
+    const row = D.querySelector('.tabrow');
+    const btn = D.getElementById('pinBtn');
+    const head = D.querySelector('header');
+    const prop = (n) => W.getComputedStyle(D.documentElement).getPropertyValue(n).trim();
+    const shown = (el) => W.getComputedStyle(el).display !== 'none'
+      && el.getBoundingClientRect().width > 0;
+    ok(D.getElementById('welcomeSampleBtn'), 'the frame opened on the welcome card');
+    ok(!shown(D.querySelector('.tabs')), 'with no tabs');
+    ok(!shown(row), 'and no tab ROW — the row is what carries the pin button');
+    ok(!shown(btn), 'so there is no lone 📌 over the welcome card');
+
+    W.svPin.apply(true);
+    await wait(150);
+    ok(!W.svPin.stuck(), 'pinned, a hidden row is not "stuck" — nothing is');
+    eq(prop('--pin-clear'), (Math.round(head.getBoundingClientRect().height) + 8) + 'px',
+       'and the clearance is the header alone, with no band counted for a row nobody sees');
+    ok(!shown(row) && !shown(btn), 'pinning does not conjure the row up');
+
+    D.getElementById('welcomePlanBtn').click();
+    await wait(300);
+    ok(D.getElementById('planBackBtn'), 'Forecast Ahead is up');
+    ok(!shown(row) && !shown(btn), 'and it has no row and no lone 📌 either');
+    D.getElementById('planBackBtn').click();
+    await wait(300);
+
+    W.loadSample();
+    await wait(400);
+    ok(shown(row) && shown(btn), 'with teams the row is back, pin button and all');
+    ok(W.svPin.stuck(), 'and pinned, it is stuck');
+    ok(parseFloat(prop('--pin-clear')) > head.getBoundingClientRect().height + 8,
+       'with the band counted again', prop('--pin-clear'));
+
+    W.renderShareError('broken');
+    W.svPin.measure();
+    await wait(100);
+    ok(/Couldn’t Be Opened/.test(D.getElementById('views').textContent),
+       'the broken-link page is up');
+    ok(!shown(row) && !shown(btn), 'and it shows no lone 📌');
+    ok(!W.svPin.stuck(), 'nor a stuck row');
+    W.svPin.apply(false);
+  });
+});
+
 async function run() {
+
 
 
 

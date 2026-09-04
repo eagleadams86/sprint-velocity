@@ -646,8 +646,9 @@ behind the door it opens.
 
 ### The First Thing You See
 
-With no teams yet there are no tabs and no team picker — just one card in the middle of
-the page:
+With no teams yet there are no tabs, no 📌 beside them and no team picker — just one card
+in the middle of the page (the same is true of Forecast Ahead, and of the page a broken
+share link lands on):
 
 > **Welcome to Sprint Predictability**
 >

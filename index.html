@@ -523,9 +523,10 @@ select.ctl:hover { border-color: var(--text-muted); }
 /* `flex: 1 1 auto` with `min-width: 0`, or a flex item will not shrink below its
    content — and it is also what puts the pin button at the far end of the row. */
 .tabs { display: flex; gap: 12px; flex-wrap: wrap; flex: 1 1 auto; min-width: 0; }
-/* An explicit display beats the hidden attribute's UA rule, so hiding the row
-   needs saying again here. render() hides the TABS, not the row around them, so
-   this is still the rule that has to exist. */
+/* An explicit display beats the hidden attribute's UA rule, so hiding either
+   needs saying again here. renderTabs() hides the row AND the tabs together
+   while there are no teams (since 2026-09-04 — hiding the tabs alone left the
+   row's 📌 standing on its own), so both rules have to exist. */
 .tabs[hidden] { display: none; }
 .tabrow[hidden] { display: none; }
 
@@ -6167,12 +6168,16 @@ const PIN_ICON = {
        + '<path d="M12 17v5"/><path d="M3 3l18 18"/></svg>'
 };
 
-/* Asked of the CASCADE rather than of a saved flag: it answers for the pin being
-   off and for the row not being on the page at all — a shared view with the tabs
-   hidden — with one question and no branch of its own. */
+/* Asked of the CASCADE rather than of a saved flag, so the pin being off falls
+   out with no branch of its own — and of `hidden`, because a row that is not on
+   the page is not stuck either, and the cascade cannot say so: a computed
+   `position` is still `sticky` on a row that is display:none. That second
+   question was missing until 2026-09-04, when this comment believed the row
+   was already off the page wherever the tabs were hidden; it never was — only
+   the tabs inside it were, which is what left a lone 📌 on the welcome card. */
 const pinStuck = () => {
   const row = document.querySelector('.tabrow');
-  return !!row && getComputedStyle(row).position === 'sticky';
+  return !!row && !row.hidden && getComputedStyle(row).position === 'sticky';
 };
 
 function measurePinTop() {
@@ -6891,6 +6896,12 @@ function renderTabs() {
   /* Nothing to look at yet, so the whole row goes rather than leaving a lone
      Sprint tab hovering over the welcome card. */
   const noTabsYet = !state.teams.length;
+  /* THE ROW, not only the tabs inside it (2026-09-04, from the 2026-09-03
+     audit). The 📌 sits in `.tabrow` beside the tablist, so hiding `.tabs`
+     alone left one lone pin button over the welcome card and the Forecast
+     Ahead page — and pinned, a 46px sticky band holding one button. Both are
+     set, so anything asking either gets the same answer. */
+  document.querySelector('.tabrow').hidden = noTabsYet;
   document.querySelector('.tabs').hidden = noTabsYet;
   document.querySelectorAll('.tab').forEach(t => { t.hidden = !shown[t.dataset.view]; });
 
@@ -12616,6 +12627,8 @@ async function openSharedView() {
    apart matters — the advice is opposite, and sending someone to chase a fresh
    copy of a link that arrived perfectly intact wastes both their time. */
 function renderShareError(reason) {
+  /* The row too, or the 📌 stays behind on its own (2026-09-04). */
+  document.querySelector('.tabrow').hidden = true;
   document.querySelector('.tabs').hidden = true;
   document.getElementById('teamSel').hidden = true;
   document.getElementById('findBtn').hidden = true;   // nothing loaded to search

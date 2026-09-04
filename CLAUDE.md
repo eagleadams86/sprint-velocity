@@ -2018,3 +2018,14 @@ ones that need a real size boot their own 1280x900 frame through `inFrame()`.
   tab brought in by End used to land flush with the box, ring clipped by the very key a
   keyboard reader presses. The test asserts the 4px on all four sides, the row's height and
   the tab's place in it, and the nudge.
+
+- **A page with no tabs has no 📌 either (fix 4).** `renderTabs()` hid `.tabs` while there
+  were no teams, but the pin button sits in the `.tabrow` round them, so the welcome card,
+  Forecast Ahead and a broken share link's page each carried one lone pin button — and pinned,
+  a 46px sticky band holding one button. `renderTabs()` and `renderShareError()` now hide the
+  ROW as well as the tabs (both, so anything asking either gets the same answer; the
+  `.tabrow[hidden]` rule already existed). `pinStuck()` asks `hidden` too: a computed
+  `position` is still `sticky` on a row that is display:none, and the old comment there
+  believed the row was already off the page wherever the tabs were — it never was. Measured
+  with the pin on: `--pin-clear` is the header + 8 on those pages and counts the band again
+  once teams exist.
