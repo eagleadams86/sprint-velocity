@@ -190,7 +190,9 @@ are deleted — both are defined by the PI and have nowhere to go without it.
 
 Kept sprints are renumbered onto the end of the team's unassigned run, so no two sprints
 end up sharing a slot. Business value and capacity adjustments go either way — both are
-defined by the PI — and the dialog says so rather than letting them go quietly.
+defined by the PI — and the dialog says so rather than letting them go quietly. The toast
+that follows repeats the count — "PI 2026.3 removed — 17 sprints kept, now with no PI" —
+with its Undo; it used to say "0 sprints kept" whatever the dialog had counted.
 
 ## The Sprint Goal
 

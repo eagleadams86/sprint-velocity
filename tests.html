@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 447;
+const EXPECTED = 449;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -6977,7 +6977,64 @@ t('the welcome card, Forecast Ahead and a broken link show no lone 📌', async 
   });
 });
 
+group('the PI-delete toast counts the sprints it kept (2026-09-03 audit)');
+/* finishDeletePi() built the toast's sentence from `moved` BEFORE undoableToast()
+   ran the callback that set it, so "Keep the sprints" always announced "0
+   sprints kept" — under a dialog that had just said "6 sprints across 2 teams".
+   The sprints in the PI are counted once, first, and serve both sentences. */
+t('after "Keep the sprints" the toast says how many were kept, not 0', () => {
+  const fx = {
+    teams: [{ id: 'kt1', name: 'Keep One' }, { id: 'kt2', name: 'Keep Two' }],
+    arts: [], plans: [], objectives: [],
+    pis: [{ id: 'kp1', name: 'PI 2026.1' }],
+    sprints: [1, 2, 3].flatMap((n) => [
+      { id: 'ka' + n, teamId: 'kt1', piId: 'kp1', sprintNumber: n },
+      { id: 'kb' + n, teamId: 'kt2', piId: 'kp1', sprintNumber: n }])
+  };
+  withNoSave(() => withState(fx, () => {
+    const d = w.document;
+    const st = w.svGet();
+    try {
+      w.openDeletePi(st.pis[0]);
+      ok(/6 sprints across\s+2 teams/.test(d.getElementById('delPiBody').textContent),
+         'the dialog counts six sprints across two teams',
+         d.getElementById('delPiBody').textContent.trim().slice(0, 60));
+      w.finishDeletePi(true);
+      eq(d.getElementById('toastText').textContent,
+         'PI 2026.1 removed — 6 sprints kept, now with no PI',
+         'and the toast that follows says the same six — it used to say 0');
+      eq(st.pis.length, 0, 'the PI is gone');
+      eq(st.sprints.filter((s) => !s.piId).length, 6, 'and all six sprints are still there, with no PI');
+    } finally {
+      d.getElementById('delPiDialog').close();
+      d.getElementById('manageDialog').close();
+    }
+  }));
+});
+t('and "Delete the sprints too" counts what it dropped', () => {
+  const fx = {
+    teams: [{ id: 'dt1', name: 'Drop One' }], arts: [], plans: [], objectives: [],
+    pis: [{ id: 'dp1', name: 'PI 2026.2' }],
+    sprints: [{ id: 'da1', teamId: 'dt1', piId: 'dp1', sprintNumber: 1 },
+              { id: 'da2', teamId: 'dt1', piId: 'dp1', sprintNumber: 2 }]
+  };
+  withNoSave(() => withState(fx, () => {
+    const d = w.document;
+    const st = w.svGet();
+    try {
+      w.openDeletePi(st.pis[0]);
+      w.finishDeletePi(false);
+      eq(d.getElementById('toastText').textContent, 'PI 2026.2 deleted with 2 sprints');
+      eq(st.sprints.length, 0);
+    } finally {
+      d.getElementById('delPiDialog').close();
+      d.getElementById('manageDialog').close();
+    }
+  }));
+});
+
 async function run() {
+
 
 
 

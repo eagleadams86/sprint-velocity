@@ -2029,3 +2029,12 @@ ones that need a real size boot their own 1280x900 frame through `inFrame()`.
   believed the row was already off the page wherever the tabs were — it never was. Measured
   with the pin on: `--pin-clear` is the header + 8 on those pages and counts the band again
   once teams exist.
+
+- **The PI-delete toast counts the sprints it kept (fix 5).** `finishDeletePi()` built the
+  toast's sentence from `moved`, a variable the undoable callback set — but the sentence is an
+  ARGUMENT to `undoableToast()`, evaluated before the callback runs, so "Keep the sprints"
+  always announced "0 sprints kept" under a dialog that had just said "6 sprints across 2
+  teams". The sprints in the PI are counted once, before anything moves (`inPi`), and serve
+  both sentences; `unassignPiSprints()` still returns its count, nothing reads it now. Chosen
+  over teaching `undoable()` a function-valued message: one line here against a second
+  message shape in two helpers with one caller for it.

@@ -11541,21 +11541,27 @@ F('delPiDropBtn').onclick = () => finishDeletePi(false);
 function finishDeletePi(keepSprints) {
   const p = deletingPi;
   if (!p) return;
-  let moved = 0;
-  const dropped = keepSprints ? 0 : state.sprints.filter(s => s.piId === p.id).length;
+  /* COUNTED FIRST (2026-09-04, from the 2026-09-03 audit). The toast's sentence
+     is built right here, as an argument — before undoableToast() has run the
+     callback below — so a count the callback wrote into a variable read as 0
+     every time: "PI 2026.1 removed — 0 sprints kept" under a dialog that had
+     just said "6 sprints across 2 teams". The sprints in the PI now ARE the
+     sprints kept, or dropped, so one count read before anything moves serves
+     both sentences. */
+  const inPi = state.sprints.filter(s => s.piId === p.id).length;
   /* Both branches get the Undo, and the sprint-keeping one needs it as much: it
      un-assigns every sprint in the PI, and putting the grouping back by hand is one
      edit per sprint. */
   undoableToast(() => {
-    moved = keepSprints ? unassignPiSprints(p.id) : 0;
+    if (keepSprints) unassignPiSprints(p.id);
     state.pis = state.pis.filter(x => x.id !== p.id);
     if (!keepSprints) state.sprints = state.sprints.filter(s => s.piId !== p.id);
     state.plans = state.plans.filter(pl => pl.piId !== p.id);
     state.objectives = state.objectives.filter(o => o.piId !== p.id);
     if (state.settings.activePiId === p.id) state.settings.activePiId = null;
   }, keepSprints
-    ? `${p.name} removed — ${plural(moved, 'sprint')} kept, now with no PI`
-    : `${p.name} deleted${dropped ? ` with ${plural(dropped, 'sprint')}` : ''}`,
+    ? `${p.name} removed — ${plural(inPi, 'sprint')} kept, now with no PI`
+    : `${p.name} deleted${inPi ? ` with ${plural(inPi, 'sprint')}` : ''}`,
   () => {
     delPiDialog.close();
     deletingPi = null;
