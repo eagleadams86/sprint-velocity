@@ -7131,11 +7131,30 @@ function renderSprintView() {
      unassigned track and the PI picker is hidden — a one-option select is chrome
      pretending to be a control, the same reasoning as the header team picker's
      `hidden`. With PIs present it keeps landing on the last one, unless the stored
-     position or the team's own history says otherwise. */
+     position or the team's own history says otherwise. The picker is hidden
+     for a team that runs no PIs too (2026-09-04): with that team pinned to its
+     own track, a PI chosen here could only land back on No PI, and a control
+     that does not answer is worse than none — the sprint form's own PI field
+     is where such a team's first PI is set. */
   const pis = state.pis;
   const stored = piKey(state.settings.activePiId);
-  const hasUnassigned = teamSprints(team.id).some(x => !x.piId);
-  let piId = stored && piById(stored) ? stored
+  const mine = teamSprints(team.id);
+  const hasUnassigned = mine.some(x => !x.piId);
+  /* A TEAM THAT RUNS NO PIs LANDS ON ITS OWN TRACK (2026-09-04, from the
+     2026-09-03 audit). The stored PI was kept whenever that PI still EXISTED,
+     never asking whether this team had a sprint in it — so Team No PI, whose
+     whole history sits on the No PI track, opened on "Nothing Recorded Yet for
+     sprint 4 of PI 2026.3" with its five sprints one picker option away. A team
+     whose recorded history has no PI in it at all goes to that track. Only that
+     team: a team that runs PIs keeps any PI position, including one it has no
+     sprint in yet — that is how the picker below reaches a new PI to record the
+     first sprint of, and a rule of "only a PI you already have a sprint in"
+     would snap that choice straight back. Not saved, like the number below: the
+     stored PI is the reader's working position and is waiting for them on the
+     team they chose it on. */
+  const runsNoPi = hasUnassigned && !mine.some(x => x.piId);
+  let piId = runsNoPi ? null
+    : stored && piById(stored) ? stored
     : (stored === null && (hasUnassigned || !pis.length)) ? null
     : pis.length ? pis[pis.length - 1].id : null;
   /* Clamped to the PI's six slots. The number is kept across a team switch on
@@ -7155,7 +7174,7 @@ function renderSprintView() {
       <div class="row spread sprint-bar">
         <div class="row">
           <label class="sr-only" for="piSel">PI</label>
-          <select id="piSel" class="ctl"${pis.length ? '' : ' hidden'}>${
+          <select id="piSel" class="ctl"${pis.length && !runsNoPi ? '' : ' hidden'}>${
             offerNoPi ? `<option value=""${piId === null ? ' selected' : ''}>No PI</option>` : ''}${
             pis.map(p =>
             `<option value="${esc(p.id)}"${p.id === piId ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>

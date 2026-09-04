@@ -167,6 +167,13 @@ you record sprints, later decide to run PIs, and everything from before the firs
 history that came before it. The consequence to know is the reverse — putting a *new* sprint
 on "No PI" while PIs exist files it before all of them, so the form says so before you save.
 
+**A team that runs no PIs opens on its own sprints.** Switch to one and the Sprint tab lands
+on its No PI track whatever PI you were looking at on another team — it used to land on an
+empty slot of that PI, with the team's real history one picker option away. The PI picker on
+the Sprint tab steps aside for such a team (every PI it could offer would only lead back to No
+PI); the sprint form's own PI field is where that team's first PI is set. Your place on the
+other team is kept: switch back and you're on the PI and sprint you left.
+
 **There's no IP sprint outside a PI.** Sprint 6 is the innovation-and-planning sprint
 *because of where it sits inside a PI*; without one it's just the sixth sprint, so it counts
 in the rolling window like any other and the "include sprint 6 (IP)" toggle doesn't appear

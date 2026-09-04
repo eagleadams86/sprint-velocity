@@ -2056,3 +2056,22 @@ ones that need a real size boot their own 1280x900 frame through `inFrame()`.
   by focus (an inert button cannot take it) and a click on what `elementFromPoint` finds at
   the button's centre, and headless with a real mouse click for all three deletes; `close`
   fires for Done, Escape and a backdrop click alike.
+
+### Round two, 2026-09-04
+
+The leftovers of the same audit, fixed the next day. Each has a test in a group named
+"(2026-09-03 audit, round two)", proven to fail first against the unfixed index.html.
+
+- **A team that runs no PIs lands on its own track (fix 7).** `renderSprintView()` kept the
+  stored PI whenever that PI still existed — it never asked whether the team on screen had a
+  sprint in it — so switching to Team No PI showed "Nothing Recorded Yet for sprint 4 of PI
+  2026.3" while its five PI-less sprints sat behind the picker's "No PI" option. A team whose
+  recorded history has no PI in it at all (`runsNoPi`: PI-less sprints and no other kind) now
+  lands on the No PI track, and the Sprint tab's PI picker is hidden for it, the way it already
+  is with no PIs at all: pinned to its own track, a PI chosen there could only snap back, and a
+  control that does not answer is worse than none — the sprint form's PI field is where such a
+  team's first PI is set. Deliberately NARROWER than "keep the stored PI only when the team has
+  a sprint in it": that rule would have snapped back the picker on every team the moment a
+  reader chose a new PI to record its first sprint in. The stored PI is not rewritten, like the
+  stored number (fix 4 above): it is the reader's working position, waiting for them on the team
+  they chose it on. A team with no sprints at all keeps it too, so Add Sprint opens in that PI.

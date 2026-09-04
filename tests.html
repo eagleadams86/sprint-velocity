@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 450;
+const EXPECTED = 451;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -7130,6 +7130,53 @@ t('a delete inside Teams, ARTs & PIs offers its Undo once the window closes — 
     eq(st.pis.length, pis, 'and Undo puts the PI back');
     eq(st.sprints.filter((s) => s.piId === st.pis[0].id).length, inPi,
        'with its sprints grouped under it again');
+  });
+});
+
+/* ═══════════════ Fixes From the 2026-09-03 Audit, round two ═══════════════════
+   The leftovers of that audit, fixed on 2026-09-04. Same shape as the group
+   above: each proven to fail first against the unfixed index.html, in a frame
+   with a real size and the sample data where the fault needs one. */
+
+group('a team that runs no PIs lands on its own track (2026-09-03 audit, round two)');
+/* renderSprintView() kept the stored PI whenever that PI still EXISTED — it never
+   asked whether the team on screen had a sprint in it. Team No PI, whose five
+   sprints all sit on the No PI track, opened on "Nothing Recorded Yet for sprint 4
+   of PI 2026.3", with its history one picker option away. A team whose recorded
+   history has no PI in it now lands on the No PI track, and the PI picker goes
+   with it (every PI it offered would have snapped back). The stored PI is not
+   rewritten: it is the reader's working position, and it is waiting for them
+   when they switch back. */
+t('switching to Team No PI shows its PI-less sprints; switching back returns to the stored PI', async () => {
+  await inFrame('nopi', {}, async (W, D) => {
+    const st = W.svGet();
+    const live = st.teams.find((x) => x.name === 'Team Live Sprint');
+    const noPi = st.teams.find((x) => x.name === 'Team No PI');
+    const piB = st.pis[st.pis.length - 1];
+    eq(st.settings.activeTeamId, live.id, 'the sample opens on Team Live Sprint');
+    eq(st.settings.activePiId, piB.id, 'in the newest PI');
+    eq(st.settings.activeSprintNum, 4, 'on sprint 4');
+    const sel = D.getElementById('teamSel');
+    const switchTo = (team) => { sel.value = team.id; sel.dispatchEvent(new W.Event('change')); };
+    const views = () => D.getElementById('views').textContent.replace(/\s+/g, ' ');
+
+    switchTo(noPi);
+    ok(!/of PI 2026\.3/.test(views()),
+       'Team No PI does not open on a slot of PI 2026.3 — it has never had a sprint in a PI',
+       views().slice(0, 80));
+    ok(D.getElementById('piSel').hidden,
+       'and the PI picker is gone: every PI it could offer would snap straight back');
+    const nums = [...D.getElementById('numSel').options].map((o) => o.textContent);
+    ok([12, 13, 14, 15, 16].every((n) => nums.some((x) => x === 'Sprint ' + n)),
+       'the sprint picker lists its five recorded sprints 12–16, with no "no data" note on them',
+       nums.filter((x) => /1[2-6]/.test(x)).join(' | '));
+    eq(st.settings.activePiId, piB.id, 'the stored PI is not rewritten — it is the reader’s position');
+    eq(st.settings.activeSprintNum, 4, 'nor is the stored sprint number (a working position, 2026-09-01)');
+
+    switchTo(live);
+    eq(D.getElementById('piSel').value, piB.id, 'back on Team Live Sprint the picker is on PI 2026.3 again');
+    eq(D.getElementById('numSel').value, '4', 'on sprint 4');
+    ok(/Team Live Sprint — PI 2026\.3 · S4/.test(views()), 'with that sprint’s card on screen', views().slice(0, 120));
   });
 });
 
