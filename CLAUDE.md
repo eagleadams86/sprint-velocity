@@ -2097,3 +2097,20 @@ The leftovers of the same audit, fixed the next day. Each has a test in a group 
   somewhere visible is left alone — the Find button after a real click on it, and also a tab of
   the row that the hit has just unselected (Find opened from a tab, hit to another view): that
   is Flow Metrics' 6183b71 rule kept to the letter, so the three windows stay one shape.
+
+## Fix From the 2026-09-04 Evening Audit
+
+Charles asked for a bug check the evening the round-two fixes above had shipped. Nothing new had
+landed here since, and the one finding was wording: **six tile captions and one caveat said "1
+points"** — "1 points carried in", "1 points added after start", "1 points pulled out", "1 points
+to next sprint", "The 1 points already carried over" — while the sentences beside them (the
+carried-out note, the capacity card's "1 point is already…") pluralised properly. `pointsOf(n)`
+now carries `plural()`'s rule for a figure that goes through `fmtNum` ("1 point", "1.5 points",
+"12 points"), a function declaration so the suite can reach it, and all seven sentences read it.
+The test's negative check then caught two more: the Carried in and Committed tiles' captions are
+unit labels under the figure ("points inherited from last sprint"), which a screen reader — and
+the page's text — read straight after the number as "1 points inherited". Those two flex too.
+Two tests in "one point is 1 point everywhere": the helper’s four shapes, then a running and
+a finished sprint with one of everything, read off the rendered page, with a negative check that
+"1 points" appears nowhere on it.
+

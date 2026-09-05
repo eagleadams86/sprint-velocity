@@ -5412,6 +5412,11 @@ const fmtPct = (v, scale) => {
 };
 const fmtNum = (v) => (v === null || v === undefined || !isFinite(v) ? '—'
   : (Math.round(v * 10) / 10).toLocaleString());
+/* plural()'s rule for a figure that goes through fmtNum — "1 point", "1.5
+   points", "12 points". Six tile captions and one caveat said "1 points" until
+   2026-09-04 while their neighbours pluralised; one helper so none of them can
+   drift back on its own. A function declaration, so the suite can reach it. */
+function pointsOf(n) { return `${fmtNum(n)} point${Number(n) === 1 ? '' : 's'}`; }
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
   ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 
@@ -7270,22 +7275,23 @@ function renderSprintView() {
           ? `${fmtPct(pace.elapsedPct)} of the sprint gone, no commitment to measure against`
           : `${fmtPct(pace.donePct)} of the commitment done, ${fmtPct(pace.elapsedPct)} of the sprint gone`,
           false, 'pace')
-        : tile('Committed', fmtNum(m.committed), null, 'points signed up for')}
+        : tile('Committed', fmtNum(m.committed), null,
+            `point${num(m.committed) === 1 ? '' : 's'} signed up for`)}
         ${tile('Break-in so far', fmtPct(m.breakInPct, 'churn'), rag(m.breakInPct, 'churn'),
-          `${fmtNum(m.added)} points added after start`, false, 'breakIn')}
+          `${pointsOf(m.added)} added after start`, false, 'breakIn')}
         ${tile('Removed so far', fmtPct(m.removedPct, 'churn'), rag(m.removedPct, 'churn'),
-          `${fmtNum(m.removed)} points pulled out`, false, 'removed')}
-        ${tile('Carried in', fmtNum(m.carriedIn), null, 'points inherited from last sprint',
-          false, 'carriedIn')}
+          `${pointsOf(m.removed)} pulled out`, false, 'removed')}
+        ${tile('Carried in', fmtNum(m.carriedIn), null,
+          `point${num(m.carriedIn) === 1 ? '' : 's'} inherited from last sprint`, false, 'carriedIn')}
         ` : `
         ${tile('Commitment completion', fmtPct(m.commitCompletePct, 'completion'), rag(m.commitCompletePct, 'completion'),
           `${fmtNum(m.committedCompleted)} of ${fmtNum(m.committed)} committed points`, false, 'commitCompletion')}
         ${tile('Break-in', fmtPct(m.breakInPct, 'churn'), rag(m.breakInPct, 'churn'),
-          `${fmtNum(m.added)} points added after start`, false, 'breakIn')}
+          `${pointsOf(m.added)} added after start`, false, 'breakIn')}
         ${tile('Removed', fmtPct(m.removedPct, 'churn'), rag(m.removedPct, 'churn'),
-          `${fmtNum(m.removed)} points pulled out`, false, 'removed')}
+          `${pointsOf(m.removed)} pulled out`, false, 'removed')}
         ${tile('Carryover', fmtPct(m.carryoverPct, 'churn'), rag(m.carryoverPct, 'churn'),
-          `${fmtNum(m.carriedOut)} points to next sprint`, false, 'carryover')}
+          `${pointsOf(m.carriedOut)} to next sprint`, false, 'carryover')}
         ${tile('Velocity', fmtNum(m.velocity), null, 'total points completed', false, 'velocity')}
         `}
         ${/* Shown on a running sprint too, because a team often knows before the
@@ -7313,7 +7319,7 @@ function renderSprintView() {
       </figure>
       <div class="row" style="margin-top:12px">
         <span class="muted" style="font-size:var(--fs-xs)">Also this sprint:
-          <strong>${fmtNum(m.carriedIn)}</strong> points carried in ·
+          <strong>${fmtNum(m.carriedIn)}</strong> point${num(m.carriedIn) === 1 ? '' : 's'} carried in ·
           <strong>${fmtNum(m.added)}</strong> added ·
           <strong>${fmtNum(m.removed)}</strong> removed</span>
       </div>
@@ -8476,7 +8482,8 @@ function targetCapacityCard(team, includeSix) {
      leave no room at all for new work. Actionable at the planning session, and
      invisible without saying it. */
   if (t.carryoverFills)
-    caveats.push(`The ${fmtNum(t.carriedIn)} points already carried over fill this whole figure, so
+    caveats.push(`The ${pointsOf(t.carriedIn)} already carried over fill${
+      Number(t.carriedIn) === 1 ? 's' : ''} this whole figure, so
       there is no room to pull in new work — worth deciding deliberately what gives.`);
 
   /* The adjustment is never allowed to be a silent change to the number. The

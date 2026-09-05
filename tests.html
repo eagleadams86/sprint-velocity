@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 454;
+const EXPECTED = 456;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -7216,6 +7216,52 @@ t('committed 0 and 13 done reads "no commitment to measure against", never "noth
        'and the Pace tile says what is missing: a commitment', text.slice(0, 400));
     ok(!/nothing recorded as done/.test(text),
        'it never claims nothing was done — 13 points were', text.slice(0, 400));
+  });
+});
+
+group('one point is "1 point" everywhere (2026-09-04 evening audit)');
+/* Six tile captions and one caveat spelled a single point "1 points" — "1 points
+   carried in", "1 points added after start" — while the sentences beside them
+   pluralised properly. One helper now, pointsOf(), and a running sprint with one
+   of everything to read the captions off. */
+t('pointsOf keeps fmtNum\'s formatting and plural()\'s rule', () => {
+  eq(w.pointsOf(1), '1 point');
+  eq(w.pointsOf(2), '2 points');
+  eq(w.pointsOf(1.5), '1.5 points');
+  eq(w.pointsOf(0), '0 points');
+});
+t('a running sprint with one of everything says "1 point" in every caption', async () => {
+  await inFrame('onepoint', { sample: false }, async (W, D) => {
+    const shift = (days) => {
+      const d = new Date();
+      d.setDate(d.getDate() + days);
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+        + '-' + String(d.getDate()).padStart(2, '0');
+    };
+    const st = W.svGet();
+    st.teams.push({ id: 'op1', name: 'Team One Point' });
+    st.sprints.push({ id: 'ops1', teamId: 'op1', piId: null, sprintNumber: 1,
+      startDate: shift(-5), endDate: shift(8),
+      committed: 20, committedCompleted: 6, totalCompleted: 7,
+      added: 1, removed: 1, carriedIn: 1, carriedOut: 0 });
+    st.sprints.push({ id: 'ops2', teamId: 'op1', piId: null, sprintNumber: 2,
+      startDate: shift(-30), endDate: shift(-17),
+      committed: 20, committedCompleted: 19, totalCompleted: 20,
+      added: 1, removed: 1, carriedIn: 0, carriedOut: 1 });
+    st.settings.activeTeamId = 'op1'; st.settings.activePiId = null;
+    st.settings.activeSprintNum = 1; st.settings.view = 'sprint';
+    W.render();
+    const text = () => D.getElementById('views').textContent.replace(/\s+/g, ' ');
+    ok(/1 point carried in/.test(text()), 'the running sprint says "1 point carried in"', text().slice(0, 600));
+    ok(/1 point added after start/.test(text()), 'and "1 point added after start"');
+    ok(/1 point pulled out/.test(text()), 'and "1 point pulled out"');
+    ok(!/1 points/.test(text()), 'and never "1 points"', text().match(/.{30}1 points.{30}/));
+    st.settings.activeSprintNum = 2;
+    W.render();
+    ok(/1 point to next sprint/.test(text()), 'the finished sprint says "1 point to next sprint"', text().slice(0, 600));
+    ok(/1 point added after start/.test(text()) && /1 point pulled out/.test(text()),
+       'and its break-in and removed captions agree');
+    ok(!/1 points/.test(text()), 'with no "1 points" anywhere on the page', text().match(/.{30}1 points.{30}/));
   });
 });
 
