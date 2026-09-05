@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 456;
+const EXPECTED = 457;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -7319,11 +7319,23 @@ t('after a hit the keyboard is on the tab of the view it landed on, not on <body
     };
     /* A click on a hit. The window was opened by the button's handler, not a
        real press on it, so nothing visible had the focus before it opened. */
+    /* Scrolled down first, so "landed at the top" can be told from "left alone". */
+    D.querySelector('.tab[data-view="rolling"]').click();
+    await wait(350);
+    W.scrollTo(0, 300);
+    await wait(120);
+    const wasDown = W.scrollY;
+    ok(wasDown > 0, 'the frame really can scroll, so the landing below means something', wasDown);
     openFind(W, D, 'Team Overcommitted');
     D.querySelector('#searchResults .hit').click();
     ok(!D.getElementById('searchDialog').open, 'the hit closed the window');
     eq(st.settings.view, 'sprint', 'a team hit lands on the Sprint tab');
     landed('after a click on a hit,');
+    /* AND THE PAGE (2026-09-05). A hit changes what you are looking at, so it is
+       a tab press by another route and lands the same way. This window opens no
+       record editor — unlike its three siblings — so there is no case here for
+       holding the page still behind one. */
+    eq(W.scrollY, 0, 'and the page is at the top of the view the hit opened');
     /* Enter, with the box focused, on a PI hit — a different tab. Again from a
        focus on nothing: the first hit has just put the keyboard on the Sprint
        tab, which is somewhere visible, and a visible focus is left alone by the
@@ -7343,6 +7355,54 @@ t('after a hit the keyboard is on the tab of the view it landed on, not on <body
     openFind(W, D, 'Team Baseline');
     D.querySelector('#searchResults .hit').click();
     eq(where(), 'findBtn', 'the Find button that had the focus keeps it — nothing to repair');
+  });
+});
+
+/* ── WHERE A PRESS LEAVES THE PAGE ──────────────────────────────────────────
+   Charles's rule, given on 2026-09-05 after the same landing was fixed on Flow
+   Metrics and Money Map: CHANGING WHAT YOU ARE LOOKING AT GOES TO THE TOP,
+   CHANGING WHICH PERIOD YOU ARE LOOKING AT HOLDS STILL. A tab press is the
+   first. The team picker is the second — moving between teams with the page
+   held still is how two teams get compared, and this app is for comparing.
+
+   THE FRAME IS 1280x900, which inFrame gives it. The suite's own frame is 1px
+   by 1px, where nothing scrolls, `scrollY` is 0 before and after, and every
+   line below would pass with the app doing nothing at all — so the ok() guard
+   fails rather than waving that through, and each leg asserts against the
+   scroll it actually reached rather than against a literal 300. */
+t('a tab press goes to the top; the team picker holds the scroll', async () => {
+  await inFrame('landing', {}, async (W, D) => {
+    const settle = async (y) => { W.scrollTo(0, y); await wait(120); return W.scrollY; };
+    const press = async (v) => { D.querySelector('.tab[data-view="' + v + '"]').click(); await wait(350); };
+
+    /* Rolling 5 and Compare Teams, because both are taller than the frame
+       whatever the sample holds — a view that fits has no scroll to keep. */
+    await press('rolling');
+    const down = await settle(300);
+    ok(down > 0, 'the frame really can scroll — a 1px frame would pass this group on its own',
+       down);
+
+    await press('teams');
+    eq(W.scrollY, 0, 'pressing another tab starts that view at the top');
+
+    const held = await settle(300);
+    ok(held > 0, 'and Compare Teams is taller than the frame too', held);
+    await press('teams');
+    eq(W.scrollY, held,
+       'pressing the tab you are already on leaves the page where it is — not a move');
+
+    /* THE EXCEPTION. */
+    await press('rolling');
+    const onTeam = await settle(300);
+    const sel = D.getElementById('teamSel');
+    const other = [...sel.options].find((o) => o.value !== sel.value);
+    ok(!!other, 'the sample has more than one team, so there is a team to move to');
+    sel.value = other.value;
+    sel.dispatchEvent(new W.Event('change'));
+    await wait(350);
+    eq(W.scrollY, onTeam,
+       'changing team HOLDS the scroll — reading the same card for two teams is the '
+       + 'comparison this app is for');
   });
 });
 

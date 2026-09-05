@@ -10318,6 +10318,12 @@ function goToSearchHit(h) {
   const landing = document.querySelector('.tab[data-view="' + state.settings.view + '"]');
   if (landing && (!had || had === document.body || !had.getClientRects().length))
     landing.focus({ preventScroll: true });
+  /* AND WHERE THE PAGE LANDS (2026-09-05). A hit is a tab press by another
+     route — it changes what you are looking at — so it starts that view at the
+     top rather than at whatever offset the last one left behind. No exception
+     here: unlike its three siblings this window opens no record editor, so
+     there is never a record on screen for the page to be holding still for. */
+  window.scrollTo(0, 0);
 }
 F('findBtn').onclick = () => {
   const dlg = F('searchDialog');
@@ -13420,7 +13426,27 @@ document.getElementById('teamSel').onchange = (e) => {
 const visibleTabs = () => [...document.querySelectorAll('.tab')].filter(t => !t.hidden);
 
 document.querySelectorAll('.tab').forEach(tab => {
-  tab.onclick = () => { state.settings.view = tab.dataset.view; save(); render(); };
+  /* A TAB PRESS STARTS THE NEW VIEW AT THE TOP (2026-09-05). Charles's rule,
+     given after the same landing was fixed on Flow Metrics' All Teams and then
+     on Money Map: CHANGING WHAT YOU ARE LOOKING AT GOES TO THE TOP, CHANGING
+     WHICH PERIOD YOU ARE LOOKING AT HOLDS STILL. Nothing moved the page before,
+     so History opened still scrolled to wherever Team PI had left you, and what
+     that showed was never twice the same — the views are different heights, so
+     the browser clamps a position that no longer exists, and the pinned band
+     changes what the same number has under it.
+
+     The pickers are the other half of the rule and are deliberately untouched:
+     the team, the PI and the sprint all hold the scroll, because moving between
+     them is a comparison and a comparison needs the rows to stay put.
+
+     Only when the view actually changed — pressing the tab you are already on
+     must not throw the page about. Instant, never smooth: a scripted smooth
+     scroll is out of the reduced-motion rule's reach. */
+  tab.onclick = () => {
+    const moved = state.settings.view !== tab.dataset.view;
+    state.settings.view = tab.dataset.view; save(); render();
+    if (moved) window.scrollTo(0, 0);
+  };
   tab.onkeydown = (e) => {
     const step = { ArrowLeft: -1, ArrowRight: 1, Home: 'first', End: 'last' }[e.key];
     if (step === undefined) return;

@@ -611,6 +611,19 @@ same feature, and the same behaviour, as in the sibling Flow Metrics app.
 The last three look **across** teams rather than into the one you've selected, so they sit
 apart from the other four in the tab row.
 
+**A tab press starts the new view at the top.** Changing what you are looking at means the
+page you open begins at its beginning, rather than at whatever offset the last view had you
+scrolled to — before September 2026 it kept that offset, so where Compare Teams opened
+depended on how far down Rolling 5 you had read, and it changed again with the tab row
+pinned. Pressing the tab you are already on is not a move and leaves the page alone. A
+[Find](#find-k) result lands the same way, since it changes the view too.
+
+**Changing team holds the scroll**, on purpose: reading the same card for one team and then
+the next is the comparison this app is for, and it only works if the card stays under your
+eye. The rule across the family is that one sentence — *changing what you are looking at goes
+to the top, changing which team or period you are looking at holds still* — so the PI and
+sprint pickers hold too, as do Money Map's year and month rails.
+
 **Pin the tab row to the top.** The 📌 at its far end holds the row against the top of the
 window while the page scrolls underneath, so you can change view from halfway down a long
 one without scrolling back up. **It is off until you ask for it**, because pinned chrome is
