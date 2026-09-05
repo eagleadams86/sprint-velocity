@@ -2133,8 +2133,9 @@ focus ended up. Two findings, both fixed:
   textareas. One `::placeholder` rule in `--text-hint` now, the token the Find box already used
   (5.05 / 5.17 / 5.17 / 5.33), rather than PAPTrack's `--text-muted`: this app had already chosen
   hint and both clear the bar. **It is a family fault, not this app's** — the theme pack carries
-  no placeholder rule, so every consumer is one new field away from the grey again; flagged to
-  Charles as a pack decision.
+  no placeholder rule, so every consumer is one new field away from the grey again. **Charles moved it into
+  the pack the same day — rule 16 — and this app's own copy went**; the test stays, on the
+  computed colour.
 - **The Copy fallback dropped the keyboard.** `copyText`'s textarea route selects a scratch box and
   removes it, and the focus went to `<body>` with it — the third of the three mechanisms the
   2026-08-22 sweep named, and the one it recorded as fixed: that fix went with the share-link
