@@ -1463,7 +1463,7 @@ in this browser and isn't part of your data, so it never goes into a backup file
 shared link never carries the sender's theme.
 
 Every one of them meets WCAG AA contrast on every piece of text — the figures, the RAG
-pills, the table captions — against each of the three backgrounds it can sit on. Each
+pills, the table captions, the grey hint in an empty box — against each of the three backgrounds it can sit on. Each
 series keeps the same hue throughout — committed grey, completed blue, velocity teal,
 break-in amber, removed violet, carryover red — so a chart reads the same way whichever
 palette you're in. Charts re-render on a switch, because their colours are resolved when
@@ -2155,5 +2155,8 @@ than furniture.
 element IS its role, so it would silently replace the landmark. That older note stands
 unchanged.
 
-Every page in this repo passes axe-core at WCAG 2.1 A and AA plus its best-practice rules, in
-all four themes, with data loaded and on every tab.
+Every page in this repo passes axe-core at WCAG 2.1 A and AA, the 2.2 AA additions and its
+best-practice rules, in all four themes, with data loaded, on every tab and in every window
+(last run 2026-09-05). The things axe cannot see are checked by hand the same day: a Tab
+through every view reading the focus ring, every window opened from the keyboard and closed
+with Esc, hover colours, a 320px-wide window, widened text spacing and reduced motion.

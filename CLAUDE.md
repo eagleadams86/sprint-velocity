@@ -2114,3 +2114,45 @@ Two tests in "one point is 1 point everywhere": the helper’s four shapes, then
 a finished sprint with one of everything, read off the rendered page, with a negative check that
 "1 points" appears nowhere on it.
 
+## Fixes From the 2026-09-05 Accessibility Audit
+
+Charles asked for an accessibility check of this app, Flow Metrics and Money Map. The harness was the one
+`~/.claude/.../memory/axe-audit-harness.md` describes, run from a scratchpad and never from the
+repo: axe-core at WCAG 2.1 A/AA, 2.2 AA and best-practice over every tab, all four themes,
+every `<dialog>` forced open AND every one opened for real from its own button so it was populated
+— 73 plus one per populated dialog axe runs, clean. Then the pass axe cannot do: a Tab through every view reading the ring's
+colour against both sides of it, every dialog opened from the keyboard (focus in, Esc, focus back),
+a name walk with the dialogs forced open, 2.5.3 visible-label-vs-name on every input, hover-only
+titles, 320px reflow, the 1.4.12 text-spacing overrides, `prefers-reduced-motion`, hover contrast
+on 744 controls, and a keyboard activation of every non-destructive control reading where the
+focus ended up. Two findings, both fixed:
+
+- **Every placeholder except the Find box's was the browser's grey.** `#757575` at the UA's own
+  opacity measured 3.84:1 on Midnight, 3.58 on Dark and 4.24 on Sepia (Light passes at 4.61) on
+  eight boxes — the forecast card's three, the capacity dialog's two, the Jira and import
+  textareas. One `::placeholder` rule in `--text-hint` now, the token the Find box already used
+  (5.05 / 5.17 / 5.17 / 5.33), rather than PAPTrack's `--text-muted`: this app had already chosen
+  hint and both clear the bar. **It is a family fault, not this app's** — the theme pack carries
+  no placeholder rule, so every consumer is one new field away from the grey again; flagged to
+  Charles as a pack decision.
+- **The Copy fallback dropped the keyboard.** `copyText`'s textarea route selects a scratch box and
+  removes it, and the focus went to `<body>` with it — the third of the three mechanisms the
+  2026-08-22 sweep named, and the one it recorded as fixed: that fix went with the share-link
+  copy this helper later replaced. Only reachable when the clipboard API refuses (headless and
+  plain-http always, a real browser on a user gesture almost never), which is why nobody saw it.
+  It now remembers `activeElement` and hands it back if the node survived. Two tests, in
+  "Fixes from the 2026-09-05 accessibility audit": the placeholder colour on every box on every
+  theme, and the fallback with the clipboard API stubbed to refuse.
+
+Recorded as PASSING so they are not re-audited: every stop on every tab has a visible ring that
+clears 3:1 on both sides; the Tab loop closes on every view with no trap; every dialog — header
+and in-view alike — takes the focus in, closes on Esc and returns it to its trigger; no unnamed
+control and no placeholder-only name; no hover-only title; no horizontal scroll at 320px;
+nothing clipped under the text-spacing overrides; nothing animates under reduced motion; hover
+states all clear AA. Three harness traps worth knowing before trusting a re-run: a
+`<details>` that is closed hides its fields from Tab and from a naive visibility filter, so
+"3 of 39 unreached" was the collapsed forecast card, not a finding; Chromium's date input is
+four Tab stops with one id, so a loop keyed on element identity "closes" after four; and a
+regex helper read out of a template literal by `readFileSync` keeps its doubled backslashes,
+so every colour parsed as null and every backdrop came back white — 372 "failures" that were
+one bug in the harness.
