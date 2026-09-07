@@ -2266,3 +2266,7 @@ the 2026-09-07 audit", each with a test proven red against main first:
   connected-only check returned early every time and the test stayed red. Two tests: edit,
   Done, a macrotask, and `activeElement.id === 'bvBtn'`; and Targets over a maximised chart
   landing on the new card's ⤢.
+- **Three comments still described the Save/Cancel window**: the live region's "Save is
+  disabled alongside it", the Targets header's "only writes it on Save … Cancel really is a
+  cancel", and `scoring`'s `// { teamId, piId }` (it carries `written` and now `from` too). All
+  three rewritten to say what the code does; no test, one commit.

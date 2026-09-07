@@ -2390,9 +2390,10 @@ main:focus { outline: none; }
       </div>
   </section>
 
-  <!-- A live region, so a rule broken while typing is spoken as well as shown. Save
-       is disabled alongside it: a target set that contradicts itself would colour
-       figures by rules nobody could state. -->
+  <!-- A live region, so a rule broken while typing is spoken as well as shown. While
+       it has something to say nothing is stored, and the note under the buttons says
+       "Not saved while these disagree" instead of "Saved as you go": a target set
+       that contradicts itself would colour figures by rules nobody could state. -->
   <p class="warn" id="targetsWarn" role="status"></p>
   <p class="sub" id="targetsPreview" style="margin-top:10px"></p>
 
@@ -11309,7 +11310,9 @@ F('adjustRemoveBtn').onclick = () => {
    is cleared — "planned nothing" and "nobody has filled this in" are different
    answers and the ART view has to be able to tell them apart. */
 
-let scoring = null;   // { teamId, piId }
+/* { teamId, piId, written, from } while the window is up: whose record, the
+   boxes as last written (or as opened), and where the keyboard was at open. */
+let scoring = null;
 const bvDialog = F('bvDialog');
 
 const bvInput = (id) => {
@@ -11850,9 +11853,10 @@ F('manageBtn').onclick = openManage;
 
 /* ═══════════════════════════════ Targets ══════════════════════════════════ */
 
-/* The eight numbers every figure in the app is judged against. The dialog edits a
-   DRAFT and only writes it on Save, so a half-typed 8 on the way to 85 never
-   repaints the page underneath — and Cancel really is a cancel.
+/* The eight numbers every figure in the app is judged against. The dialog saves as
+   you go — each box is written on `change`, when you finish with it, never on
+   `input`, so a half-typed 8 on the way to 85 never repaints the page underneath —
+   and Done only closes. There is no Save and no Cancel (2026-09-07).
 
    What is stored is only what DIFFERS from the default. That is deliberate: a
    saved copy that spells out all eight would freeze today's defaults into it for
