@@ -50,7 +50,8 @@ Per team, per sprint:
 Per team, per PI, it also tracks the **business value** on that team's PI objectives —
 planned, achieved, and achieved from stretch — which is what the [predictability
 measure](#predictability-and-the-pi-by-team-view) is worked out from. That window **saves as
-you go** as well: three figures, each written when you finish with it, **Done** to close, and
+you go** as well: three figures, each written when you finish with it (and shown back as
+kept — a figure past the cap or below zero is stored at the edge), **Done** to close, and
 emptying all three is how you take the record out — "planned nothing" and "nobody has filled
 this in" are different answers, so the second is stored as no record at all.
 
@@ -298,7 +299,12 @@ finding, because every "off target" sentence in the app is written from these nu
 **The Targets window saves as you go** (2026-09-07). Finish with a box — tab out of it, or
 pick from a list — and the figure is in, with every colour in the app behind the window
 following it; the way out is **Done**. There is no Save button, and no Cancel, because by the
-time you could press one the change is made.
+time you could press one the change is made. A figure outside a box's range is kept at the
+nearest edge of it, and a box left blank goes back to its default — and either way the box
+shows what was actually kept, never a figure that isn't in force. Closing the window puts the
+keyboard back where it was — on the button that opened it, or on a full-screen chart's ⤢ —
+even though the page has redrawn underneath it while it was open; the Business Value window
+does the same.
 
 **A set of targets that contradicts itself is refused**, and the dialog says which rule is
 broken while you type. A completion target below its own red line leaves no amber in between;
@@ -306,8 +312,11 @@ a churn "red" below its "green" has the scale running backwards; a band whose ce
 its floor has no inside. Nothing is stored while any of that is true, and the note under the
 buttons stops saying *Saved as you go* and says *Not saved while these disagree* instead —
 passing through a contradiction on the way to a new pair is ordinary, so it is a pause rather
-than an error. Close the window while it still contradicts itself and it says the targets were
-left as they were; reopening fills the boxes from what is actually stored.
+than an error. Close the window while it still contradicts itself and it says so on the way
+out: *Targets left as they were* if nothing in that window was stored, or — when an earlier
+box had already been kept and is colouring the page — *Kept the figures you finished with; the
+last change was not saved*, with the rule that refused it. Reopening fills the boxes from what
+is actually stored.
 
 *Back to the defaults* now stores them as well as showing them — it used to lean on a Cancel
 that no longer exists.

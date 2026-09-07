@@ -2213,3 +2213,60 @@ four Tab stops with one id, so a loop keyed on element identity "closes" after f
 regex helper read out of a template literal by `readFileSync` keeps its doubled backslashes,
 so every colour parsed as null and every backdrop came back white — 372 "failures" that were
 one bug in the harness.
+
+## Fixes From the 2026-09-07 Audit
+
+The two windows that started saving as you go that morning (Targets, Business Value) were
+driven the same afternoon. Five findings, each fixed in its own commit on PR "Five fixes from
+the 2026-09-07 audit", each with a test proven red against main first:
+
+- **Both Done buttons did nothing.** `#targetsDoneBtn` and `#bvDoneBtn` shipped as `type="button"`
+  markup with no listener anywhere, so only Escape and a click on the backdrop closed the
+  windows — and the two tests that checked them asserted the WORD on the button, then closed
+  the dialog for themselves. Each is now wired the way `manageCloseBtn` and `shareCloseBtn`
+  are, `dialog.close()` and nothing else; the close handler does the writing. Two tests in
+  "Fixes from the 2026-09-07 audit" press the real button and check the window is down AND
+  that a box typed into and never blurred was written on the way out, and the two older tests
+  now end on a real press through `pressDone()` rather than `closeAnd()`.
+- **A box kept what was typed while the state held something else.** The write clamps to the
+  field's range (250 in a max-200 Targets box is stored as 200; 1500 business value as 999,
+  -5 as 0) and a blanked Targets box is stored as its default — but the box went on showing
+  250, or nothing, under a note reading *Saved as you go*. Each commit now refills the boxes
+  from the state: `commitTargets` through `fillTargetBoxes(tgt())`, the same reading
+  `openTargets` fills from, and `commitBv` through the new `fillBvBoxes(rec)`, the one setter
+  `openBv` also uses. A box that was never touched shows the 0 the record holds for it, which
+  is what reopening the window would show anyway. **The no-write path needs it too**: -5 over
+  a stored 0 reads as 0, so the draft equals `written` and nothing is committed — the `change`
+  handlers refill from the state on that branch as well, or the box goes on saying -5. Two
+  tests: 250 → box and state both 200, blank → the box shows 85, blank again over the default →
+  still 85; 1500 → 999, -5 → 0, and clearing the last real figure empties all three.
+- **"Targets left as they were" was false after a box in the same window had been stored.** Churn
+  green to 10 (stored, page re-coloured), churn red to 5 (refused), close — the toast said
+  nothing had changed while `state.settings.targets` held `{churnGreen: 10}`. `targeting` now
+  carries `stored`, set by `commitTargets` on a successful write, and the close handler picks
+  its sentence from it: *Targets left as they were — …* only when the window wrote nothing,
+  otherwise *Kept the figures you finished with; the last change was not saved — …*, both
+  ending on the rule that refused the set. One test pins both wordings in one window, and the
+  older contradiction test (which stores 92 first) now expects the second.
+- **Closing either window after an edit dropped the keyboard on `<body>`.** A dialog hands the
+  focus back to the element that had it when it opened; both windows write — and `render()` —
+  while they are still up, and `render()` rebuilds `#views`, so by the close that element is a
+  detached node. `#bvBtn` lives in the view; a Targets window opened over a maximised chart
+  returns to a ⤢ the rebuild threw away. With no edit the focus came back correctly, which is
+  why the 2026-09-05 pass (open every dialog, press Esc) never saw it. `focusOrigin()` is taken
+  at open and `landFocus(from, fallbackId)` runs at the end of both close handlers and after
+  Remove's own `render()`: a focus that survived is left alone; a lost one goes to the CURRENT
+  element with the same id (the shape `moveInList` uses to re-find a rebuilt button by its
+  key), or from inside a maximised card to the card now up and its ⤢, or failing both to the
+  window's own button. **Two traps found on the way**: the close handler's early return (draft
+  equals `written`, because the box's `change` already wrote) is exactly the path a lost focus
+  takes, so the landing runs on every way out; and the box inside the just-closed dialog keeps
+  `activeElement` until the browser's fixup moves it to `<body>` a moment later, so "survived"
+  is tested with `getClientRects().length`, as the Find window's landing already does — a
+  connected-only check returned early every time and the test stayed red. Two tests: edit,
+  Done, a macrotask, and `activeElement.id === 'bvBtn'`; and Targets over a maximised chart
+  landing on the new card's ⤢.
+- **Three comments still described the Save/Cancel window**: the live region's "Save is
+  disabled alongside it", the Targets header's "only writes it on Save … Cancel really is a
+  cancel", and `scoring`'s `// { teamId, piId }` (it carries `written` and now `from` too). All
+  three rewritten to say what the code does; no test, one commit.
