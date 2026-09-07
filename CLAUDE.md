@@ -2213,3 +2213,18 @@ four Tab stops with one id, so a loop keyed on element identity "closes" after f
 regex helper read out of a template literal by `readFileSync` keeps its doubled backslashes,
 so every colour parsed as null and every backdrop came back white — 372 "failures" that were
 one bug in the harness.
+
+## Fixes From the 2026-09-07 Audit
+
+The two windows that started saving as you go that morning (Targets, Business Value) were
+driven the same afternoon. Five findings, each fixed in its own commit on PR "Five fixes from
+the 2026-09-07 audit", each with a test proven red against main first:
+
+- **Both Done buttons did nothing.** `#targetsDoneBtn` and `#bvDoneBtn` shipped as `type="button"`
+  markup with no listener anywhere, so only Escape and a click on the backdrop closed the
+  windows — and the two tests that checked them asserted the WORD on the button, then closed
+  the dialog for themselves. Each is now wired the way `manageCloseBtn` and `shareCloseBtn`
+  are, `dialog.close()` and nothing else; the close handler does the writing. Two tests in
+  "Fixes from the 2026-09-07 audit" press the real button and check the window is down AND
+  that a box typed into and never blurred was written on the way out, and the two older tests
+  now end on a real press through `pressDone()` rather than `closeAnd()`.

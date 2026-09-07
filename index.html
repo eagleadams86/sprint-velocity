@@ -11370,6 +11370,10 @@ bvDialog.addEventListener('close', () => {
   commitBv(ctx, true);
 });
 
+/* Done only closes; the `close` handler above does the writing. It shipped as
+   markup with no listener (2026-09-07 audit), like the Targets window's. */
+F('bvDoneBtn').onclick = () => bvDialog.close();
+
 F('bvRemoveBtn').onclick = () => {
   if (!scoring) return;
   const { teamId, piId } = scoring;
@@ -11877,6 +11881,10 @@ function openTargets() {
 }
 
 F('targetsBtn').onclick = openTargets;
+/* Done only closes; the `close` handler below does the writing, the same way
+   manageCloseBtn and shareCloseBtn only close theirs. It shipped as markup with
+   no listener (2026-09-07 audit) — only Escape and the backdrop got you out. */
+F('targetsDoneBtn').onclick = () => targetsDialog.close();
 TARGET_FIELDS.forEach(f => {
   targetBox(f.key).oninput = refreshTargetsPreview;
   targetBox(f.key).onchange = () => {

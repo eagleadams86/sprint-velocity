@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 466;
+const EXPECTED = 468;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -7285,6 +7285,11 @@ const fireBox = (W, D, id, v) => {
 /* A dialog's `close` event is dispatched as a QUEUED TASK, so every assertion
    about what closing did has to let that task run first. */
 const closeAnd = async (D, id) => { D.getElementById(id).close(); await wait(30); };
+/* The REAL Done button, pressed — not `dialog.close()`. Both Done buttons shipped
+   as markup with no listener (2026-09-07 audit), so a test that closes the window
+   for itself would have gone on passing over a button that did nothing. The
+   wait is a macrotask, which the queued `close` event needs. */
+const pressDone = async (D, id) => { D.getElementById(id).click(); await wait(30); };
 
 t('a valid target writes as you finish it, and a set that contradicts itself does not', async () => {
   await inFrame('targetsauto', {}, async (W, D) => {
@@ -7339,6 +7344,9 @@ t('a valid target writes as you finish it, and a set that contradicts itself doe
     eq(W.svGet().settings.targets.completionRed, 80, 'a set that agrees with itself writes');
     ok(writes > 0, 'sanity: the stub really was reached, so the checks above are not passing '
        + 'over a window that writes nothing at all', writes);
+    await pressDone(D, 'targetsDoneBtn');
+    ok(!D.getElementById('targetsDialog').open,
+       'and the Done button, pressed, is the way out — not only the word on it');
   });
 });
 
@@ -7412,7 +7420,9 @@ t('business value writes box by box, and clearing every box removes the record',
     fireBox(W, D, 'bv_actual', '');
     eq(objs().length, had, 'clearing every box takes the record out');
     ok(D.getElementById('bvRemoveBtn').hidden, 'and Remove goes with it');
-    await closeAnd(D, 'bvDialog');
+    await pressDone(D, 'bvDoneBtn');
+    ok(!D.getElementById('bvDialog').open,
+       'and the Done button, pressed, is the way out — not only the word on it');
   });
 });
 
@@ -7454,6 +7464,47 @@ t('a stale close event cannot silence the window that replaced it', async () => 
     ok(W.svGet().objectives.some((o) => o.plannedBv === 73),
        'the reopened window kept its context and still writes');
     await closeAnd(D, 'bvDialog');
+  });
+});
+
+group('Fixes from the 2026-09-07 audit');
+/* Both Done buttons were markup with no listener: only Escape and a click on the
+   backdrop closed the windows, and the tests above closed them for themselves.
+   Done closes now, and the close handler does the saving exactly as it does for
+   the other two ways out — which is what a box typed into and never blurred
+   proves, because the close is the only thing left that can write it. */
+t('Done closes the Targets window, and a box never blurred is written on the way out', async () => {
+  await inFrame('targetsdone', {}, async (W, D) => {
+    D.getElementById('targetsBtn').click();
+    await wait(30);
+    const dlg = D.getElementById('targetsDialog');
+    ok(dlg.open, 'the window is up');
+    const box = D.getElementById('t_completionGreen');
+    box.value = '91';
+    box.dispatchEvent(new W.Event('input', { bubbles: true }));
+    await pressDone(D, 'targetsDoneBtn');
+    ok(!dlg.open, 'Done closed it — it was a button with no listener, and only Escape or '
+       + 'the backdrop got you out');
+    eq((W.svGet().settings.targets || {}).completionGreen, 91,
+       'and the close handler wrote the box that was never blurred');
+  });
+});
+
+t('Done closes the Business Value window the same way', async () => {
+  await inFrame('bvdone', {}, async (W, D) => {
+    D.querySelector('.tab[data-view="pi"]').click();
+    await wait(200);
+    [...D.querySelectorAll('button')].find((b) => /Add Business Value/.test(b.textContent)).click();
+    await wait(30);
+    const dlg = D.getElementById('bvDialog');
+    ok(dlg.open, 'the window is up');
+    const box = D.getElementById('bv_planned');
+    box.value = '57';
+    box.dispatchEvent(new W.Event('input', { bubbles: true }));
+    await pressDone(D, 'bvDoneBtn');
+    ok(!dlg.open, 'Done closed it');
+    ok(W.svGet().objectives.some((o) => o.plannedBv === 57),
+       'and the close wrote the figure that was never blurred');
   });
 });
 
