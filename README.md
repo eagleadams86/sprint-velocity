@@ -309,8 +309,11 @@ a churn "red" below its "green" has the scale running backwards; a band whose ce
 its floor has no inside. Nothing is stored while any of that is true, and the note under the
 buttons stops saying *Saved as you go* and says *Not saved while these disagree* instead —
 passing through a contradiction on the way to a new pair is ordinary, so it is a pause rather
-than an error. Close the window while it still contradicts itself and it says the targets were
-left as they were; reopening fills the boxes from what is actually stored.
+than an error. Close the window while it still contradicts itself and it says so on the way
+out: *Targets left as they were* if nothing in that window was stored, or — when an earlier
+box had already been kept and is colouring the page — *Kept the figures you finished with; the
+last change was not saved*, with the rule that refused it. Reopening fills the boxes from what
+is actually stored.
 
 *Back to the defaults* now stores them as well as showing them — it used to lean on a Cancel
 that no longer exists.

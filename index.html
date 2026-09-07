@@ -11888,12 +11888,15 @@ function refreshTargetsPreview() {
 /* The eight boxes as one reading, for the same reason bvDraft() exists: what
    would be written and what is on screen must be the same question. */
 const targetsDraft = () => JSON.stringify(readTargetBoxes());
-let targeting = null;   // { written } while the window is up
+/* { written, stored } while the window is up: `written` is the boxes as last
+   written (or as opened), `stored` whether this window has written at all —
+   which is what the closing toast's wording turns on. */
+let targeting = null;
 
 function openTargets() {
   fillTargetBoxes(tgt());
   refreshTargetsPreview();
-  targeting = { written: targetsDraft() };
+  targeting = { written: targetsDraft(), stored: false };
   openModal(targetsDialog);
 }
 
@@ -11941,6 +11944,7 @@ function commitTargets(ctx, speak) {
   fillTargetBoxes(tgt());
   refreshTargetsPreview();
   ctx.written = targetsDraft();
+  ctx.stored = true;
   save();
   render();
   if (speak) toast(Object.keys(diff).length
@@ -11970,7 +11974,14 @@ targetsDialog.addEventListener('close', () => {
   targeting = null;
   if (!ctx || targetsDraft() === ctx.written) return;
   if (commitTargets(ctx, true)) return;
-  toast('Targets left as they were — ' + targetProblems(readTargetBoxes())[0]);
+  /* Two sentences, by whether THIS window wrote anything. "Left as they were"
+     was said over a window that had stored its green line a box earlier and
+     was colouring the page with it (2026-09-07 audit) — true only when nothing
+     was stored; otherwise it is what was kept and what was not. */
+  const why = targetProblems(readTargetBoxes())[0];
+  toast(ctx.stored
+    ? 'Kept the figures you finished with; the last change was not saved — ' + why
+    : 'Targets left as they were — ' + why);
 });
 
 /* ═══════════════════════════ Backup & restore ═════════════════════════════ */

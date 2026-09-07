@@ -2240,3 +2240,11 @@ the 2026-09-07 audit", each with a test proven red against main first:
   handlers refill from the state on that branch as well, or the box goes on saying -5. Two
   tests: 250 → box and state both 200, blank → the box shows 85, blank again over the default →
   still 85; 1500 → 999, -5 → 0, and clearing the last real figure empties all three.
+- **"Targets left as they were" was false after a box in the same window had been stored.** Churn
+  green to 10 (stored, page re-coloured), churn red to 5 (refused), close — the toast said
+  nothing had changed while `state.settings.targets` held `{churnGreen: 10}`. `targeting` now
+  carries `stored`, set by `commitTargets` on a successful write, and the close handler picks
+  its sentence from it: *Targets left as they were — …* only when the window wrote nothing,
+  otherwise *Kept the figures you finished with; the last change was not saved — …*, both
+  ending on the rule that refused the set. One test pins both wordings in one window, and the
+  older contradiction test (which stores 92 first) now expects the second.

@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 470;
+const EXPECTED = 471;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -7327,8 +7327,12 @@ t('a valid target writes as you finish it, and a set that contradicts itself doe
     D.getElementById('toastText').textContent = '';
     await closeAnd(D, 'targetsDialog');
     eq(W.svGet().settings.targets.completionRed, undefined, 'closing stored nothing either');
-    ok(/^Targets left as they were/.test(D.getElementById('toastText').textContent),
-       'and it said so on the way out', D.getElementById('toastText').textContent);
+    /* The 92 above WAS stored, so "left as they were" would be false here — the
+       toast has to say what was kept and what was not (2026-09-07 audit). */
+    ok(/^Kept the figures you finished with; the last change was not saved/.test(
+         D.getElementById('toastText').textContent),
+       'and it said so on the way out — what was kept, and that the last change was not',
+       D.getElementById('toastText').textContent);
     D.getElementById('targetsBtn').click();
     await wait(30);
     ok(D.getElementById('t_completionRed').value !== '97',
@@ -7534,6 +7538,42 @@ t('a Targets box shows the figure that was stored, not the one that was typed', 
     eq(box.value, '85', 'a box blanked over its own default is refilled even though nothing '
        + 'needed writing');
     await pressDone(D, 'targetsDoneBtn');
+  });
+});
+
+/* Closing over a contradiction toasted "Targets left as they were" even when an
+   earlier box in the same window HAD been stored and was colouring the page —
+   the reader was told nothing changed while their green line had. Two
+   sentences now, chosen by whether the window wrote anything. */
+t('closing over a contradiction says what was kept — two sentences, by whether anything was stored', async () => {
+  await inFrame('targetskept', {}, async (W, D) => {
+    const toastText = () => D.getElementById('toastText').textContent;
+    /* Nothing stored first: the old sentence is the true one. */
+    D.getElementById('targetsBtn').click();
+    await wait(30);
+    fireBox(W, D, 't_completionRed', '97');
+    eq(W.svGet().settings.targets, undefined, 'the contradiction stored nothing');
+    D.getElementById('toastText').textContent = '';
+    await pressDone(D, 'targetsDoneBtn');
+    ok(/^Targets left as they were — /.test(toastText()),
+       'with nothing stored in the window, "left as they were" is exactly right', toastText());
+
+    /* A box stored, THEN a contradiction: churn green to 10 is kept and colours
+       the page; churn red to 5 sits under it and is refused. */
+    D.getElementById('targetsBtn').click();
+    await wait(30);
+    fireBox(W, D, 't_churnGreen', '10');
+    eq((W.svGet().settings.targets || {}).churnGreen, 10, 'the green line is stored');
+    fireBox(W, D, 't_churnRed', '5');
+    eq((W.svGet().settings.targets || {}).churnRed, undefined, 'and the red line under it is not');
+    D.getElementById('toastText').textContent = '';
+    await pressDone(D, 'targetsDoneBtn');
+    eq((W.svGet().settings.targets || {}).churnGreen, 10, 'closing kept the 10');
+    ok(/^Kept the figures you finished with; the last change was not saved — /.test(toastText()),
+       'and the toast says so: what was kept, and that the last change was not', toastText());
+    ok(!/left as they were/.test(toastText()),
+       'never "left as they were" over a window that changed the page', toastText());
+    ok(/Break-in/.test(toastText()), 'with the rule that refused it', toastText());
   });
 });
 
