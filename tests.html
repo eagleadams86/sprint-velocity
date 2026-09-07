@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 460;
+const EXPECTED = 466;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -7262,6 +7262,198 @@ t('a running sprint with one of everything says "1 point" in every caption', asy
     ok(/1 point added after start/.test(text()) && /1 point pulled out/.test(text()),
        'and its break-in and removed captions agree');
     ok(!/1 points/.test(text()), 'with no "1 points" anywhere on the page', text().match(/.{30}1 points.{30}/));
+  });
+});
+
+group('Targets and Business Value save as you go (2026-09-07)');
+/* Both windows stopped asking: each box is written when you finish with it and
+   Done closes. What is pinned here is the four things that made that safe, each
+   of which was a live fault in Money Map's row editor before it was a rule.
+
+   The sprint form, Adjust Capacity and the import window deliberately still ask,
+   and the reasons are in CLAUDE.md — a sprint's identity is three fields that
+   collide while you retype one of them, and Adjust Capacity is a what-if board
+   whose boxes ARE the draft. */
+
+/* `change`, not `input` — the event that means "finished with this box". */
+const fireBox = (W, D, id, v) => {
+  const el = D.getElementById(id);
+  el.value = v;
+  el.dispatchEvent(new W.Event('input', { bubbles: true }));
+  el.dispatchEvent(new W.Event('change', { bubbles: true }));
+};
+/* A dialog's `close` event is dispatched as a QUEUED TASK, so every assertion
+   about what closing did has to let that task run first. */
+const closeAnd = async (D, id) => { D.getElementById(id).close(); await wait(30); };
+
+t('a valid target writes as you finish it, and a set that contradicts itself does not', async () => {
+  await inFrame('targetsauto', {}, async (W, D) => {
+    let writes = 0;
+    W.save = () => { writes += 1; };
+    D.getElementById('targetsBtn').click();
+    await wait(30);
+    eq(D.getElementById('targetsDoneBtn').textContent, 'Done',
+       'the way out of a window that saves as you go is Done');
+    ok(!D.getElementById('targetsCancelBtn'), 'and there is no Cancel — by the time you could '
+       + 'press one the figure is in');
+    eq(D.getElementById('targetsAutoNote').textContent, 'Saved as you go',
+       'the note says so, because nothing else in the window would');
+
+    fireBox(W, D, 't_completionGreen', '92');
+    eq(W.svGet().settings.targets.completionGreen, 92,
+       'finishing with a box is what writes it — no button in between');
+
+    /* Raising red past green is an ORDINARY thing to type on the way to a new
+       pair, so the refusal has to be a pause rather than an error: nothing is
+       stored, nothing is lost, and the note stops claiming otherwise. */
+    fireBox(W, D, 't_completionRed', '97');
+    eq(W.svGet().settings.targets.completionRed, undefined,
+       'a set whose green sits under its red is never stored — it would colour figures by a '
+       + 'rule nobody could state out loud');
+    eq(D.getElementById('targetsAutoNote').textContent, 'Not saved while these disagree',
+       'and the note says THAT, rather than going on promising a save that is not happening');
+    ok(D.getElementById('targetsWarn').textContent.length > 20,
+       'with the rule itself spelled out beside it');
+
+    /* Closing over a contradiction. The boxes were never stored, so the window
+       has to say so — reopening refills them from what IS stored, and a reader
+       who was not told would believe eight numbers that are not colouring
+       anything. */
+    D.getElementById('toastText').textContent = '';
+    await closeAnd(D, 'targetsDialog');
+    eq(W.svGet().settings.targets.completionRed, undefined, 'closing stored nothing either');
+    ok(/^Targets left as they were/.test(D.getElementById('toastText').textContent),
+       'and it said so on the way out', D.getElementById('toastText').textContent);
+    D.getElementById('targetsBtn').click();
+    await wait(30);
+    ok(D.getElementById('t_completionRed').value !== '97',
+       'reopening refills the boxes from what IS stored, so the contradictory figure is gone '
+       + 'rather than sitting there looking saved',
+       D.getElementById('t_completionRed').value);
+    eq(D.getElementById('targetsAutoNote').textContent, 'Saved as you go',
+       'and the note is back to its ordinary promise');
+
+    /* Fixing it writes both halves at once — the pair only becomes storable
+       once its neighbour agrees. */
+    fireBox(W, D, 't_completionRed', '80');
+    eq(W.svGet().settings.targets.completionRed, 80, 'a set that agrees with itself writes');
+    ok(writes > 0, 'sanity: the stub really was reached, so the checks above are not passing '
+       + 'over a window that writes nothing at all', writes);
+  });
+});
+
+t('“Back to the Defaults” writes, now that there is no Cancel to undo it', async () => {
+  await inFrame('targetsreset', {}, async (W, D) => {
+    D.getElementById('targetsBtn').click();
+    await wait(30);
+    fireBox(W, D, 't_completionGreen', '92');
+    ok(W.svGet().settings.targets, 'a target is away from the defaults to begin with');
+    /* It used to reset the BOXES only and lean on Cancel. Setting `.value`
+       fires no `change`, so with Cancel gone it has to write for itself or it
+       would show the defaults over a stored set that was still in force. */
+    D.getElementById('targetsResetBtn').click();
+    await wait(30);
+    eq(W.svGet().settings.targets, undefined,
+       'the reset stores the defaults rather than only showing them');
+    await closeAnd(D, 'targetsDialog');
+  });
+});
+
+t('a target window opened and closed untouched writes nothing at all', async () => {
+  await inFrame('targetsglance', {}, async (W, D) => {
+    let writes = 0;
+    W.save = () => { writes += 1; };
+    D.getElementById('targetsBtn').click();
+    await wait(30);
+    await closeAnd(D, 'targetsDialog');
+    eq(writes, 0, 'opening the window to READ the targets and closing again saved nothing');
+    /* The other half, or the check above would pass on a window that never
+       writes at all. */
+    D.getElementById('targetsBtn').click();
+    await wait(30);
+    fireBox(W, D, 't_completionGreen', '93');
+    ok(writes > 0, 'but a box that actually moved still writes');
+    await closeAnd(D, 'targetsDialog');
+  });
+});
+
+/* Business value is the clean case in this app: three independent numbers for a
+   team and a PI that both already exist, so there is no "create it" for a Cancel
+   to refuse and no rule relating one box to the next. */
+t('business value writes box by box, and clearing every box removes the record', async () => {
+  await inFrame('bvauto', {}, async (W, D) => {
+    const objs = () => W.svGet().objectives;
+    D.querySelector('.tab[data-view="pi"]').click();
+    await wait(200);
+    const add = [...D.querySelectorAll('button')].find((b) => /Add Business Value/.test(b.textContent));
+    ok(add, 'the PI view offers a way in to the business-value window');
+    const had = objs().length;
+    add.click();
+    await wait(30);
+    eq(D.getElementById('bvDoneBtn').textContent, 'Done', 'Done, not Save');
+    ok(!D.getElementById('bvCancelBtn'), 'and no Cancel');
+    ok(D.getElementById('bvRemoveBtn').hidden, 'nothing recorded yet, so nothing to remove');
+
+    fireBox(W, D, 'bv_planned', '40');
+    eq(objs().length, had + 1, 'the first figure creates the record');
+    ok(!D.getElementById('bvRemoveBtn').hidden,
+       'and Remove appears the moment there is something to remove — read live rather than at '
+       + 'open, or the button would be offering to remove what is already gone');
+    const id = objs()[objs().length - 1].id;
+    fireBox(W, D, 'bv_actual', '30');
+    eq(objs().length, had + 1, 'the second updates it in place rather than adding a second row');
+    eq(objs()[objs().length - 1].id, id,
+       'and it keeps its id — a fresh uid() per box would churn the record three times in a '
+       + 'window that used to write once');
+
+    /* Emptying every box IS the removal: "planned nothing" and "nobody filled
+       this in" are different answers and the ART view has to tell them apart. */
+    fireBox(W, D, 'bv_planned', '');
+    fireBox(W, D, 'bv_actual', '');
+    eq(objs().length, had, 'clearing every box takes the record out');
+    ok(D.getElementById('bvRemoveBtn').hidden, 'and Remove goes with it');
+    await closeAnd(D, 'bvDialog');
+  });
+});
+
+t('Remove takes the context down, so closing does not write the boxes back in', async () => {
+  await inFrame('bvremove', {}, async (W, D) => {
+    const objs = () => W.svGet().objectives;
+    D.querySelector('.tab[data-view="pi"]').click();
+    await wait(200);
+    [...D.querySelectorAll('button')].find((b) => /Add Business Value/.test(b.textContent)).click();
+    await wait(30);
+    fireBox(W, D, 'bv_planned', '61');
+    const had = objs().length;
+    ok(objs().some((o) => o.plannedBv === 61), 'a figure is in');
+    /* Remove closes the window with the boxes STILL HOLDING the figures, so
+       without clearing the context first the closing write would put them
+       straight back — the same fault a delete had in Money Map's row editor. */
+    D.getElementById('bvRemoveBtn').click();
+    await wait(30);
+    eq(objs().length, had - 1, 'Remove took it out');
+    ok(!objs().some((o) => o.plannedBv === 61), 'and the close did not write it back in');
+  });
+});
+
+t('a stale close event cannot silence the window that replaced it', async () => {
+  await inFrame('bvstale', {}, async (W, D) => {
+    D.querySelector('.tab[data-view="pi"]').click();
+    await wait(200);
+    const add = () => [...D.querySelectorAll('button')]
+      .find((b) => /Add Business Value/.test(b.textContent)).click();
+    /* All three in ONE task, which is what makes the close event stale: it
+       cannot run until this stretch of code gives the browser a turn. The event
+       then arrives to end a context that belongs to the SECOND window, and what
+       is left looks exactly right and quietly saves nothing. */
+    add();
+    D.getElementById('bvDialog').close();
+    add();
+    await wait(30);
+    fireBox(W, D, 'bv_planned', '73');
+    ok(W.svGet().objectives.some((o) => o.plannedBv === 73),
+       'the reopened window kept its context and still writes');
+    await closeAnd(D, 'bvDialog');
   });
 });
 

@@ -2396,11 +2396,14 @@ main:focus { outline: none; }
   <p class="warn" id="targetsWarn" role="status"></p>
   <p class="sub" id="targetsPreview" style="margin-top:10px"></p>
 
+  <!-- Saves as you go, with one qualification the note itself carries: these
+       eight figures constrain each other, and a set that contradicts itself is
+       never stored. While it does, the note says so instead. -->
   <div class="row spread" style="margin-top:18px">
     <button class="btn danger" id="targetsResetBtn" type="button">Back to the Defaults</button>
     <span class="row">
-      <button class="btn" id="targetsCancelBtn" type="button">Cancel</button>
-      <button class="btn primary" id="targetsSaveBtn" type="button">Save Targets</button>
+      <p class="muted" id="targetsAutoNote" style="margin:0">Saved as you go</p>
+      <button class="btn primary" id="targetsDoneBtn" type="button">Done</button>
     </span>
   </div>
 </dialog>
@@ -2620,11 +2623,16 @@ main:focus { outline: none; }
     </fieldset>
 
     <p class="warn" id="bvPreview" role="status"></p>
+    <!-- Three independent numbers for a team and PI that both already exist, so
+         there is nothing here for a Save button to do: each box is written when
+         you finish with it and Done closes. No Cancel — by the time you could
+         press one the figure is in — and Money Map's row editor says the same
+         thing in the same words under its own buttons. -->
     <div class="row spread" style="margin-top:16px">
       <button type="button" class="btn" id="bvRemoveBtn">Remove</button>
       <span class="row">
-        <button type="button" class="btn" id="bvCancelBtn">Cancel</button>
-        <button type="button" class="btn primary" id="bvSaveBtn">Save Business Value</button>
+        <p class="muted" style="margin:0">Saved as you go</p>
+        <button type="button" class="btn primary" id="bvDoneBtn">Done</button>
       </span>
     </div>
   </form>
@@ -11288,8 +11296,12 @@ function updateBvPreview() {
         : '');
 }
 
+/* The three boxes as they stand — the one reading, so "has anything moved?" and
+   "what would be written?" can never disagree about what is on screen. */
+const bvDraft = () => JSON.stringify([bvInput('bv_planned'), bvInput('bv_actual'),
+                                      bvInput('bv_stretch')]);
+
 function openBv(teamId, piId) {
-  scoring = { teamId, piId };
   const rec = objectivesFor(teamId, piId);
   F('bvSub').textContent = `${teamById(teamId).name} — ${piById(piId).name}`;
   F('bv_planned').value = rec ? num(rec.plannedBv) : '';
@@ -11297,34 +11309,73 @@ function openBv(teamId, piId) {
   F('bv_stretch').value = rec ? num(rec.stretchBv) : '';
   F('bvRemoveBtn').hidden = !hasBv(rec);
   updateBvPreview();
+  /* What the window opened holding, so opening it to READ a figure and closing
+     again writes nothing: the upsert below rebuilds the record from all three
+     boxes, and a write that changed nothing would still redraw the app and
+     mint a toast. Taken after the boxes are filled. */
+  scoring = { teamId, piId, written: bvDraft() };
   openModal(bvDialog);
+}
+
+/* THE ONE WRITE, reached by a box you finished with and by the window closing.
+   An upsert over (team, PI), so running it twice with nothing changed in
+   between writes the same record twice — which is what lets Done and the last
+   box's `change` both fire without either knowing about the other. The id is
+   REUSED where there is one: a new `uid()` per commit would churn the record's
+   identity three times in a window that used to write once. */
+function commitBv(ctx, speak) {
+  const { teamId, piId } = ctx;
+  const planned = bvInput('bv_planned');
+  const actual = bvInput('bv_actual');
+  const stretch = bvInput('bv_stretch');
+  const had = state.objectives.find(o => o.teamId === teamId && o.piId === piId);
+  state.objectives = state.objectives.filter(o => !(o.teamId === teamId && o.piId === piId));
+  const empty = !planned && !actual && !stretch;
+  if (!empty) state.objectives.push({ id: had ? had.id : uid(), teamId, piId,
+    plannedBv: planned, actualBv: actual, stretchBv: stretch });
+  ctx.written = bvDraft();
+  save();
+  render();
+  /* Live rather than at open: clearing all three boxes IS the removal, so a
+     button still offering to remove what is already gone reads as broken. */
+  F('bvRemoveBtn').hidden = empty;
+  if (speak) toast(empty ? 'Business value removed' : 'Business value saved');
 }
 
 ['bv_planned', 'bv_actual', 'bv_stretch'].forEach(id => {
   F(id).oninput = updateBvPreview;
+  /* `change`, not `input`: it is the event that means "finished with this box",
+     where `input` would write 1, 12 and 120 on the way to 1,200 and redraw the
+     app at each. */
+  F(id).onchange = () => {
+    if (scoring && bvDraft() !== scoring.written) commitBv(scoring, false);
+  };
 });
 
-F('bvCancelBtn').onclick = () => bvDialog.close();
-
-F('bvSaveBtn').onclick = () => {
-  if (!scoring) return;
-  const { teamId, piId } = scoring;
-  const planned = bvInput('bv_planned');
-  const actual = bvInput('bv_actual');
-  const stretch = bvInput('bv_stretch');
-  state.objectives = state.objectives.filter(o => !(o.teamId === teamId && o.piId === piId));
-  const empty = !planned && !actual && !stretch;
-  if (!empty) state.objectives.push({ id: uid(), teamId, piId,
-    plannedBv: planned, actualBv: actual, stretchBv: stretch });
-  save();
-  bvDialog.close();
-  render();
-  toast(empty ? 'Business value removed' : 'Business value saved');
-};
+/* Done, Escape and a click on the backdrop all end an auto-saving window the
+   same way, so this hangs off `close` rather than off the button.
+   THE OPEN CHECK IS LOAD-BEARING, not defensive (learned in Money Map's row
+   editor, and the hazard Sprint Velocity's own Jira auto-save wrote down
+   first): `close` is dispatched as a QUEUED TASK, so the event from one window
+   can arrive after the next is already up and end ITS context instead —
+   leaving a window that looks right and quietly saves nothing. */
+bvDialog.addEventListener('close', () => {
+  if (bvDialog.open) return;
+  const ctx = scoring;
+  scoring = null;
+  /* Nothing moved — most often a window opened to read a figure — so there is
+     nothing to write and nothing to say. It still catches a box that was never
+     blurred, which is the only way a real edit could reach here uncommitted. */
+  if (!ctx || bvDraft() === ctx.written) return;
+  commitBv(ctx, true);
+});
 
 F('bvRemoveBtn').onclick = () => {
   if (!scoring) return;
   const { teamId, piId } = scoring;
+  /* Taken down BEFORE the close, or the boxes — which still hold the figures —
+     would be written straight back in by the handler above. */
+  scoring = null;
   state.objectives = state.objectives.filter(o => !(o.teamId === teamId && o.piId === piId));
   save();
   bvDialog.close();
@@ -11796,7 +11847,14 @@ function refreshTargetsPreview() {
   const t = readTargetBoxes();
   const problems = targetProblems(t);
   F('targetsWarn').textContent = problems.join(' ');
-  F('targetsSaveBtn').disabled = problems.length > 0;
+  /* THE NOTE ANSWERS THE ONE QUESTION AN AUTO-SAVING WINDOW HAS TO ANSWER: is
+     what I am typing being kept? While the set contradicts itself nothing is
+     stored, and saying "Saved as you go" over the warning would be a lie. It
+     replaced a disabled Save button, which said the same thing but only about
+     a button that no longer exists — and disabling the only way out of a
+     window is a trap, where a note is just the truth. */
+  F('targetsAutoNote').textContent = problems.length
+    ? 'Not saved while these disagree' : 'Saved as you go';
   const changed = TARGET_FIELDS.filter(f => t[f.key] !== TARGET_DEFAULTS[f.key]);
   F('targetsPreview').innerHTML = problems.length ? '' : `Commitment completion reads green at
     <strong>${t.completionGreen}%</strong>, amber down to <strong>${t.completionRed}%</strong> and
@@ -11806,26 +11864,39 @@ function refreshTargetsPreview() {
     ${t.predOverRed}%.${changed.length ? '' : ' These are the defaults.'}`;
 }
 
+/* The eight boxes as one reading, for the same reason bvDraft() exists: what
+   would be written and what is on screen must be the same question. */
+const targetsDraft = () => JSON.stringify(readTargetBoxes());
+let targeting = null;   // { written } while the window is up
+
 function openTargets() {
   fillTargetBoxes(tgt());
   refreshTargetsPreview();
+  targeting = { written: targetsDraft() };
   openModal(targetsDialog);
 }
 
 F('targetsBtn').onclick = openTargets;
-F('targetsCancelBtn').onclick = () => targetsDialog.close();
-TARGET_FIELDS.forEach(f => { targetBox(f.key).oninput = refreshTargetsPreview; });
+TARGET_FIELDS.forEach(f => {
+  targetBox(f.key).oninput = refreshTargetsPreview;
+  targetBox(f.key).onchange = () => {
+    if (targeting && targetsDraft() !== targeting.written) commitTargets(targeting, false);
+  };
+});
 
-/* Resets the BOXES, not the saved setting — so the button behaves like every other
-   control in the dialog and Cancel still undoes it. */
-F('targetsResetBtn').onclick = () => {
-  fillTargetBoxes(TARGET_DEFAULTS);
-  refreshTargetsPreview();
-};
+/* THE ONE WRITE. Returns false when the set contradicts itself and nothing was
+   stored — the five rules in targetProblems() are about the SHAPE of a scale,
+   and a set that breaks one would colour figures by a rule nobody could state
+   out loud. Refusing is what the note above the buttons is reporting.
 
-F('targetsSaveBtn').onclick = () => {
+   This is why Targets is not simply "eight independent settings, so auto-save
+   it": the eight constrain each other, and a figure is only storable once its
+   neighbours agree with it. Passing THROUGH a contradiction while typing is
+   ordinary — raise the green line before the red one and the pair disagrees
+   for one keystroke — so a refusal is a pause, not an error. */
+function commitTargets(ctx, speak) {
   const t = readTargetBoxes();
-  if (targetProblems(t).length) return;
+  if (targetProblems(t).length) return false;
   const diff = {};
   for (const f of TARGET_FIELDS) if (t[f.key] !== TARGET_DEFAULTS[f.key]) diff[f.key] = t[f.key];
   /* Deleted rather than stored empty when everything is back at the default, so a
@@ -11833,13 +11904,38 @@ F('targetsSaveBtn').onclick = () => {
      hold the same thing — and a share link from either is the same length. */
   if (Object.keys(diff).length) state.settings.targets = diff;
   else delete state.settings.targets;
+  ctx.written = targetsDraft();
   save();
-  targetsDialog.close();
   render();
-  toast(Object.keys(diff).length
+  if (speak) toast(Object.keys(diff).length
     ? `Targets saved — ${plural(Object.keys(diff).length, 'figure')} away from the defaults`
     : 'Targets back at the defaults');
+  return true;
+}
+
+/* Resets the BOXES and then writes them, which is the change auto-save forces:
+   the reset used to lean on Cancel to undo it, and there is no Cancel now.
+   Setting `.value` fires no `change` of its own, so it has to say so itself. */
+F('targetsResetBtn').onclick = () => {
+  fillTargetBoxes(TARGET_DEFAULTS);
+  refreshTargetsPreview();
+  if (targeting && targetsDraft() !== targeting.written) commitTargets(targeting, false);
 };
+
+/* See the note on bvDialog's close for why this hangs off the event and why the
+   open check is load-bearing. The extra job here is the contradictory set: it
+   was never stored, and a window that closed silently over it would leave the
+   reader believing eight numbers that are not the ones colouring their figures.
+   Reopening refills the boxes from what IS stored, so nothing is left
+   inconsistent — but it has to be said. */
+targetsDialog.addEventListener('close', () => {
+  if (targetsDialog.open) return;
+  const ctx = targeting;
+  targeting = null;
+  if (!ctx || targetsDraft() === ctx.written) return;
+  if (commitTargets(ctx, true)) return;
+  toast('Targets left as they were — ' + targetProblems(readTargetBoxes())[0]);
+});
 
 /* ═══════════════════════════ Backup & restore ═════════════════════════════ */
 

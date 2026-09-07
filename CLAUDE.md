@@ -1720,6 +1720,62 @@ its own — Charles asked for the two to match, and the two apps share their chr
   only written when `renderManage` runs. It writes nothing to storage, so the read-only
   promise still holds — and the last test puts the app's own rows back.
 
+## Targets and Business Value Save As You Go (2026-09-07)
+
+**Two windows stopped asking**: each box is written when you finish with it, and **Done**
+closes. Money Map's row editor went first (2026-09-07, the same day); its CLAUDE.md carries
+the long form and the four rules below are that one applied here. The note under the buttons
+reads *Saved as you go* in both apps, in those words.
+
+- **`change`, NOT `input`.** `change` is "finished with this box"; `input` would write 1, 12
+  and 120 on the way to 1,200 and re-render at each. `oninput` still drives the previews —
+  they read the boxes and touch nothing.
+- **One write per window, reached three ways** — a finished box, the window closing, and (for
+  Targets) *Back to the defaults*. `commitBv`/`commitTargets` read the whole form every time
+  and upsert, so committing twice with nothing changed in between writes the same thing twice.
+  That is what lets Done and the last box's `change` both fire without either knowing about
+  the other.
+- **A window opened to READ writes nothing.** `scoring.written` / `targeting.written` hold the
+  form as it opened and both close handlers compare against it. Without that, a glance at a
+  team's business value would mint a record, a toast and a re-render — and it is the only
+  thing that catches a box never blurred, which is how a real edit could otherwise reach the
+  close uncommitted.
+- **`if (dlg.open) return;` in both close handlers is load-bearing, not defensive.** A
+  dialog's `close` event is a QUEUED TASK — the thing this file already warns about under
+  "Don't move that revert onto the dialog's `close` event", where it never fired at all under
+  Electron. The other half of the same hazard is that it fires LATE: close one window, open
+  the next before the task runs, and the first window's handler ends a context that now
+  belongs to the second, leaving a window that looks exactly right and quietly saves nothing.
+  Found in Money Map's row editor, in the browser. **`bvRemoveBtn` clears `scoring` before it
+  closes** for the neighbouring reason: the boxes still hold the figures Remove just deleted,
+  and the closing write would put them straight back.
+
+**Targets is the one with a rule between its boxes, and that shapes it.** `targetProblems()`
+refuses a self-contradicting set, so `commitTargets` returns false and stores nothing — and
+passing THROUGH a contradiction is ordinary (raise the green line before the red one and the
+pair disagrees for a keystroke), so a refusal is a pause. Three consequences:
+- **The note says which of the two states it is in** — *Not saved while these disagree* — and
+  it REPLACED the disabled Save button. Disabling the only way out of a window is a trap; a
+  note is just the truth, and the warn line beside it already spells out the rule.
+- **Closing over a contradiction toasts.** The boxes were never stored and reopening refills
+  them from what is, so nothing is left inconsistent — but a reader who was not told would
+  believe eight numbers that are colouring nothing.
+- **`targetsResetBtn` writes now.** It reset the BOXES and leaned on Cancel; setting `.value`
+  fires no `change`, so with Cancel gone it would have shown the defaults over a stored set
+  still in force.
+
+**THREE WINDOWS DELIBERATELY STILL ASK, and each reason is specific:**
+- **The sprint form.** A sprint's identity is team + PI + number, and `slotClash()` refuses a
+  save that would collide — retyping the number walks through numbers belonging to real
+  sprints. `confirmOverwrite()` would also fire a `confirm()` per box. Its Jira auto-save is
+  the narrow, deliberate exception and already has its own snapshot and relabelled Cancel.
+- **Adjust Capacity.** Its own comment says it: *the boxes ARE the draft state until Save*.
+  It is a what-if board — try 80%, read the preview, back out — and it writes to two homes
+  (`team.availability` vs a `plans` entry) chosen by a checkbox, with 100%-and-unticked
+  meaning "remove the adjustment" that typing would pass through. This app has no general
+  undo, so silently rewriting the plan while somebody experiments is the whole cost.
+- **The importer.** "Import" is an action on pasted text, not a field edit.
+
 ## The Settings-Window Furniture Is Shared, Rules Included (2026-09-02)
 
 `.manage-head`, `.manage-note`, `.grid.two` and — since 2026-09-02 — **`.manage-sec`** are one

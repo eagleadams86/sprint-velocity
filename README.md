@@ -49,7 +49,10 @@ Per team, per sprint:
 
 Per team, per PI, it also tracks the **business value** on that team's PI objectives —
 planned, achieved, and achieved from stretch — which is what the [predictability
-measure](#predictability-and-the-pi-by-team-view) is worked out from.
+measure](#predictability-and-the-pi-by-team-view) is worked out from. That window **saves as
+you go** as well: three figures, each written when you finish with it, **Done** to close, and
+emptying all three is how you take the record out — "planned nothing" and "nobody has filled
+this in" are different answers, so the second is stored as no record at all.
 
 There is deliberately **no free-text field anywhere in the app**. The figures come out of a
 work Jira, and a comment box is the one place sensitive detail could ride along into the
@@ -292,10 +295,22 @@ that is why the ⓘ text is written when you open it rather than when the page l
 share it. A target you cannot change doesn't just mis-colour a tile: it mis-states the
 finding, because every "off target" sentence in the app is written from these numbers.
 
+**The Targets window saves as you go** (2026-09-07). Finish with a box — tab out of it, or
+pick from a list — and the figure is in, with every colour in the app behind the window
+following it; the way out is **Done**. There is no Save button, and no Cancel, because by the
+time you could press one the change is made.
+
 **A set of targets that contradicts itself is refused**, and the dialog says which rule is
 broken while you type. A completion target below its own red line leaves no amber in between;
 a churn "red" below its "green" has the scale running backwards; a band whose ceiling is under
-its floor has no inside. Save stays disabled until it makes sense.
+its floor has no inside. Nothing is stored while any of that is true, and the note under the
+buttons stops saying *Saved as you go* and says *Not saved while these disagree* instead —
+passing through a contradiction on the way to a new pair is ordinary, so it is a pause rather
+than an error. Close the window while it still contradicts itself and it says the targets were
+left as they were; reopening fills the boxes from what is actually stored.
+
+*Back to the defaults* now stores them as well as showing them — it used to lean on a Cancel
+that no longer exists.
 
 Only what **differs from the default** is saved. A browser that has never opened the dialog
 and one that opened it and pressed *Back to the defaults* hold exactly the same thing — so a
