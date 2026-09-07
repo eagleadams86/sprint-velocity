@@ -11301,12 +11301,21 @@ function updateBvPreview() {
 const bvDraft = () => JSON.stringify([bvInput('bv_planned'), bvInput('bv_actual'),
                                       bvInput('bv_stretch')]);
 
-function openBv(teamId, piId) {
-  const rec = objectivesFor(teamId, piId);
-  F('bvSub').textContent = `${teamById(teamId).name} — ${piById(piId).name}`;
+/* THE ONE SETTER for the three boxes, reached at open and after every write.
+   The write clamps (1500 is stored as 999, -5 as 0) and a blank reads as 0, so
+   a box left holding what was typed would sit under "Saved as you go" showing a
+   figure the state does not hold (2026-09-07 audit). Refilling from the record
+   after each commit is what makes the window and a reopened window agree. */
+function fillBvBoxes(rec) {
   F('bv_planned').value = rec ? num(rec.plannedBv) : '';
   F('bv_actual').value  = rec ? num(rec.actualBv) : '';
   F('bv_stretch').value = rec ? num(rec.stretchBv) : '';
+}
+
+function openBv(teamId, piId) {
+  const rec = objectivesFor(teamId, piId);
+  F('bvSub').textContent = `${teamById(teamId).name} — ${piById(piId).name}`;
+  fillBvBoxes(rec);
   F('bvRemoveBtn').hidden = !hasBv(rec);
   updateBvPreview();
   /* What the window opened holding, so opening it to READ a figure and closing
@@ -11333,6 +11342,10 @@ function commitBv(ctx, speak) {
   const empty = !planned && !actual && !stretch;
   if (!empty) state.objectives.push({ id: had ? had.id : uid(), teamId, piId,
     plannedBv: planned, actualBv: actual, stretchBv: stretch });
+  /* Back from the state, not left as typed — see fillBvBoxes. Taken BEFORE
+     `written` is read, so the two agree about what is on screen. */
+  fillBvBoxes(objectivesFor(teamId, piId));
+  updateBvPreview();
   ctx.written = bvDraft();
   save();
   render();
@@ -11348,7 +11361,11 @@ function commitBv(ctx, speak) {
      where `input` would write 1, 12 and 120 on the way to 1,200 and redraw the
      app at each. */
   F(id).onchange = () => {
-    if (scoring && bvDraft() !== scoring.written) commitBv(scoring, false);
+    if (!scoring) return;
+    if (bvDraft() !== scoring.written) commitBv(scoring, false);
+    /* -5 typed over a stored 0 reads as 0, so there is nothing to write — but
+       the box still says -5, and it has to say what is held. */
+    else fillBvBoxes(objectivesFor(scoring.teamId, scoring.piId));
   };
 });
 
@@ -11888,7 +11905,11 @@ F('targetsDoneBtn').onclick = () => targetsDialog.close();
 TARGET_FIELDS.forEach(f => {
   targetBox(f.key).oninput = refreshTargetsPreview;
   targetBox(f.key).onchange = () => {
-    if (targeting && targetsDraft() !== targeting.written) commitTargets(targeting, false);
+    if (!targeting) return;
+    if (targetsDraft() !== targeting.written) commitTargets(targeting, false);
+    /* A box blanked while already at its default reads as the default, so there
+       is nothing to write — but it is empty, and it has to show what is held. */
+    else { fillTargetBoxes(tgt()); refreshTargetsPreview(); }
   };
 });
 
@@ -11912,6 +11933,13 @@ function commitTargets(ctx, speak) {
      hold the same thing — and a share link from either is the same length. */
   if (Object.keys(diff).length) state.settings.targets = diff;
   else delete state.settings.targets;
+  /* The boxes are refilled from what is NOW in force, not left as typed: 250 in
+     a box whose ceiling is 200 was stored as 200 and went on saying 250 under
+     "Saved as you go", and a blanked box was stored as its default and stayed
+     empty (2026-09-07 audit). tgt() is the same reading openTargets fills from,
+     so the window and a reopened window can never disagree. */
+  fillTargetBoxes(tgt());
+  refreshTargetsPreview();
   ctx.written = targetsDraft();
   save();
   render();

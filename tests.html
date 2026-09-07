@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 468;
+const EXPECTED = 470;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -7505,6 +7505,59 @@ t('Done closes the Business Value window the same way', async () => {
     ok(!dlg.open, 'Done closed it');
     ok(W.svGet().objectives.some((o) => o.plannedBv === 57),
        'and the close wrote the figure that was never blurred');
+  });
+});
+
+/* A box that said 250 over a stored 200 — the figure was clamped to the field's
+   range on the way in, and a blanked box fell back to its default, but the box
+   kept what was typed under a note reading "Saved as you go". Each commit now
+   refills the boxes from what the state holds, so the window never shows a
+   figure the state does not. */
+t('a Targets box shows the figure that was stored, not the one that was typed', async () => {
+  await inFrame('targetsclamp', {}, async (W, D) => {
+    D.getElementById('targetsBtn').click();
+    await wait(30);
+    const box = D.getElementById('t_completionGreen');
+    fireBox(W, D, 't_completionGreen', '250');
+    eq((W.svGet().settings.targets || {}).completionGreen, 200,
+       'a figure past the field’s ceiling is stored at the ceiling');
+    eq(box.value, '200',
+       'and the box says 200 — it went on showing 250 over a state that held 200');
+    fireBox(W, D, 't_completionGreen', '');
+    eq((W.svGet().settings.targets || {}).completionGreen, undefined,
+       'a blanked box means back to the default, which is stored as no key at all');
+    eq(box.value, '85', 'and the box shows the default it now holds rather than sitting empty');
+    /* Blanked AGAIN, now that the default is what is held: the reading has not
+       moved, so there is nothing to write — and the box still has to say 85
+       rather than sit empty over it. */
+    fireBox(W, D, 't_completionGreen', '');
+    eq(box.value, '85', 'a box blanked over its own default is refilled even though nothing '
+       + 'needed writing');
+    await pressDone(D, 'targetsDoneBtn');
+  });
+});
+
+t('a Business Value box shows the figure that was stored, not the one that was typed', async () => {
+  await inFrame('bvclamp', {}, async (W, D) => {
+    const rec = () => W.svGet().objectives[W.svGet().objectives.length - 1];
+    D.querySelector('.tab[data-view="pi"]').click();
+    await wait(200);
+    [...D.querySelectorAll('button')].find((b) => /Add Business Value/.test(b.textContent)).click();
+    await wait(30);
+    fireBox(W, D, 'bv_planned', '1500');
+    eq(rec().plannedBv, 999, 'a figure past the cap is stored at the cap');
+    eq(D.getElementById('bv_planned').value, '999', 'and the box says so');
+    fireBox(W, D, 'bv_actual', '-5');
+    eq(rec().actualBv, 0, 'a negative figure is stored as 0');
+    eq(D.getElementById('bv_actual').value, '0', 'and the box says 0, not -5');
+    eq(D.getElementById('bv_stretch').value, '0',
+       'the box never touched shows the 0 the record holds for it — reopening would');
+    fireBox(W, D, 'bv_planned', '');
+    ok(!W.svGet().objectives.some((o) => o.plannedBv === 999),
+       'clearing the last real figure takes the record out');
+    eq(['bv_planned', 'bv_actual', 'bv_stretch'].map((id) => D.getElementById(id).value).join('|'),
+       '||', 'and with no record every box is empty, as it would be on reopening');
+    await pressDone(D, 'bvDoneBtn');
   });
 });
 

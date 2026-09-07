@@ -2228,3 +2228,15 @@ the 2026-09-07 audit", each with a test proven red against main first:
   "Fixes from the 2026-09-07 audit" press the real button and check the window is down AND
   that a box typed into and never blurred was written on the way out, and the two older tests
   now end on a real press through `pressDone()` rather than `closeAnd()`.
+- **A box kept what was typed while the state held something else.** The write clamps to the
+  field's range (250 in a max-200 Targets box is stored as 200; 1500 business value as 999,
+  -5 as 0) and a blanked Targets box is stored as its default — but the box went on showing
+  250, or nothing, under a note reading *Saved as you go*. Each commit now refills the boxes
+  from the state: `commitTargets` through `fillTargetBoxes(tgt())`, the same reading
+  `openTargets` fills from, and `commitBv` through the new `fillBvBoxes(rec)`, the one setter
+  `openBv` also uses. A box that was never touched shows the 0 the record holds for it, which
+  is what reopening the window would show anyway. **The no-write path needs it too**: -5 over
+  a stored 0 reads as 0, so the draft equals `written` and nothing is committed — the `change`
+  handlers refill from the state on that branch as well, or the box goes on saying -5. Two
+  tests: 250 → box and state both 200, blank → the box shows 85, blank again over the default →
+  still 85; 1500 → 999, -5 → 0, and clearing the last real figure empties all three.

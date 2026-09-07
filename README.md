@@ -50,7 +50,8 @@ Per team, per sprint:
 Per team, per PI, it also tracks the **business value** on that team's PI objectives —
 planned, achieved, and achieved from stretch — which is what the [predictability
 measure](#predictability-and-the-pi-by-team-view) is worked out from. That window **saves as
-you go** as well: three figures, each written when you finish with it, **Done** to close, and
+you go** as well: three figures, each written when you finish with it (and shown back as
+kept — a figure past the cap or below zero is stored at the edge), **Done** to close, and
 emptying all three is how you take the record out — "planned nothing" and "nobody has filled
 this in" are different answers, so the second is stored as no record at all.
 
@@ -298,7 +299,9 @@ finding, because every "off target" sentence in the app is written from these nu
 **The Targets window saves as you go** (2026-09-07). Finish with a box — tab out of it, or
 pick from a list — and the figure is in, with every colour in the app behind the window
 following it; the way out is **Done**. There is no Save button, and no Cancel, because by the
-time you could press one the change is made.
+time you could press one the change is made. A figure outside a box's range is kept at the
+nearest edge of it, and a box left blank goes back to its default — and either way the box
+shows what was actually kept, never a figure that isn't in force.
 
 **A set of targets that contradicts itself is refused**, and the dialog says which rule is
 broken while you type. A completion target below its own red line leaves no amber in between;
