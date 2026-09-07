@@ -301,7 +301,10 @@ pick from a list — and the figure is in, with every colour in the app behind t
 following it; the way out is **Done**. There is no Save button, and no Cancel, because by the
 time you could press one the change is made. A figure outside a box's range is kept at the
 nearest edge of it, and a box left blank goes back to its default — and either way the box
-shows what was actually kept, never a figure that isn't in force.
+shows what was actually kept, never a figure that isn't in force. Closing the window puts the
+keyboard back where it was — on the button that opened it, or on a full-screen chart's ⤢ —
+even though the page has redrawn underneath it while it was open; the Business Value window
+does the same.
 
 **A set of targets that contradicts itself is refused**, and the dialog says which rule is
 broken while you type. A completion target below its own red line leaves no amber in between;

@@ -10076,6 +10076,43 @@ function raisesKeyboard(el) {
   return el.tagName === 'TEXTAREA'
     || (el.tagName === 'INPUT' && KEYBOARD_TYPES.has(el.type));
 }
+/* ── Where the keyboard lands after an auto-saving window closes ────────────
+   A dialog hands the focus back to the element that had it when it opened.
+   Both auto-saving windows write — and render() — while they are still up,
+   and render() rebuilds #views, so by the close that element is a detached
+   node and the browser drops the focus onto <body> (2026-09-07 audit): the
+   Business Value window's own button lives in the view, and a Targets window
+   opened over a maximised chart returns to a ⤢ the rebuild threw away. With
+   no edit the focus came back correctly, which is why the 2026-09-05 pass,
+   which opened every dialog and pressed Esc, never saw it.
+
+   `focusOrigin()` is taken at open and `landFocus()` runs after the close's
+   own work. A focus that survived is left alone; a lost one goes to the
+   CURRENT copy of the element with the same id — the shape moveInList uses to
+   re-find a rebuilt button by its key — or, from inside a maximised card, to
+   the card now up and its ⤢, or failing both to the window's own button.
+   `preventScroll`, like every focus() here. */
+function focusOrigin() {
+  const el = document.activeElement;
+  const maxi = document.getElementById('chartMaxi');
+  return { id: el && el.id ? el.id : '', maxi: !!(el && maxi && maxi.contains(el)) };
+}
+function landFocus(from, fallbackId) {
+  /* Visible, not merely connected: the box inside the just-closed dialog keeps
+     the focus until the browser's fixup moves it to <body> a moment later, and
+     a rule that trusted it would leave early every time. The Find window's
+     landing (F('findBtn'), 2026-09-04) reads the same thing the same way. */
+  const a = document.activeElement;
+  if (a && a !== document.body && a.isConnected && a.getClientRects().length) return;
+  let el = from && from.id ? document.getElementById(from.id) : null;
+  if (!el && from && from.maxi) {
+    const card = maxiCard();
+    el = card ? card.querySelector(':scope > .chart-max') : null;
+  }
+  if (!el) el = document.getElementById(fallbackId);
+  if (el && el.isConnected) el.focus({ preventScroll: true });
+}
+
 function openModal(dlg) {
   dlg.showModal();
   if (!window.matchMedia('(pointer: coarse)').matches) return;
@@ -11322,7 +11359,7 @@ function openBv(teamId, piId) {
      again writes nothing: the upsert below rebuilds the record from all three
      boxes, and a write that changed nothing would still redraw the app and
      mint a toast. Taken after the boxes are filled. */
-  scoring = { teamId, piId, written: bvDraft() };
+  scoring = { teamId, piId, written: bvDraft(), from: focusOrigin() };
   openModal(bvDialog);
 }
 
@@ -11383,8 +11420,12 @@ bvDialog.addEventListener('close', () => {
   /* Nothing moved — most often a window opened to read a figure — so there is
      nothing to write and nothing to say. It still catches a box that was never
      blurred, which is the only way a real edit could reach here uncommitted. */
-  if (!ctx || bvDraft() === ctx.written) return;
-  commitBv(ctx, true);
+  if (!ctx) return;
+  if (bvDraft() !== ctx.written) commitBv(ctx, true);
+  /* After the write, and on the no-write path too: a box finished with earlier
+     already re-rendered the view, so the button this returns to is gone
+     either way. See landFocus. */
+  landFocus(ctx.from, 'bvBtn');
 });
 
 /* Done only closes; the `close` handler above does the writing. It shipped as
@@ -11396,11 +11437,16 @@ F('bvRemoveBtn').onclick = () => {
   const { teamId, piId } = scoring;
   /* Taken down BEFORE the close, or the boxes — which still hold the figures —
      would be written straight back in by the handler above. */
+  const from = scoring.from;
   scoring = null;
   state.objectives = state.objectives.filter(o => !(o.teamId === teamId && o.piId === piId));
   save();
   bvDialog.close();
   render();
+  /* The close above handed the focus to the button that opened this, and the
+     render then threw that button away — so it is re-found here, since the
+     close handler will find no context to do it from. */
+  landFocus(from, 'bvBtn');
   toast('Business value removed');
 };
 
@@ -11896,7 +11942,7 @@ let targeting = null;
 function openTargets() {
   fillTargetBoxes(tgt());
   refreshTargetsPreview();
-  targeting = { written: targetsDraft(), stored: false };
+  targeting = { written: targetsDraft(), stored: false, from: focusOrigin() };
   openModal(targetsDialog);
 }
 
@@ -11972,8 +12018,14 @@ targetsDialog.addEventListener('close', () => {
   if (targetsDialog.open) return;
   const ctx = targeting;
   targeting = null;
-  if (!ctx || targetsDraft() === ctx.written) return;
-  if (commitTargets(ctx, true)) return;
+  if (!ctx) return;
+  /* Where the keyboard lands, whichever way out this was: a box finished with
+     earlier re-rendered the page under the window — and, over a maximised
+     chart, rebuilt the card whose ⤢ this returns to. See landFocus. */
+  const land = () => landFocus(ctx.from, 'targetsBtn');
+  if (targetsDraft() === ctx.written) { land(); return; }
+  if (commitTargets(ctx, true)) { land(); return; }
+  land();
   /* Two sentences, by whether THIS window wrote anything. "Left as they were"
      was said over a window that had stored its green line a box earlier and
      was colouring the page with it (2026-09-07 audit) — true only when nothing

@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 471;
+const EXPECTED = 473;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -7574,6 +7574,58 @@ t('closing over a contradiction says what was kept — two sentences, by whether
     ok(!/left as they were/.test(toastText()),
        'never "left as they were" over a window that changed the page', toastText());
     ok(/Break-in/.test(toastText()), 'with the rule that refused it', toastText());
+  });
+});
+
+/* A dialog hands the focus back to the element that had it when it opened.
+   Both auto-saving windows write — and render() — while they are still up, and
+   render() rebuilds #views, so by the close that element is a detached node and
+   the browser drops the keyboard onto <body>: the next Tab press starts from
+   the top of the page. With no edit the focus came back correctly, which is why
+   the 2026-09-05 pass, which opened every dialog and pressed Esc, never saw it. */
+t('closing the Business Value window after an edit lands the keyboard on its button again', async () => {
+  await inFrame('bvfocus', {}, async (W, D) => {
+    D.querySelector('.tab[data-view="pi"]').click();
+    await wait(200);
+    const btn = D.getElementById('bvBtn');
+    ok(btn, 'the PI view carries the business-value button');
+    btn.focus();
+    btn.click();
+    await wait(30);
+    fireBox(W, D, 'bv_planned', '44');
+    ok(!D.getElementById('bvBtn').isConnected || D.getElementById('bvBtn') !== btn,
+       'the write re-rendered the view, so the button that opened the window is a new node');
+    await pressDone(D, 'bvDoneBtn');
+    await new Promise((r) => setTimeout(r, 0));
+    const a = D.activeElement;
+    eq(a ? a.id : 'nothing', 'bvBtn',
+       'the keyboard is on the CURRENT copy of the button — not on <body>, where the browser '
+       + 'left it when the old copy turned out to be detached',
+       a ? (a.id || a.tagName) : 'nothing');
+  });
+});
+
+t('closing Targets over a maximised chart lands the keyboard on the new card’s ⤢', async () => {
+  await inFrame('targetsmaxifocus', {}, async (W, D) => {
+    D.querySelector('.tab[data-view="rolling"]').click();
+    await wait(400);
+    const card = [...D.querySelectorAll('#views .card')].find((c) => c.querySelector('.chartbox canvas'));
+    const max = card.querySelector(':scope > .chart-max');
+    max.click();
+    await wait(300);
+    ok(W.maxiCard() === card, 'a card is up');
+    ok(D.activeElement === max, 'and the keyboard is on its ⤢ — the element the window will return to');
+    D.getElementById('targetsBtn').click();
+    await wait(30);
+    fireBox(W, D, 't_completionGreen', '90');
+    ok(!max.isConnected, 'the write rebuilt the card, so that ⤢ is a detached node now');
+    await pressDone(D, 'targetsDoneBtn');
+    await new Promise((r) => setTimeout(r, 0));
+    const a = D.activeElement;
+    const now = W.maxiCard() && W.maxiCard().querySelector(':scope > .chart-max');
+    ok(a && a !== D.body && a === now,
+       'the keyboard is on the new card’s ⤢, the button that gets out again — not on <body>',
+       a ? (a.id || a.className || a.tagName) : 'nothing');
   });
 });
 

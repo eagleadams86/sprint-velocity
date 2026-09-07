@@ -2248,3 +2248,21 @@ the 2026-09-07 audit", each with a test proven red against main first:
   otherwise *Kept the figures you finished with; the last change was not saved — …*, both
   ending on the rule that refused the set. One test pins both wordings in one window, and the
   older contradiction test (which stores 92 first) now expects the second.
+- **Closing either window after an edit dropped the keyboard on `<body>`.** A dialog hands the
+  focus back to the element that had it when it opened; both windows write — and `render()` —
+  while they are still up, and `render()` rebuilds `#views`, so by the close that element is a
+  detached node. `#bvBtn` lives in the view; a Targets window opened over a maximised chart
+  returns to a ⤢ the rebuild threw away. With no edit the focus came back correctly, which is
+  why the 2026-09-05 pass (open every dialog, press Esc) never saw it. `focusOrigin()` is taken
+  at open and `landFocus(from, fallbackId)` runs at the end of both close handlers and after
+  Remove's own `render()`: a focus that survived is left alone; a lost one goes to the CURRENT
+  element with the same id (the shape `moveInList` uses to re-find a rebuilt button by its
+  key), or from inside a maximised card to the card now up and its ⤢, or failing both to the
+  window's own button. **Two traps found on the way**: the close handler's early return (draft
+  equals `written`, because the box's `change` already wrote) is exactly the path a lost focus
+  takes, so the landing runs on every way out; and the box inside the just-closed dialog keeps
+  `activeElement` until the browser's fixup moves it to `<body>` a moment later, so "survived"
+  is tested with `getClientRects().length`, as the Find window's landing already does — a
+  connected-only check returned early every time and the test stayed red. Two tests: edit,
+  Done, a macrotask, and `activeElement.id === 'bvBtn'`; and Targets over a maximised chart
+  landing on the new card's ⤢.
