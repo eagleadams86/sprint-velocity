@@ -143,18 +143,39 @@ but Charles had ever actually signed in.)
   because it would RE-JUDGE somebody else's figures.
 - **Two averaging methods, both deliberate.** `avg()` is the mean of each sprint's own
   percentage (every sprint equal); `pooled()` sums the points and divides once (bigger sprints
-  weigh more). The Compare Teams view shows both — Comparison 1 uses `avg()`, Comparison 2 uses
-  `pooled()` — over the *same* sprint set, so they can only ever differ by method. **Comparison
-  2 is the method the Agile Operations Dashboard uses**, as is the PI view's "PI total" row
-  and commitment-completion tile; the PI "Average per sprint" tile and every Rolling 5 figure
-  are `avg()`. Don't "fix" one to agree with the other, and don't let a new figure pick a
+  weigh more). **`pooled()` is the method the Agile Operations Dashboard uses**, and it is what
+  the PI view's "PI total" row, its commitment-completion tile and PI by Team's ART total row
+  show; the PI "Average per sprint" tile, every Rolling 5 figure and the whole Compare Teams
+  view are `avg()`. Don't "fix" one to agree with the other, and don't let a new figure pick a
   method silently — say which it is in the UI.
-- **Both comparison tables end in an `Compare Teams` row, each in its own table's method**
-  (`allMean` on `avg()`, `allPooled` on `pooled()`), taken across every counted sprint from
-  every team — **never** the mean of the rows above, so neither equals the mean of its own
-  column and a six-sprint team pulls six times as hard as a one-sprint team. The lone plain
-  sum is Comparison 1's next-sprint target: points, not a rate, so the column adds up. The
-  `methodnote` under Comparison 2 explains both rows; keep it in step if either changes.
+- **COMPARE TEAMS IS ONE TABLE, and the pooled one that sat under it went 2026-09-08.** Asked
+  for by Charles: those figures are on PI by Team, which lines every team up the same way, and
+  two tables of the same teams saying different numbers was the one thing on the page a reader
+  had to be talked through. Gone with it: `dashboardCondition()` and the reconciliation tag
+  (only a pooled figure can make that claim, and nothing on this page pools anything now), the
+  `widest`-gap paragraph, `r.pool`, `allPooled`, and the `teamsPooled` / `actualComplete` help
+  entries. **A help window that pointed AT it had to be repointed, not just left** — `teamsMean`,
+  `histCompletion`, `histTotalRow` and `rollAvgRow` all named "Comparison 2"; a pointer to a
+  table nobody can find is worse than no pointer, and a test now fails on the words
+  "Comparison 1" or "Comparison 2" appearing in any help body.
+- **The table ends in an `All teams` row in its own method** (`allMean` on `avg()`), taken
+  across every counted sprint from every team — **never** the mean of the rows above, so it
+  does not equal the mean of its own column and a six-sprint team pulls six times as hard as a
+  one-sprint team. The lone plain sum is the next-sprint target: points, not a rate, so the
+  column adds up. The `methodnote` under the table explains that row; keep it in step.
+- **Its headings SORT, ported from Flow Metrics' All Teams table (2026-09-08).** One
+  `TEAM_COLS` list builds the header row AND drives the sort, because two lists eventually
+  produce a column that can be pressed and not sorted. `TEAM_SORT_VALUE` sorts on the figure
+  the column SHOWS — Trend on its fitted slope, Sprint goals on the rate rather than the count.
+  Three states per heading (its own way, reversed, back to the ART grouping), nulls at the foot
+  either way round (no figure is not the lowest figure), ties falling back to the grouping so
+  the table never reshuffles between two renders. **The sort is PER DEVICE** (`sv-teamsort` via
+  `lsGet`/`lsSet`, beside the theme and the pin) and never in `state`: a sort is how one person
+  is reading the table this afternoon, so it has no business in a share link. `rowsData` is
+  sorted before anything reads it, so **the chart above the table follows it** — two orders on
+  one page, one of them the reader's own choice, is a page read twice. And the press has to
+  hand the keyboard back: `render()` destroys the heading that was pressed, so the new copy is
+  found by its key and re-focused, and only when the press came from the keyboard.
 - **Team PI and Rolling 5 carry ONE summary row each, in the method that view's own
   figures already use** (asked for 2026-08-18): Team PI keeps **PI total** (pooled, matching
   its headline commitment-completion tile), Rolling 5 keeps **Average per sprint** (matching
@@ -162,9 +183,10 @@ but Charles had ever actually signed in.)
   them read as a difference in method rather than an error; with one row that job falls to its
   `helpBtn`, which must still name its method outright AND say where the other one lives —
   don't let either help drift into describing a row that isn't there, which is what the
-  removed `piAvgRow`/`rollPooledRow` entries did before they were deleted. **Compare Teams still
-  shows both methods side by side** (Comparison 1 and 2), which is where to send anyone who
-  wants to compare them. Rolling 5 also keeps its **tiles on `avg()` only** — a fuller pooled
+  removed `piAvgRow`/`rollPooledRow` entries did before they were deleted. **The other method is
+  a view away, not a table away** (2026-09-08): send anyone comparing them to Team PI's PI
+  total row or PI by Team's ART total row, which is what those helps now say. Rolling 5 also
+  keeps its **tiles on `avg()` only** — a fuller pooled
   treatment there (extra tile cards, a worked-example note) was built and rejected as too
   much for the view, so don't rebuild it.
 - **The `REASONS` labels are short because they are `<option>` text on a phone.** A 375px
@@ -795,12 +817,14 @@ but Charles had ever actually signed in.)
   at `ROLLING_WINDOW` kept sprints or `ROLLING_WINDOW` skipped ones. Both window-based views
   read this one function, so both go silent together — if a report says "it shows in some
   views and not others", this is the seam. Pinned by the oldest-sprint test in tests.html.
-  **The Agile Operations Dashboard reconciliation claim is now CONDITIONAL wherever an
-  exclusion can reach it.** A sprint left out here is still in the Dashboard's total until it
-  is unselected there too, so "matches the Agile Operations Dashboard" becomes "…when S1 is
-  unselected there too" — the tag on Comparison 2 (which gains `.tag.cond` so a sentence can
-  wrap where a two-word label never had to), its `.sub`, the `methodnote`, and the
-  `teamsPooled` / `rollPooledRow` help. **The PI view's claims stay unconditional and must**:
+  **No window-based view makes the Agile Operations Dashboard reconciliation claim any
+  more.** It used to be made CONDITIONALLY wherever an exclusion could reach it — a sprint left
+  out here is still in the Dashboard's total until it is unselected there too, so "matches the
+  Agile Operations Dashboard" became "…when S1 is unselected there too", on Comparison 2's tag
+  (which gained `.tag.cond` so a sentence could wrap where a two-word label never had to), its
+  `.sub` and the `methodnote`. That table went on 2026-09-08 and the conditional wording with
+  it; `.tag.cond` stays in the stylesheet for the next sentence-length tag. **The PI view's
+  claims stay unconditional and must**:
   it filters on its own `closed` list rather than through `rollingSprints()`, so it never
   loses a sprint this way. That asymmetry is pinned by a test — if the PI view ever starts
   reading the window, `piTotalRow` and `piCommitCompletion` become wrong too.

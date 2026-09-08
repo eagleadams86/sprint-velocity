@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 490;
+const EXPECTED = 498;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -751,6 +751,175 @@ function withPicker(fn) {
     w.render();
   }
 }
+/* ── COMPARE TEAMS: ONE TABLE, AND ITS HEADINGS SORT ──────────────────────
+   Two changes Charles asked for on 2026-09-08, both about this one table.
+
+   The POOLED table under it is gone. Its figures are on PI by Team, which is
+   where anybody reconciling with the Agile Operations Dashboard is already
+   looking, and two tables of the same teams saying different numbers was the
+   one thing on this page a reader had to be talked through. What has to be
+   pinned is not its absence — a deleted table needs no test — but the things it
+   used to carry: the reconciliation TAG (a claim no figure on this page can
+   make now), and the help entries that pointed AT it, because a help window
+   naming a table nobody can find is worse than no help at all.
+
+   The headings sort, the way Flow Metrics' All Teams table has always sorted.
+   Driven by pressing the real buttons, because the sort state is per-device and
+   a test that wrote it directly would pass with every listener unhooked. */
+function withSortable(fn) {
+  const st = w.svGet();
+  const keep = { view: st.settings.view, sort: w.__svTestHooks.readTeamSort() };
+  /* Four teams whose commitment completion is 100, 50, 75 and — nothing at all,
+     because a team with no finished sprint is the case the null rule is for.
+     Named out of alphabetical order so a sorted list cannot be the order they
+     were planted in. */
+  const sprint = (id, teamId, n, committed, done) => ({
+    id, teamId, piId: null, sprintNumber: n,
+    committed, committedCompleted: done, totalCompleted: done,
+    added: 0, removed: 0, carriedIn: 0, carriedOut: 0, addedThenRemoved: 0
+  });
+  try {
+    withState({
+      teams: [{ id: 'z1', name: 'Zebra' }, { id: 'a1', name: 'Aardvark' },
+              { id: 'm1', name: 'Mongoose' }, { id: 'q1', name: 'Quiet' }],
+      arts: [], pis: [], plans: [], objectives: [],
+      sprints: [sprint('zs1', 'z1', 1, 10, 10), sprint('zs2', 'z1', 2, 10, 10),
+                sprint('as1', 'a1', 1, 10, 5), sprint('as2', 'a1', 2, 10, 5),
+                sprint('ms1', 'm1', 1, 20, 15), sprint('ms2', 'm1', 2, 20, 15)]
+    }, () => {
+      st.settings.view = 'teams';
+      w.__svTestHooks.setTeamSort(null, 'desc');
+      w.render();
+      return fn(st);
+    });
+  } finally {
+    w.__svTestHooks.setTeamSort(keep.sort.key, keep.sort.dir);
+    st.settings.view = keep.view;
+    w.render();
+  }
+}
+const sortHead = (label) => [...w.document.querySelectorAll('#teamsTable thead button[data-teamsort]')]
+  .find(b => b.textContent.trim() === label);
+const sortedTeams = () => [...w.document.querySelectorAll('#teamsTable tbody .rowbtn')]
+  .map(b => b.textContent.trim());
+
+group('Compare Teams — the pooled table is gone');
+
+t('one table, and nothing on the page claims to match the Dashboard', () => {
+  withSortable(() => {
+    const d = w.document;
+    ok(d.getElementById('teamsTable'), 'the average-of-sprints table is the one that stays');
+    eq(d.querySelectorAll('#views table').length, 1, 'and it is the only table on the view');
+    eq(d.getElementById('cmp2Table'), null, 'the pooled table is gone, id and all');
+    /* THE CLAIM WENT WITH IT. Only a pooled figure can reconcile with the
+       Dashboard, and this page has none — a tag left behind would be the app
+       asserting something none of its own arithmetic supports. */
+    ok(!/Agile Operations Dashboard/.test(d.getElementById('views').textContent),
+       'and so did the reconciliation claim, which was the pooled table’s to make');
+  });
+});
+
+t('the help windows point at the pooled rows that still exist', () => {
+  const H = TG().METRIC_HELP;
+  eq(H.teamsPooled, undefined, 'the window for the removed table went with it');
+  eq(H.actualComplete, undefined, 'and the one for its last column');
+  const bodies = Object.keys(H).map(k => H[k].title + ' ' + H[k].body).join(' ');
+  eq(/Comparison [12]/.test(bodies), false,
+     'no window names a table that no longer exists — a pointer to nothing is worse '
+     + 'than no pointer');
+  ok(/PI total/.test(H.teamsMean.body) && /PI by Team/.test(H.teamsMean.body),
+     'and the one that used to say "the pooled table below" now says where the pooled '
+     + 'figures actually are', H.teamsMean.body);
+});
+
+group('Compare Teams — the headings sort');
+
+t('a press sorts by the column, a second reverses, a third gives the grouping back', () => {
+  withSortable(() => {
+    const planted = ['Zebra', 'Aardvark', 'Mongoose', 'Quiet'];
+    eq(sortedTeams(), planted, 'unsorted, the table is in the order the teams are listed in');
+    sortHead('Commitment completion').click();
+    eq(sortedTeams(), ['Zebra', 'Mongoose', 'Aardvark', 'Quiet'],
+       'the first press runs the column its own way — highest first, which is what '
+       + 'anybody pressing a figure column is looking for');
+    sortHead('Commitment completion').click();
+    eq(sortedTeams(), ['Aardvark', 'Mongoose', 'Zebra', 'Quiet'],
+       'the second reverses it — and the team with no sprints does NOT come first, '
+       + 'because no figure is not the lowest figure');
+    sortHead('Commitment completion').click();
+    eq(sortedTeams(), planted, 'and the third puts the grouping back, rather than needing '
+       + 'a Clear button nobody looks for');
+  });
+});
+
+t('the names sort A to Z first, because that is a name column’s own way', () => {
+  withSortable(() => {
+    sortHead('Team').click();
+    eq(sortedTeams(), ['Aardvark', 'Mongoose', 'Quiet', 'Zebra'], 'A to Z on the first press');
+    sortHead('Team').click();
+    eq(sortedTeams(), ['Zebra', 'Quiet', 'Mongoose', 'Aardvark'], 'and Z to A on the second');
+  });
+});
+
+t('the sorted column says so to a screen reader, and only that one', () => {
+  withSortable(() => {
+    const sorted = () => [...w.document.querySelectorAll('#teamsTable thead th')]
+      .filter(th => th.getAttribute('aria-sort'))
+      .map(th => th.textContent.replace(/\s+/g, ' ').trim() + ':' + th.getAttribute('aria-sort'));
+    eq(sorted(), [], 'nothing is sorted until something is pressed');
+    sortHead('Avg velocity').click();
+    eq(sorted().length, 1, 'exactly one column carries aria-sort');
+    ok(/^Avg velocity:descending/.test(sorted()[0]), 'and it is the one pressed', sorted()[0]);
+    sortHead('Avg velocity').click();
+    ok(/ascending$/.test(sorted()[0]), 'which follows the direction', sorted()[0]);
+  });
+});
+
+t('every column can be pressed, and every press has a figure behind it', () => {
+  withSortable(() => {
+    const heads = [...w.document.querySelectorAll('#teamsTable thead th')];
+    eq(heads.length, w.__svTestHooks.TEAM_COLS.length,
+       'one heading per column in the spec — the header row is BUILT from it, so a '
+       + 'column that could be pressed and not sorted cannot happen');
+    ok(heads.every(th => th.querySelector('button[data-teamsort]')),
+       'and every one of them is a real button, which is what makes it reachable from '
+       + 'the keyboard at all');
+    /* A key with no getter would sort every row the same and look like a table
+       that ignores you. */
+    w.__svTestHooks.TEAM_COLS.forEach(c => {
+      ok(typeof w.__svTestHooks.TEAM_SORT_VALUE[c.key] === 'function',
+         'the ' + c.key + ' column has a figure to sort on');
+    });
+  });
+});
+
+t('the chart above follows the table, so the page has one order', () => {
+  withSortable(() => {
+    sortHead('Commitment completion').click();
+    const chart = w.Chart.getChart('teamsChart');
+    eq(chart.data.labels, sortedTeams().filter(n => n !== 'Quiet'),
+       'the bars are the sorted rows, minus the team with nothing to plot — two orders '
+       + 'on one page, one of them the reader’s own choice, is a page read twice');
+  });
+});
+
+t('the sort is a per-device preference, never data', () => {
+  withSortable(() => {
+    sortHead('Sprints').click();
+    eq(w.svGet().settings.teamSort, undefined,
+       'it is not in state — a sort is how one person is reading the table this '
+       + 'afternoon, not something about the teams, and it has no business in a share link');
+    ok(/^count:/.test(localStorage.getItem('sv-teamsort') || ''),
+       'it is beside the theme and the pin instead', localStorage.getItem('sv-teamsort'));
+    /* An id that no longer names a column is the state a rename leaves behind. */
+    eq(w.__svTestHooks.parseTeamSort('gone:asc').key, null,
+       'a key that no longer names a column falls back to the grouping rather than '
+       + 'drawing a broken table');
+    eq(w.__svTestHooks.parseTeamSort('count:junk').dir, 'desc',
+       'and an unreadable direction is the column’s own way');
+  });
+});
+
 const artBox = (id) => [...w.document.querySelectorAll('input[data-art-pick]')]
   .find(b => b.dataset.artPick === id);
 const artTick = (id, on) => {
@@ -763,7 +932,7 @@ const artSays = () => ({
   note: w.document.querySelector('.toolbarcard .muted').textContent.replace(/\s+/g, ' ').trim(),
   head: w.document.querySelector('#views h2').textContent.trim(),
   tags: w.document.querySelectorAll('.artname').length,
-  /* Both tables on this view end in one, and they take the same label. */
+  /* The one table on this view ends in one. There were two until 2026-09-08. */
   feet: [...w.document.querySelectorAll('#views tfoot th[scope="row"]')]
     .map(el => el.textContent.replace(/\s+/g, ' ').trim()),
   open: w.document.getElementById('artFilterMenu').hidden === false
@@ -808,18 +977,18 @@ t('one ART is named on the button, two or more are counted', () => {
    right. The rule is the picker button's, one row up. */
 t('the footer row names one ART and counts several', () => {
   withPicker(() => {
-    eq(artSays().feet, ['All teams', 'All teams'],
-       'with nothing ticked both tables end in the plain row they always did');
+    eq(artSays().feet, ['All teams'],
+       'with nothing ticked the table ends in the plain row it always did');
     w.document.getElementById('artFilterBtn').click();
     artTick('a1', true);
-    eq(artSays().feet, ['All teams on Payments', 'All teams on Payments'],
+    eq(artSays().feet, ['All teams on Payments'],
        'ONE is still named, because a name is shorter than any phrase standing in for it');
     artTick('a2', true);
-    eq(artSays().feet, ['All selected teams', 'All selected teams'],
+    eq(artSays().feet, ['All selected teams'],
        'past one they are counted, and the heading over the table names them in full');
     artTick('a1', false); artTick('a2', false);
     artTick(w.__svTestHooks.ART_NONE, true);
-    eq(artSays().feet, ['All teams with no ART', 'All teams with no ART'],
+    eq(artSays().feet, ['All teams with no ART'],
        'and the un-grouped group keeps its own sentence, which is one phrase either way');
   });
 });
@@ -2512,10 +2681,14 @@ t('the excluded sprint keeps all its own figures — only the forecast skips it'
   });
 });
 t('the Team PI view keeps an excluded sprint, which is why its help stays unconditional', () => {
-  /* The Dashboard-reconciliation claim is conditional on Comparison 2 and the
-     Rolling 5 pooled row, and NOT on the PI total row. That asymmetry is only
-     correct while the PI view keeps filtering on its own counted list rather than
-     through rollingSprints() — if that ever changes, the PI help is wrong too. */
+  /* The Dashboard-reconciliation claim is made by the POOLED rows — Team PI's PI
+     total and PI by Team's ART total — and those read their own counted list
+     rather than going through rollingSprints(), which is why their help stays
+     unconditional. (Compare Teams used to make the same claim on its pooled
+     table, conditionally, because the rolling window CAN drop a sprint the
+     Dashboard still counts; that table went on 2026-09-08 and nothing on that
+     page pools anything now.) If the PI view ever starts filtering through
+     rollingSprints(), the PI help is wrong too. */
   const fx = windowFixture();
   fx.sprints[6].excluded = true;
   fx.sprints[6].excludeReason = 'incident';
@@ -2995,7 +3168,12 @@ t('every dot draws an "i", and every dot has words behind it', () => {
      no entry draws NO dot, rather than a dot onto an empty window. */
   const used = [...new Set([...stripComments(APP_SRC).matchAll(/helpBtn\('(\w+)'/g)]
     .map((m) => m[1]))];
-  ok(used.length > 10, 'the dots written out as literals were found — ' + used.length + ' keys');
+  /* The floor moved 10 -> 8 on 2026-09-08, when Compare Teams lost its pooled
+     table (two entries with it) and its remaining headings moved their two dots
+     into the TEAM_COLS spec — which is the spec form this guard already says it
+     cannot see. A floor is here to catch the sweep matching NOTHING, not to pin
+     a count that every legitimate change moves. */
+  ok(used.length > 8, 'the dots written out as literals were found — ' + used.length + ' keys');
   eq(used.filter((k) => !H[k]).join(', '), '',
     'a dot with no entry opens an empty window, and nothing on screen can say so');
   ok(/if \(!helpKey \|\| !METRIC_HELP\[helpKey\]\) return '';/.test(APP_SRC),

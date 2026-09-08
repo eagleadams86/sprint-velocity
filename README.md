@@ -612,11 +612,11 @@ rather than dragging them down.
   view](#predictability-and-the-pi-by-team-view). Narrow it to one train with the ART
   picker and it becomes that train's PI page.
 - **Compare Teams** — every team's rolling averages side by side, plus each team's next-sprint
-  target in one column, so the one that needs attention is obvious. It carries **two
-  comparison tables**, the same sprints through two different averages — see below — and
-  an **ART filter** across the top when your teams are grouped into ARTs. Comparison 1 also
-  carries a [**Trend**](#which-way-each-team-is-going) column and a [**Sprint
-  goals**](#the-goals-column-and-the--finding) one.
+  target in one column, so the one that needs attention is obvious. Its figures are the
+  [average-of-sprints method](#two-ways-to-average-a-percentage), every column
+  [sorts](#sorting-the-table), and an **ART filter** runs across the top when your teams are
+  grouped into ARTs. It also carries a [**Trend**](#which-way-each-team-is-going) column and a
+  [**Sprint goals**](#the-goals-column-and-the--finding) one.
 
 **Any chart fills the window.** Every card that draws one carries a ⤢ button in its
 top-right corner; press it and that chart alone fills the screen under the header. **The
@@ -813,37 +813,42 @@ The tab appears once a team has **more than five** sprints. Below that it would 
 with a different heading, and a tab that duplicates its neighbour teaches a reader that the
 tabs don't mean anything.
 
-## The Two Comparison Tables
+## Two Ways to Average a Percentage
 
-The Compare Teams view shows the same rolling window twice, because there are two honest ways
-to average a percentage and they answer different questions.
+There are two honest ways to average a percentage and they answer different questions.
 
-**Comparison 1 — average of sprints.** Each sprint's own percentage is worked out first,
-then those percentages are averaged. Every sprint counts equally whatever its size.
+**Average of sprints.** Each sprint's own percentage is worked out first, then those
+percentages are averaged. Every sprint counts equally whatever its size.
 
-**Comparison 2 — pooled totals.** Every point is added into one total and the percentage
-taken once at the end. A bigger sprint pulls harder than a small one.
+**Pooled totals.** Every point is added into one total and the percentage taken once at the
+end. A bigger sprint pulls harder than a small one.
 
 A team with two sprints — 6 of 9 committed points done, then 5 of 14 — scores **51%** by
 the first method (67% and 36%, averaged) and **48%** by the second (11 of 23). Neither is
 wrong; the first describes the typical sprint, the second describes the body of work.
 
-| | Comparison 1 | Comparison 2 |
+| | Average of sprints | Pooled totals |
 |---|---|---|
 | Method | Average of each sprint's % | One pooled total, divided once |
 | Weights sprints by size | No | Yes |
 | Best for | Coaching a team — the habit | Reporting upward — the actual work |
 | Matches the Agile Operations Dashboard | No | **Yes** |
+| Where it is | **Compare Teams**, and every Rolling 5 tile | **Team PI**'s *PI total* row, and **PI by Team**'s *ART total* row |
 
-**Comparison 2 is the one that reconciles with the Agile Operations Dashboard**, which
+**The pooled method is the one that reconciles with the Agile Operations Dashboard**, which
 pools throughout.
 
-Both tables end in an **All teams** row, and each applies its own table's method across every
-team at once rather than averaging the rows above it — so neither row equals the mean of the
-column it sits under. Comparison 1 counts every sprint from every team as one equal sprint, so
-a team with six of them pulls six times as hard as a team with one; Comparison 2 pools every
-point, exactly as the dashboard's Total does. The single exception is Comparison 1's
-**next sprint target**: that's points rather than a rate, so the team targets simply add up.
+(Compare Teams used to show both, as *Comparison 1* and *Comparison 2*. The pooled table was
+removed in September 2026: those figures are on **PI by Team**, which lines every team up the
+same way, and two tables of the same teams saying different numbers was the one thing on that
+page a reader had to be talked through.)
+
+The Compare Teams table ends in an **All teams** row that applies the average-of-sprints
+method across every team at once rather than averaging the rows above it — so it does not
+equal the mean of the column it sits under. It counts every sprint from every team as one
+equal sprint, so a team with six of them pulls six times as hard as a team with one. The
+single exception is **next sprint target**: that's points rather than a rate, so the team
+targets simply add up.
 
 **Team PI** and **Rolling 5** each end their *The numbers* table with **one** summary
 row, in whichever method that view's own figures already use:
@@ -855,8 +860,7 @@ row, in whichever method that view's own figures already use:
 
 Its committed and delivered figures follow the method: **totals** on the pooled row,
 **per-sprint means** on the average row. The row carries an ⓘ explaining its own method and
-pointing at where the other one lives — which is **Compare Teams**, above, where the two sit
-side by side over the same sprints and can actually be compared.
+pointing at where the other one lives.
 
 (Both views used to show the two methods as a pair of rows. That made every table answer a
 question most readers weren't asking, so each view now shows the one that matches the
@@ -866,9 +870,16 @@ The tiles at the top of Rolling 5 are all averages of sprints. Team PI's tiles a
 mix: *PI commitment completion* is pooled, *Average per sprint* is the average-of-sprints
 figure, and a wide gap between them means one sprint is skewing the total.
 
-Comparison 2 also carries **Actual complete** — everything delivered, break-in work
-included, against what was committed. It goes above 100% when a team finished more than it
-signed up for, which says throughput was high, not that the plan held.
+### Sorting the Table
+
+Press any column heading on **Compare Teams** to sort the table by it — the same way the
+headings work on Flow Metrics' All Teams table. The first press runs the column its own way
+(highest first for a figure, A to Z for the names), a second press reverses it, and a third
+puts the ART grouping back. The chart above the table follows, so the page reads in one
+order. A team with no figure in the column — no finished sprint, too few sprints for a
+direction, no goal recorded — stays at the foot whichever way the column runs: no figure is
+not the lowest figure. Your choice is remembered on this device, and never travels in a
+share link.
 
 ### Which Way Each Team Is Going
 
@@ -902,7 +913,7 @@ export](#getting-the-numbers-out) drops it, and "up 12" is what lands in the fil
 ### The Goals Column, and the ◎ Finding
 
 Sprint goals were tracked everywhere except the one page that lines every team up side by
-side — which is the page whose job is *which team needs you*. Comparison 1 now carries them.
+side — which is the page whose job is *which team needs you*. Compare Teams now carries them.
 
 The figure is a count — **3 of 4**, never a percentage — over the sprints somebody actually
 answered the question about, so its denominator can be smaller than the sprint count to its
@@ -983,8 +994,8 @@ team counting once, whatever the size of its plan. That's the measure SAFe defin
 one an RTE reports at Inspect & Adapt. The footer row of the table underneath is the *other*
 method: all the value pooled and divided once, so a team that planned three times as much
 value pulls three times as hard. Same teams, same PI, two honest answers — the same
-arrangement as [the two comparison tables](#the-two-comparison-tables), and each says which
-it is.
+arrangement as [the two ways to average a percentage](#two-ways-to-average-a-percentage), and
+each says which it is.
 
 **A team with nothing recorded is named, not quietly dropped.** It stays in every points
 figure and sits out the predictability ones, and a ⚑ note above the tiles says which teams
@@ -1068,7 +1079,7 @@ at:
   **PI Trend** share the same picker, so the scope follows you between all three.
   (Before September 2026 it was a single-choice dropdown, so wanting two ARTs out of five
   meant taking every team you support and reading past the ones you hadn't asked about.)
-- Everything below it follows: both comparison tables, both **Compare Teams** footer rows, the
+- Everything below it follows: the table, its footer row, the
   chart, and the count of sprints still in flight. Pick *Payments ART* and the footer row reads
   **All teams on Payments ART**; tick *Platform ART* beside it and it reads **All selected
   teams**, worked out across both ARTs' teams. The **heading** over the table names every ART
@@ -1121,7 +1132,7 @@ has to hold. When the sprint it's aiming at is already
 running and has a commitment recorded, it swaps the new-work figure for a comparison
 against what the team actually signed up for — there's still time to descope. A running
 sprint whose commitment hasn't been entered yet keeps the forecast, since 0 committed is
-an unanswered question rather than a small commitment. Comparison 1's **Next sprint target**
+an unanswered question rather than a small commitment. Compare Teams' **Next sprint target**
 column and its total use the adjusted figures, and mark an adjusted team with a ⚑. It warns you when there are fewer than
 three sprints of history, when the team's delivery swings by more than 30%, and when the
 next sprint up is the IP sprint.
@@ -1431,7 +1442,7 @@ carries the same ⚑ as an availability adjustment.
 
 **Only the recommendation changes.** The sprint's own recorded figures are untouched in
 every chart and table — the Sprint view, the Team PI totals, the Rolling 5 tiles and
-both comparison tables all still show exactly what the team delivered. A scale needs no
+Compare Teams all still show exactly what the team delivered. A scale needs no
 expiry: it sits on its sprint and retires by itself when that sprint drops out of the
 rolling window.
 
@@ -1458,7 +1469,7 @@ away, or a team merged and the sprints before it belong to a different team.
 The sprint form's **Rolling 5** section takes a sprint out of the rolling average
 and the capacity target, with a reason from the same kind of fixed list. Everything else
 about the sprint is untouched — its own figures still show in the Sprint view, the Current
-PI view and both comparison tables, and it's still a finished sprint rather than one faked
+PI view and Compare Teams, and it's still a finished sprint rather than one faked
 back to "planned" to hide it, which is how this used to have to be done.
 
 The window still fills to five, reaching further back into the history the same way it does
@@ -1473,14 +1484,15 @@ on:**
 | Sprint picker | `Sprint 2 — left out of the average`, before you even open it |
 | Team PI | A **⚑ Left out of the rolling 5** badge on the sprint's row, and a caption naming it as **included** in this PI's totals |
 | Rolling 5 | A badged line under the heading naming it and the reason, and a note on the numbers table explaining the gap in the sprint numbers |
-| Compare Teams | A ⚑ on the team's sprint count in both comparison tables, and a line under the heading naming which team lost which sprint |
+| Compare Teams | A ⚑ on the team's sprint count, and a line under the heading naming which team lost which sprint |
 
-Leaving a sprint out also breaks the promise that Comparison 2 reconciles with the Agile
-Operations Dashboard, because the sprint is still in the Dashboard's total until it's
-unselected there too. So that badge becomes conditional and names the sprint —
-*"matches the Agile Operations Dashboard when S1 is unselected there too"* — as do the
-method note beneath it and the ⓘ help on both pooled figures. The **Team PI** total
-keeps the unconditional promise, because that view never drops the sprint in the first
+Leaving a sprint out does not touch the pooled rows that reconcile with the Agile
+Operations Dashboard: **Team PI** and **PI by Team** read their own counted list rather than
+the rolling window, which is why their claim stays unconditional. (Compare Teams used to
+carry a conditional version of that badge on its pooled table, naming the sprint you would
+have to unselect in the Dashboard as well. The table went in September 2026 and the claim
+with it.) The exclusion is still named on every view that shows it. The **Team PI** total
+keeps its unconditional promise, because that view never drops the sprint in the first
 place.
 
 The Team PI wording matters: an exclusion reaches the rolling average, the Compare Teams
@@ -1559,7 +1571,7 @@ Every table in the app carries a **Copy** and a **⬇ CSV** button in its headin
 | **Team PI** | Sprint by sprint, with the PI total row |
 | **Rolling 5** | The sprints in the window |
 | **PI by Team** | Every team on the train, with the ART row |
-| **Compare Teams** | Comparison 1 and Comparison 2, separately |
+| **Compare Teams** | Every team, averaged across its sprints |
 
 **Copy** puts the table on the clipboard tab-separated, which pastes as a real grid into a
 status email, a slide or a spreadsheet. **⬇ CSV** downloads a file — `sprint-velocity-all-teams-avg-2026-08-20.csv`
