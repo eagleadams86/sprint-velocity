@@ -1001,19 +1001,13 @@ th .tile-help, td .tile-help { vertical-align: 1px; }
 .note-err  { color: var(--err);   font-size: var(--fs-xs); font-weight: 600; }
 /* A pill hard up against the text it qualifies reads as part of the sentence, so it
    gets a little more than the word space it follows. */
-/* Neutral sibling of .badge — .badge is amber because it always means "in flight",
-   and a heading tag that just names a source shouldn't borrow that alarm. */
-/* A LABEL, NOT A CONTROL. Same call as `.pill` below and for the same reason:
-   read, never pressed, so it keeps `--border-strong` and stayed out of the
-   control-border sweep of 2026-08-22. Make one clickable and it moves. */
-.tag { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px;
-  font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0; vertical-align: 2px;
-  border: 1px solid var(--border-strong); color: var(--text-secondary);
-  background: var(--bg-card-alt); white-space: nowrap; }
-/* The reconciliation tag stops being a two-word label once it has to carry a
-   condition ("...when S1 is unselected there too"), and nowrap would push it off
-   the side of a phone. Only the conditional form gets this. */
-.tag.cond { white-space: normal; }
+/* `.tag` AND `.tag.cond` WENT WITH THE POOLED TABLE on 2026-09-08. They dressed
+   one label — "matches the Agile Operations Dashboard", and the longer sentence
+   it grew when an excluded sprint made the claim conditional — and that heading
+   is the only place in the app that ever wore one. Deleted rather than left
+   sitting unreferenced, the same rule the removed help entries follow: dead CSS
+   is a promise that something on the page still looks like this. A neutral
+   sibling of `.badge` is worth rebuilding if a heading ever needs one again. */
 .badge { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px;
   font-size: var(--fs-xs);
   font-weight: 700; border: 1px solid var(--amber); color: var(--amber);
@@ -1119,9 +1113,49 @@ tbody tr:hover { background: var(--bg-card-alt); }
    `td` alone, the rule left the last row's <th scope="row"> holding a border its
    own row no longer had — a line under the team name that stopped at the end of
    the first column. It showed wherever a table's last body row has no tfoot
-   beneath it to absorb it, which is every row of Comparison 1 in Compare Teams, and
-   is unmissable there when you support a single team and that row is the table. */
+   beneath it to absorb it, and was unmissable on Compare Teams when you support a
+   single team and that row is the table. */
 tbody tr:last-child td, tbody tr:last-child th { border-bottom: none; }
+/* ── A HEADING YOU CAN PRESS TO SORT BY IT (2026-09-08) ──────────────────────
+   Ported from Flow Metrics, whose All Teams table has sorted this way since it
+   was built; Charles asked for the same on Compare Teams. Every rule here is
+   that app's, adapted to this one's plain `table` selectors and its own hover
+   token — the two apps' tables are read side by side and a heading that behaved
+   differently in one of them would be the reader's problem, not the code's.
+
+   A real <button> filling the cell, so the whole heading is the target rather
+   than just the word, and so it is reachable and pressable from the keyboard —
+   a <th> with a click handler is neither. `padding: 0` moves the cell's own
+   padding onto the button, or the strip either side of the word would be dead. */
+th.sortable { padding: 0; }
+/* `:not(.tile-help)` rather than a class of its own, so the two headings that
+   carry an ⓘ need no markup of their own to keep this styling. */
+th.sortable button:not(.tile-help) { display: block; width: 100%; flex: 1 1 auto;
+  min-width: 0; font: inherit; color: inherit; text-transform: inherit;
+  letter-spacing: inherit; background: none; border: 0; padding: 10px 12px;
+  text-align: inherit; cursor: pointer; }
+th.sortable button:not(.tile-help):hover { color: var(--text-primary); background: var(--bg-card-alt); }
+/* A metric heading wraps and is centred, exactly as it did before it was a
+   button — `th.metric` sets both on the cell, and the button has to be told
+   again because it is the box the words are now in. */
+th.sortable.metric button:not(.tile-help) { white-space: normal; padding-left: 6px; padding-right: 6px; }
+/* A heading that is two controls: the sort button and the ⓘ. The flex row is a
+   wrapper INSIDE the cell, never the cell itself — `display: flex` on a <th>
+   stops it generating a table-cell box and the header row then sizes its columns
+   independently of the body under it. The 12px between them is 2px of button
+   padding plus a 10px margin rather than 12px of padding: padding is inside the
+   button's box, and the ⓘ's ::after target grows 5px in every direction, so
+   padding alone puts the circle's hit area ON TOP of the sort button — aim at
+   the right-hand end of the heading and you open the note instead of sorting.
+   Flow Metrics found that with elementFromPoint; nothing else can see it. */
+th.sortable .th-head { display: flex; align-items: center; }
+th.sortable .th-head button:not(.tile-help) { padding-right: 2px; }
+th.sortable .th-head .tile-help { margin-left: 10px; margin-right: 12px; }
+/* The arrow is drawn in the heading's own text, so it needs no width of its own
+   and cannot be lost to a narrow column. */
+th[aria-sort] button:not(.tile-help)::after { content: ' \2193'; }
+th[aria-sort="ascending"] button:not(.tile-help)::after { content: ' \2191'; }
+
 tr.clickable { cursor: pointer; }
 /* The control that opens a row. A real <button> rather than a handler on the <tr>,
    because a row can't take focus or be pressed from the keyboard, and giving it a
@@ -1131,8 +1165,8 @@ tr.clickable { cursor: pointer; }
 .rowbtn { background: none; border: 0; padding: 0; margin: 0;
   font: inherit; color: inherit; text-align: left; cursor: pointer; }
 .rowbtn:hover { text-decoration: underline; }
-/* The ART under a team's name in the Compare Teams tables. A second line inside the same
-   row-header cell rather than a column of its own: Comparison 2 already carries nine
+/* The ART under a team's name in the Compare Teams table. A second line inside the same
+   row-header cell rather than a column of its own: the table already carries ten
    columns, and the label is a caption for the name above it, not another figure to
    read across. Muted and small so it groups the rows without competing with them. */
 .artname { display: block; font-size: var(--fs-xs); font-weight: 400; color: var(--text-secondary); }
@@ -4997,8 +5031,8 @@ const METRIC_HELP = {
   histCompletion: { title: 'Commitment Completion', target: TARGET_COMPLETION,
     body: `Every committed point this team has ever recorded against how much of it got
       finished — pooled, so a big sprint pulls harder than a small one. It is the same
-      arithmetic as Comparison 2 on Compare Teams, over the whole history rather than the last
-      ${ROLLING_WINDOW} sprints.` },
+      arithmetic as the <strong>PI total</strong> row on Team PI, over the whole history rather
+      than one PI.` },
   histDirection: { title: 'Direction', target: null,
     body: `The change in commitment completion from the first sprint to the last, read off a
       least-squares fit through all of them rather than off the two end sprints. It is the
@@ -5012,12 +5046,17 @@ const METRIC_HELP = {
       conversations.` },
   histTotalRow: { title: 'Whole History', target: null,
     body: `Every counted sprint pooled into one total and divided once, the same method the
-      Team PI total and Comparison 2 use. In-flight sprints and any sprint left out of the
+      Team PI total uses. In-flight sprints and any sprint left out of the
       rolling average sit in the table above but not in this row.` },
 
-  /* Compare Teams — the two comparison tables. Each explains its own method and names
-     the other, because the only question either one raises is "why doesn't this
-     match the table above it". */
+  /* Compare Teams. Its one table is the AVERAGE-OF-SPRINTS method, and `teamsMean`
+     has to say so outright and say where the pooled figures live — the standing
+     rule that no figure picks a method silently. The pooled table that used to sit
+     under it went on 2026-09-08: those figures are on PI by Team, which is where
+     anyone reconciling with the Agile Operations Dashboard is already looking, and
+     a second table of the same teams saying different numbers was the one thing on
+     this page a reader had to be talked through. `teamsPooled` and
+     `actualComplete` went with it rather than being left unreferenced. */
   teamsTrend: { title: 'Trend', target: null,
     body: `<p>Which way the commitment-completion figure beside it is <em>moving</em> across
       the same ${ROLLING_WINDOW}-sprint window — a least-squares fit through the sprints, the
@@ -5039,20 +5078,12 @@ const METRIC_HELP = {
     body: `<p>Each sprint's own percentage is worked out first, then those percentages are
       averaged — so <em>every sprint counts equally</em> whatever its size.</p>
       <p>This is <strong>the better read on a team's habit</strong>: one unusually big sprint
-      can't drown out the rest. The pooled table below answers the other question.</p>
+      can't drown out the rest.</p>
+      <p>For the other method — every point added into one total first, so <em>a bigger sprint
+      pulls harder</em>, which is what the <strong>Agile Operations Dashboard</strong> shows —
+      see the <strong>PI total</strong> row on Team PI, or the <strong>ART total</strong> row on
+      PI by Team, which lines every team up the way this table does.</p>
       <p>${ROLLING_WINDOW_NOTE}</p>` },
-  teamsPooled: { title: 'Pooled Totals', target: TARGET_COMPLETION,
-    body: `<p>Every point across the window is added into one total and the percentage taken
-      once at the end — so <em>a bigger sprint pulls harder</em> than a small one.</p>
-      <p>This is <strong>the better read on the body of work as a whole</strong>, and it's the
-      method the Agile Operations Dashboard uses, so these are the figures that reconcile with
-      it — <strong>as long as any sprint you've left out of the rolling average is unselected in
-      the Dashboard too</strong>, or it will still be in their total and not in this one.</p>
-      <p>${ROLLING_WINDOW_NOTE}</p>` },
-  actualComplete: { title: 'Actual Complete', target: null,
-    body: `Everything delivered — break-in work included — against what was committed at the
-      start. It goes above 100% when a team finished more than it signed up for, which says
-      throughput was high, not that the plan held.` },
 
   /* ONE summary row per view now, each in the method that view's own tiles use —
      pooled on Team PI, average-of-sprints on Rolling 5 (asked for 2026-08-18).
@@ -5078,7 +5109,7 @@ const METRIC_HELP = {
       <p>This is <strong>the better read on a team's habit</strong> — one unusually big sprint
       can't drown out the rest — and it's what the tiles at the top of this view show.</p>
       <p>For the pooled method, which weights a sprint by how much was committed to it, see the
-      <em>PI total</em> row on Team PI or Comparison 2 on Compare Teams.</p>` },
+      <em>PI total</em> row on Team PI, or the <em>ART total</em> row on PI by Team.</p>` },
 
   rollVelocity: { title: 'Avg Velocity', target: null,
     body: `Mean points completed per sprint across the window, break-in included. The target
@@ -10001,6 +10032,105 @@ document.addEventListener('mousedown', (e) => {
   if (!(e.target.closest && e.target.closest('.art-pick'))) closeArtMenu();
 }, true);
 
+/* ── THE COMPARE TEAMS COLUMNS, AND SORTING BY ONE (2026-09-08) ─────────────
+   One list, read by the header row and by the sort — a column that could be
+   pressed and not sorted, or sorted and not labelled, is exactly what two lists
+   would eventually produce. `get` is the figure the column SHOWS, never a proxy
+   for it: Trend prints a fitted slope, so it sorts on that slope and not on the
+   last sprint's figure, and Sprint goals sorts on the rate rather than the count,
+   because "3 of 4" and "3 of 9" are not the same answer.
+
+   Asked for by Charles, who reads this table beside Flow Metrics' All Teams
+   table; that one has sorted this way since it was built and every rule here is
+   its rule. A press runs the column its own way first — highest first for a
+   figure, A to Z for the names — a second press reverses it, and a third puts the
+   table back to its ART grouping. Three states rather than two because the
+   grouping is a real order somebody may want back, and pressing the same heading
+   until it returns is cheaper than a Clear button nobody looks for. */
+const TEAM_COLS = [
+  { key: 'name',    label: 'Team', text: true },
+  { key: 'count',   label: 'Sprints' },
+  { key: 'commit',  label: 'Commitment completion', cls: 'metric' },
+  { key: 'trend',   label: 'Trend', help: ['teamsTrend', 'the Trend column'] },
+  { key: 'breakIn', label: 'Break-in', cls: 'metric' },
+  { key: 'removed', label: 'Removed', cls: 'metric' },
+  { key: 'carry',   label: 'Carryover', cls: 'metric' },
+  { key: 'vel',     label: 'Avg velocity' },
+  { key: 'goals',   label: 'Sprint goals', help: ['teamsGoals', 'the Sprint goals column'] },
+  { key: 'target',  label: 'Next sprint target' }
+];
+/* Every one of these can be null and several routinely are — a team with no
+   finished sprint has no percentage, a team with fewer than MIN_TREND_POINTS has
+   no direction, a team nobody recorded a goal for has no rate. Null is not zero
+   here and the sort keeps them at the foot either way round; see teamSortRows. */
+const TEAM_SORT_VALUE = {
+  name:    (r) => r.team.name.toLocaleLowerCase(),
+  count:   (r) => r.count,
+  commit:  (r) => r.commit,
+  trend:   (r) => trendChange(r.commits),
+  breakIn: (r) => r.breakIn,
+  removed: (r) => r.removed,
+  carry:   (r) => r.carry,
+  vel:     (r) => r.vel,
+  goals:   (r) => r.goals.pct,
+  target:  (r) => (r.target ? r.target.recommended : null)
+};
+
+/* PER DEVICE, beside the theme and the pin — not in `state`. A sort is how one
+   person is reading the table this afternoon, not something about the teams, so
+   it has no business in a share link or in anybody else's copy. lsGet/lsSet
+   because the whole point of those two is a preference that must never take the
+   page down with it when storage is blocked. */
+const TEAM_SORT_KEY = 'sv-teamsort';
+/* An unknown key means a column that has been renamed or retired since the
+   preference was written, which is no reason to show a broken page: it falls
+   back to the grouping, exactly as never having pressed anything does. Its own
+   function so the boundary can be tested without writing to storage. */
+function parseTeamSort(raw) {
+  const parts = String(raw || '').split(':');
+  return TEAM_COLS.some(c => c.key === parts[0])
+    ? { key: parts[0], dir: parts[1] === 'asc' ? 'asc' : 'desc' }
+    : { key: null, dir: 'desc' };
+}
+let teamSort = parseTeamSort(lsGet(TEAM_SORT_KEY));
+function setTeamSort(key, dir) {
+  teamSort = parseTeamSort(key ? key + ':' + dir : '');
+  lsSet(TEAM_SORT_KEY, teamSort.key ? teamSort.key + ':' + teamSort.dir : '');
+}
+function readTeamSort() { return { key: teamSort.key, dir: teamSort.dir }; }
+
+/* The three-state cycle, spelt out as its own function so the rule is in one
+   place and can be tested without a table. Flow Metrics' `nextSort` is the same
+   four lines. */
+function nextTeamSort(cur, key, firstAsc) {
+  const first = firstAsc ? 'asc' : 'desc';
+  if (cur.key !== key) return { key, dir: first };
+  if (cur.dir === first) return { key, dir: firstAsc ? 'desc' : 'asc' };
+  return { key: null, dir: first };
+}
+
+/* Sorted in place, on a copy of the list the caller owns. Ties fall back to the
+   ART grouping, so two teams with the same figure never swap places between two
+   renders of the same data — and a column with no figure for a team leaves that
+   team at the FOOT whichever way the column runs, because a team with no sprints
+   has not got the best carryover on the page. */
+function teamSortRows(rows) {
+  if (!teamSort.key) return rows;
+  const val = TEAM_SORT_VALUE[teamSort.key];
+  const dir = teamSort.dir === 'asc' ? 1 : -1;
+  const order = new Map(rows.map((r, i) => [r.team.id, i]));
+  return rows.slice().sort((a, b) => {
+    const x = val(a), y = val(b);
+    const xn = x === null || x === undefined, yn = y === null || y === undefined;
+    if (xn && yn) return order.get(a.team.id) - order.get(b.team.id);
+    if (xn) return 1;
+    if (yn) return -1;
+    if (x < y) return -1 * dir;
+    if (x > y) return 1 * dir;
+    return order.get(a.team.id) - order.get(b.team.id);
+  });
+}
+
 function renderTeamsView() {
   const includeSix = !!state.settings.includeSprint6InRolling;
   /* One filter, applied once, at the top: every figure on this page — both
@@ -10030,7 +10160,7 @@ function renderTeamsView() {
     return;
   }
 
-  const rowsData = shown.map(t => {
+  const rowsRaw = shown.map(t => {
     const rs = rollingSprints(t.id, includeSix);
     return {
       team: t, count: rs.length, sprints: rs,
@@ -10039,9 +10169,6 @@ function renderTeamsView() {
       removed: avg(rs, 'removedPct'),
       carry: avg(rs, 'carryoverPct'),
       vel: avg(rs, 'velocity'),
-      /* Same sprints, the other average — so the two tables can only ever differ
-         by method, never by which sprints they looked at. */
-      pool: pooled(rs),
       /* The direction of the commitment-completion figure across the same window,
          and the goal record over the same sprints. Both are read from `rs` for that
          reason: a column on this page that quietly looked at a different set of
@@ -10055,20 +10182,19 @@ function renderTeamsView() {
       excluded: excludedInRange(t.id, includeSix)
     };
   });
+  /* SORTED HERE, before anything reads the list — so the chart on the card above
+     plots the teams in the order the table lists them. Two orders on one page,
+     one of them the reader's own choice, is a page that has to be read twice. */
+  const rowsData = teamSortRows(rowsRaw);
   const withData = rowsData.filter(r => r.count > 0);
   const anyOpen = shown.reduce((a, t) => a + openSprints(t.id).length, 0);
-  /* The bottom row pools every point from every team, rather than averaging the
-     rows above it — the same rule as each row, applied one level up. It's what the
-     dashboard's Total does, and it's why that total doesn't match the mean of the
-     column it sits under. */
   const allSprints = rowsData.reduce((a, r) => a.concat(r.sprints), []);
-  const allPooled = pooled(allSprints);
-  /* Comparison 1's bottom row is the same idea in that table's own method: every
-     counted sprint from every team, each sprint's percentage weighing the same as
-     any other — so it is not the mean of the rows above it either, and a team with
-     six sprints pulls on it six times as hard as a team with one. Its next-sprint
-     target is the only figure here that is a plain sum: a target is points, not a
-     rate, so adding the column up is exactly what it means. */
+  /* The bottom row is this table's own method one level up: every counted sprint
+     from every team, each sprint's percentage weighing the same as any other — so
+     it is not the mean of the rows above it, and a team with six sprints pulls on
+     it six times as hard as a team with one. Its next-sprint target is the only
+     figure here that is a plain sum: a target is points, not a rate, so adding the
+     column up is exactly what it means. */
   /* Pooled across every counted sprint on the page, exactly as the points figures
      beside it are — "11 of 14" is a count of sprints, and counts add up. The
      sprints nobody answered the question about are left out of both halves, which
@@ -10084,16 +10210,7 @@ function renderTeamsView() {
     target:  rowsData.reduce((a, r) => a + (r.target ? Math.round(r.target.recommended) : 0), 0)
   };
 
-  /* The two methods are easiest to believe when you're shown a team they actually
-     disagree about, so the note picks the widest gap out of your own data rather
-     than explaining in the abstract. */
-  const gaps = withData
-    .filter(r => r.commit !== null && r.pool.commitCompletePct !== null)
-    .map(r => Object.assign({ gap: Math.abs(r.commit - r.pool.commitCompletePct) }, r))
-    .sort((a, b) => b.gap - a.gap);
-  const widest = gaps.length && gaps[0].gap >= 1 ? gaps[0] : null;
-
-  /* The scope goes in the heading and in both footer rows, so a screenshot of one
+  /* The scope goes in the heading and in the footer row, so a screenshot of the
      table still says which teams it covered — the picker above it is off-screen the
      moment anyone scrolls. */
   const heading = esc(words.name);
@@ -10172,17 +10289,13 @@ function renderTeamsView() {
         r.excluded.length === 1 ? '' : 's'} left out of the rolling ${ROLLING_WINDOW}</span>`
     : '';
 
-  /* The reconciliation claim on Comparison 2 is unconditional wherever nothing is
-     excluded, and stops being true the moment something is: a sprint left out here
-     is still in the Dashboard's total unless it is unselected there too, so the two
-     no longer meet. Naming the sprint rather than hedging, because the reader has to
-     go and do something about it in another tool. */
-  const dashboardCondition = (rows) => {
-    const nums = [...new Set(rows.flatMap(r => r.excluded.map(x => x.sprintNumber)))].sort((a, b) => a - b);
-    if (!nums.length) return null;
-    const what = nums.length <= 3 ? nums.map(n => 'S' + n).join(', ') : 'those sprints';
-    return { what, isAre: nums.length === 1 ? 'is' : 'are' };
-  };
+  /* THE DASHBOARD RECONCILIATION CLAIM IS NOT MADE ON THIS PAGE any more, and
+     `dashboardCondition()` went with the table that made it (2026-09-08). It said
+     "matches the Agile Operations Dashboard", conditional on any excluded sprint
+     being unselected there too — a claim only the pooled figures could make. Team
+     PI and PI by Team still make it, where the pooled rows live and where the
+     exclusion rules are the same; nothing on this page pools anything now, so
+     there is nothing here to reconcile. */
 
   /* Named per team under the heading, because the chart on this card is drawn
      from these same windows: a bar sitting lower than the reader expects, with
@@ -10196,13 +10309,24 @@ function renderTeamsView() {
         .join('; ')}. They still count on the Sprint and Team PI views.</span></p>`;
   };
 
+  /* ONE heading cell, and the ⓘ is a SIBLING of the sort button rather than a
+     child: a button inside a button is invalid markup, and the ⓘ has to fall
+     through to the global [data-help] handler instead of sorting the table
+     underneath the window it just opened. `aria-sort` goes on the cell, which is
+     what a screen reader reads it off, and the arrow is drawn from it in CSS. */
+  const teamHeadCell = (c) => {
+    const on = teamSort.key === c.key;
+    return `<th scope="col" class="sortable${c.cls ? ' ' + c.cls : ''}"${
+      on ? ` aria-sort="${teamSort.dir === 'asc' ? 'ascending' : 'descending'}"` : ''}>
+      <span class="th-head"><button type="button" data-teamsort="${c.key}">${esc(c.label)}</button>${
+        c.help ? helpBtn(c.help[0], c.help[1]) : ''}</span></th>`;
+  };
+
   const artTag = (team) => {
     if (!state.arts.length || filtered) return '';
     const on = team.artId ? artById(team.artId) : null;
     return `<span class="artname">${on ? esc(on.name) : 'No ART'}</span>`;
   };
-
-  const dashCond = dashboardCondition(rowsData);
 
   viewsEl.innerHTML = artToolbar(shown.length, hiddenCount)
     /* Across teams, so the toggle stays as soon as ANY team on the page has a
@@ -10215,18 +10339,18 @@ function renderTeamsView() {
         ${state.arts.length && !filtered ? 'Grouped by ART. ' : ''}Finished sprints only${
         anyOpen ? ` — ${anyOpen} sprint${anyOpen === 1 ? '' : 's'} still in flight
         ${anyOpen === 1 ? 'is' : 'are'} not counted` : ''}.
-        ${withData.length ? 'The chart plots the average-of-sprints figure from Comparison 1 below.'
+        ${withData.length ? 'The chart plots the commitment-completion figure from the table below.'
           : 'No team has a finished sprint yet.'}</p>
       ${excludedTeamsLine(rowsData)}
       ${goalGapTeamsLine(withData)}
       ${withData.length ? `<div class="chartbox"><canvas id="teamsChart" role="img"
-        aria-label="Average commitment completion percentage by team, averaged across sprints, against the ${tgt().completionGreen} percent target. Figures in the Comparison 1 table below."></canvas></div>` : ''}
+        aria-label="Average commitment completion percentage by team, averaged across sprints, against the ${tgt().completionGreen} percent target. Figures in the table below."></canvas></div>` : ''}
     </div>
 
     <div class="card">
       <div class="row spread cardhead">
-        <h2>Comparison 1 — Average of Sprints${helpBtn('teamsMean', 'the average-of-sprints method')}</h2>
-        ${exportButtons('cmp1Table', 'all-teams-avg')}
+        <h2>Average of Sprints${helpBtn('teamsMean', 'the average-of-sprints method')}</h2>
+        ${exportButtons('teamsTable', 'all-teams-avg')}
       </div>
       <p class="sub">Each sprint's own percentage worked out first, then averaged, so
         <strong>every sprint counts equally</strong> whatever its size. This is the read on how a
@@ -10243,13 +10367,8 @@ function renderTeamsView() {
         counts only the sprints somebody answered the question about, so its denominator can be
         smaller than the sprint count to its left.</p>
       <div class="tablewrap">
-      <table id="cmp1Table" aria-label="Comparison 1 — each team averaged across its sprints">
-        <thead><tr><th scope="col">Team</th><th scope="col">Sprints</th><th scope="col" class="metric">Commitment completion</th>
-          <th scope="col">Trend${helpBtn('teamsTrend', 'the Trend column')}</th>
-          <th scope="col" class="metric">Break-in</th><th scope="col" class="metric">Removed</th>
-          <th scope="col" class="metric">Carryover</th><th scope="col">Avg velocity</th>
-          <th scope="col">Sprint goals${helpBtn('teamsGoals', 'the Sprint goals column')}</th>
-          <th scope="col">Next sprint target</th></tr></thead>
+      <table id="teamsTable" aria-label="Every team, averaged across its sprints">
+        <thead><tr>${TEAM_COLS.map(teamHeadCell).join('')}</tr></thead>
         <tbody>${rowsData.map(r => `<tr class="clickable" data-id="${esc(r.team.id)}">
           <th scope="row"><button type="button" class="rowbtn"
             aria-label="Switch to ${esc(r.team.name)}">${esc(r.team.name)}</button>${artTag(r.team)}</th>
@@ -10277,80 +10396,15 @@ function renderTeamsView() {
           <td>${allMean.target ? '<strong>' + fmtNum(allMean.target) + '</strong>' : '—'}</td>
         </tr></tfoot>
       </table></div>
-    </div>
-
-    <div class="card">
-      <div class="row spread cardhead">
-        <h2>Comparison 2 — Pooled Totals${helpBtn('teamsPooled', 'the pooled-totals method')}
-          <span class="tag${dashCond ? ' cond' : ''}">matches the Agile Operations Dashboard${
-            dashCond ? ` when ${dashCond.what} ${dashCond.isAre} unselected there too` : ''}</span></h2>
-        ${exportButtons('cmp2Table', 'all-teams-pooled')}
-      </div>
-      <p class="sub">Every point added into one total first, then the percentage taken once, so
-        <strong>a bigger sprint pulls harder</strong> than a small one. This is the read on how the
-        body of work as a whole went — and it's the method the <strong>Agile Operations
-        Dashboard</strong> uses, so these are the figures that reconcile with what the ART reports
-        upward. Same sprints as the table above; only the arithmetic differs.${
-        dashCond ? ` Because <strong>${dashCond.what}</strong> ${dashCond.isAre} left out here, the two
-          only line up if ${dashCond.isAre === 'is' ? 'it is' : 'they are'} unselected in the Dashboard
-          as well — otherwise it is still in their total and not in this one.` : ''}</p>
-      <div class="tablewrap">
-      <table id="cmp2Table" aria-label="Comparison 2 — each team's points pooled into one total">
-        <thead><tr><th scope="col">Team</th><th scope="col">Sprints</th><th scope="col">Committed</th><th scope="col">Cmt. done</th>
-          <th scope="col" class="metric">Commitment completion</th>
-          <th scope="col" class="metric">Break-in</th><th scope="col" class="metric">Removed</th>
-          <th scope="col" class="metric">Carryover</th>
-          <th scope="col">Actual complete${helpBtn('actualComplete', 'Actual complete')}</th></tr></thead>
-        <tbody>${rowsData.map(r => `<tr class="clickable" data-id="${esc(r.team.id)}">
-          <th scope="row"><button type="button" class="rowbtn"
-            aria-label="Switch to ${esc(r.team.name)}">${esc(r.team.name)}</button>${artTag(r.team)}</th>
-          <td>${r.count}${excludedTag(r)}</td>
-          <td>${fmtNum(r.pool.committed)}</td>
-          <td>${fmtNum(r.pool.committedCompleted)}</td>
-          <td class="metric">${pill(r.pool.commitCompletePct, 'completion')}</td>
-          <td class="metric">${pill(r.pool.breakInPct, 'churn')}</td>
-          <td class="metric">${pill(r.pool.removedPct, 'churn')}</td>
-          <td class="metric">${pill(r.pool.carryoverPct, 'churn')}</td>
-          <td>${fmtPct(r.pool.actualCompletePct)}</td></tr>`).join('')}</tbody>
-        <tfoot><tr>
-          <th scope="row">${scopeLabel}</th><td>${allPooled.count}</td>
-          <td>${fmtNum(allPooled.committed)}</td><td>${fmtNum(allPooled.committedCompleted)}</td>
-          <td class="metric">${pill(allPooled.commitCompletePct, 'completion')}</td>
-          <td class="metric">${pill(allPooled.breakInPct, 'churn')}</td>
-          <td class="metric">${pill(allPooled.removedPct, 'churn')}</td>
-          <td class="metric">${pill(allPooled.carryoverPct, 'churn')}</td>
-          <td>${fmtPct(allPooled.actualCompletePct)}</td>
-        </tr></tfoot>
-      </table></div>
 
       <div class="methodnote">
-        <h3>Why the Two Tables Disagree</h3>
-        <p>They're the same sprints — the difference is <em>when the dividing happens</em>.
-          Comparison 1 divides once per sprint and then averages those percentages.
-          Comparison 2 adds all the points up and divides once at the end, which weights each
-          sprint by how much was committed to it.</p>
-        ${widest ? `<p><strong>${esc(widest.team.name)}</strong> shows the gap most clearly here:
-          <strong>${fmtPct(widest.commit, 'completion')}</strong> by sprint average against
-          <strong>${fmtPct(widest.pool.commitCompletePct, 'completion')}</strong> pooled. Its
-          sprints aren't the same size, so the bigger one carries more weight in the pooled
-          figure and less in the average.</p>` : `<p>Your teams' sprints are close enough in size
-          that the two methods currently land in much the same place. They separate as soon as one
-          sprint is markedly bigger than the others.</p>`}
-        <p><strong>Which to use.</strong> Comparison 1 for coaching a team — it describes the
-          habit, and one outsized sprint can't drown out the rest. Comparison 2 for reporting
-          upward — it describes the actual body of work, and it's what the Agile Operations
-          Dashboard shows, so it's the one that will reconcile${
-          dashCond ? `, provided <strong>${dashCond.what}</strong> ${dashCond.isAre} unselected there
-          the way ${dashCond.isAre === 'is' ? 'it is' : 'they are'} left out here` : ''}.
-          Neither is a correction of the other.</p>
-        <p>Each table's <strong>${scopeLabel}</strong> row applies that table's own method across
+        <p>The <strong>${scopeLabel}</strong> row applies this table's own method across
           ${filtered ? 'every team the ART filter leaves' : 'every team'} at once, rather than
-          averaging the rows above it — which is why neither
-          equals the mean of the column it sits under. Comparison 1 treats every sprint from
-          every team as one equal sprint, so a team with six of them pulls six times as hard
-          as a team with one; Comparison 2 pools every point, so the dashboard's Total behaves
-          the same way. The one plain sum in either row is Comparison 1's <strong>next sprint
-          target</strong>: that's points rather than a rate, so the team targets simply add up.</p>
+          averaging the rows above it — which is why it does not equal the mean of the column it
+          sits under. It treats every sprint from every team as one equal sprint, so a team with
+          six of them pulls six times as hard as a team with one. The one plain sum in that row
+          is <strong>next sprint target</strong>: that is points rather than a rate, so the team
+          targets simply add up.</p>
       </div>
     </div>`;
 
@@ -10366,6 +10420,28 @@ function renderTeamsView() {
     tr.onclick = () => go(false);
     const btn = tr.querySelector('.rowbtn');
     if (btn) btn.onclick = (e) => { e.stopPropagation(); go(e.detail === 0); };
+  });
+  /* Wired per render like the row buttons above, because render() rebuilds this
+     whole view — a listener hung on a heading would be hung on a node that is
+     thrown away by the press it handles.
+
+     AND THE KEYBOARD COMES WITH IT. The button that was pressed no longer exists
+     by the time the sort is drawn, so the focus would land on <body> and Tab
+     carry on from the top of the document; the new copy of the same heading is
+     found by its key and given the focus back. Only from the keyboard — the same
+     `e.detail === 0` test the row buttons use — so a mouse press does not leave a
+     ring on a heading nobody is typing at. */
+  viewsEl.querySelectorAll('[data-teamsort]').forEach(btn => {
+    btn.onclick = (e) => {
+      const col = TEAM_COLS.find(c => c.key === btn.dataset.teamsort);
+      if (!col) return;
+      const next = nextTeamSort(teamSort, col.key, !!col.text);
+      setTeamSort(next.key, next.dir);
+      const fromKeyboard = e.detail === 0;
+      render();
+      const again = viewsEl.querySelector('[data-teamsort="' + col.key + '"]');
+      if (again && fromKeyboard) again.focus({ preventScroll: true });
+    };
   });
   wireArtToolbar();
   wireRollingToolbar();
@@ -14179,6 +14255,11 @@ window.__svTestHooks = { raisesKeyboard, reorderById,
   /* Arrow consts again — the CSV escaping is the one place text leaves this app
      for somewhere it can be interpreted, so the suite has to be able to reach it. */
   csvCell, toCsv, toTsv,
+  /* Compare Teams' columns and their sort. The spec is exported because the
+     header row is BUILT from it — a test that counted headings against a list of
+     its own would go green on a column that had quietly lost its getter. The two
+     setters are how a test leaves the reader's own sort exactly as it found it. */
+  TEAM_COLS, TEAM_SORT_VALUE, nextTeamSort, parseTeamSort, setTeamSort, readTeamSort,
   /* A plain module-level `let`, so a getter rather than the value itself — the
      suite needs what it holds AFTER loadSample() has run, not at export time. */
   svForecastPoints: () => fcs().forecastPoints,
