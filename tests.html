@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 473;
+const EXPECTED = 489;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -457,7 +457,10 @@ t('a clean copy prunes nothing, so boot never saves for no reason', () => {
       committed: 30, committedCompleted: 28, totalCompleted: 31, added: 3,
       removed: 0, carriedIn: 2, carriedOut: 2, addedThenRemoved: 0 }],
     settings: { activeTeamId: 't1', activePiId: 'p1', activeSprintNum: 1,
-      artFilter: null, includeSprint6InRolling: false,
+      /* An EMPTY LIST, which is what blankState() writes since the picker became
+         a multi-select — a `null` here is a pre-2026-09-08 copy and IS a repair,
+         so it would fail this test correctly rather than by accident. */
+      artFilter: [], includeSprint6InRolling: false,
       includeInProgress: false, view: 'sprint' },
   }));
   eq(w.sanitizeIds.pruned, 0, 'every key the app itself writes passes untouched');
@@ -478,25 +481,86 @@ t('a team pointing at a missing ART is un-grouped, never dropped', () => {
     teams: [{ id: 'team-1', name: 'A', artId: 'aGONE' }, { id: 'team-2', name: 'B', artId: 'art-1' }],
     arts: [{ id: 'art-1', name: 'Payments' }],
     pis: [{ id: 'pi-1' }], sprints: [],
-    settings: { artFilter: 'aGONE' },
+    settings: { artFilter: ['aGONE', 'art-1'] },
   };
   const out = w.sanitizeIds(data);
   eq(out.teams.length, 2, 'a broken label never costs a team its data');
   eq(out.teams[0].artId, null, 'the dangling ART is cleared, so the team reads as "No ART"');
   eq(out.teams[1].artId, 'art-1', 'a real ART is left alone');
-  eq(out.settings.artFilter, null, 'a filter naming an ART that is gone falls back to all');
+  /* THE ID IS DROPPED, THE LIST IS NOT. With a single value a stale id had to
+     clear the whole filter; doing that with a list would widen the page to every
+     team over one of two ticks going missing (2026-09-08). */
+  eq(out.settings.artFilter, ['art-1'],
+     'a filter naming an ART that is gone loses that id and keeps the rest');
+  eq(w.sanitizeIds(w.coerceShape({ teams: [], arts: [], pis: [], sprints: [],
+       settings: { artFilter: ['aGONE'] } })).settings.artFilter, [],
+     'and a list left holding nothing is every team, the fallback always available');
+});
+t('a filter saved as a single string is widened to a list of one', () => {
+  /* What every copy saved before 2026-09-08 holds. Widened HERE, at the boundary
+     every one of them crosses, so nothing downstream has to know the history. */
+  const out = w.sanitizeIds({
+    teams: [{ id: 't1', name: 'A', artId: 'a1' }],
+    arts: [{ id: 'a1', name: 'Payments' }], pis: [], sprints: [],
+    settings: { artFilter: 'a1' },
+  });
+  eq(out.settings.artFilter, ['a1'], 'the one ART it named is the one ART in scope');
+});
+t('the list keeps only what passes the id shape, entry by entry', () => {
+  const NONE = w.__svTestHooks.ART_NONE;
+  const out = w.sanitizeIds(w.coerceShape({
+    teams: [{ id: 't1', name: 'A', artId: 'a1' }, { id: 't2', name: 'B' }],
+    arts: [{ id: 'a1', name: 'Payments' }], pis: [], sprints: [],
+    settings: { artFilter: ['a1', NONE, { id: 'a1' }, 42, 'no spaces here!', 'a1'] },
+  }));
+  eq(out.settings.artFilter, ['a1', NONE],
+     'an object, a number, a mis-shaped id and a repeat all go; the sentinel stays');
+});
+t('an artFilter that is not a list at all is dropped, never repaired into one', () => {
+  const out = w.sanitizeIds(w.coerceShape({
+    teams: [{ id: 't1', name: 'A' }], arts: [], pis: [], sprints: [],
+    settings: { artFilter: { evil: true } },
+  }));
+  ok(!('artFilter' in out.settings),
+     'no key is created — adoptState() then hands it blankState’s empty list');
+});
+t('a clean list is not counted as a repair, on this boot or any other', () => {
+  /* The `numOrBlank` fault, one field over: a rebuilt ARRAY can never be `===`
+     the one that came in, so the boundary's general repair test would call every
+     single boot a scrub and save() on each one. */
+  w.sanitizeIds(w.coerceShape({
+    teams: [{ id: 't1', name: 'A', artId: 'a1' }],
+    arts: [{ id: 'a1', name: 'Payments' }], pis: [], sprints: [],
+    settings: { artFilter: ['a1'] },
+  }));
+  eq(w.sanitizeIds.pruned, 0, 'a filter the app itself wrote passes untouched');
 });
 t('a hostile ART id is replaced and the teams on it follow', () => {
   const evil = 'x"><img src=q onerror=alert(1)>';
   const out = w.sanitizeIds({
     teams: [{ id: 't1', name: 'A', artId: evil }],
     arts: [{ id: evil, name: 'ART' }],
-    pis: [], sprints: [], settings: { artFilter: evil },
+    pis: [], sprints: [], settings: { artFilter: [evil] },
   });
   const fresh = out.arts[0].id;
   ok(/^[A-Za-z0-9_-]{1,64}$/.test(fresh), 'replacement id is a plain id');
   eq(out.teams[0].artId, fresh, 'the team follows its ART through the remap');
-  eq(out.settings.artFilter, fresh, 'so does the saved filter');
+  eq(out.settings.artFilter, [fresh], 'so does the saved filter, entry by entry');
+});
+t('a hostile id beside the sentinel remaps without taking the sentinel with it', () => {
+  /* The single-value version skipped clean() for the WHOLE value when it was the
+     sentinel. A mixed list needs the skip to be per entry, or one of the two is
+     always wrong: either the sentinel is swapped for a fresh id (and "teams in no
+     ART" silently matches nothing) or the hostile id rides through un-remapped. */
+  const NONE = w.__svTestHooks.ART_NONE;
+  const evil = 'y"><script>1</scr' + 'ipt>';
+  const out = w.sanitizeIds({
+    teams: [{ id: 't1', name: 'A', artId: evil }, { id: 't2', name: 'B' }],
+    arts: [{ id: evil, name: 'ART' }],
+    pis: [], sprints: [], settings: { artFilter: [evil, NONE] },
+  });
+  const fresh = out.arts[0].id;
+  eq(out.settings.artFilter, [fresh, NONE], 'one remapped, one left exactly as it was');
 });
 t('the "no ART" filter sentinel survives the boundary intact', () => {
   const NONE = w.__svTestHooks.ART_NONE;
@@ -504,8 +568,8 @@ t('the "no ART" filter sentinel survives the boundary intact', () => {
   /* A team with no ART, because that is what the sentinel is FOR — see the test
      below, where the group being empty is the thing that invalidates it. */
   const out = w.sanitizeIds({ teams: [{ id: 't1', name: 'A' }], arts: [], pis: [], sprints: [],
-                              settings: { artFilter: NONE } });
-  eq(out.settings.artFilter, NONE, 'it is not swapped for a fresh id, nor cleared as an orphan');
+                              settings: { artFilter: [NONE] } });
+  eq(out.settings.artFilter, [NONE], 'it is not swapped for a fresh id, nor cleared as an orphan');
 });
 t('but a sentinel with no un-grouped team left to match is cleared', () => {
   /* The picker only offers "No ART" while some team is on none (see artToolbar), so
@@ -515,9 +579,17 @@ t('but a sentinel with no un-grouped team left to match is cleared', () => {
   const out = w.sanitizeIds({
     teams: [{ id: 't1', name: 'A', artId: 'a1' }],
     arts: [{ id: 'a1', name: 'Payments' }], pis: [], sprints: [],
-    settings: { artFilter: w.__svTestHooks.ART_NONE },
+    settings: { artFilter: [w.__svTestHooks.ART_NONE] },
   });
-  eq(out.settings.artFilter, null, 'falls back to all teams rather than to nothing at all');
+  eq(out.settings.artFilter, [], 'falls back to all teams rather than to nothing at all');
+});
+t('and it is dropped from a list without taking the real ART beside it', () => {
+  const out = w.sanitizeIds({
+    teams: [{ id: 't1', name: 'A', artId: 'a1' }],
+    arts: [{ id: 'a1', name: 'Payments' }], pis: [], sprints: [],
+    settings: { artFilter: ['a1', w.__svTestHooks.ART_NONE] },
+  });
+  eq(out.settings.artFilter, ['a1'], 'the ART somebody is on stays in scope');
 });
 t('and a team un-grouped BY the boundary keeps the sentinel alive', () => {
   /* Order matters: the dangling-ART pass runs first and puts this team back into
@@ -526,10 +598,10 @@ t('and a team un-grouped BY the boundary keeps the sentinel alive', () => {
   const out = w.sanitizeIds({
     teams: [{ id: 't1', name: 'A', artId: 'aGONE' }],
     arts: [], pis: [], sprints: [],
-    settings: { artFilter: w.__svTestHooks.ART_NONE },
+    settings: { artFilter: [w.__svTestHooks.ART_NONE] },
   });
   eq(out.teams[0].artId, null);
-  eq(out.settings.artFilter, w.__svTestHooks.ART_NONE,
+  eq(out.settings.artFilter, [w.__svTestHooks.ART_NONE],
     'the group is no longer empty, so the filter still means something');
 });
 
@@ -619,6 +691,175 @@ t('junk input never throws', () => {
   eq(w.teamsInArt(null, 'a1'), []);
   eq(w.teamsInArt(undefined, null), []);
 });
+
+/* ── Several ARTs at once (2026-09-08) ────────────────────────────────────── */
+t('two ARTs come back as one list, in the TEAMS\' order and not the ticks\'', () => {
+  eq(names(w.teamsInArts(TEAMS, ['a1', 'a2'])), ['Kestrel', 'Puffin', 'Heron']);
+  eq(names(w.teamsInArts(TEAMS, ['a2', 'a1'])), ['Kestrel', 'Puffin', 'Heron'],
+     'the order the boxes were pressed in changes nothing');
+});
+t('a UNION, because an intersection of two ARTs is always empty', () => {
+  /* A team is on ONE ART, so the only thing ticking two boxes can mean is
+     "show me both" — there is no other reading available. */
+  eq(names(w.teamsInArts(TEAMS, ['a2', w.__svTestHooks.ART_NONE])),
+     ['Kestrel', 'Otter', 'Heron'], 'the teams on no ART tick alongside a real one');
+  eq(w.teamsInArts(TEAMS, ['a1', 'a2', w.__svTestHooks.ART_NONE]).length, TEAMS.length,
+     'ticking every option is every team, once each');
+});
+t('an empty list is every team, and a copy of it', () => {
+  eq(names(w.teamsInArts(TEAMS, [])), ['Kestrel', 'Otter', 'Puffin', 'Heron'],
+     'the picker has no "all" to tick — it is what ticking nothing gives you');
+  ok(w.teamsInArts(TEAMS, []) !== TEAMS, 'a copy, like the single-value form beside it');
+  eq(names(w.teamsInArts(TEAMS, null)), ['Kestrel', 'Otter', 'Puffin', 'Heron'],
+     'and anything that is not a list is no filter rather than a throw');
+});
+t('a repeated or dead id costs the list nothing else', () => {
+  eq(names(w.teamsInArts(TEAMS, ['a1', 'a1'])), ['Puffin'], 'a repeat lists its teams once');
+  eq(names(w.teamsInArts(TEAMS, ['a1', 'gone'])), ['Puffin'],
+     'and a dead one takes nothing else with it — the whole reason the read side '
+     + 'drops ids one at a time');
+  eq(w.teamsInArts(null, ['a1']), [], 'junk input never throws, either');
+});
+/* ── The picker itself ────────────────────────────────────────────────────
+   Driven through its own boxes, not by writing `settings.artFilter`: the scope
+   is only ever set by a tick, and a test that set the field behind it would go
+   on passing with every listener unhooked. Compare Teams is the view under it —
+   it has no PI to set up and it carries the ART tag, which is the one piece of
+   the page whose rule the multi-select actually changed. */
+function withPicker(fn) {
+  const st = w.svGet();
+  const keep = { art: st.settings.artFilter, view: st.settings.view };
+  try {
+    withState({ teams: [
+        { id: 'k1', name: 'Kestrel', artId: 'a1' },
+        { id: 'k2', name: 'Otter' },
+        { id: 'k3', name: 'Puffin', artId: 'a2' } ],
+      arts: [{ id: 'a1', name: 'Payments' }, { id: 'a2', name: 'Platform' }],
+      pis: [], sprints: [], plans: [], objectives: [] }, () => {
+      st.settings.artFilter = [];
+      st.settings.view = 'teams';
+      /* A test that wants a known state sets one: the picker's open flag lives
+         outside the render on purpose, so a test that left it up would hand the
+         next one a button whose press CLOSES the menu. */
+      w.closeArtMenu();
+      w.render();
+      return fn(st);
+    });
+  } finally {
+    st.settings.artFilter = keep.art;
+    st.settings.view = keep.view;
+    w.render();
+  }
+}
+const artBox = (id) => [...w.document.querySelectorAll('input[data-art-pick]')]
+  .find(b => b.dataset.artPick === id);
+const artTick = (id, on) => {
+  const b = artBox(id);
+  b.checked = on;
+  b.dispatchEvent(new w.Event('change', { bubbles: true }));
+};
+const artSays = () => ({
+  btn: w.document.getElementById('artFilterNow').textContent,
+  note: w.document.querySelector('.toolbarcard .muted').textContent.replace(/\s+/g, ' ').trim(),
+  head: w.document.querySelector('#views h2').textContent.trim(),
+  tags: w.document.querySelectorAll('.artname').length,
+  open: w.document.getElementById('artFilterMenu').hidden === false
+});
+
+t('the menu offers every ART, the teams on none last, each with its count', () => {
+  withPicker(() => {
+    eq([...w.document.querySelectorAll('input[data-art-pick]')].map(b => b.dataset.artPick),
+       ['a1', 'a2', w.__svTestHooks.ART_NONE],
+       'in the ARTs\' own order, with the un-grouped group at the foot');
+    ok(/Payments \(1 team\)/.test(w.document.getElementById('artFilterMenu').textContent),
+       'and each carries the number of teams behind it, so an ART nobody is on '
+       + 'says so without having to be ticked');
+  });
+});
+
+t('one ART is named on the button, two or more are counted', () => {
+  withPicker((st) => {
+    eq(artSays().btn, 'All ARTs', 'nothing ticked reads as every team');
+    w.document.getElementById('artFilterBtn').click();
+    artTick('a1', true);
+    eq(artSays().btn, 'Payments', 'the name is shorter than any count of it');
+    eq(st.settings.artFilter, ['a1'], 'and the tick is what set the scope');
+    artTick('a2', true);
+    /* This button sits in a row beside a PI picker and a sentence: five ART
+       names in it would either truncate — a control hiding its own value — or
+       take the row's layout with it. The names are in the line opposite. */
+    eq(artSays().btn, '2 selected', 'two or more are counted');
+    ok(/on Payments and Platform/.test(artSays().note),
+       'while the muted line beside it NAMES them', artSays().note);
+    ok(/^Payments and Platform —/.test(artSays().head),
+       'and so does the heading, joined with "and" — both ARTs are on the page at '
+       + 'once, so "or" would read as a choice still to be made', artSays().head);
+  });
+});
+
+t('the menu stays open while you tick, and All ARTs is what closes it', () => {
+  withPicker((st) => {
+    w.document.getElementById('artFilterBtn').click();
+    eq(artSays().open, true, 'the button opens it');
+    artTick('a1', true);
+    /* Ticking a second ART is the whole point of the change; a picker that shut
+       after every tick would make the two-ART case four presses instead of two.
+       It survives a full re-render of the view to do it. */
+    eq(artSays().open, true, 'and a tick leaves it open, across the render it causes');
+    w.document.getElementById('artFilterAll').click();
+    eq(st.settings.artFilter, [], 'All ARTs is the RESET, not a sixth option');
+    eq(artSays().open, false, 'and the one press that closes the menu');
+    eq(w.document.activeElement.id, 'artFilterBtn',
+       'handing the keyboard to the button, not to <body> — the row it was pressed '
+       + 'in has just been rebuilt');
+  });
+});
+
+t('a tick keeps the keyboard, across the whole view being rebuilt under it', () => {
+  /* Every tick re-renders `viewsEl`, so the box just pressed is destroyed. Same
+     class of fault as a button that rewrites its own icon under the pointer,
+     with the whole view standing in for the button. */
+  withPicker(() => {
+    w.document.getElementById('artFilterBtn').click();
+    const box = artBox('a1');
+    box.focus();
+    box.checked = true;
+    box.dispatchEvent(new w.Event('change', { bubbles: true }));
+    const now = w.document.activeElement;
+    eq(now.dataset ? now.dataset.artPick : null, 'a1', 'the keyboard stays on the box pressed');
+    ok(now !== box, 'and it really is a NEW element, or this measures nothing');
+  });
+});
+
+t('the ART label under a team name comes BACK when two ARTs are ticked', () => {
+  /* The one page rule the multi-select changed. It goes at ONE ART — repeating
+     the same name down every row is noise — and returns at two, because rows
+     drawn from two ARTs are a mixture the table cannot otherwise account for. */
+  withPicker(() => {
+    ok(artSays().tags > 0, 'no filter: every row says which ART it is on');
+    w.document.getElementById('artFilterBtn').click();
+    artTick('a1', true);
+    eq(artSays().tags, 0, 'one ART: the label would be the same word on every row');
+    artTick('a2', true);
+    ok(artSays().tags > 0, 'two ARTs: it is telling the reader something again');
+  });
+});
+
+t('a scope naming a deleted ART drops that id and keeps the rest', () => {
+  /* The read-side guard, between the boundary repairing a stored value and the
+     next save. With a single value a stale id had to fall back to every team;
+     doing that with a list would widen the page to the estate over one of two. */
+  withPicker((st) => {
+    st.settings.artFilter = ['a1', 'gone'];
+    w.render();
+    eq(artSays().btn, 'Payments', 'the ART that still exists is still the scope');
+    st.settings.artFilter = ['gone'];
+    w.render();
+    eq(artSays().btn, 'All ARTs',
+       'and a list left holding nothing is every team, the scope always available');
+  });
+});
+
 t('grouping puts each ART\'s teams together, in ART order, un-grouped last', () => {
   eq(names(w.groupTeamsByArt(TEAMS, ARTS)), ['Puffin', 'Kestrel', 'Heron', 'Otter']);
 });
@@ -1079,7 +1320,7 @@ const SHARE_PAYLOAD = {
     availability: 60, reason: 'leave' }],
   objectives: [{ id: 'o1', teamId: 't1', piId: 'p1',
     plannedBv: 40, actualBv: 34, stretchBv: 6 }],
-  settings: { activeTeamId: 't1', activePiId: null, artFilter: null,
+  settings: { activeTeamId: 't1', activePiId: null, artFilter: [],
     includeSprint6InRolling: false, includeInProgress: false, view: 'sprint' },
 };
 t('a payload round-trips through encode and decode intact', async () => {
@@ -3773,7 +4014,7 @@ t('the PI by Team captions count the teams the figures actually cover', () => {
     }, () => {
       st.settings.activePiId = 'p1';
       st.settings.activeTeamId = 't1';
-      st.settings.artFilter = 'a1';
+      st.settings.artFilter = ['a1'];
       w.renderArtPiView();
       const html = w.document.getElementById('views').innerHTML;
       ok(/points completed across 1 team\b/.test(html),

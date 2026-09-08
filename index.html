@@ -1136,6 +1136,59 @@ tr.clickable { cursor: pointer; }
    columns, and the label is a caption for the name above it, not another figure to
    read across. Muted and small so it groups the rows without competing with them. */
 .artname { display: block; font-size: var(--fs-xs); font-weight: 400; color: var(--text-secondary); }
+/* ── The ART picker: a MENU OF CHECKBOXES, not a <select> (2026-09-08) ───────
+   Ported from Flow Metrics, where the same change landed a day earlier, down to
+   the class names — the two apps are read side by side and one control should
+   not have two shapes. The old <select> could say ONE ART or EVERY team and
+   nothing between, so a reader with five trains who wanted two had to take every
+   team they support and read past the ones they had not asked about.
+
+   Built rather than reached for: `<select multiple>` is the one native control
+   that answers this and it answers it badly — it wants ⌘-click on a desktop, has
+   no usable shape on a phone, and draws a scrolling box in the toolbar row
+   rather than a picker, which would have cost that row its layout. So the button
+   is styled to the same box the shared `select` rule draws (same surface,
+   border, radius and padding, all off the same tokens) and the menu is this
+   app's OWN `.checkline` list, the one the share dialog already picks teams
+   with. Nothing here invents a colour or a shape.
+
+   No shadow — pack rule 14 — which is why the menu takes `--border-strong`
+   rather than the ordinary border: it has nothing but its edge to lift it off
+   the card behind it. z-index 11 sits it over the cards beside it and under this
+   app's sticky chrome. */
+.art-pick { position: relative; }
+.art-pick-btn { display: inline-flex; align-items: center; justify-content: space-between;
+  gap: 8px; text-align: left; cursor: pointer; font-size: var(--fs-sm);
+  background: var(--surface); color: var(--text-primary);
+  border: 1px solid var(--input-border); border-radius: var(--radius-sm);
+  padding: 7px 9px; min-width: 150px; }
+.art-pick-btn > .art-pick-now { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* DRAWN, not typed. The ▾ glyph was the first attempt and came out a third the
+   size of the native select arrows beside it, because how much of its em box a
+   character fills is the font's business and not this file's. A border triangle
+   is 5px because it is told to be. */
+.art-pick-caret { flex: none; width: 0; height: 0; align-self: center;
+  border-left: 5px solid transparent; border-right: 5px solid transparent;
+  border-top: 5px solid var(--text-secondary);
+  transition: transform .12s ease; }
+.art-pick-btn[aria-expanded="true"] .art-pick-caret { transform: rotate(180deg); }
+/* Sized to its own longest ART name rather than to the button — a picker that
+   wraps every name onto two lines is harder to scan than a slightly wide one —
+   but never past 340px or the phone's width, whichever is smaller. */
+.art-pick-menu { position: absolute; z-index: 11; top: calc(100% + 4px); left: 0;
+  width: max-content; min-width: 100%; max-width: min(340px, calc(100vw - 40px));
+  background: var(--surface); border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm); padding: 8px; }
+/* The reset sits above a rule, not in the list: it is the state you get by
+   ticking nothing, so it is an action rather than a sixth ART. */
+.art-pick-all { display: flex; align-items: center; gap: 8px; width: 100%;
+  text-align: left; cursor: pointer; background: none; border: 0; color: var(--text-primary);
+  font-size: var(--fs-sm); padding: 4px 2px; border-radius: var(--radius-sm); }
+.art-pick-all .art-pick-tick { flex: none; width: 1em; color: var(--ok); }
+.art-pick-all:hover { background: var(--accent-bg); }
+.art-pick-menu hr { border: 0; border-top: 1px solid var(--border); margin: 8px 0; }
+.art-pick-list { display: grid; gap: 7px; max-height: 260px; overflow: hidden auto; }
+@media (prefers-reduced-motion: reduce) { .art-pick-caret { transition-duration: .01ms; } }
 tfoot td, tfoot th { font-weight: 700; border-top: 2px solid var(--border-strong);
   border-bottom: none; }
 /* A tfoot carrying more than one row: the second and any after it take a light rule
@@ -1757,6 +1810,10 @@ footer .applink { margin: 0 19px 0 auto; }
      hidden with it, and the print re-render put it straight back up. */
   .chart-max, #chartMaxi,
   .toolbarcard { display: none !important; }
+  /* Belt and braces: the toolbar card goes on paper anyway, but a menu left open
+     at print time would otherwise be a list of choices over the top of the
+     figures. printMetaLine() is what states the scope on paper. */
+  .art-pick-menu { display: none !important; }
   /* A pinned row would otherwise print ONCE, over the top of whatever the first
      page happens to start with. `.tabs` above is hidden, but `.tabrow` outlives
      it — it is the element carrying the sticky. */
@@ -2967,7 +3024,14 @@ function blankState() {
        shared by every team and this figure is one team's. */
     objectives: [],
     settings: { activeTeamId: null, activePiId: null, includeSprint6InRolling: false,
-                includeInProgress: false, view: 'sprint', artFilter: null,
+                includeInProgress: false, view: 'sprint',
+                /* Which ARTs the three cross-team views are scoped to: a LIST of
+                   ids, with ART_NONE for the teams on none and an EMPTY list
+                   meaning every team. A list since 2026-09-08 — it held a single
+                   id before, so wanting two of five ARTs meant taking every team
+                   you support. Widened at the boundary, which is where a copy
+                   saved before then is turned into a list of one. */
+                artFilter: [],
                 /* The typed velocity and the planning screen. Saved since
                    2026-08-26 so a reload keeps the forecast a reader typed —
                    the one thing on that screen worth the storage, because it is
@@ -3132,9 +3196,24 @@ function sanitizeIds(data) {
   if (data.settings && typeof data.settings === 'object') {
     cleanKey(data.settings, 'activeTeamId');
     cleanKey(data.settings, 'activePiId');
-    /* ART_NONE is a sentinel, not an id — clean() would swap it for a fresh one
-       and silently turn "teams in no ART" into a filter matching nothing. */
-    if (data.settings.artFilter !== ART_NONE) cleanKey(data.settings, 'artFilter');
+    /* The ART scope is a LIST of ids since 2026-09-08, and every one of them has
+       to go through the same remap the teams' `artId`s just did — a hostile id
+       is rewritten wherever it appears or the filter stops naming the ART it
+       named. A pre-2026-09-08 copy holds a single id as a STRING; widened here,
+       at the boundary, so nothing downstream has to know the history.
+
+       ART_NONE is a sentinel, not an id — clean() would swap it for a fresh one
+       and silently turn "teams in no ART" into a filter matching nothing — so it
+       rides through untouched. `cleanArt` is written to skip it rather than the
+       whole list being skipped when it appears, which is what the single-value
+       version did and what a mixed list would have broken. */
+    const cleanArt = (id) => (id === ART_NONE ? id : clean(id));
+    if (typeof data.settings.artFilter === 'string') {
+      data.settings.artFilter = data.settings.artFilter ? [cleanArt(data.settings.artFilter)] : [];
+    } else if (Array.isArray(data.settings.artFilter)) {
+      data.settings.artFilter = data.settings.artFilter
+        .map(id => (typeof id === 'string' ? cleanArt(id) : id));
+    }
   }
 
   /* ── The whitelist: only numbers, dates and short labels get through ───────
@@ -3157,7 +3236,25 @@ function sanitizeIds(data) {
     const out = {};
     for (const k of Object.keys(src)) {
       const kind = spec[k], v = src[k];
-      if (kind === 'id' || kind === 'idOrNull') {
+      if (kind === 'idList') {
+        /* A LIST of ids — the ART scope, and the only one here. Rebuilt rather
+           than repaired: a hand-edited copy holding an object, a number or a
+           320-character string among real ids drops just that entry, and the
+           whole key is dropped if what arrived was not a list at all. ART_NONE
+           is named because it is a SENTINEL and deliberately fails ID_OK, which
+           is what stops it ever colliding with a real id.
+
+           A string is widened to a list of one: that is what every copy saved
+           before 2026-09-08 holds, and this is the boundary every one of them
+           crosses on its way in. */
+        const raw = typeof v === 'string' ? (v ? [v] : []) : v;
+        if (Array.isArray(raw)) {
+          const kept = [...new Set(raw.filter(
+            id => id === ART_NONE || (typeof id === 'string' && ID_OK.test(id))))];
+          if (kept.length !== raw.length) sanitizeIds.pruned++;
+          out[k] = kept;
+        } else if (v !== undefined) { sanitizeIds.pruned++; }
+      } else if (kind === 'id' || kind === 'idOrNull') {
         /* An `idOrNull` collapses the empty string to null. A `<select>`'s "none"
            option carries `value=""`, so an empty string is what the form hands
            back for "No PI" — and an empty-string id is the orphan case this whole
@@ -3259,12 +3356,16 @@ function sanitizeIds(data) {
       }
       /* 'targets' counts its own repairs one level down — the rebuilt object can
          never be `===` the one that came in, so the general test would call every
-         boot a scrub and save() on each one. */
+         boot a scrub and save() on each one. 'idList' is a rebuilt ARRAY and is
+         out for exactly the same reason: it counts its own drops above, and left
+         in here a clean two-ART filter would be a repair on every single boot,
+         which is the fault `numOrBlank` was added to fix. */
       /* A null tribool is dropped above, but it is not a REPAIR: null is how
          blankState() states "not recorded", and adoptState() puts it straight
          back, so counting it had the boot scrub saving on every load. */
       if (kind === 'tribool' && v === null) continue;
-      if (kind !== 'targets' && (!(k in out) || out[k] !== v)) sanitizeIds.pruned++;
+      if (kind !== 'targets' && kind !== 'idList'
+          && (!(k in out) || out[k] !== v)) sanitizeIds.pruned++;
     }
     return out;
   };
@@ -3298,7 +3399,7 @@ function sanitizeIds(data) {
   if (data.settings && typeof data.settings === 'object') {
     data.settings = keepKnown(data.settings, {
       activeTeamId: 'idOrNull', activePiId: 'idOrNull', activeSprintNum: 'sprintNum',
-      artFilter: 'idOrNull', includeSprint6InRolling: 'bool',
+      artFilter: 'idList', includeSprint6InRolling: 'bool',
       includeInProgress: 'bool', view: 'view', targets: 'targets',
       /* Numbers and a tribool — the rule this whitelist keeps. `forecastTypedOn`
          must NOT be 'bool': that coerces, and a coerced null would record "the
@@ -3369,8 +3470,17 @@ function sanitizeIds(data) {
      the user can see it and fix it. Same for a filter naming an ART that's gone. */
   const artIds = new Set(list(data.arts).map(a => (a ? a.id : null)).filter(Boolean));
   list(data.teams).forEach(t => { if (t && t.artId && !artIds.has(t.artId)) t.artId = null; });
-  const filter = data.settings && data.settings.artFilter;
-  if (filter && filter !== ART_NONE && !artIds.has(filter)) data.settings.artFilter = null;
+  const filter = (data.settings && Array.isArray(data.settings.artFilter))
+    ? data.settings.artFilter : null;
+  if (filter) {
+    /* Each id checked on its own. With a single value a stale one had to clear
+       the whole filter; with a list, dropping just the id that names nothing is
+       what keeps the OTHER ticked ART in scope — the page silently widening to
+       every team because one of two ARTs went missing would be it answering a
+       question nobody asked. */
+    const kept = filter.filter(id => id === ART_NONE || artIds.has(id));
+    if (kept.length !== filter.length) { data.settings.artFilter = kept; sanitizeIds.pruned++; }
+  }
   /* And the sentinel itself, which needs the same repair for the opposite reason.
      ART_NONE names a group rather than an id, so no ART going missing can
      invalidate it — what invalidates it is every team HAVING an ART, at which
@@ -3379,8 +3489,10 @@ function sanitizeIds(data) {
      the select falls back to showing "All ARTs" because nothing matches, and the
      page underneath says "No Teams On This ART" — a control lying about the
      filter it is applying. */
-  if (filter === ART_NONE && !list(data.teams).some(t => t && !t.artId))
-    data.settings.artFilter = null;
+  if (filter && filter.includes(ART_NONE) && !list(data.teams).some(t => t && !t.artId)) {
+    data.settings.artFilter = data.settings.artFilter.filter(id => id !== ART_NONE);
+    sanitizeIds.pruned++;
+  }
   /* After the remapping, never before it: a sprint whose team id was hostile has
      just been rewritten to the team's fresh id, and is not an orphan. */
   const ids = (arr) => new Set(list(arr).map(r => (r ? r.id : null)).filter(Boolean));
@@ -3782,8 +3894,9 @@ function activeTeam() {
    ART, and deleting it. Deleting an ART already clears a filter naming it, one
    handler along; this is that rule's other half. */
 function fixArtFilter() {
-  if (state.settings.artFilter === ART_NONE && !state.teams.some(t => !t.artId))
-    state.settings.artFilter = null;
+  if (!Array.isArray(state.settings.artFilter)) return;
+  if (state.settings.artFilter.includes(ART_NONE) && !state.teams.some(t => !t.artId))
+    state.settings.artFilter = state.settings.artFilter.filter(id => id !== ART_NONE);
 }
 
 /* ── ARTs ───────────────────────────────────────────────────────────────────
@@ -3799,6 +3912,90 @@ function teamsInArt(teams, artId) {
   if (!artId) return list.slice();                        // no filter: every team
   if (artId === ART_NONE) return list.filter(t => !t.artId);
   return list.filter(t => t.artId === artId);
+}
+
+/* The same question asked of SEVERAL ARTs at once, which is what the picker asks
+   since it became a multi-select (2026-09-08). Mirrors Flow Metrics, where the
+   change was made a day earlier against a `view` field; here the stored value is
+   in `settings`, so the boundary below had to learn the shape too.
+
+   A UNION, and it has to be: a team is on one ART, so intersecting two is always
+   empty and the only thing ticking two boxes can mean is "show me both". An
+   EMPTY list is every team, exactly as a null id is above — the picker has no
+   "all" to tick, it is what ticking nothing gives you, so both ends of the range
+   go through one code path.
+
+   Filtered in the TEAMS' order rather than looped per id, so the list arrives
+   grouped the way groupTeamsByArt() left it and not in the order the boxes
+   happened to be pressed. */
+function teamsInArts(teams, artIds) {
+  const list = Array.isArray(teams) ? teams : [];
+  const want = new Set((Array.isArray(artIds) ? artIds : []).filter(Boolean));
+  if (!want.size) return list.slice();                    // no filter: every team
+  return list.filter(t => want.has(t.artId || ART_NONE));
+}
+
+/* The stored scope as the views may rely on it: a list of ids that all still
+   mean something, in the ARTs' own order with the teams on no ART last — the
+   order the picker lists them in, so every sentence built from it reads in the
+   order the reader ticked past.
+
+   Ids that name nothing are DROPPED rather than spoiling the whole list: with a
+   list, deleting one of two ticked ARTs should leave the other in scope, and
+   treating the lot as spoilt would silently widen the page to every team. The
+   boundary already repairs the stored value (see sanitizeIds); this is the
+   read-side guard that makes a stale value harmless in between. */
+function artScope() {
+  const want = new Set(Array.isArray(state.settings.artFilter) ? state.settings.artFilter : []);
+  if (!want.size) return [];
+  const out = state.arts.filter(a => want.has(a.id)).map(a => a.id);
+  if (want.has(ART_NONE) && state.teams.some(t => !t.artId)) out.push(ART_NONE);
+  return out;
+}
+
+/* THE ONE PLACE THE SCOPE IS PUT INTO WORDS. Seven sentences quote it across
+   four views — two headings, two footer labels, the "every team you support"
+   line, the printed meta line and the empty state — and before the picker took
+   a list each of them spelt out its own `art ? … : noArt ? … : …` triad. Three
+   spellings of one scope was survivable; a list would have made it seven places
+   that each had to know how to join names.
+
+   `name` is what to call the ticked things in a heading, `label` the footer's
+   "All teams …" form, and `phrase` the sentence form. ART_NONE is "No ART" on
+   the picker, where it is one option beside the names, and spelt out in a
+   sentence — "All teams on No ART" reads as the name of an ART somebody called
+   No ART.
+
+   Joined with "and", not "or": both ARTs' teams are on the page at once, so
+   "or" would read as a choice still to be made. */
+function artScopeWords(scope) {
+  const list = Array.isArray(scope) ? scope : [];
+  const names = list.map(id => id === ART_NONE
+    ? 'No ART' : ((state.arts.find(a => a.id === id) || {}).name || ''));
+  const join = (parts) => parts.length < 2 ? (parts[0] || '')
+    : parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1];
+  const onlyNone = list.length === 1 && list[0] === ART_NONE;
+  return {
+    ids: list,
+    names,
+    /* The three forms the views ask for, each keeping the wording it already
+       had in the one-ART and no-filter cases — this is a widening, not a
+       rewrite, and a heading that changed for teams nobody regrouped would be
+       churn a reader has to account for. */
+    name:  !list.length ? 'Every Team' : onlyNone ? 'Teams Without An ART' : join(names),
+    /* `where` is the bare prepositional phrase, and `label` is the footer row's
+       "All teams …" built from it, so the two can never disagree about how the
+       ARTs are named. The picker's own muted line takes `where` on its own. */
+    where: !list.length ? '' : onlyNone ? 'with no ART' : 'on ' + join(names),
+    label: 'All teams' + (!list.length ? ''
+      : onlyNone ? ' with no ART' : ' on ' + join(names)),
+    phrase: !list.length ? 'Every team you support'
+      : onlyNone ? 'Every team you haven\u2019t put on an ART yet'
+      : 'Every team on ' + join(names),
+    /* What the printed meta line says. Empty with no filter, because naming the
+       view and naming the teams it covers are two different jobs. */
+    print: !list.length ? '' : onlyNone ? 'Teams with no ART' : join(names)
+  };
 }
 
 /* Teams sorted so an ART's teams sit together, ARTs in the order they're listed
@@ -6761,8 +6958,7 @@ const VIEW_NAMES = { sprint: 'Sprint', pi: 'Team PI', rolling: `Rolling ${ROLLIN
 
 function printMetaLine(view) {
   const team = activeTeam();
-  const art = state.settings.artFilter === ART_NONE ? 'Teams with no ART'
-    : state.settings.artFilter ? (artById(state.settings.artFilter) || {}).name : '';
+  const art = artScopeWords(artScope()).print;
   const acrossTeams = view === 'teams' || view === 'art' || view === 'trend';
   /* The scope is the ART filter and nothing else. Naming the view and naming the
      teams it covers are two different jobs, and with no filter set there is no
@@ -8955,13 +9151,13 @@ function renderHistoryView() {
 
 function renderPiTrendView() {
   const grouped = groupTeamsByArt(state.teams, state.arts);
-  const shown = teamsInArt(grouped, state.settings.artFilter);
+  const scope = artScope();
+  const words = artScopeWords(scope);
+  const shown = teamsInArts(grouped, scope);
   const hiddenCount = state.teams.length - shown.length;
-  const noArt = state.settings.artFilter === ART_NONE;
-  const art = noArt ? null : artById(state.settings.artFilter);
   const includeSix = !!state.settings.includeSprint6InRolling;
 
-  const heading = art ? esc(art.name) : noArt ? 'Teams Without An ART' : 'Every Team';
+  const heading = esc(words.name);
   const all = piTrend(shown, includeSix);
   /* PIs nobody recorded anything in are gaps in the history, not zeroes — plotting
      one as a hole would read as a collapse. Dropped, and named below if any. */
@@ -8973,7 +9169,7 @@ function renderPiTrendView() {
       <div class="card empty">
         <h2>Not Enough PIs Yet</h2>
         <p>${rows.length ? 'Only one PI has anything recorded in it' : 'Nothing is recorded in any PI'}
-           for ${art ? esc(art.name) : 'these teams'}, so there is no trend to draw yet. A second
+           for ${scope.length ? esc(words.name) : 'these teams'}, so there is no trend to draw yet. A second
            PI of history is what turns a position into a direction.</p>
       </div>`;
     wireArtToolbar();
@@ -9251,10 +9447,10 @@ function renderArtPiView() {
   if (!state.pis.length) return renderNoSprints();
 
   const grouped = groupTeamsByArt(state.teams, state.arts);
-  const shown = teamsInArt(grouped, state.settings.artFilter);
+  const scope = artScope();
+  const words = artScopeWords(scope);
+  const shown = teamsInArts(grouped, scope);
   const hiddenCount = state.teams.length - shown.length;
-  const noArt = state.settings.artFilter === ART_NONE;
-  const art = noArt ? null : artById(state.settings.artFilter);
 
   const piId = state.settings.activePiId && piById(state.settings.activePiId)
     ? state.settings.activePiId : state.pis[state.pis.length - 1].id;
@@ -9274,17 +9470,18 @@ function renderArtPiView() {
   if (!shown.length) {
     viewsEl.innerHTML = artToolbar(0, hiddenCount, { controls: piPicker }) + `
       <div class="card empty">
-        <h2>No Teams On This ART</h2>
-        <p>Nothing is assigned to it at the moment. Pick <strong>All ARTs</strong> above, or
-           assign a team to it in <strong>Teams &amp; PIs</strong>.</p>
+        <h2>No Teams On ${scope.length === 1 ? 'This ART' : 'These ARTs'}</h2>
+        <p>Nothing is assigned to ${scope.length === 1 ? 'it' : 'any of them'} at the moment.
+           Pick <strong>All ARTs</strong> above, or
+           assign a team ${scope.length === 1 ? 'to it' : 'to one of them'} in
+           <strong>Teams &amp; PIs</strong>.</p>
       </div>`;
     wireArtToolbar();
     return;
   }
 
-  const heading = art ? esc(art.name) : noArt ? 'Teams Without An ART' : 'Every Team';
-  const scopeLabel = art ? `All teams on ${esc(art.name)}`
-    : noArt ? 'All teams with no ART' : 'All teams';
+  const heading = esc(words.name);
+  const scopeLabel = esc(words.label);
 
   /* One pass per team, so the table, the tiles, the chart and the footer row can
      only ever disagree by method and never by which sprints they looked at — the
@@ -9387,8 +9584,13 @@ function renderArtPiView() {
         rows below, not the tile.</span></p>`
     : '';
 
+  /* Which ART a team is on, under its name. It goes once the picker has narrowed
+     the page to ONE — repeating the same name down every row is noise — and it
+     comes BACK the moment two are ticked, which is the whole reason it is keyed
+     off the count rather than off "is a filter on": rows drawn from two ARTs
+     need the label again, or the table is a mixture it cannot account for. */
   const artTag = (team) => {
-    if (!state.arts.length || art || noArt) return '';
+    if (!state.arts.length || scope.length === 1) return '';
     const on = team.artId ? artById(team.artId) : null;
     return `<span class="artname">${on ? esc(on.name) : 'No ART'}</span>`;
   };
@@ -9571,7 +9773,8 @@ function renderArtPiView() {
 function artToolbar(shownCount, hiddenCount, extra) {
   const controls = (extra && extra.controls) || '';
   const note = (extra && extra.note) || '';
-  const filter = state.settings.artFilter || '';
+  const scope = artScope();
+  const on = new Set(scope);
   if (!state.arts.length) {
     /* No ARTs to filter by, but a caller's own control still has to appear —
        it is not the ART picker's to withhold. */
@@ -9586,46 +9789,206 @@ function artToolbar(shownCount, hiddenCount, extra) {
         <strong>Teams &amp; PIs</strong> and this view gains a filter for them.</p>
     </div>`;
   }
-  const opt = (v, label) =>
-    `<option value="${esc(v)}"${filter === v ? ' selected' : ''}>${esc(label)}</option>`;
+  /* Every option carries the number of teams behind it — the figure the tick is
+     actually about. An ART nobody is on is still worth listing (it is one team
+     edit away from meaning something) but a reader should not have to tick it to
+     find out it changes nothing. */
+  const line = (id, label) => {
+    const n = teamsInArt(state.teams, id).length;
+    return `<label class="checkline"><input type="checkbox" data-art-pick="${esc(id)}"${
+      on.has(id) ? ' checked' : ''}><span>${esc(label)} (${plural(n, 'team')})</span></label>`;
+  };
   const unassigned = state.teams.some(t => !t.artId);
+  const words = artScopeWords(scope);
+  /* WHAT THE CLOSED BUTTON SAYS. One ART is named, because the name is shorter
+     than any count of it and is the thing the reader picked. Two or more are
+     counted rather than listed: this button sits in a row beside a PI picker and
+     a sentence, and a list of five ART names in it would either truncate — a
+     control hiding its own value — or take the row's layout with it. The names
+     are in the muted line opposite and in every heading below. */
+  const now = !scope.length ? 'All ARTs'
+    : scope.length === 1 ? words.names[0]
+    : `${scope.length} selected`;
   return `<div class="card toolbarcard">
     <div class="row spread">
       <div class="row" style="gap:14px;flex-wrap:wrap">
-        <label class="row" style="gap:8px;font-size:var(--fs-sm)">
-          <span>ART</span>
-          <select id="artFilter" title="Show only the teams on one ART">
-            ${opt('', 'All ARTs')}
-            ${state.arts.map(a => opt(a.id, a.name)).join('')}
-            ${unassigned ? opt(ART_NONE, 'No ART') : ''}
-          </select>
-        </label>
+        <span class="row art-pick" style="gap:8px;font-size:var(--fs-sm)">
+          <span id="artFilterLbl">ART</span>
+          <button type="button" class="art-pick-btn" id="artFilterBtn"
+                  aria-haspopup="true" aria-expanded="false" aria-controls="artFilterMenu"
+                  aria-labelledby="artFilterLbl artFilterNow">
+            <span class="art-pick-now" id="artFilterNow">${esc(now)}</span>
+            <span class="art-pick-caret" aria-hidden="true"></span>
+          </button>
+          <div class="art-pick-menu" id="artFilterMenu" role="group"
+               aria-labelledby="artFilterLbl" hidden>
+            <button type="button" class="art-pick-all" id="artFilterAll">
+              <span class="art-pick-tick" aria-hidden="true">${scope.length ? '' : '✓'}</span>
+              <span>All ARTs</span></button>
+            <hr>
+            <div class="art-pick-list">
+              ${state.arts.map(a => line(a.id, a.name)).join('')}
+              ${unassigned ? line(ART_NONE, 'No ART') : ''}
+            </div>
+          </div>
+        </span>
         ${controls}
       </div>
       <span class="muted" style="font-size:var(--fs-xs)">${
         hiddenCount
-          ? `Showing ${shownCount} of ${plural(state.teams.length, 'team')} — the other
+          ? `Showing ${shownCount} of ${plural(state.teams.length, 'team')}, ${esc(words.where)} — the other
              ${hiddenCount} ${hiddenCount === 1 ? 'is' : 'are'} in none of the figures below.`
-          : `Showing all ${plural(shownCount, 'team')}. Every figure below follows this picker.`
+          : scope.length
+            ? `Showing all ${plural(shownCount, 'team')}, ${esc(words.where)}. Every figure below follows this picker.`
+            : `Showing all ${plural(shownCount, 'team')}. Every figure below follows this picker.`
       }${note ? ' ' + note : ''}</span>
     </div>
   </div>`;
 }
 
+/* ── The picker's open state lives OUT HERE, and it has to ──────────────────
+   Unlike Flow Metrics, where the same menu is a permanent node in the page, this
+   app rebuilds `viewsEl.innerHTML` on every render — and a tick re-renders,
+   because every figure on the page follows the scope. So the menu the reader is
+   ticking through is destroyed and rebuilt under their hand on each press.
+
+   Three things therefore survive out here and are re-applied by wireArtToolbar()
+   below: whether the menu is open, which box had the keyboard, and how far the
+   list was scrolled. Without the first, ticking a second ART would be impossible
+   — the menu would shut itself after every tick; without the second, a reader
+   working the list from the keyboard loses focus to <body> on every Space. Same
+   class of fault as a button that rewrites its own icon under the pointer, with
+   the whole view standing in for the button. */
+let artPickOpen = false;
+let artPickFocus = null;
+let artPickScroll = 0;
+/* WHICH VIEW the open menu belongs to. A press on a tab is a press outside the
+   picker and closes it through the handler at the foot of this block — but the
+   tab row is a `role="tablist"` and arrows move between its tabs from the
+   keyboard, which fires no press at all. Without this, arrowing from Compare
+   Teams to PI Trend with the menu up re-opened it, hanging over a view the
+   reader had just moved to. */
+let artPickView = null;
+
 /* Wires every scope control in that one card, so a view that adds one needn't
    remember to wire it on each of its exit paths — the PI by Team view has three. */
 function wireArtToolbar() {
-  const sel = document.getElementById('artFilter');
-  if (sel) sel.onchange = () => {
-    state.settings.artFilter = sel.value || null;
-    save(); render();
-  };
+  const btn = document.getElementById('artFilterBtn');
+  const menu = document.getElementById('artFilterMenu');
+  if (btn && menu) {
+    /* Put the menu back the way the reader left it, BEFORE anything can be
+       focused into it — a box inside a hidden menu cannot take the keyboard. */
+    if (artPickOpen && artPickView !== state.settings.view) closeArtMenu();
+    if (artPickOpen) {
+      btn.setAttribute('aria-expanded', 'true');
+      menu.hidden = false;
+      const list = menu.querySelector('.art-pick-list');
+      if (list) list.scrollTop = artPickScroll;
+      if (artPickFocus) {
+        /* Found by walking rather than by an attribute selector: an id is shape-
+           checked at every boundary but ART_NONE is not, and building a selector
+           out of a value is the habit that puts one somewhere it cannot be
+           escaped. */
+        const again = [...menu.querySelectorAll('input[data-art-pick]')]
+          .find(b => b.dataset.artPick === artPickFocus);
+        /* preventScroll like every other focus() here — the browser's own
+           scrolling knows nothing about the sticky chrome above it. */
+        if (again) again.focus({ preventScroll: true });
+      }
+    }
+    artPickFocus = null;
+    btn.onclick = () => { if (artPickOpen) closeArtMenu(true); else openArtMenu(); };
+    /* Down opens it and lands on the first box — the move the <select> this
+       replaced made, and the one thing a reader who knew the old picker will
+       try. It does that whether or not the menu is already up: an ArrowDown
+       that opened the list but refused to enter one already open would be the
+       same key meaning two things. */
+    btn.onkeydown = (e) => {
+      if (e.key !== 'ArrowDown') return;
+      e.preventDefault();
+      if (!artPickOpen) openArtMenu();
+      const first = menu.querySelector('input[data-art-pick]');
+      if (first) first.focus({ preventScroll: true });
+    };
+    menu.onchange = (e) => {
+      const box = e.target.closest ? e.target.closest('input[data-art-pick]') : null;
+      if (!box) return;
+      const id = box.dataset.artPick;
+      const chosen = new Set(Array.isArray(state.settings.artFilter)
+        ? state.settings.artFilter : []);
+      if (box.checked) chosen.add(id); else chosen.delete(id);
+      state.settings.artFilter = [...chosen];
+      /* Remembered across the render this is about to cause — see the three
+         variables above. The menu STAYS OPEN: ticking a second ART is the whole
+         point of it, and a picker that shut after every tick would make the
+         two-ART case four presses instead of two. */
+      artPickFocus = id;
+      const list = menu.querySelector('.art-pick-list');
+      artPickScroll = list ? list.scrollTop : 0;
+      save(); render();
+    };
+    menu.onclick = (e) => {
+      if (!e.target.closest || !e.target.closest('#artFilterAll')) return;
+      state.settings.artFilter = [];
+      /* This one DOES close: "All ARTs" is a whole answer rather than a step
+         towards one, and the button it was pressed on is about to be replaced —
+         leaving the keyboard on a removed node drops focus to <body>. */
+      artPickOpen = false;
+      save(); render();
+      const back = document.getElementById('artFilterBtn');
+      if (back) back.focus({ preventScroll: true });
+    };
+  }
   const piSel = document.getElementById('piSel3');
   if (piSel) piSel.onchange = () => {
     state.settings.activePiId = piSel.value;
     save(); render();
   };
 }
+
+function openArtMenu() {
+  const btn = document.getElementById('artFilterBtn');
+  const menu = document.getElementById('artFilterMenu');
+  if (!btn || !menu) return;
+  artPickOpen = true;
+  artPickView = state.settings.view;
+  artPickScroll = 0;
+  btn.setAttribute('aria-expanded', 'true');
+  menu.hidden = false;
+}
+function closeArtMenu(focusBtn) {
+  const btn = document.getElementById('artFilterBtn');
+  const menu = document.getElementById('artFilterMenu');
+  artPickOpen = false;
+  artPickFocus = null;
+  if (!btn || !menu) return;
+  btn.setAttribute('aria-expanded', 'false');
+  menu.hidden = true;
+  /* Only when the close was the reader's doing — Escape, or a second press on
+     the button. A press somewhere else on the page has already landed
+     somewhere, and yanking the keyboard back here would undo it. */
+  if (focusBtn) btn.focus({ preventScroll: true });
+}
+
+/* Escape closes it and hands the keyboard back, wherever inside it the focus
+   was; a press anywhere outside is the reader moving on, the same rule this
+   app's dialogs follow where a click on the backdrop means Cancel. Both are
+   bound ONCE on the document rather than in wireArtToolbar(), which runs again
+   on every render — a listener re-hung per render is a listener stacked per
+   render. Capture on the press, so a handler that stops the bubble somewhere
+   else cannot leave the menu hanging open over the view it was pressed on. */
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || !artPickOpen) return;
+  const inside = document.activeElement
+    && document.activeElement.closest && document.activeElement.closest('.art-pick');
+  if (!inside) return;              /* a dialog's own Escape is not ours to take */
+  e.stopPropagation();
+  closeArtMenu(true);
+}, true);
+document.addEventListener('mousedown', (e) => {
+  if (!artPickOpen) return;
+  if (!(e.target.closest && e.target.closest('.art-pick'))) closeArtMenu();
+}, true);
 
 function renderTeamsView() {
   const includeSix = !!state.settings.includeSprint6InRolling;
@@ -9634,18 +9997,23 @@ function renderTeamsView() {
      from `shown` below, so the view can't end up saying it filtered while some
      corner of it still counted the teams it left out. */
   const grouped = groupTeamsByArt(state.teams, state.arts);
-  const shown = teamsInArt(grouped, state.settings.artFilter);
+  const scope = artScope();
+  const words = artScopeWords(scope);
+  const shown = teamsInArts(grouped, scope);
   const hiddenCount = state.teams.length - shown.length;
-  const noArt = state.settings.artFilter === ART_NONE;
-  const art = noArt ? null : artById(state.settings.artFilter);
-  const filtered = noArt || !!art;
+  /* Grouping the table by ART is worth doing while the page holds more than one
+     of them, which is now true of a two-ART scope as well as of no filter at
+     all — so this asks the count rather than "is a filter on". */
+  const filtered = scope.length === 1;
 
   if (!shown.length) {
     viewsEl.innerHTML = artToolbar(0, hiddenCount) + `
       <div class="card empty">
-        <h2>No Teams On This ART</h2>
-        <p>Nothing is assigned to it at the moment. Pick <strong>All ARTs</strong> above, or
-           assign a team to it in <strong>Teams &amp; PIs</strong>.</p>
+        <h2>No Teams On ${scope.length === 1 ? 'This ART' : 'These ARTs'}</h2>
+        <p>Nothing is assigned to ${scope.length === 1 ? 'it' : 'any of them'} at the moment.
+           Pick <strong>All ARTs</strong> above, or
+           assign a team ${scope.length === 1 ? 'to it' : 'to one of them'} in
+           <strong>Teams &amp; PIs</strong>.</p>
       </div>`;
     wireArtToolbar();
     return;
@@ -9717,14 +10085,16 @@ function renderTeamsView() {
   /* The scope goes in the heading and in both footer rows, so a screenshot of one
      table still says which teams it covered — the picker above it is off-screen the
      moment anyone scrolls. */
-  const heading = art ? esc(art.name) : noArt ? 'Teams Without An ART' : 'Every Team';
-  const scopeLabel = art ? `All teams on ${esc(art.name)}`
-    : noArt ? 'All teams with no ART' : 'All teams';
+  const heading = esc(words.name);
+  const scopeLabel = esc(words.label);
 
   /* Which ART a team is on, under its name. The grouping is a sort, and a sort with
      no labels is just an order nobody can account for. It goes once the picker has
      narrowed the page to a single ART — repeating the same name down every row is
-     noise — and never appears at all until an ART exists. */
+     noise — and never appears at all until an ART exists. It comes BACK the moment
+     two are ticked (2026-09-08), which is why `filtered` counts the ticks rather
+     than asking whether a filter is on: rows drawn from two ARTs need the label
+     again, or the table is a mixture it cannot account for. */
   /* A glyph plus a spoken sentence, never a colour: a target reduced for leave
      has to be distinguishable from one that came straight off the history, and
      this table's numbers are the ones that get read out in a portfolio meeting. */
@@ -9829,8 +10199,7 @@ function renderTeamsView() {
     + rollingToolbar(includeSix, shown.some(t => teamSprints(t.id).some(x => !!x.piId))) + `
     <div class="card">
       <h2>${heading} — Rolling ${ROLLING_WINDOW}-Sprint Averages</h2>
-      <p class="sub">${art ? `Every team on ${esc(art.name)}`
-        : noArt ? 'Every team you haven’t put on an ART yet' : 'Every team you support'}, side by
+      <p class="sub">${esc(words.phrase)}, side by
         side${includeSix ? '' : ', with sprint 6 excluded'}.
         ${state.arts.length && !filtered ? 'Grouped by ART. ' : ''}Finished sprints only${
         anyOpen ? ` — ${anyOpen} sprint${anyOpen === 1 ? '' : 's'} still in flight
@@ -10361,7 +10730,10 @@ function renderSearchResults() {
 function goToSearchHit(h) {
   F('searchDialog').close();
   if (h.teamId && teamById(h.teamId)) state.settings.activeTeamId = h.teamId;
-  if (h.artId) state.settings.artFilter = h.artId;
+  /* A hit on an ART REPLACES the scope rather than joining it: Find was asked
+     for one ART, and landing on a view still showing the two that were ticked
+     before would answer a question nobody asked. */
+  if (h.artId) state.settings.artFilter = [h.artId];
   if ('piId' in h) state.settings.activePiId = piKey(h.piId);
   if (h.sprintNumber) state.settings.activeSprintNum = h.sprintNumber;
   /* A PI hit carries no team of its own, so it lands on one that actually has
@@ -11682,7 +12054,11 @@ function renderManage() {
     undoableToast(() => {
       state.arts = state.arts.filter(x => x.id !== a.id);
       state.teams.forEach(t => { if (t.artId === a.id) t.artId = null; });
-      if (state.settings.artFilter === a.id) state.settings.artFilter = null;
+      /* The deleted ART comes out of the scope and the rest of it stands — with a
+         single value a stale id had to clear the filter, and doing that with a
+         list would widen the page to every team over one of two ticks. */
+      if (Array.isArray(state.settings.artFilter))
+        state.settings.artFilter = state.settings.artFilter.filter(id => id !== a.id);
     }, `${a.name} removed — its teams and their sprints are untouched`, renderManage);
   });
   manageDialog.querySelectorAll('[data-del-pi]').forEach(b => b.onclick = () => {
@@ -12854,7 +13230,7 @@ function buildSharePayload({ teamIds, includeAllTeams, scope }) {
       /* Deliberately not the sender's ART filter: the link already carries exactly
          the teams they chose, and opening it pre-filtered would hide some of them
          behind a picker the recipient has no reason to look at. */
-      artFilter: null,
+      artFilter: [],
       includeSprint6InRolling: !!state.settings.includeSprint6InRolling,
       includeInProgress: !!state.settings.includeInProgress,
       /* The sender's targets travel, because without them the recipient reads the
