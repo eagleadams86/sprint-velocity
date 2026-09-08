@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 489;
+const EXPECTED = 490;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -763,6 +763,9 @@ const artSays = () => ({
   note: w.document.querySelector('.toolbarcard .muted').textContent.replace(/\s+/g, ' ').trim(),
   head: w.document.querySelector('#views h2').textContent.trim(),
   tags: w.document.querySelectorAll('.artname').length,
+  /* Both tables on this view end in one, and they take the same label. */
+  feet: [...w.document.querySelectorAll('#views tfoot th[scope="row"]')]
+    .map(el => el.textContent.replace(/\s+/g, ' ').trim()),
   open: w.document.getElementById('artFilterMenu').hidden === false
 });
 
@@ -794,6 +797,30 @@ t('one ART is named on the button, two or more are counted', () => {
     ok(/^Payments and Platform —/.test(artSays().head),
        'and so does the heading, joined with "and" — both ARTs are on the page at '
        + 'once, so "or" would read as a choice still to be made', artSays().head);
+  });
+});
+
+/* ── THE FOOTER ROW NAMES ONE AND COUNTS SEVERAL ────────────────────────────
+   Reported by Charles on 2026-09-08, in both apps the same day: two ARTs spelt
+   out ran to "All teams on Digital Sales & Onboarding and Consumer Lending
+   Originations", in the first column of a table of team names — so the longest
+   thing in that column set its width and took the space off every figure to its
+   right. The rule is the picker button's, one row up. */
+t('the footer row names one ART and counts several', () => {
+  withPicker(() => {
+    eq(artSays().feet, ['All teams', 'All teams'],
+       'with nothing ticked both tables end in the plain row they always did');
+    w.document.getElementById('artFilterBtn').click();
+    artTick('a1', true);
+    eq(artSays().feet, ['All teams on Payments', 'All teams on Payments'],
+       'ONE is still named, because a name is shorter than any phrase standing in for it');
+    artTick('a2', true);
+    eq(artSays().feet, ['All selected teams', 'All selected teams'],
+       'past one they are counted, and the heading over the table names them in full');
+    artTick('a1', false); artTick('a2', false);
+    artTick(w.__svTestHooks.ART_NONE, true);
+    eq(artSays().feet, ['All teams with no ART', 'All teams with no ART'],
+       'and the un-grouped group keeps its own sentence, which is one phrase either way');
   });
 });
 

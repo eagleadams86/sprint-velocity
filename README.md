@@ -1070,8 +1070,11 @@ at:
   meant taking every team you support and reading past the ones you hadn't asked about.)
 - Everything below it follows: both comparison tables, both **Compare Teams** footer rows, the
   chart, and the count of sprints still in flight. Pick *Payments ART* and the footer row reads
-  **All teams on Payments ART**; tick *Platform ART* beside it and it reads **All teams on
-  Payments ART and Platform ART**, worked out across both ARTs' teams.
+  **All teams on Payments ART**; tick *Platform ART* beside it and it reads **All selected
+  teams**, worked out across both ARTs' teams. The **heading** over the table names every ART
+  you have ticked in full — the footer row and the button beside the picker name one and count
+  the rest, because both of those sit in a narrow column and a list of ART names there takes the
+  space off the figures next to it.
 - The menu **stays open while you tick**, because picking a second ART is the point of it. It
   closes on **Escape**, on *All ARTs*, on the button, or on a press anywhere else. From the
   keyboard, **↓** moves into the list and **Space** ticks — and the keyboard stays where you

@@ -561,7 +561,12 @@ but Charles had ever actually signed in.)
   still be counting teams the picker left out. Its exclusions are never silent, the same
   rule as every other view: `artToolbar()` says how many teams are hidden, and the footer
   row says which scope it covers ("All teams on Payments ART") rather than a flat "All
-  teams" that would read as the whole portfolio in a screenshot.
+  teams" that would read as the whole portfolio in a screenshot. **It NAMES ONE AND COUNTS
+  SEVERAL** — "All selected teams" past the first — which is the picker button's rule and
+  arrived for the same reason on 2026-09-08: this row is the first column of a table of team
+  names, so a list of ART names spelt out there sets the column's width and takes that space
+  off every figure to its right. Charles reported it on this app and Flow Metrics the same
+  day; both changed together, and `artScopeWords().label` is the one place to change it.
 - **`ART_NONE` is `~none`, deliberately not a legal id.** `~` fails `ID_OK`, so no ART
   arriving in a share link or a hand-edited file can collide with the sentinel — which is
   why `sanitizeIds()` has to *skip* it when cleaning `settings.artFilter`. Clean it and the

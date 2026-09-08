@@ -3985,10 +3985,21 @@ function artScopeWords(scope) {
     name:  !list.length ? 'Every Team' : onlyNone ? 'Teams Without An ART' : join(names),
     /* `where` is the bare prepositional phrase, and `label` is the footer row's
        "All teams …" built from it, so the two can never disagree about how the
-       ARTs are named. The picker's own muted line takes `where` on its own. */
+       ARTs are named. The picker's own muted line takes `where` on its own.
+
+       `label` NAMES ONE AND COUNTS SEVERAL, which is the rule the picker button
+       already follows, and it stopped spelling out a list on 2026-09-08. Two
+       ARTs ran to "All teams on Digital Sales & Onboarding and Consumer Lending
+       Originations" — a footer row in the first column of a table of team names,
+       so the longest thing in that column sets its width and takes the space off
+       every figure to its right. Charles reported it on both apps the same day.
+       One ART is still named, because a name is shorter than any phrase standing
+       in for it, and past that the heading over the table lists them in full. */
     where: !list.length ? '' : onlyNone ? 'with no ART' : 'on ' + join(names),
-    label: 'All teams' + (!list.length ? ''
-      : onlyNone ? ' with no ART' : ' on ' + join(names)),
+    label: !list.length ? 'All teams'
+      : onlyNone ? 'All teams with no ART'
+      : list.length === 1 ? 'All teams on ' + names[0]
+      : 'All selected teams',
     phrase: !list.length ? 'Every team you support'
       : onlyNone ? 'Every team you haven\u2019t put on an ART yet'
       : 'Every team on ' + join(names),
