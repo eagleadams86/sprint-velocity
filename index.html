@@ -6970,6 +6970,34 @@ viewsEl.addEventListener('click', (e) => {
   if (btn) openHelp(btn.dataset.help);
 });
 
+/* The sortable column headings, all six tables, delegated here for exactly the
+   same reason and wired once. `viewsEl` itself survives every render — only its
+   innerHTML is replaced — so one listener outlives the heading it is handling,
+   which a per-render `onclick` on the heading cannot: the press destroys the
+   element that is handling it.
+
+   AND THE KEYBOARD COMES WITH IT. render() throws away the button that was
+   pressed, so the focus would land on <body> and Tab carry on from the top of the
+   document; the new copy of the same heading is found by its key and given the
+   focus back. Only from the keyboard — the same `e.detail === 0` test the row
+   buttons use — so a mouse press does not leave a ring on a heading nobody is
+   typing at. `stopPropagation` because several of these tables sit inside cards
+   that open a row on a click. */
+viewsEl.addEventListener('click', (e) => {
+  const btn = e.target.closest ? e.target.closest('[data-sortcol]') : null;
+  if (!btn) return;
+  e.stopPropagation();
+  const id = btn.dataset.sorttable, key = btn.dataset.sortcol;
+  const col = (SORT_COLS[id] || []).find(c => c.key === key);
+  if (!col) return;
+  const next = nextSortState(sortOf(id), key, !!col.text);
+  setSort(id, next.key, next.dir);
+  const fromKeyboard = e.detail === 0;
+  render();
+  const again = viewsEl.querySelector('[data-sorttable="' + id + '"][data-sortcol="' + key + '"]');
+  if (again && fromKeyboard) again.focus({ preventScroll: true });
+});
+
 function openHelp(key) {
   const h = METRIC_HELP[key];
   if (!h) return;
@@ -7810,12 +7838,23 @@ function renderPiView() {
           : ''}.</p>
       <div class="tablewrap">
       <table id="piTable" aria-label="Sprint by sprint figures for this PI">
-        <thead><tr>
-          <th scope="col">Sprint</th><th scope="col">Committed</th><th scope="col">Cmt. done</th><th scope="col" class="metric">Complete %</th>
-          <th scope="col">Added</th><th scope="col">Removed</th><th scope="col">Carried in</th><th scope="col">Carried out</th>
-          <th scope="col">Total done</th>
-        </tr></thead>
-        <tbody>${rows.map(({ n, s }) => {
+        <thead><tr>${sortHead('piTable', [
+          /* The slot NUMBER, which every row has — including the empty ones, which
+             are places in the calendar rather than sprints. Sorting by any other
+             column leaves those at the foot, because a slot nobody has filled in
+             has no figures at all rather than zeroes. */
+          { key: 'sprint', label: 'Sprint', text: true, get: (r) => r.n },
+          { key: 'committed', label: 'Committed', get: (r) => (r.s ? metrics(r.s).committed : null) },
+          { key: 'done', label: 'Cmt. done', get: (r) => (r.s ? metrics(r.s).committedCompleted : null) },
+          { key: 'commitPct', label: 'Complete %', cls: 'metric',
+            get: (r) => (r.s ? metrics(r.s).commitCompletePct : null) },
+          { key: 'added', label: 'Added', get: (r) => (r.s ? metrics(r.s).added : null) },
+          { key: 'removed', label: 'Removed', get: (r) => (r.s ? metrics(r.s).removed : null) },
+          { key: 'carriedIn', label: 'Carried in', get: (r) => (r.s ? metrics(r.s).carriedIn : null) },
+          { key: 'carriedOut', label: 'Carried out', get: (r) => (r.s ? metrics(r.s).carriedOut : null) },
+          { key: 'velocity', label: 'Total done', get: (r) => (r.s ? metrics(r.s).velocity : null) }
+        ])}</tr></thead>
+        <tbody>${sortRows('piTable', rows).map(({ n, s }) => {
           if (!s) {
             /* An empty slot still has a place in the calendar, so show where the
                team's cadence puts it — the dates are only a projection until the
@@ -8094,11 +8133,8 @@ function renderRollingView() {
           : ''}</p>
       <div class="tablewrap">
       <table id="rollTable" aria-label="Figures for each sprint in the rolling window">
-        <thead><tr><th scope="col">Sprint</th><th scope="col">Committed</th><th scope="col">Cmt. done</th>
-          <th scope="col" class="metric">Complete %</th><th scope="col" class="metric">Break-in %</th>
-          <th scope="col" class="metric">Removed %</th><th scope="col" class="metric">Carryover %</th>
-          <th scope="col">Velocity</th></tr></thead>
-        <tbody>${rs.map(s => {
+        <thead><tr>${sortHead('rollTable', SPRINT_COLS(false))}</tr></thead>
+        <tbody>${sortRows('rollTable', rs).map(s => {
           const m = metrics(s);
           return `<tr class="clickable" data-id="${esc(s.id)}">
             <th scope="row"><button type="button" class="rowbtn"
@@ -9094,12 +9130,8 @@ function renderHistoryView() {
         out there.</p>
       <div class="tablewrap">
       <table id="histTable" aria-label="Every sprint ${esc(team.name)} has recorded">
-        <thead><tr><th scope="col">Sprint</th><th scope="col">Dates</th>
-          <th scope="col">Committed</th><th scope="col">Cmt. done</th>
-          <th scope="col" class="metric">Complete %</th><th scope="col" class="metric">Break-in %</th>
-          <th scope="col" class="metric">Removed %</th><th scope="col" class="metric">Carryover %</th>
-          <th scope="col">Velocity</th><th scope="col">Goal</th></tr></thead>
-        <tbody>${all.map(s => {
+        <thead><tr>${sortHead('histTable', SPRINT_COLS(true))}</tr></thead>
+        <tbody>${sortRows('histTable', all).map(s => {
           const m = metrics(s);
           const st = sprintStatus(s);
           const live = st !== 'complete';
@@ -9314,15 +9346,21 @@ function renderPiTrendView() {
         Dashboard.</p>
       <div class="tablewrap">
       <table id="trendTable" aria-label="Every PI, oldest first">
-        <thead><tr>
-          <th scope="col">PI</th><th scope="col">Teams</th><th scope="col">Sprints</th>
-          <th scope="col">Committed</th><th scope="col">Cmt. done</th>
-          <th scope="col" class="metric">Complete %</th>
-          <th scope="col">Delivered</th>
-          <th scope="col">Goals met</th>
-          <th scope="col" class="metric">Predictability</th>
-        </tr></thead>
-        <tbody>${rows.map(r => `
+        <thead><tr>${sortHead('trendTable', [
+          /* By RANK, not by name: PI names are the reader's own text and "PI 2026.10"
+             sorts before "PI 2026.2" as a string. The rank is the order the PIs are
+             listed in, which is the order this table is already in. */
+          { key: 'pi', label: 'PI', text: true, get: (r) => piRank(r.pi.id) },
+          { key: 'teams', label: 'Teams', get: (r) => r.teamsIn.length },
+          { key: 'sprints', label: 'Sprints', get: (r) => r.sprints },
+          { key: 'committed', label: 'Committed', get: (r) => r.committed },
+          { key: 'done', label: 'Cmt. done', get: (r) => r.done },
+          { key: 'commitPct', label: 'Complete %', cls: 'metric', get: (r) => r.commitPct },
+          { key: 'velocity', label: 'Delivered', get: (r) => r.velocity },
+          { key: 'goals', label: 'Goals met', get: (r) => r.goals.pct },
+          { key: 'pred', label: 'Predictability', cls: 'metric', get: (r) => r.predPct }
+        ])}</tr></thead>
+        <tbody>${sortRows('trendTable', rows).map(r => `
           <tr>
             <th scope="row">${esc(r.pi.name)}</th>
             <td>${r.teamsIn.length}</td>
@@ -9692,16 +9730,23 @@ function renderArtPiView() {
         recorded shows <strong>—</strong> and is left out of the predictability figures only.</p>
       <div class="tablewrap">
       <table id="artTable" aria-label="Every team on this ART for this PI">
-        <thead><tr>
-          <th scope="col">Team</th><th scope="col">Sprints</th>
-          <th scope="col">Committed</th><th scope="col">Cmt. done</th>
-          <th scope="col" class="metric">Complete %</th>
-          <th scope="col">Total done</th>
-          <th scope="col">BV planned${helpBtn('bvPlanned', 'planned business value')}</th>
-          <th scope="col">BV delivered${helpBtn('bvDelivered', 'business value delivered')}</th>
-          <th scope="col" class="metric">Predictability</th>
-        </tr></thead>
-        <tbody>${rows.map(r => `
+        <thead><tr>${sortHead('artTable', [
+          { key: 'name', label: 'Team', text: true, get: (r) => r.team.name.toLocaleLowerCase() },
+          { key: 'sprints', label: 'Sprints', get: (r) => r.closed.length },
+          { key: 'committed', label: 'Committed', get: (r) => r.committed },
+          { key: 'done', label: 'Cmt. done', get: (r) => r.done },
+          { key: 'commitPct', label: 'Complete %', cls: 'metric', get: (r) => r.commitPct },
+          { key: 'velocity', label: 'Total done', get: (r) => r.velocity },
+          { key: 'bvPlanned', label: 'BV planned', help: ['bvPlanned', 'planned business value'],
+            get: (r) => (r.has ? r.bv.planned : null) },
+          { key: 'bvDelivered', label: 'BV delivered', help: ['bvDelivered', 'business value delivered'],
+            get: (r) => (r.has ? r.bv.delivered : null) },
+          /* A team nobody scored is not the least predictable team on the train,
+             so it sorts as no figure and lands at the foot either way round. */
+          { key: 'pred', label: 'Predictability', cls: 'metric',
+            get: (r) => (r.has ? r.bv.pct : null) }
+        ])}</tr></thead>
+        <tbody>${sortRows('artTable', rows).map(r => `
           <tr class="clickable" data-id="${esc(r.team.id)}">
             <th scope="row"><button type="button" class="rowbtn"
               aria-label="Open ${esc(r.team.name)}">${esc(r.team.name)}</button>${artTag(r.team)}</th>
@@ -10032,104 +10077,162 @@ document.addEventListener('mousedown', (e) => {
   if (!(e.target.closest && e.target.closest('.art-pick'))) closeArtMenu();
 }, true);
 
-/* ── THE COMPARE TEAMS COLUMNS, AND SORTING BY ONE (2026-09-08) ─────────────
-   One list, read by the header row and by the sort — a column that could be
-   pressed and not sorted, or sorted and not labelled, is exactly what two lists
-   would eventually produce. `get` is the figure the column SHOWS, never a proxy
-   for it: Trend prints a fitted slope, so it sorts on that slope and not on the
-   last sprint's figure, and Sprint goals sorts on the rate rather than the count,
-   because "3 of 4" and "3 of 9" are not the same answer.
+/* ── EVERY DATA TABLE SORTS BY ITS COLUMNS (2026-09-08) ─────────────────────
+   One engine, six tables: Team PI, Rolling 5, History, PI Trend, PI by Team and
+   Compare Teams. Ported from Flow Metrics, whose All Teams and Loaded Data
+   tables have sorted this way since they were built; Charles asked for Compare
+   Teams first and then for the rest, which is the right instinct — a heading
+   that sorts in one table and not the next is a control the reader has to test
+   before trusting.
 
-   Asked for by Charles, who reads this table beside Flow Metrics' All Teams
-   table; that one has sorted this way since it was built and every rule here is
-   its rule. A press runs the column its own way first — highest first for a
-   figure, A to Z for the names — a second press reverses it, and a third puts the
-   table back to its ART grouping. Three states rather than two because the
-   grouping is a real order somebody may want back, and pressing the same heading
-   until it returns is cheaper than a Clear button nobody looks for. */
-const TEAM_COLS = [
-  { key: 'name',    label: 'Team', text: true },
-  { key: 'count',   label: 'Sprints' },
-  { key: 'commit',  label: 'Commitment completion', cls: 'metric' },
-  { key: 'trend',   label: 'Trend', help: ['teamsTrend', 'the Trend column'] },
-  { key: 'breakIn', label: 'Break-in', cls: 'metric' },
-  { key: 'removed', label: 'Removed', cls: 'metric' },
-  { key: 'carry',   label: 'Carryover', cls: 'metric' },
-  { key: 'vel',     label: 'Avg velocity' },
-  { key: 'goals',   label: 'Sprint goals', help: ['teamsGoals', 'the Sprint goals column'] },
-  { key: 'target',  label: 'Next sprint target' }
-];
-/* Every one of these can be null and several routinely are — a team with no
-   finished sprint has no percentage, a team with fewer than MIN_TREND_POINTS has
-   no direction, a team nobody recorded a goal for has no rate. Null is not zero
-   here and the sort keeps them at the foot either way round; see teamSortRows. */
-const TEAM_SORT_VALUE = {
-  name:    (r) => r.team.name.toLocaleLowerCase(),
-  count:   (r) => r.count,
-  commit:  (r) => r.commit,
-  trend:   (r) => trendChange(r.commits),
-  breakIn: (r) => r.breakIn,
-  removed: (r) => r.removed,
-  carry:   (r) => r.carry,
-  vel:     (r) => r.vel,
-  goals:   (r) => r.goals.pct,
-  target:  (r) => (r.target ? r.target.recommended : null)
-};
+   A COLUMN LIST PER TABLE, and the header row is BUILT from it. Two lists — one
+   for the markup, one for the sort — is how a column ends up pressable and
+   unsortable, or sorted by a figure other than the one it prints. `get` returns
+   what the column SHOWS: Trend on its fitted slope rather than the last sprint,
+   Sprint goals on the rate rather than the count, because "3 of 4" and "3 of 9"
+   are not the same answer.
 
-/* PER DEVICE, beside the theme and the pin — not in `state`. A sort is how one
-   person is reading the table this afternoon, not something about the teams, so
-   it has no business in a share link or in anybody else's copy. lsGet/lsSet
-   because the whole point of those two is a preference that must never take the
-   page down with it when storage is blocked. */
-const TEAM_SORT_KEY = 'sv-teamsort';
-/* An unknown key means a column that has been renamed or retired since the
-   preference was written, which is no reason to show a broken page: it falls
-   back to the grouping, exactly as never having pressed anything does. Its own
-   function so the boundary can be tested without writing to storage. */
-function parseTeamSort(raw) {
-  const parts = String(raw || '').split(':');
-  return TEAM_COLS.some(c => c.key === parts[0])
-    ? { key: parts[0], dir: parts[1] === 'asc' ? 'asc' : 'desc' }
-    : { key: null, dir: 'desc' };
+   THREE STATES per heading: the column's own way (highest first for a figure, A
+   to Z for names and labels), reversed, then back to the order the view chose —
+   chronological for the sprint tables, the ART grouping for the team ones. Three
+   rather than two because that original order is a real answer somebody may want
+   back, and pressing the same heading again is cheaper than a Clear button
+   nobody looks for.
+
+   NULLS SIT AT THE FOOT whichever way the column runs: a team with no finished
+   sprint has not got the best carryover on the page, and an empty sprint slot on
+   Team PI is a place in the calendar rather than a zero. Ties fall back to the
+   view's own order, so a table never reshuffles between two renders of the same
+   data. */
+const SORT_STORE = 'sv-tablesort';
+/* PER DEVICE, beside the theme and the pin — never in `state`. A sort is how one
+   person is reading a table this afternoon, not something about the teams, so it
+   has no business in a share link or in anybody else's copy. One key for all six,
+   as `id:key:dir` pairs: six keys for six preferences is six things to guard. */
+function parseSorts(raw) {
+  const out = {};
+  String(raw || '').split('|').forEach(part => {
+    const bits = part.split(':');
+    if (bits[0] && bits[1]) out[bits[0]] = { key: bits[1], dir: bits[2] === 'asc' ? 'asc' : 'desc' };
+  });
+  return out;
 }
-let teamSort = parseTeamSort(lsGet(TEAM_SORT_KEY));
-function setTeamSort(key, dir) {
-  teamSort = parseTeamSort(key ? key + ':' + dir : '');
-  lsSet(TEAM_SORT_KEY, teamSort.key ? teamSort.key + ':' + teamSort.dir : '');
+let tableSorts = parseSorts(lsGet(SORT_STORE));
+function writeSorts() {
+  lsSet(SORT_STORE, Object.keys(tableSorts)
+    .map(id => id + ':' + tableSorts[id].key + ':' + tableSorts[id].dir).join('|'));
 }
-function readTeamSort() { return { key: teamSort.key, dir: teamSort.dir }; }
-
-/* The three-state cycle, spelt out as its own function so the rule is in one
-   place and can be tested without a table. Flow Metrics' `nextSort` is the same
-   four lines. */
-function nextTeamSort(cur, key, firstAsc) {
+/* The columns of whichever tables are currently on the page, registered as their
+   header rows are built. The one delegated listener reads this rather than
+   knowing which view is up — a table that draws a sortable heading has, by
+   definition, just said what its columns are. */
+const SORT_COLS = {};
+/* A key that no longer names a column of this table is what a rename leaves
+   behind in storage: it falls back to the view's own order rather than drawing a
+   table sorted by nothing. */
+function sortOf(id) {
+  const cur = tableSorts[id];
+  const cols = SORT_COLS[id] || [];
+  return (cur && cols.some(c => c.key === cur.key)) ? cur : { key: null, dir: 'desc' };
+}
+function setSort(id, key, dir) {
+  if (key) tableSorts[id] = { key, dir: dir === 'asc' ? 'asc' : 'desc' };
+  else delete tableSorts[id];
+  writeSorts();
+}
+/* The three-state cycle, its own function so the rule is in one place and can be
+   tested without a table. Flow Metrics' `nextSort` is the same four lines. */
+function nextSortState(cur, key, firstAsc) {
   const first = firstAsc ? 'asc' : 'desc';
   if (cur.key !== key) return { key, dir: first };
   if (cur.dir === first) return { key, dir: firstAsc ? 'desc' : 'asc' };
   return { key: null, dir: first };
 }
+/* The header row. Registering the columns here is what makes one listener enough
+   for six tables, and it cannot go stale: a header row that is not on the page
+   has no button for the listener to reach.
 
-/* Sorted in place, on a copy of the list the caller owns. Ties fall back to the
-   ART grouping, so two teams with the same figure never swap places between two
-   renders of the same data — and a column with no figure for a team leaves that
-   team at the FOOT whichever way the column runs, because a team with no sprints
-   has not got the best carryover on the page. */
-function teamSortRows(rows) {
-  if (!teamSort.key) return rows;
-  const val = TEAM_SORT_VALUE[teamSort.key];
-  const dir = teamSort.dir === 'asc' ? 1 : -1;
-  const order = new Map(rows.map((r, i) => [r.team.id, i]));
+   The ⓘ is a SIBLING of the sort button rather than a child — a button inside a
+   button is invalid markup, and the ⓘ has to fall through to the global
+   [data-help] handler instead of sorting the table underneath the window it just
+   opened. `aria-sort` goes on the cell, which is where a screen reader reads it,
+   and the arrow is drawn from it in CSS. */
+function sortHead(id, cols) {
+  SORT_COLS[id] = cols;
+  const cur = sortOf(id);
+  return cols.map(c => {
+    const on = cur.key === c.key;
+    return `<th scope="col" class="sortable${c.cls ? ' ' + c.cls : ''}"${
+      on ? ` aria-sort="${cur.dir === 'asc' ? 'ascending' : 'descending'}"` : ''}>
+      <span class="th-head"><button type="button" data-sorttable="${id}"
+        data-sortcol="${c.key}">${esc(c.label)}</button>${
+        c.help ? helpBtn(c.help[0], c.help[1]) : ''}</span></th>`;
+  }).join('');
+}
+/* Sorted onto a copy: the list belongs to the caller, and several of these are
+   the same array the chart beside the table is drawn from. */
+function sortRows(id, rows) {
+  const cur = sortOf(id);
+  if (!cur.key) return rows;
+  const col = (SORT_COLS[id] || []).find(c => c.key === cur.key);
+  if (!col) return rows;
+  const dir = cur.dir === 'asc' ? 1 : -1;
+  const home = new Map(rows.map((r, i) => [r, i]));
   return rows.slice().sort((a, b) => {
-    const x = val(a), y = val(b);
-    const xn = x === null || x === undefined, yn = y === null || y === undefined;
-    if (xn && yn) return order.get(a.team.id) - order.get(b.team.id);
+    const x = col.get(a), y = col.get(b);
+    const xn = x === null || x === undefined || x !== x;
+    const yn = y === null || y === undefined || y !== y;
+    if (xn && yn) return home.get(a) - home.get(b);
     if (xn) return 1;
     if (yn) return -1;
     if (x < y) return -1 * dir;
     if (x > y) return 1 * dir;
-    return order.get(a.team.id) - order.get(b.team.id);
+    return home.get(a) - home.get(b);
   });
 }
+
+/* THE TWO SPRINT TABLES — Rolling 5 and History — are the same columns with two
+   extra on the longer one, so they are built rather than written twice. Their
+   rows are sprints, so every figure comes through metrics(), which is the one
+   place a sprint's arithmetic lives.
+
+   The Sprint column sorts by WHERE THE SPRINT SITS, not by its printed label:
+   a label is "PI 2026.1 · S3" and sorting that as text puts S10 before S2. The
+   rank is the PI's own position with the sprint number under it, which is the
+   order these tables are already in — so the first press is a no-op on Rolling 5
+   and reverses History, both of which are what "sort by sprint" should mean. */
+const SPRINT_COLS = (long) => [
+  { key: 'sprint', label: 'Sprint', text: true,
+    get: (s) => (piRank(s.piId) + 1) * (MAX_SPRINT_NO + 1) + (s.sprintNumber || 0) },
+  ...(long ? [{ key: 'dates', label: 'Dates', text: true, get: (s) => s.startDate || s.endDate || null }] : []),
+  { key: 'committed', label: 'Committed', get: (s) => metrics(s).committed },
+  { key: 'done', label: 'Cmt. done', get: (s) => metrics(s).committedCompleted },
+  { key: 'commitPct', label: 'Complete %', cls: 'metric', get: (s) => metrics(s).commitCompletePct },
+  { key: 'breakIn', label: 'Break-in %', cls: 'metric', get: (s) => metrics(s).breakInPct },
+  { key: 'removed', label: 'Removed %', cls: 'metric', get: (s) => metrics(s).removedPct },
+  { key: 'carry', label: 'Carryover %', cls: 'metric', get: (s) => metrics(s).carryoverPct },
+  { key: 'velocity', label: 'Velocity', get: (s) => metrics(s).velocity },
+  /* Met, missed, or never answered — and never answered is no figure rather
+     than a miss, which is the rule the Sprint goals column follows too. */
+  ...(long ? [{ key: 'goal', label: 'Goal', get: (s) => (hasGoal(s) ? (s.goalMet ? 1 : 0) : null) }] : [])
+];
+
+/* THE COMPARE TEAMS COLUMNS. Its rows are the objects renderTeamsView builds, so
+   the getters read those rather than a sprint. */
+const TEAM_COLS = [
+  { key: 'name',    label: 'Team', text: true, get: (r) => r.team.name.toLocaleLowerCase() },
+  { key: 'count',   label: 'Sprints', get: (r) => r.count },
+  { key: 'commit',  label: 'Commitment completion', cls: 'metric', get: (r) => r.commit },
+  { key: 'trend',   label: 'Trend', help: ['teamsTrend', 'the Trend column'],
+    get: (r) => trendChange(r.commits) },
+  { key: 'breakIn', label: 'Break-in', cls: 'metric', get: (r) => r.breakIn },
+  { key: 'removed', label: 'Removed', cls: 'metric', get: (r) => r.removed },
+  { key: 'carry',   label: 'Carryover', cls: 'metric', get: (r) => r.carry },
+  { key: 'vel',     label: 'Avg velocity', get: (r) => r.vel },
+  { key: 'goals',   label: 'Sprint goals', help: ['teamsGoals', 'the Sprint goals column'],
+    get: (r) => r.goals.pct },
+  { key: 'target',  label: 'Next sprint target', get: (r) => (r.target ? r.target.recommended : null) }
+];
 
 function renderTeamsView() {
   const includeSix = !!state.settings.includeSprint6InRolling;
@@ -10184,8 +10287,10 @@ function renderTeamsView() {
   });
   /* SORTED HERE, before anything reads the list — so the chart on the card above
      plots the teams in the order the table lists them. Two orders on one page,
-     one of them the reader's own choice, is a page that has to be read twice. */
-  const rowsData = teamSortRows(rowsRaw);
+     one of them the reader's own choice, is a page that has to be read twice.
+     The columns are registered by the header row below, which is why this reads
+     the id and not a list of its own. */
+  const rowsData = sortRows('teamsTable', rowsRaw);
   const withData = rowsData.filter(r => r.count > 0);
   const anyOpen = shown.reduce((a, t) => a + openSprints(t.id).length, 0);
   const allSprints = rowsData.reduce((a, r) => a.concat(r.sprints), []);
@@ -10309,19 +10414,6 @@ function renderTeamsView() {
         .join('; ')}. They still count on the Sprint and Team PI views.</span></p>`;
   };
 
-  /* ONE heading cell, and the ⓘ is a SIBLING of the sort button rather than a
-     child: a button inside a button is invalid markup, and the ⓘ has to fall
-     through to the global [data-help] handler instead of sorting the table
-     underneath the window it just opened. `aria-sort` goes on the cell, which is
-     what a screen reader reads it off, and the arrow is drawn from it in CSS. */
-  const teamHeadCell = (c) => {
-    const on = teamSort.key === c.key;
-    return `<th scope="col" class="sortable${c.cls ? ' ' + c.cls : ''}"${
-      on ? ` aria-sort="${teamSort.dir === 'asc' ? 'ascending' : 'descending'}"` : ''}>
-      <span class="th-head"><button type="button" data-teamsort="${c.key}">${esc(c.label)}</button>${
-        c.help ? helpBtn(c.help[0], c.help[1]) : ''}</span></th>`;
-  };
-
   const artTag = (team) => {
     if (!state.arts.length || filtered) return '';
     const on = team.artId ? artById(team.artId) : null;
@@ -10368,7 +10460,7 @@ function renderTeamsView() {
         smaller than the sprint count to its left.</p>
       <div class="tablewrap">
       <table id="teamsTable" aria-label="Every team, averaged across its sprints">
-        <thead><tr>${TEAM_COLS.map(teamHeadCell).join('')}</tr></thead>
+        <thead><tr>${sortHead('teamsTable', TEAM_COLS)}</tr></thead>
         <tbody>${rowsData.map(r => `<tr class="clickable" data-id="${esc(r.team.id)}">
           <th scope="row"><button type="button" class="rowbtn"
             aria-label="Switch to ${esc(r.team.name)}">${esc(r.team.name)}</button>${artTag(r.team)}</th>
@@ -10420,28 +10512,6 @@ function renderTeamsView() {
     tr.onclick = () => go(false);
     const btn = tr.querySelector('.rowbtn');
     if (btn) btn.onclick = (e) => { e.stopPropagation(); go(e.detail === 0); };
-  });
-  /* Wired per render like the row buttons above, because render() rebuilds this
-     whole view — a listener hung on a heading would be hung on a node that is
-     thrown away by the press it handles.
-
-     AND THE KEYBOARD COMES WITH IT. The button that was pressed no longer exists
-     by the time the sort is drawn, so the focus would land on <body> and Tab
-     carry on from the top of the document; the new copy of the same heading is
-     found by its key and given the focus back. Only from the keyboard — the same
-     `e.detail === 0` test the row buttons use — so a mouse press does not leave a
-     ring on a heading nobody is typing at. */
-  viewsEl.querySelectorAll('[data-teamsort]').forEach(btn => {
-    btn.onclick = (e) => {
-      const col = TEAM_COLS.find(c => c.key === btn.dataset.teamsort);
-      if (!col) return;
-      const next = nextTeamSort(teamSort, col.key, !!col.text);
-      setTeamSort(next.key, next.dir);
-      const fromKeyboard = e.detail === 0;
-      render();
-      const again = viewsEl.querySelector('[data-teamsort="' + col.key + '"]');
-      if (again && fromKeyboard) again.focus({ preventScroll: true });
-    };
   });
   wireArtToolbar();
   wireRollingToolbar();
@@ -14255,11 +14325,12 @@ window.__svTestHooks = { raisesKeyboard, reorderById,
   /* Arrow consts again — the CSV escaping is the one place text leaves this app
      for somewhere it can be interpreted, so the suite has to be able to reach it. */
   csvCell, toCsv, toTsv,
-  /* Compare Teams' columns and their sort. The spec is exported because the
-     header row is BUILT from it — a test that counted headings against a list of
-     its own would go green on a column that had quietly lost its getter. The two
-     setters are how a test leaves the reader's own sort exactly as it found it. */
-  TEAM_COLS, TEAM_SORT_VALUE, nextTeamSort, parseTeamSort, setTeamSort, readTeamSort,
+  /* The table sort. The column specs are exported because the header rows are
+     BUILT from them — a test that counted headings against a list of its own
+     would go green on a column that had quietly lost its getter — and the two
+     setters are how a test leaves the reader's own sort exactly as it found it.
+     `SORT_COLS` is live: it holds the columns of whatever is on the page. */
+  TEAM_COLS, SPRINT_COLS, SORT_COLS, nextSortState, parseSorts, sortOf, setSort,
   /* A plain module-level `let`, so a getter rather than the value itself — the
      suite needs what it holds AFTER loadSample() has run, not at export time. */
   svForecastPoints: () => fcs().forecastPoints,

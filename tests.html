@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 498;
+const EXPECTED = 500;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -768,7 +768,7 @@ function withPicker(fn) {
    a test that wrote it directly would pass with every listener unhooked. */
 function withSortable(fn) {
   const st = w.svGet();
-  const keep = { view: st.settings.view, sort: w.__svTestHooks.readTeamSort() };
+  const keep = { view: st.settings.view, sort: w.__svTestHooks.sortOf('teamsTable') };
   /* Four teams whose commitment completion is 100, 50, 75 and — nothing at all,
      because a team with no finished sprint is the case the null rule is for.
      Named out of alphabetical order so a sorted list cannot be the order they
@@ -780,25 +780,31 @@ function withSortable(fn) {
   });
   try {
     withState({
-      teams: [{ id: 'z1', name: 'Zebra' }, { id: 'a1', name: 'Aardvark' },
-              { id: 'm1', name: 'Mongoose' }, { id: 'q1', name: 'Quiet' }],
+      /* Ids nothing else in this file uses. The first draft called a TEAM `a1`,
+         which is the picker fixture's ART id — the next test to save wrote a
+         board whose settings pointed at an id that no longer existed, the app
+         REPAIRED it on the smoke walk's boot, and the walk reported that the
+         reader's own board had been written. A fixture id is shared state. */
+      teams: [{ id: 'srt1', name: 'Zebra' }, { id: 'srt2', name: 'Aardvark' },
+              { id: 'srt3', name: 'Mongoose' }, { id: 'srt4', name: 'Quiet' }],
       arts: [], pis: [], plans: [], objectives: [],
-      sprints: [sprint('zs1', 'z1', 1, 10, 10), sprint('zs2', 'z1', 2, 10, 10),
-                sprint('as1', 'a1', 1, 10, 5), sprint('as2', 'a1', 2, 10, 5),
-                sprint('ms1', 'm1', 1, 20, 15), sprint('ms2', 'm1', 2, 20, 15)]
+      sprints: [sprint('srts1', 'srt1', 1, 10, 10), sprint('srts2', 'srt1', 2, 10, 10),
+                sprint('srts3', 'srt2', 1, 10, 5), sprint('srts4', 'srt2', 2, 10, 5),
+                sprint('srts5', 'srt3', 1, 20, 15), sprint('srts6', 'srt3', 2, 20, 15)]
     }, () => {
       st.settings.view = 'teams';
-      w.__svTestHooks.setTeamSort(null, 'desc');
+      w.__svTestHooks.setSort('teamsTable', null, 'desc');
       w.render();
       return fn(st);
     });
   } finally {
-    w.__svTestHooks.setTeamSort(keep.sort.key, keep.sort.dir);
+    w.__svTestHooks.setSort('teamsTable', keep.sort.key, keep.sort.dir);
     st.settings.view = keep.view;
     w.render();
   }
 }
-const sortHead = (label) => [...w.document.querySelectorAll('#teamsTable thead button[data-teamsort]')]
+const sortHead = (label, table) => [...w.document.querySelectorAll(
+  '#' + (table || 'teamsTable') + ' thead button[data-sortcol]')]
   .find(b => b.textContent.trim() === label);
 const sortedTeams = () => [...w.document.querySelectorAll('#teamsTable tbody .rowbtn')]
   .map(b => b.textContent.trim());
@@ -881,14 +887,13 @@ t('every column can be pressed, and every press has a figure behind it', () => {
     eq(heads.length, w.__svTestHooks.TEAM_COLS.length,
        'one heading per column in the spec — the header row is BUILT from it, so a '
        + 'column that could be pressed and not sorted cannot happen');
-    ok(heads.every(th => th.querySelector('button[data-teamsort]')),
+    ok(heads.every(th => th.querySelector('button[data-sortcol]')),
        'and every one of them is a real button, which is what makes it reachable from '
        + 'the keyboard at all');
     /* A key with no getter would sort every row the same and look like a table
        that ignores you. */
     w.__svTestHooks.TEAM_COLS.forEach(c => {
-      ok(typeof w.__svTestHooks.TEAM_SORT_VALUE[c.key] === 'function',
-         'the ' + c.key + ' column has a figure to sort on');
+      ok(typeof c.get === 'function', 'the ' + c.key + ' column has a figure to sort on');
     });
   });
 });
@@ -905,19 +910,133 @@ t('the chart above follows the table, so the page has one order', () => {
 
 t('the sort is a per-device preference, never data', () => {
   withSortable(() => {
+    const planted = ['Zebra', 'Aardvark', 'Mongoose', 'Quiet'];
     sortHead('Sprints').click();
     eq(w.svGet().settings.teamSort, undefined,
        'it is not in state — a sort is how one person is reading the table this '
        + 'afternoon, not something about the teams, and it has no business in a share link');
-    ok(/^count:/.test(localStorage.getItem('sv-teamsort') || ''),
-       'it is beside the theme and the pin instead', localStorage.getItem('sv-teamsort'));
-    /* An id that no longer names a column is the state a rename leaves behind. */
-    eq(w.__svTestHooks.parseTeamSort('gone:asc').key, null,
-       'a key that no longer names a column falls back to the grouping rather than '
-       + 'drawing a broken table');
-    eq(w.__svTestHooks.parseTeamSort('count:junk').dir, 'desc',
-       'and an unreadable direction is the column’s own way');
+    ok(/teamsTable:count:desc/.test(localStorage.getItem('sv-tablesort') || ''),
+       'it is beside the theme and the pin instead, one key for all six tables',
+       localStorage.getItem('sv-tablesort'));
+    eq(w.__svTestHooks.parseSorts('teamsTable:count:junk').teamsTable.dir, 'desc',
+       'an unreadable direction reads as the column’s own way');
+    /* A key that no longer names a column is what a rename leaves in storage. */
+    w.__svTestHooks.setSort('teamsTable', 'gone', 'asc');
+    w.render();
+    eq(sortedTeams(), planted,
+       'and a key that no longer names a column falls back to the view’s own order '
+       + 'rather than drawing a table sorted by nothing');
+    eq([...w.document.querySelectorAll('#teamsTable thead th[aria-sort]')].length, 0,
+       'with no heading claiming to be the sorted one');
   });
+});
+
+/* The sample data, RENDERED — `withSample` above stubs render() out, and these
+   two are about what the header rows and the sorted rows actually draw. Only
+   confirm, save and toast are stubbed, which is the read-only part. */
+function withRenderedSample(fn) {
+  const real = { confirm: w.confirm, save: w.save, toast: w.toast };
+  const st = w.svGet();
+  /* THE WHOLE SETTINGS OBJECT, key by key, not the four this test happens to
+     touch. loadSample() writes several of them, and a key left behind here rides
+     into the next real save() — which is how the first draft of this helper made
+     the smoke walk fail three groups later: the board on disk grew a key the
+     boundary prunes, the walk's frame REPAIRED it on boot (a real save, before
+     the walk can stub one), and the walk correctly reported that the reader's own
+     saved board had been written. Restore what you borrow. */
+  const settings = Object.assign({}, st.settings);
+  w.confirm = () => true; w.save = () => {}; w.toast = () => {};
+  try {
+    return withState({ teams: [], arts: [], pis: [], sprints: [], plans: [], objectives: [] }, () => {
+      w.loadSample();
+      return fn(st);
+    });
+  } finally {
+    Object.assign(w, real);
+    Object.keys(st.settings).forEach(k => { if (!(k in settings)) delete st.settings[k]; });
+    Object.assign(st.settings, settings);
+    w.render();
+  }
+}
+
+/* ── AND THE OTHER FIVE TABLES ────────────────────────────────────────────
+   Charles asked for Compare Teams first and then said only one table sorted.
+   A heading that sorts in one table and not the next is a control the reader
+   has to test before trusting, so all six do. */
+t('every data table in the app draws sortable headings', () => {
+  const ids = ['piTable', 'rollTable', 'histTable', 'trendTable', 'artTable', 'teamsTable'];
+  const views = { piTable: 'pi', rollTable: 'rolling', histTable: 'history',
+                  trendTable: 'trend', artTable: 'art', teamsTable: 'teams' };
+  try {
+    withRenderedSample((st) => {
+      ids.forEach(id => {
+        st.settings.view = views[id];
+        /* THE VIEW HAS TO BE ON OFFER. Four of the seven tabs are decided per
+           team — History only once a team has more than the rolling window
+           recorded — so a test that stayed on the team the demo lands on would
+           measure an empty panel and call it a pass. The demo names each team
+           for the case it shows; this asks each of them in turn. */
+        let table = null;
+        st.teams.some(t => {
+          st.settings.activeTeamId = t.id;
+          w.render();
+          table = w.document.getElementById(id);
+          return !!table;
+        });
+        ok(!!table, id + ' is on screen for at least one demo team, or this test '
+           + 'measures nothing');
+        if (!table) return;
+        const heads = [...table.querySelectorAll('thead th')];
+        ok(heads.length > 1, id + ' has a header row to press', String(heads.length));
+        eq(heads.filter(th => th.querySelector('button[data-sortcol]')).length, heads.length,
+           'every heading in ' + id + ' is a button that sorts it');
+        const cols = w.__svTestHooks.SORT_COLS[id];
+        eq(cols.length, heads.length, id + '’s header row is built from its column list');
+        ok(cols.every(c => typeof c.get === 'function'),
+           'and every column of ' + id + ' has a figure to sort on');
+      });
+    });
+  } finally {
+    ids.forEach(id => w.__svTestHooks.setSort(id, null, 'desc'));
+  }
+});
+
+t('a sprint table sorts by its figures, and an unanswered goal is not a miss', () => {
+  try {
+    withRenderedSample((st) => {
+    st.settings.view = 'history';
+    w.__svTestHooks.setSort('histTable', null, 'desc');
+    /* The team with more history than Rolling 5 shows — the only kind that has
+       this tab at all. */
+    st.teams.some(t => { st.settings.activeTeamId = t.id; w.render();
+      return !!w.document.getElementById('histTable'); });
+    ok(!!w.document.getElementById('histTable'),
+       'a demo team with a History tab, or there is nothing here to sort');
+    const cells = (col) => [...w.document.querySelectorAll('#histTable tbody tr')]
+      .map(tr => tr.children[col].textContent.replace(/\s+/g, ' ').trim());
+    const velCol = w.__svTestHooks.SORT_COLS.histTable.findIndex(c => c.key === 'velocity');
+    sortHead('Velocity', 'histTable').click();
+    const desc = cells(velCol).map(v => Number(v)).filter(v => v === v);
+    eq(desc.slice().sort((a, b) => b - a), desc, 'highest velocity first on the first press: ' + desc);
+    sortHead('Velocity', 'histTable').click();
+    const asc = cells(velCol).map(v => Number(v)).filter(v => v === v);
+    eq(asc.slice().sort((a, b) => a - b), asc, 'and lowest first on the second: ' + asc);
+    /* The goal column: met, missed, or never answered — and never answered has
+       to be no figure rather than a miss, or a team that stopped recording goals
+       reads as a team that stopped meeting them. */
+    const goalCol = w.__svTestHooks.SORT_COLS.histTable.findIndex(c => c.key === 'goal');
+    sortHead('Goal', 'histTable').click();
+    const goals = cells(goalCol);
+    const dashAt = goals.indexOf('—');
+    if (dashAt >= 0) {
+      eq(goals.slice(dashAt).every(g => g === '—'), true,
+         'the sprints nobody answered sit at the foot, together: ' + goals.join(' '));
+    }
+    });
+  } finally {
+    w.__svTestHooks.setSort('histTable', null, 'desc');
+    w.render();
+  }
 });
 
 const artBox = (id) => [...w.document.querySelectorAll('input[data-art-pick]')]

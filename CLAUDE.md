@@ -163,19 +163,34 @@ but Charles had ever actually signed in.)
   does not equal the mean of its own column and a six-sprint team pulls six times as hard as a
   one-sprint team. The lone plain sum is the next-sprint target: points, not a rate, so the
   column adds up. The `methodnote` under the table explains that row; keep it in step.
-- **Its headings SORT, ported from Flow Metrics' All Teams table (2026-09-08).** One
-  `TEAM_COLS` list builds the header row AND drives the sort, because two lists eventually
-  produce a column that can be pressed and not sorted. `TEAM_SORT_VALUE` sorts on the figure
-  the column SHOWS — Trend on its fitted slope, Sprint goals on the rate rather than the count.
-  Three states per heading (its own way, reversed, back to the ART grouping), nulls at the foot
-  either way round (no figure is not the lowest figure), ties falling back to the grouping so
-  the table never reshuffles between two renders. **The sort is PER DEVICE** (`sv-teamsort` via
-  `lsGet`/`lsSet`, beside the theme and the pin) and never in `state`: a sort is how one person
-  is reading the table this afternoon, so it has no business in a share link. `rowsData` is
-  sorted before anything reads it, so **the chart above the table follows it** — two orders on
-  one page, one of them the reader's own choice, is a page read twice. And the press has to
-  hand the keyboard back: `render()` destroys the heading that was pressed, so the new copy is
-  found by its key and re-focused, and only when the press came from the keyboard.
+- **EVERY TABLE SORTS BY ITS COLUMNS — all six — ported from Flow Metrics (2026-09-08).**
+  Charles asked for Compare Teams and then said only one table sorted; a heading that sorts in
+  one table and not the next is a control the reader has to test before trusting. One engine
+  (`sortHead`, `sortRows`, `nextSortState`, `sortOf`/`setSort`) and **a column list per table**,
+  because the header row is BUILT from that list: two lists eventually produce a column that
+  can be pressed and not sorted, or one sorted by a figure other than the one it prints. `get`
+  returns what the column SHOWS — Trend on its fitted slope, Sprint goals on the rate rather
+  than the count, the sprint tables' first column on `(piRank, sprintNumber)` rather than the
+  printed label, which would put S10 before S2.
+  - Three states per heading: its own way, reversed, then back to the view's own order.
+  - **Nulls at the foot either way round** — no figure is not the lowest figure — and ties fall
+    back to the view's order so a table never reshuffles between two renders.
+  - **PER DEVICE**, one `sv-tablesort` key via `lsGet`/`lsSet` beside the theme and the pin,
+    never in `state`: a sort is how one person is reading a table this afternoon, so it has no
+    business in a share link. A key that no longer names a column falls back to the view's own
+    order rather than drawing a table sorted by nothing.
+  - Compare Teams sorts `rowsData` BEFORE anything reads it, so **the chart above the table
+    follows it** — two orders on one page, one of them the reader's own choice, is a page read
+    twice.
+  - **One delegated listener on `viewsEl`**, which survives every render (only its innerHTML is
+    replaced), because the press destroys the button that is handling it. That is also why it
+    hands the keyboard back: the new copy of the heading is found by its key and re-focused,
+    and only when the press came from the keyboard.
+  - **A test that renders the sample must restore the WHOLE settings object.** The first draft
+    of `withRenderedSample` restored four keys; the rest rode into the next real `save()`, the
+    smoke walk's frame repaired the board on boot (a real save, before the walk can stub one),
+    and the walk correctly reported that the reader's own board had been written — three groups
+    away from the change that caused it.
 - **Team PI and Rolling 5 carry ONE summary row each, in the method that view's own
   figures already use** (asked for 2026-08-18): Team PI keeps **PI total** (pooled, matching
   its headline commitment-completion tile), Rolling 5 keeps **Average per sprint** (matching

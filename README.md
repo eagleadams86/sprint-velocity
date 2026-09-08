@@ -870,16 +870,29 @@ The tiles at the top of Rolling 5 are all averages of sprints. Team PI's tiles a
 mix: *PI commitment completion* is pooled, *Average per sprint* is the average-of-sprints
 figure, and a wide gap between them means one sprint is skewing the total.
 
-### Sorting the Table
+### Sorting a Table
 
-Press any column heading on **Compare Teams** to sort the table by it — the same way the
-headings work on Flow Metrics' All Teams table. The first press runs the column its own way
-(highest first for a figure, A to Z for the names), a second press reverses it, and a third
-puts the ART grouping back. The chart above the table follows, so the page reads in one
-order. A team with no figure in the column — no finished sprint, too few sprints for a
-direction, no goal recorded — stays at the foot whichever way the column runs: no figure is
-not the lowest figure. Your choice is remembered on this device, and never travels in a
-share link.
+**Every table in the app sorts by its columns** — Team PI, Rolling 5, History, PI Trend, PI by
+Team and Compare Teams — the same way the headings work on Flow Metrics' All Teams table.
+
+Press a heading to sort by it. The first press runs that column its own way (highest first
+for a figure, A to Z for names, oldest first for sprints and PIs), a second press reverses
+it, and a third puts back the order the view chose — chronological on the sprint tables, the
+ART grouping on Compare Teams. Three presses rather than a *Clear* button nobody looks for.
+
+- On **Compare Teams**, the chart above the table follows the sort, so the page reads in one
+  order.
+- A row with **no figure** in the column you pressed stays at the foot whichever way the
+  column runs — a team with no finished sprint has not got the best carryover on the page, a
+  sprint nobody recorded a goal for has not missed it, and an empty slot on Team PI is a place
+  in the calendar rather than a zero.
+- Rows that tie keep the order they were already in, so a table never reshuffles between two
+  redraws of the same figures.
+- Each column sorts on the figure it *shows*: **Trend** on the direction it prints rather than
+  the last sprint, **Sprint goals** on the rate rather than the count — "3 of 4" and "3 of 9"
+  are not the same answer.
+
+Your choice is remembered per table on this device, and never travels in a share link.
 
 ### Which Way Each Team Is Going
 
