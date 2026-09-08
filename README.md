@@ -672,7 +672,8 @@ away with them. Money Map has drawn its tabs this way since it grew them. The ro
 clipped along the top and at the two ends — and the row is exactly the height it was, so
 the pinned band and everything under it are where they were.
 
-They also share **one ART picker**, and it starts on *All ARTs*. That is worth saying out
+They also share **one ART picker** — a multi-select, so it can be one ART, several, or all
+of them — and it starts on *All ARTs*. That is worth saying out
 loud, because it is what the names of these three tabs are careful *not* to claim: **PI by
 Team** covers every team you have until you narrow it, and **Compare Teams** covers only
 one train once you do. The picker decides the scope; the tab names say what shape the page
@@ -973,8 +974,9 @@ leaving a colour and a ✕ to carry a direction they can't.
 
 The **PI by Team** tab is the train's page. Pick an ART and a PI and you get every team on it at
 once: sprints counted, points committed and finished, commitment completion, business value
-planned and delivered, and each team's predictability. It shares its ART picker with **All
-teams**, so the scope follows you between the two.
+planned and delivered, and each team's predictability. You can tick more than one ART, in
+which case you get every team across all of them. It shares its ART picker with **Compare
+Teams** and **PI Trend**, so the scope follows you between them.
 
 The headline **ART predictability** tile is the average of the teams' own measures — every
 team counting once, whatever the size of its plan. That's the measure SAFe defines and the
@@ -1057,21 +1059,37 @@ nowhere else it could live. Everything else the grouping does is change what you
 at:
 
 - **PI by Team** appears at all — the train's own page, described above.
-- **Compare Teams** gains an **ART** picker across the top — *All ARTs*, each ART by name, and
-  *No ART* if any team is un-grouped. Put the last un-grouped team on an ART and the *No ART*
-  option goes with it, so a filter left sitting on it falls back to *All ARTs* rather than
-  filtering to nothing behind a picker that no longer offers the option. The PI by Team view
-  shares the same picker, so the scope follows you between them. Everything below it follows: both comparison tables,
-  both **Compare Teams** footer rows, the chart, and the count of sprints still in flight. Pick
-  *Payments ART* and the footer row reads **All teams on Payments ART**, worked out across
-  that ART's teams only.
-- The picker says how many teams it's hiding, the same way every other exclusion in the app
-  says what it left out — a figure should never move for a reason that isn't on the page.
+- **Compare Teams** gains an **ART** picker across the top, **and you can tick more than
+  one.** It lists each ART by name with the number of teams on it, plus *No ART* if any team
+  is un-grouped, and **All ARTs** at the top to clear the lot. Ticking nothing *is* all ARTs;
+  there is no "select all" to remember to press. Put the last un-grouped team on an ART and
+  the *No ART* option goes with it, so a filter left sitting on it drops that tick rather than
+  filtering to nothing behind a picker that no longer offers the option. **PI by Team** and
+  **PI Trend** share the same picker, so the scope follows you between all three.
+  (Before September 2026 it was a single-choice dropdown, so wanting two ARTs out of five
+  meant taking every team you support and reading past the ones you hadn't asked about.)
+- Everything below it follows: both comparison tables, both **Compare Teams** footer rows, the
+  chart, and the count of sprints still in flight. Pick *Payments ART* and the footer row reads
+  **All teams on Payments ART**; tick *Platform ART* beside it and it reads **All teams on
+  Payments ART and Platform ART**, worked out across both ARTs' teams.
+- The menu **stays open while you tick**, because picking a second ART is the point of it. It
+  closes on **Escape**, on *All ARTs*, on the button, or on a press anywhere else. From the
+  keyboard, **↓** moves into the list and **Space** ticks — and the keyboard stays where you
+  put it, tick after tick, even though the whole page redraws behind each one.
+- The picker says **how many teams it's hiding and which ARTs it's showing**, the same way
+  every other exclusion in the app says what it left out — a figure should never move for a
+  reason that isn't on the page. With two or more ticked the button itself says *2 selected*;
+  the names are in the line opposite it and in every heading below.
 - With no filter, the table **sorts by ART** so a train's teams sit together, and each team
-  carries its ART under its name. The header team picker groups the same way.
+  carries its ART under its name. That label goes when you narrow to **one** ART — the same
+  word down every row is noise — and **comes back the moment you tick a second**, because rows
+  drawn from two ARTs are a mixture the table can't otherwise account for. The header team
+  picker groups the same way.
 
 Deleting an ART is the cheapest delete in the app: it takes no team, no sprint and no
-business value with it — the teams that were on it simply go back to having none.
+business value with it — the teams that were on it simply go back to having none. If the ART
+you delete was one of several ticked in the picker, **the others stay ticked** — only the
+deleted one leaves the scope.
 (Deleting a **PI** is no longer expensive either — it
 [offers to keep its sprints](#deleting-a-pi-no-longer-deletes-its-sprints).) The PI by Team
 tab goes away with the last ART, and the figures it showed are all still on each team's own
