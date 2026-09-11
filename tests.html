@@ -7300,6 +7300,48 @@ t('the range is two pinned values, like the label and the date beside it', () =>
    pressed, as that group does — this app's plan lives on the same shared
    origin as everyone else's. */
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+/* ── SOME ENGINES DO NOT FIRE <dialog>'s `close` EVENT ──────────────────────
+   Seven checks in this file failed on a desktop browser and passed in CI for
+   months, and every one of them read as a fault in the app: a Done button that
+   did not write the box you never blurred, an Undo that never appeared, a
+   keyboard that never came back. The app is fine. The event never arrives.
+
+   Verified on a bare `document.createElement('dialog')` with nothing else
+   attached, so it is the engine and not this app — and it is the nastiest shape
+   a harness gap takes, because the failure is INVISIBLE at the app: the window
+   shuts, the handler simply never runs, and nothing errors.
+
+   DETECTED, NOT ASSUMED. A throwaway dialog is opened and closed in the frame
+   and the event waited for; only if it does not come is `close()` wrapped to
+   dispatch it. Where the engine behaves — CI, and any browser that follows the
+   spec — nothing is patched at all and the real event is the one under test.
+   Patching unconditionally would fire it twice there, which is a different lie.
+
+   What this restores is standard behaviour, not app behaviour: the app still
+   decides what its own close handlers do. */
+async function restoreDialogClose(W) {
+  const proto = W.HTMLDialogElement && W.HTMLDialogElement.prototype;
+  if (!proto || proto.__svCloseChecked) return;
+  proto.__svCloseChecked = true;
+
+  const probe = W.document.createElement('dialog');
+  W.document.body.appendChild(probe);
+  let fired = false;
+  probe.addEventListener('close', () => { fired = true; });
+  try { probe.show(); probe.close(); } catch (e) { /* older engine */ }
+  await wait(40);
+  probe.remove();
+  if (fired) return;                       /* the engine is fine — leave it alone */
+
+  const orig = proto.close;
+  proto.close = function (...args) {
+    const wasOpen = this.open;
+    const out = orig.apply(this, args);
+    if (wasOpen) this.dispatchEvent(new W.Event('close'));
+    return out;
+  };
+}
+
 async function inFrame(tag, opts, fn) {
   const o = Object.assign({ width: 1280, height: 900, sample: true }, opts || {});
   const f = document.createElement('iframe');
@@ -7314,6 +7356,7 @@ async function inFrame(tag, opts, fn) {
   });
   try {
     const W = f.contentWindow;
+    await restoreDialogClose(W);
     W.save = () => {};
     W.confirm = () => true;
     W.alert = () => {};
