@@ -1586,6 +1586,27 @@ but Charles had ever actually signed in.)
 - The scope is `./`, never absolute: on the local server the app is at the root,
   not under `/sprint-velocity/`, and an absolute scope is simply invalid there.
 
+## `[hidden]` Now Wins Globally, Because Remembering Is Not a Rule (2026-09-11)
+
+`.row { display: flex }` sits at the same specificity as the UA's `[hidden]` rule and is
+declared later, so **the hidden attribute did nothing on any `.row`**. This file already knew:
+`#forecastRateWrap[hidden]` was patched in August with a comment saying *"anything else that is
+a `.row` AND hides itself needs the same treatment"*. Three foot Add buttons were added on
+2026-09-11 and got no treatment, so all three showed over EMPTY lists — Charles saw "+ Add Team"
+under "No teams yet" in a fresh incognito window.
+
+- **`[hidden] { display: none !important; }` is now global here**, matching Flow Metrics, which
+  has carried it since its grids hit the same thing. A rule you have to remember is a rule that
+  gets forgotten, and this one fails silently: the attribute is set, `el.hidden` reads true, and
+  the element is on screen.
+- **The narrow rules are kept** — harmless, and each records the element that found the problem.
+- **TEST VISIBILITY, NOT THE ATTRIBUTE.** The check written with this feature read `foot.hidden`
+  and passed the whole time, because the property was genuinely true. `getComputedStyle(el).display`
+  is the only thing that answers what a reader can see. Both halves are asserted now, and an
+  empty-estate case as well — nothing is more clearly under a threshold than nothing.
+- It cost an hour of chasing service workers and CDNs first. **An incognito window rules all of
+  that out in ten seconds** and should be the first question asked, not the last.
+
 ## One chart, filling the window (2026-08-30)
 
 **Every card that draws a chart carries a ⤢ button that lifts the card into a

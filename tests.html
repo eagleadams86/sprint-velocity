@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 501;
+const EXPECTED = 502;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -7674,16 +7674,43 @@ t('a long list earns a second Add button at its foot, and a short one does not',
     const rows = () => D.querySelectorAll('#teamRows tr').length;
     /* The sample data is well short of the threshold, which is the case Charles
        was looking at. */
+    /* ── ASK WHETHER IT IS ON SCREEN, NOT WHETHER THE ATTRIBUTE IS SET ──────
+       The first version of this check read `foot.hidden`, which is the PROPERTY
+       — and the property was perfectly true while all three buttons sat on
+       screen over empty lists. `.row` sets `display: flex` at the same
+       specificity as the UA's `[hidden]` rule and is declared later, so the
+       attribute did nothing; the check agreed with the attribute and missed
+       what a reader could plainly see. Charles found it in a fresh incognito
+       window, where there is no worker and no cache to blame.
+       getComputedStyle is the only thing here that answers the question the
+       test is actually asking. */
+    const shown = (el) => W.getComputedStyle(el).display !== 'none';
     ok(rows() < W.__svTestHooks.ADD_FOOT_FROM, 'the sample estate is under the threshold', rows());
-    eq(foot.hidden, true, 'so no second button');
+    eq(shown(foot), false, 'so no second button is ON SCREEN');
+    eq(foot.hidden, true, 'and the attribute agrees — both halves, because they once did not');
 
     while (rows() < W.__svTestHooks.ADD_FOOT_FROM) D.getElementById('addTeamBtn').click();
-    eq(foot.hidden, false, 'at the threshold it appears');
+    eq(shown(foot), true, 'at the threshold it appears');
 
     /* THE SAME ACTION — two listeners with the same body is how they disagree. */
     const before = rows();
     D.getElementById('addTeamBtnFoot').click();
     eq(rows(), before + 1, 'and the foot button adds a team exactly as the heading one does');
+    D.getElementById('manageDialog').close();
+  });
+});
+
+/* THE EMPTY ESTATE, which is what Charles was looking at: a brand-new browser,
+   no teams, no ARTs, no PIs — and all three foot buttons on screen under "No
+   teams yet". Nothing is more clearly past a threshold of twelve than nothing,
+   so if this ever fails again it is the CSS and not the count. */
+t('an empty estate shows no foot buttons at all', async () => {
+  await inFrame('addfootempty', { sample: false }, async (W, D) => {
+    D.getElementById('manageBtn').click();
+    const shown = (el) => W.getComputedStyle(el).display !== 'none';
+    ['addTeamBtnFootRow', 'addArtBtnFootRow', 'addPiBtnFootRow'].forEach((id) => {
+      eq(shown(D.getElementById(id)), false, id + ' is not on screen over an empty list');
+    });
     D.getElementById('manageDialog').close();
   });
 });

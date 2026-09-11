@@ -662,6 +662,25 @@ html[data-pin] #views :is(button, a[href], input, select, textarea, [tabindex]) 
    that needs both. Anything else that is a `.row` AND hides itself needs the
    same treatment; there is nothing else today. */
 #forecastRateWrap[hidden] { display: none; }
+/* AND THE FOOT ADD BUTTONS, which are `.row` and hide themselves — exactly the
+   case the paragraph above says needs this treatment, and which I walked into
+   anyway on 2026-09-11. All three appeared over an EMPTY list: Charles saw
+   "+ Add Team" under "No teams yet" in a fresh incognito window, with no
+   service worker and no cache to blame.
+   A class rather than three more ids: `.addfoot[hidden]` is a class plus an
+   attribute, which outranks `.row` on its own, and it names the rule for the
+   next one of these rather than listing today's. */
+.addfoot[hidden] { display: none; }
+/* ── AND THE RULE THAT SHOULD HAVE BEEN HERE ALL ALONG ──────────────────────
+   The sibling app carries `[hidden] { display: none !important; }` and has done
+   since its grids hit the same problem; this file instead patched one element by
+   id and left a comment saying the next one would need the same. That is the
+   inconsistency I walked straight into: a rule you must remember is a rule that
+   gets forgotten, and nothing on screen says you forgot — the attribute is set,
+   the property reads true, and the element is visible anyway.
+   The narrow rules above are kept: they are harmless, and each records the
+   element that found the problem. */
+[hidden] { display: none !important; }
 /* Carrying the same surface and border as .btn, so an unselected tab reads as a
    button you can press rather than a line of text. It was only the selected one
    that looked clickable, which is backwards — that's the one you're already on. */
@@ -2396,7 +2415,7 @@ main:focus { outline: none; }
          A DUPLICATE rather than a move — the heading-row button is what tells you
          what a section adds before you have read a row of it, and a button above
          and below a two-row table is silly. See ADD_FOOT_FROM. -->
-    <div class="row" id="addTeamBtnFootRow" hidden style="justify-content:flex-end;margin-top:10px">
+    <div class="row addfoot" id="addTeamBtnFootRow" hidden style="justify-content:flex-end;margin-top:10px">
       <button class="btn small" id="addTeamBtnFoot">+ Add Team</button>
     </div>
   </section>
@@ -2417,7 +2436,7 @@ main:focus { outline: none; }
          A DUPLICATE rather than a move — the heading-row button is what tells you
          what a section adds before you have read a row of it, and a button above
          and below a two-row table is silly. See ADD_FOOT_FROM. -->
-    <div class="row" id="addArtBtnFootRow" hidden style="justify-content:flex-end;margin-top:10px">
+    <div class="row addfoot" id="addArtBtnFootRow" hidden style="justify-content:flex-end;margin-top:10px">
       <button class="btn small" id="addArtBtnFoot">+ Add ART</button>
     </div>
   </section>
@@ -2437,7 +2456,7 @@ main:focus { outline: none; }
          A DUPLICATE rather than a move — the heading-row button is what tells you
          what a section adds before you have read a row of it, and a button above
          and below a two-row table is silly. See ADD_FOOT_FROM. -->
-    <div class="row" id="addPiBtnFootRow" hidden style="justify-content:flex-end;margin-top:10px">
+    <div class="row addfoot" id="addPiBtnFootRow" hidden style="justify-content:flex-end;margin-top:10px">
       <button class="btn small" id="addPiBtnFoot">+ Add PI</button>
     </div>
   </section>
