@@ -2386,6 +2386,19 @@ main:focus { outline: none; }
     <div class="row spread"><strong class="manage-head">Teams</strong>
       <button class="btn small" id="addTeamBtn">+ Add Team</button></div>
     <div class="tablewrap"><table aria-label="Teams"><tbody id="teamRows"></tbody></table></div>
+    <!-- THE SAME BUTTON AGAIN, at the foot, once the list is long enough that
+         the one in the heading has scrolled off. Mirrored from Flow Metrics
+         (2026-09-11), where Charles hit it first with sixteen teams; this window
+         has the same problem and a third list besides, and PIs only ever grow.
+         Measured here rather than assumed: sixteen teams and eight PIs make this
+         dialog 1938px of content in a 734px window, with 977px between the Teams
+         heading and the last team row.
+         A DUPLICATE rather than a move — the heading-row button is what tells you
+         what a section adds before you have read a row of it, and a button above
+         and below a two-row table is silly. See ADD_FOOT_FROM. -->
+    <div class="row" id="addTeamBtnFootRow" hidden style="justify-content:flex-end;margin-top:10px">
+      <button class="btn small" id="addTeamBtnFoot">+ Add Team</button>
+    </div>
   </section>
   <section class="manage-sec">
     <div class="row spread"><strong class="manage-head">ARTs</strong>
@@ -2394,6 +2407,19 @@ main:focus { outline: none; }
       together. It's a label only — every figure is still worked out per team — and the
       <strong>Compare Teams</strong> view gains a filter for it. Teams need not be on one.</p>
     <div class="tablewrap"><table aria-label="Agile Release Trains"><tbody id="artRows"></tbody></table></div>
+    <!-- THE SAME BUTTON AGAIN, at the foot, once the list is long enough that
+         the one in the heading has scrolled off. Mirrored from Flow Metrics
+         (2026-09-11), where Charles hit it first with sixteen teams; this window
+         has the same problem and a third list besides, and PIs only ever grow.
+         Measured here rather than assumed: sixteen teams and eight PIs make this
+         dialog 1938px of content in a 734px window, with 977px between the Teams
+         heading and the last team row.
+         A DUPLICATE rather than a move — the heading-row button is what tells you
+         what a section adds before you have read a row of it, and a button above
+         and below a two-row table is silly. See ADD_FOOT_FROM. -->
+    <div class="row" id="addArtBtnFootRow" hidden style="justify-content:flex-end;margin-top:10px">
+      <button class="btn small" id="addArtBtnFoot">+ Add ART</button>
+    </div>
   </section>
   <section class="manage-sec">
     <div class="row spread"><strong class="manage-head">Program Increments</strong>
@@ -2401,6 +2427,19 @@ main:focus { outline: none; }
     <p class="manage-note">Each PI holds 6 sprints. They're listed
       oldest first — that order is what the rolling window walks back through.</p>
     <div class="tablewrap"><table aria-label="Program Increments"><tbody id="piRows"></tbody></table></div>
+    <!-- THE SAME BUTTON AGAIN, at the foot, once the list is long enough that
+         the one in the heading has scrolled off. Mirrored from Flow Metrics
+         (2026-09-11), where Charles hit it first with sixteen teams; this window
+         has the same problem and a third list besides, and PIs only ever grow.
+         Measured here rather than assumed: sixteen teams and eight PIs make this
+         dialog 1938px of content in a 734px window, with 977px between the Teams
+         heading and the last team row.
+         A DUPLICATE rather than a move — the heading-row button is what tells you
+         what a section adds before you have read a row of it, and a button above
+         and below a two-row table is silly. See ADD_FOOT_FROM. -->
+    <div class="row" id="addPiBtnFootRow" hidden style="justify-content:flex-end;margin-top:10px">
+      <button class="btn small" id="addPiBtnFoot">+ Add PI</button>
+    </div>
   </section>
   <div class="row" style="justify-content:flex-end;margin-top:18px">
     <button class="btn primary" id="manageCloseBtn">Done</button>
@@ -10557,6 +10596,27 @@ function renderTeamsView() {
 let editing = null;   // { teamId, piId, sprintNumber, id? }
 
 const F = (id) => document.getElementById(id);
+
+/* ── THE ADD BUTTON AT THE FOOT OF A LONG LIST ──────────────────────────────
+   Six rows. Below that the heading-row button is still on screen and a second
+   one is clutter; at or above it the list is tall enough that adding meant
+   scrolling back to the top.
+
+   THE SAME NUMBER AND THE SAME FUNCTION NAME AS FLOW METRICS, deliberately:
+   this window and its sibling's are read side by side, and a threshold that
+   drifted between them would be two answers to one question. Rows are 59px in
+   both. Flow Metrics carries a second constant for its workflow stages, whose
+   rows are 2.7x taller; nothing here has rows like that, so nothing here needs
+   one — measure before adding a list that does.
+
+   A row count rather than a measured height on purpose: a height would have to
+   be re-measured on every render, in a dialog that can be open while the window
+   behind it resizes, to answer a question a count answers well enough. */
+const ADD_FOOT_FROM = 6;
+function syncAddFoot(footRowId, count) {
+  const row = F(footRowId);
+  if (row) row.hidden = count < ADD_FOOT_FROM;
+}
 const sprintDialog = F('sprintDialog');
 
 /* ── Opening a dialog on a touch screen ─────────────────────────────────────
@@ -12105,6 +12165,11 @@ function renderManageTeamRows() {
       <td>${rowActs('team', t, i, state.teams.length)}</td></tr>`).join('')
     : '<tr><td class="muted">No teams yet.</td></tr>';
 
+  /* Here rather than in renderManage, because this function is called on its own
+     from several places — an ART rename rebuilds these rows without rebuilding
+     the dialog, and a team added or deleted has to move the button with it. */
+  syncAddFoot('addTeamBtnFootRow', state.teams.length);
+
   /* Rebuilt markup means rebuilt handlers — this table's four, and only these. */
   F('teamRows').querySelectorAll('[data-name-team]').forEach(el => el.oninput = () => {
     const t = teamById(el.dataset.nameTeam);
@@ -12147,6 +12212,10 @@ function renderManageTeamRows() {
 
 function renderManage() {
   renderManageTeamRows();
+  /* The ARTs and PIs foot buttons. The Teams one is synced inside
+     renderManageTeamRows, which is called on its own from several places. */
+  syncAddFoot('addArtBtnFootRow', state.arts.length);
+  syncAddFoot('addPiBtnFootRow', state.pis.length);
 
   F('artRows').innerHTML = state.arts.length ? state.arts.map((a, i) => `
     <tr>${nameCell('art', a, i)}
@@ -12380,6 +12449,11 @@ function addPi() {
 F('addTeamBtn').onclick = addTeam;
 F('addArtBtn').onclick = addArt;
 F('addPiBtn').onclick = addPi;
+/* Both buttons in a section do the same thing, so they share one handler rather
+   than one each: two listeners with the same body is how they come to disagree. */
+F('addTeamBtnFoot').onclick = addTeam;
+F('addArtBtnFoot').onclick = addArt;
+F('addPiBtnFoot').onclick = addPi;
 F('manageCloseBtn').onclick = () => manageDialog.close();
 F('manageBtn').onclick = openManage;
 
