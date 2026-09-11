@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 500;
+const EXPECTED = 501;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -7608,6 +7608,43 @@ group('Undo is reachable after a delete made inside a modal window (2026-09-03 a
    still shows at once. Pressability is proved two ways an inert button fails:
    it takes focus, and a click dispatched on what elementFromPoint finds at its
    centre puts the thing back. */
+/* ── THE SECOND ADD BUTTON, at the foot of a list you cannot see the top of ──
+   Mirrored from Flow Metrics on 2026-09-11 after Charles hit it there with
+   sixteen teams — adding one meant scrolling back to the heading every time.
+   This window has the same shape and a third list besides, and PIs only grow.
+
+   THE THRESHOLD IS PER SECTION AND MEASURED, NOT SHARED. It shipped at the
+   sibling's six and Charles said so immediately: at his six teams the whole
+   section is 382px in a 734px dialog, heading and every row in view, and a
+   second button is clutter. Twelve is where this window's Teams section passes
+   the fold. The sibling's number is TEN for the same rule, because its section
+   carries prose above the table and this one does not — so a check that the two
+   agree would be pinning a coincidence. Both directions are pinned instead. */
+t('a long list earns a second Add button at its foot, and a short one does not', async () => {
+  await inFrame('addfoot', {}, async (W, D) => {
+    const foot = D.getElementById('addTeamBtnFootRow');
+    const head = D.getElementById('addTeamBtn');
+    ok(foot, 'the foot row exists in the markup');
+    ok(head && !head.hidden, 'and the heading-row button is still there — this is a DUPLICATE, not a move');
+
+    D.getElementById('manageBtn').click();
+    const rows = () => D.querySelectorAll('#teamRows tr').length;
+    /* The sample data is well short of the threshold, which is the case Charles
+       was looking at. */
+    ok(rows() < W.__svTestHooks.ADD_FOOT_FROM, 'the sample estate is under the threshold', rows());
+    eq(foot.hidden, true, 'so no second button');
+
+    while (rows() < W.__svTestHooks.ADD_FOOT_FROM) D.getElementById('addTeamBtn').click();
+    eq(foot.hidden, false, 'at the threshold it appears');
+
+    /* THE SAME ACTION — two listeners with the same body is how they disagree. */
+    const before = rows();
+    D.getElementById('addTeamBtnFoot').click();
+    eq(rows(), before + 1, 'and the foot button adds a team exactly as the heading one does');
+    D.getElementById('manageDialog').close();
+  });
+});
+
 t('a delete inside Teams, ARTs & PIs offers its Undo once the window closes — and it works', async () => {
   await inFrame('undomodal', {}, async (W, D) => {
     const st = W.svGet();

@@ -10602,17 +10602,27 @@ const F = (id) => document.getElementById(id);
    one is clutter; at or above it the list is tall enough that adding meant
    scrolling back to the top.
 
-   THE SAME NUMBER AND THE SAME FUNCTION NAME AS FLOW METRICS, deliberately:
-   this window and its sibling's are read side by side, and a threshold that
-   drifted between them would be two answers to one question. Rows are 59px in
-   both. Flow Metrics carries a second constant for its workflow stages, whose
-   rows are 2.7x taller; nothing here has rows like that, so nothing here needs
-   one — measure before adding a list that does.
+   TWELVE, NOT THE SIBLING'S SIX, and the difference is the point. The shared
+   thing is the RULE — a second button is earned when the heading-row one has
+   scrolled away — and that is a different row count in each window, because the
+   distance from the heading to the fold differs. Flow Metrics' Teams section
+   carries several paragraphs above its table; this one carries none, so the
+   heading survives twice as many rows. Rows are 59px in both.
 
-   A row count rather than a measured height on purpose: a height would have to
-   be re-measured on every render, in a dialog that can be open while the window
+   Measured here rather than copied (2026-09-11, after Charles said six was too
+   low): in a 734px dialog the Teams heading is still on screen at eleven rows
+   and gone at twelve, and the last row first falls below the fold at eleven. At
+   his six teams the whole section is 382px — heading, every row and the button
+   all in view with 350px to spare, where a second button is just clutter.
+
+   SO DO NOT "ALIGN" THIS WITH THE SIBLING'S NUMBER. If either window's prose or
+   row height changes, re-measure that window; the numbers agreeing would be a
+   coincidence, not a convention.
+
+   A row count rather than a measured height: a height would have to be
+   re-measured on every render, in a dialog that can be open while the window
    behind it resizes, to answer a question a count answers well enough. */
-const ADD_FOOT_FROM = 6;
+const ADD_FOOT_FROM = 12;
 function syncAddFoot(footRowId, count) {
   const row = F(footRowId);
   if (row) row.hidden = count < ADD_FOOT_FROM;
@@ -14371,6 +14381,10 @@ if (viewOnly) {
    window properties; this exposes the consts the tests need. Nothing in the
    app reads it. */
 window.__svTestHooks = { raisesKeyboard, reorderById,
+  /* The row count at which a section earns a second Add button at its foot. The
+     suite reads it rather than repeating the number, so the check follows a
+     measured change instead of having to be found and edited after one. */
+  ADD_FOOT_FROM,
   /* Find: the matcher and its cap, so the suite pins what a query reaches over
      a fixture rather than over whatever happens to be in the browser. */
   searchApp, SEARCH_CAP, SEARCH_VIEW_LABEL,
