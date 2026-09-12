@@ -6032,8 +6032,12 @@ t('every local token Auto needs is declared for Auto', () => {
   LOCAL_TOKENS.forEach(tok =>
     ok(new RegExp(reEsc(tok) + '\\s*:').test(auto),
        tok + ' must be given Auto\u2019s dark value, or it falls back to :root\u2019s LIGHT one'));
-  ok(/color-scheme:\s*dark/.test(auto),
-     'and color-scheme, or the browser draws its own controls light on a dark page');
+  /* `color-scheme` was asserted here until rule 18 (2026-09-12) moved it into
+     the pack, where it is DERIVED from each theme's isLight. A local one is
+     drift now, so this pins its absence instead. The resolved value is measured
+     in 'and it resolves live' below. */
+  ok(!/color-scheme\s*:/.test(auto),
+     'color-scheme belongs to theme.css now (rule 18) — this block must not re-declare it');
 });
 t('Auto means MIDNIGHT when the system is dark, never Dark', () => {
   /* Pack rule 6: midnight is the base palette and what Auto means by "dark".
@@ -6052,7 +6056,8 @@ t('the light half is left to inherit, deliberately', () => {
   /* In light mode Auto already IS :root. A block saying so would be a copy of
      the values above it — one more place to keep in step for no behaviour. */
   const plain = (APP_SRC.match(/\n\[data-theme="auto"\]\s*\{([^}]*)\}/) || [])[1] || '';
-  ok(/color-scheme:\s*light/.test(plain), 'the unqualified auto rule carries color-scheme only');
+  ok(!/color-scheme\s*:/.test(plain),
+     'color-scheme belongs to theme.css now (rule 18) — this page must not declare it');
   LOCAL_TOKENS.forEach(tok =>
     ok(!new RegExp(reEsc(tok) + '\\s*:').test(plain),
        tok + ' must NOT be repeated in the light half — it inherits from :root'));
@@ -6070,6 +6075,14 @@ t('and it resolves live, in whichever mode this browser is in', () => {
     eq(auto.bg, want.bg, 'the pack resolves the palette');
     eq(auto.c, want.c, 'and this page\u2019s own series colour follows it');
     eq(auto.scheme, want.scheme, 'and so does color-scheme');
+    /* Rule 18: the pack emits color-scheme on every palette block, derived from
+       each theme's isLight — so the pairing follows the PALETTE, not the name. */
+    const sch = (th) => { el.setAttribute('data-theme', th);
+      return w.getComputedStyle(el).colorScheme.trim(); };
+    eq(sch('midnight'), 'dark', 'midnight is a dark palette');
+    eq(sch('dark'), 'dark');
+    eq(sch('light'), 'light');
+    eq(sch('sepia'), 'light', 'sepia is a warm LIGHT theme — the classic way to get this wrong');
   } finally {
     el.setAttribute('data-theme', was || 'auto');
   }

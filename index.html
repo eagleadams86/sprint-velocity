@@ -132,11 +132,6 @@
    the outline and in the texture, rather than as a slab of it. See seriesBar()
    and tintOf(); these values are the outline, not the fill. */
 :root {
-  /* Tells the browser to render its own controls — the date picker's calendar
-     button, number-input spinners, scrollbars — to match the theme. Without it the
-     dark theme gets a near-black calendar icon on a near-black field, and a white
-     spinner box glued to the side of a dark input. */
-  color-scheme: light;
   --c-committed:  #64748b;
   --c-completed:  #2563eb;
   --c-velocity:   #0f766e;
@@ -171,7 +166,6 @@
    Re-shading these values to chase a colour-only fix was measured and rejected —
    the reasoning is in that comment. */
 [data-theme="dark"] {
-  color-scheme: dark;
   --c-committed:  #9aa5b5;
   --c-completed:  #60a5fa;
   --c-velocity:   #2dd4bf;
@@ -183,7 +177,6 @@
   --band-red:     rgba(251,120,116,.15);
 }
 [data-theme="midnight"] {
-  color-scheme: dark;
   --c-committed:  #94a3b8;
   --c-completed:  #60a5fa;
   --c-velocity:   #2dd4bf;
@@ -195,7 +188,6 @@
   --band-red:     rgba(251,120,116,.15);
 }
 [data-theme="sepia"] {
-  color-scheme: light;
   --c-committed:  #6b6151;
   --c-completed:  #1d4ed8;
   --c-velocity:   #0f766e;
@@ -210,8 +202,9 @@
 /* ── Auto (2026-08-23) ───────────────────────────────────────────────────────
    THIS BLOCK WAS MISSING, AND AUTO IS THE FAMILY DEFAULT. Every other app in
    the family had one; this was the only page without, which meant the tokens
-   BELOW — the six series colours, the three threshold bands, the shadow and
-   `color-scheme` — were the one part of the app that never followed Auto.
+   BELOW — the six series colours, the three threshold bands, the shadow and,
+   until rule 18 moved it into the pack, `color-scheme` — were the one part of
+   the app that never followed Auto.
 
    `theme.css` resolves Auto's PALETTE on its own, in CSS, with no help from
    this page. What it cannot resolve is a token this page invented, and this
@@ -219,9 +212,10 @@
    system while all ten fell back to `:root`, which holds the LIGHT values —
    light series shades and light threshold bands painted onto a midnight card,
    and `color-scheme: light` telling the browser to draw its own controls light
-   on a dark page. That last one is the exact fault the note at the top of
-   `:root` says `color-scheme` exists to prevent: a near-black calendar glyph on
-   a near-black field.
+   on a dark page — a near-black calendar glyph on a near-black field. That last
+   one cannot recur: `color-scheme` is theme.css's own as of 2026-09-12 (rule 18)
+   and is derived from the palette, so it resolves Auto without this page. The
+   ten invented TOKENS still need the block below.
 
    It went unnoticed because it needs three things at once — Auto, a dark
    system, and nobody having touched the picker — which is precisely the state a
@@ -236,10 +230,8 @@
    block, and as the four sibling apps': the light values by inheritance, the
    dark ones in the media query. Midnight's values, not Dark's, because Midnight
    is what Auto means by "dark" (pack rule 6). */
-[data-theme="auto"] { color-scheme: light; }
 @media (prefers-color-scheme: dark) {
   [data-theme="auto"] {
-    color-scheme: dark;
     --c-committed:  #94a3b8;
     --c-completed:  #60a5fa;
     --c-velocity:   #2dd4bf;
@@ -1841,7 +1833,6 @@ footer .applink { margin: 0 19px 0 auto; }
    glyph, which is the same reason the app works without colour vision — but it
    reads as less than it is, so they are asked for. */
 @media print {
-  :root { color-scheme: light; }
   /* White paper as a floor, in case the theme swap in printForPaper() never runs —
      a browser that fires neither `beforeprint` nor a `print` media change would
      otherwise put a full-bleed Midnight card on every sheet. */
