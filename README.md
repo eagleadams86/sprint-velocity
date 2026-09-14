@@ -1875,7 +1875,10 @@ You choose per link:
 
 - **Which teams** — the team you're looking at is ticked by default; **Select all** takes the
   lot, and the count above the list says where you are. Sharing one team doesn't reveal the
-  others, or even the names of PIs that team never ran in.
+  others, or even the names of PIs that team never ran in. Once any team is on an ART the list
+  is **grouped by ART**, teams on no ART last under *No ART*, and each ART's heading has a tick
+  box of its own that picks or clears all of its teams (partly ticked when only some are). The
+  heading is only a shortcut — the count counts teams, and nothing about it goes into the link.
 - **How much history** — all of it (the default), the last 2 PIs, this PI only, or the last 5
   or 10 sprints for each team. See below.
 - **The Compare Teams comparison view** — only offered when you've picked more than one team.

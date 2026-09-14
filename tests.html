@@ -1188,6 +1188,55 @@ t('with no ARTs at all the list comes back untouched', () => {
   eq(names(w.groupTeamsByArt(TEAMS, null)), ['Kestrel', 'Otter', 'Puffin', 'Heron']);
 });
 
+/* The share window's team list (2026-09-14, asked for over twenty-four teams in
+   one column). A heading per ART is a shortcut over the team boxes, never a
+   thing that is shared — so every check that reads the pick reads it through
+   sharePicked(), the function the link is built from. withState() swaps the
+   collections without the boundary, which is what lets a dangling artId in. */
+t('the share window groups its teams under their ARTs, and a heading ticks its own teams', () => {
+  const D = w.document, box = D.getElementById('shareTeams');
+  const fx = {
+    arts: [{ id: 'sa1', name: 'Pay & <Ops>' }, { id: 'sa2', name: 'Empty' }],
+    teams: [{ id: 'st1', name: 'Kestrel', artId: 'sa1' }, { id: 'st2', name: 'Otter', artId: 'sa1' },
+            { id: 'st3', name: 'Heron' }, { id: 'st4', name: 'Puffin', artId: 'gone' }]
+  };
+  withState(fx, () => {
+    try {
+      w.openShare();
+      eq([...box.querySelectorAll('label')].map(l =>
+           (l.classList.contains('art-head') ? '# ' : '') + l.textContent.trim()),
+         ['# Pay & <Ops> (2 teams)', 'Kestrel', 'Otter', '# No ART (2 teams)', 'Heron', 'Puffin'],
+         'ARTs in their own order, an ART with no teams left out, un-grouped and dangling teams last, names as text');
+      box.querySelectorAll('[data-share-team]').forEach(i => { i.checked = false; });
+      w.syncSelectAll();
+      const head = box.querySelector('[data-share-art="sa1"]');
+      const said = () => [head.checked, head.indeterminate];
+      head.click();
+      eq(w.sharePicked(), ['st1', 'st2'], 'a heading ticks every team under it');
+      eq(said(), [true, false], 'and reads as ticked');
+      eq(D.getElementById('shareTeamCount').textContent, '2 of 4 selected', 'the count counts teams, never headings');
+      box.querySelector('[data-share-team="st2"]').click();
+      eq(said(), [false, true], 'one team off reads as partly ticked');
+      head.click();
+      eq(w.sharePicked(), ['st1', 'st2'], 'pressing a partly ticked heading takes the rest');
+      head.click();
+      eq(w.sharePicked(), [], 'and pressing it again clears them');
+      D.getElementById('shareSelectAll').click();
+      eq(w.sharePicked(), ['st1', 'st2', 'st3', 'st4'], 'Select All ticks every team and no heading');
+      eq([...box.querySelectorAll('[data-share-art]')].map(h => h.checked), [true, true],
+         'and every heading follows');
+    } finally { D.getElementById('shareDialog').close(); }
+  });
+  withState({ arts: [{ id: 'sa1', name: 'Nobody' }],
+              teams: [{ id: 'st1', name: 'Kestrel' }, { id: 'st2', name: 'Otter' }] }, () => {
+    try {
+      w.openShare();
+      eq(box.querySelectorAll('.art-head, .in-art').length, 0,
+         'with no team on an ART the list stays flat — a lone No ART heading would divide nothing');
+    } finally { D.getElementById('shareDialog').close(); }
+  });
+});
+
 group('searchApp — what Find reaches');
 /* Pure over the state it is handed, so this fixture IS the app as far as these
    go: nothing here touches the live state or the dialog. */
