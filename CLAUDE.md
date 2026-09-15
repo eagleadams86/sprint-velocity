@@ -1493,7 +1493,10 @@ but Charles had ever actually signed in.)
   textContent the shared-view path rewrites). Other SMs use this app with their own data, so
   it exists for them: what is stored, that it stays in their browser, that share links
   upload nothing, and — for anyone who used sync before 2026-08-20 — the deletion contact.
-  Effective date is **2026-08-20**, moved when sync was removed. If share links or what the
+  Effective date is **2026-09-15**: moved to 2026-08-20 when sync was removed, and again on
+  2026-09-15 when its list of saved preferences was found to miss the pin, the table sorts
+  and the ART picker (text also changed on 2026-08-22 without a new date — don't repeat
+  that). If share links or what the
   app stores ever change, update it and its date in the same commit.
 - **README.md is the index** — keep it current whenever the app meaningfully changes.
 - After changes: **browser-test locally first** (`python3 -m http.server 8012`, or the

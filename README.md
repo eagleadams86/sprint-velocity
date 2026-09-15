@@ -1712,7 +1712,7 @@ written**, not only on the way back in: the object you name is the one that reac
 saved, imported or shared copy. Percentages and reason codes
 pass that same boundary, so a hand-edited file can't widen either.
 
-**Back up & restore** — the *Back up* button exports everything as a JSON file
+**Back Up & Restore** — the *Back Up* button exports everything as a JSON file
 (`sprint-velocity-YYYY-MM-DD.json`, dated in local time) and imports it back. Useful as a
 backup, for moving between browsers, or for handing a colleague a starting point.
 
@@ -1735,17 +1735,17 @@ enough to justify deleting a team's history on one click. It is one step back, n
 what an undo stack should survive (a reload? an import?) has no obvious answer here, and a
 half-answered one is worse than none.
 
-*Delete all data* deliberately has no Undo. That one is meant to be hard, it has its own
+*Delete All Data* deliberately has no Undo. That one is meant to be hard, it has its own
 dialog saying exactly how much is going, and it offers the backup that is the real way back —
 a ten-second Undo would quietly make it the easiest destructive thing in the app.
 
-**Starting again** — folded away at the foot of the same dialog, under *Start again*, is
-**Delete all data**. It's behind a fold on purpose: the one irreversible action in the app
+**Starting again** — folded away at the foot of the same dialog, under *Start Again*, is
+**Delete All Data**. It's behind a fold on purpose: the one irreversible action in the app
 shouldn't sit a mis-click away from Export. Pressing it opens a confirmation of its own that
 says exactly how much is going ("This deletes 2 teams, 1 PI and 3 recorded sprints") and
 offers the same JSON export as a last chance to keep any of it. There is no "…and every
 device you own" line any more: since sync was removed there is exactly one copy, and it is
-the one in this browser. Your theme survives; it lives under its own key rather than with the data.
+the one in this browser. Your theme survives, and so do the pinned tab row and your table sorts; each lives under its own key rather than with the data.
 
 **If one device is behind** — every saved copy carries the data format the app that wrote
 it understood. A copy written by a *newer* version than the one you're running won't be

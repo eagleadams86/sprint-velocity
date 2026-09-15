@@ -75,7 +75,7 @@ footer { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
        is why this closes before it and why .wrap stays an ordinary <div>. -->
   <main>
   <h1>Sprint Velocity — Privacy Policy</h1>
-  <p class="meta">Effective August 20, 2026</p>
+  <p class="meta">Effective September 15, 2026</p>
 
   <p>Sprint Velocity is built to work entirely in your browser. This page explains exactly
   what data exists, where it goes, and who can see it.</p>
@@ -83,14 +83,23 @@ footer { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
   <h2>What Sprint Velocity Stores</h2>
   <p>The only data the app holds is what you type in: team, ART and PI names, sprint numbers
   and dates, and the sprint figures (committed, completed, added, removed, carried in and
-  out, velocity) — plus your preferences (theme, which view was open, and any RAG target you have moved off its default). Capacity adjustments
+  out, velocity), with each sprint's status, whether its goal was met, and whether it is left
+  out of the rolling average. It also holds any PI business value you record (planned,
+  delivered and stretch — three numbers per team per PI) and the figures you type into the
+  forecast (a velocity range, a backlog size, growth, and sprints expected to be lost).
+  Your preferences are saved as well: the theme, which team, PI, sprint and view were open,
+  which ARTs the ART picker is set to, the on/off choices for counting sprint 6 and sprints
+  still running, which forecast options are switched on, whether the tab row is pinned, how
+  each table is sorted, and any RAG target you have moved off its default. Capacity adjustments
   add a percentage (how available a team will be for a sprint, or how a past sprint should be
   re-weighted for planning) and, where you record why, a
   code picked from a fixed list of options such as "annual leave or sickness". There is
   deliberately no free-text field anywhere: beyond those short names, only numbers, dates
   and those fixed codes are ever saved. (Earlier versions had optional sprint notes; the field was removed, and any notes
   in a previously saved copy are deleted the next time the app opens.) Text pasted from a
-  Jira Sprint Report is read for its figures on the spot and never stored. There is no
+  Jira Sprint Report, or a spreadsheet of sprints being imported, is read for its figures on
+  the spot and never stored; team and PI names in an import are only used to find ones that
+  already exist. There is no
   account, profile, or usage tracking required to use the app.</p>
 
   <h2>Where That Data Lives</h2>
@@ -99,8 +108,9 @@ footer { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
     your browser's local storage on your own device. There is no server, no database and no
     account — the app has nowhere to send your data even if it wanted to. Clearing the
     site's browser data deletes it.</p>
-    <p><strong>A copy of the app itself, so it opens offline.</strong> The page, its
-    stylesheet, its chart library and its icon are kept on your device — the same public
+    <p><strong>A copy of the app itself, so it opens offline.</strong> The page, this
+    privacy policy, its stylesheet, its chart library, its icons and its install manifest are
+    kept on your device — the same public
     files anyone can read on GitHub, and nothing else. Your sprint figures are never put
     there. Clearing the site's browser data removes it along with everything else.</p>
   </div>
@@ -108,7 +118,7 @@ footer { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
     <p><strong>Share links (nothing is uploaded).</strong> A read-only share link carries
     the data <em>inside the link itself</em>, compressed into the part of the address that
     is never sent to any server. Creating or opening one involves no upload, no account,
-    and no storage on the reader's device. Anyone who has the link can read what you chose
+    and nothing from the link is stored on the reader's device. Anyone who has the link can read what you chose
     to include, so treat the link like the data it contains — you pick which teams go in and
     how much history goes with them, and a link only ever carries names, numbers, dates and the fixed reason codes.</p>
   </div>
@@ -123,7 +133,7 @@ footer { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
   your browser is deleted the next time you open the app.</p>
   <p><strong>The data that had been stored there was deleted on the same day</strong>, so
   there is no copy of anyone's sprints left in that database.</p>
-  <p>To use the app on more than one device now, use <strong>Back up</strong> to download a
+  <p>To use the app on more than one device now, use <strong>Back Up</strong> to download a
   file and restore it on the other device.</p>
 
   <h2>What Sprint Velocity Does Not Do</h2>
@@ -139,8 +149,10 @@ footer { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
   </ul>
 
   <h2>Your Choices</h2>
-  <p>You can edit or delete anything in the app at any time — <strong>Back up → Start
-  again</strong> removes everything, and clearing the site's browser data does the same.
+  <p>You can edit or delete anything in the app at any time — <strong>Back Up → Start
+  Again → Delete All Data</strong> removes every team, ART, PI and sprint along with the
+  preferences saved beside them (the theme, the pinned tab row and how each table is sorted
+  are kept), and clearing the site's browser data removes all of it.
   That is the whole of it: there is no other copy to chase, and nothing left over from sync —
   those copies were deleted on August 20, 2026, along with the feature.</p>
 
