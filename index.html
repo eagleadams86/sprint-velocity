@@ -705,6 +705,16 @@ html[data-pin] .tabrow {
    scroll into view the page makes, and the margin rule went with it: the two
    would have added together. Money Map's shape, to its numbers. */
 html { scroll-padding-top: var(--pin-clear, 0px); }
+/* …AND A CONTROL THAT IS ITSELF STUCK CANCELS IT (2026-09-15, from Flow Metrics'
+   review). The padding reserves the top `--pin-clear` pixels of the window, and
+   the header and the pinned tab row are drawn INSIDE that strip — so Chromium and
+   WebKit both judged a control there "not in view" and scrolled the page up to
+   reveal it, and because it stays stuck the next Tab did it again: Shift+Tab onto
+   the theme picker from half way down went 700 → 272 → 0 on a phone. A negative
+   margin of the same size puts a stuck control's own snap area back where it is
+   drawn. Only what is really stuck: the header always, the tab row while pinned.
+   Flow Metrics and Money Map carry the same rule. */
+header *, html[data-pin] .tabrow * { scroll-margin-top: calc(0px - var(--pin-clear, 0px)); }
 
 /* ── ONE ROW THAT SCROLLS SIDEWAYS, NOT THREE THAT WRAP ─────────────────────
    Asked for by Charles on 2026-09-03, straight after the pin and for the pin's

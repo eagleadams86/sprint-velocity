@@ -1728,6 +1728,15 @@ rectangle, `sv-pin` in localStorage.
   pinned row too" — a `#views` button PARKED halfway down the stuck chrome, then
   `focus()` (no preventScroll), unpinned and pinned; red on the old page at the
   unpinned landing. EXPECTED 507 → 508.
+- **…and a control that is itself stuck cancels the padding (2026-09-15, found by Flow Metrics'
+  review).** The padding reserves the strip the header and the pinned row are DRAWN in, so both
+  engines judged a control there out of view and scrolled the page up on a real Tab — and it stayed
+  stuck, so the next press did it again: Shift+Tab from mid-page onto the theme picker went 700 → 272
+  → 0 at 390×844 in Chromium, 383 → 277 → 171 at 1280 in WebKit. `header *, html[data-pin] .tabrow *`
+  take `scroll-margin-top: calc(0px - var(--pin-clear))`, which puts a stuck control's snap area back
+  where it is drawn. A `focus()` does not reproduce the jump, so the suite pins the margins; the jump
+  itself was measured with real key presses before and after. Flow Metrics (`e736d1e`) and Money Map
+  carry the same rule. EXPECTED 525 → 526.
 
 **No phone rule for the PIN, deliberately.** Flow Metrics needs one because it
 pins two rows and has to drop one on a phone; there is only one row here.

@@ -106,7 +106,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 525;
+const EXPECTED = 526;
 
 /* ── THE SUITE LEAVES STORAGE EXACTLY AS IT FOUND IT (2026-09-15 review) ──────
    The page header says "Read-only: nothing is saved", and it was not true: the
@@ -8343,6 +8343,36 @@ t('a control scrolled into view lands below the header, and below the pinned row
        'the clearance is the root’s scroll padding, pinned or not');
     ok(!/scroll-margin-top: var\(--pin-clear/.test(code),
        'and the old per-control margin is gone — the two would add together');
+  });
+});
+
+/* A control that is ITSELF stuck must not move the page when tabbed onto
+   (2026-09-15). The padding above reserves the strip the header and the pinned
+   row are drawn in, so a real Tab onto a control there scrolled the page to the
+   top. A focus() does not reproduce it and a real key press cannot be sent from
+   here, so the mechanism is what is held: a stuck control's scroll margin cancels
+   the padding exactly, and a control that scrolls with the page keeps it. */
+t('a control that is itself stuck does not move the page when tabbed onto (2026-09-15)', async () => {
+  await inFrame('stuckmargin', { width: 1280, height: 700 }, async (W, D) => {
+    const pinWas = W.svPin.on();
+    const smt = (el) => parseFloat(W.getComputedStyle(el).scrollMarginTop) || 0;
+    const clear = () => parseFloat(W.getComputedStyle(D.documentElement).getPropertyValue('--pin-clear')) || 0;
+    const cancels = (el) => !!el && clear() > 0 && Math.abs(smt(el) + clear()) < 1;
+    const inPage = [...D.querySelectorAll('#views button')].find((b) => !b.closest('.tabrow, header'));
+    try {
+      W.svPin.apply(false);
+      await wait(200);
+      ok(cancels(D.getElementById('themeSel')), 'unpinned: a header control cancels the scroll padding',
+         smt(D.getElementById('themeSel')) + ' vs ' + clear());
+      ok(inPage && smt(inPage) === 0, 'while a control that scrolls with the page keeps it');
+      W.svPin.apply(true);
+      await wait(200);
+      ok(cancels(D.getElementById('pinBtn')), 'pinned: a control in the stuck tab row cancels it too',
+         smt(D.getElementById('pinBtn')) + ' vs ' + clear());
+      ok(inPage && smt(inPage) === 0, 'and a control in the page still keeps it');
+    } finally {
+      W.svPin.apply(pinWas);
+    }
   });
 });
 
