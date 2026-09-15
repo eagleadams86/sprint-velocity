@@ -2700,3 +2700,31 @@ proven red against the commit before it.
   left edge. A control that is wholly outside is scrolled in by the browser anyway, so a test
   that does not MAKE the straddle proves nothing. Red on the old page ("Sprint" 68px past the
   left edge). A disabled control (the first row's Move up) takes no focus and is skipped.
+- **The suite leaves every `sv-*` key exactly as it found it (2026-09-15).** Its header said
+  "Read-only: nothing is saved", and a trace of every write from every frame (a Playwright
+  run with `Storage.prototype` wrapped, clean profile and planted profile) said otherwise:
+  nine sort tests stored `sv-tablesort` through `setSort()` → `lsSet()`; the ART-picker and
+  forecast tests reached the SHARED frame's real `save()`, which stored an `sv-data` board —
+  an empty one on a clean profile, a rewritten copy of the reader's own on a real one; the pin
+  test stored '1' and '0'; the smoke walk, which presses every button that isn't destructive,
+  pressed the 📌 and left `sv-pin` at '1' — hidden only because the pin test happened to finish
+  on '0', and found when the pin test started putting back what it found, which pinned every
+  later frame and put 20px on the phone ring-room test's row; and every frame's boot stores
+  `sv-pin` (`applyPin`). A planted `sv-tablesort` came back as `""`. Fixed where each one writes, so a run that dies half way
+  leaves nothing: `run()` stubs the shared frame's `save` and `lsSet` once, before any test
+  (`lsSet` records into `LS_WRITES`, and the one test that pins where the sort preference goes
+  reads the write there instead of storage); `inFrame`, the pin test and the smoke walk put
+  the raw `sv-pin` back in their `finally`; and `inFrame({ blank: true })` empties the FRAME'S state in memory for
+  the lone-📌 test, which used to fail on any machine with a real board saved and must never
+  take the reader's board out of storage, even for a moment. **The snapshot** (`SV_AT_START`) is
+  taken at the top of the script, before the gate creates the first frame, because a boot is
+  itself a write. **The last test** records the drift, puts every key back, and asserts both
+  that storage is byte-identical and that nothing drifted but what a BOOT may write (`sv-pin`
+  = '0' where there was none — a '1' is a press, and fails — the sync leftovers the app
+  deletes, and `sv-data` only if the saved board needs a boot repair). `bootWithSavedCopy` and the sync-leftover test still write real
+  storage — booting on a saved copy is what they test — and restore it themselves, as before.
+  **Proof:** the snapshot and a compare-only final test, on the old tests, failed with
+  `["sv-data","sv-pin","sv-tablesort"]` on a clean profile; two consecutive full runs on a
+  profile with a planted `sv-tablesort` and `sv-data` left both byte-identical. Don't run the
+  suite while editing the app in another tab of the same browser: the restore puts back what
+  was there when the suite started.

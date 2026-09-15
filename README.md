@@ -2165,6 +2165,11 @@ throws or a view comes back empty. Verified by breaking `renderTeamsView` on pur
 Nothing it does can write: `save()` and `confirm()` are replaced in that frame before
 anything is pressed, and the saved board is read back at the end and compared.
 
+**It leaves your saved data exactly as it found it.** Every `sv-` key in the browser is noted
+before the first test and checked by the last one, and the tests that could store something
+are stopped where they would — so running it on the machine where you keep your real teams,
+sort order and pin setting changes none of them.
+
 **It only runs on localhost, and enforces that itself.** The test code writes nothing, but
 the iframe boots the real app — and GitHub Pages publishes `tests.html` next to it, at
 `/sprint-velocity/tests.html`, where that iframe would be reading and writing somebody's real

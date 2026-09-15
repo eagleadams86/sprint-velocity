@@ -19,7 +19,10 @@
      in a hidden same-origin iframe and calls its functions directly, so what's
      tested is exactly what ships — no copies, no build step. Serve over
      http://localhost (python3 -m http.server 8012); file:// iframes are blocked
-     in some browsers. Nothing here writes localStorage or calls save().
+     in some browsers. Nothing here leaves localStorage changed: the shared
+     frame's save() and lsSet() are stubbed before the first test, the few tests
+     that must store something for real put it back in a finally, and every sv-*
+     key is snapshotted at the top of the script and checked by the last test.
 
      But the iframe boots the real app, which is not nothing: it reads and can
      write this origin's sv-* keys, and on the published site those are somebody's
@@ -57,8 +60,9 @@
 <div class="wrap">
   <h1>Sprint Velocity — Pure-Function Tests</h1>
   <p class="sub">Runs against the real <code>index.html</code> in a hidden iframe. Read-only:
-    nothing is saved — and it only runs on <code>localhost</code>, where that iframe can't be
-    the copy of the app holding your own data.</p>
+    nothing is saved — every <code>sv-</code> key is noted before the first test and the last
+    test checks each one is as it was — and it only runs on <code>localhost</code>, where that
+    iframe can't be the copy of the app holding your own data.</p>
   <div id="summary">Loading app…</div>
   <table><tbody id="out"></tbody></table>
 </div>
@@ -103,6 +107,46 @@ function ok(cond, note, detail) {
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
 const EXPECTED = 524;
+
+const EXPECTED = 515;
+
+/* ── THE SUITE LEAVES STORAGE EXACTLY AS IT FOUND IT (2026-09-15 review) ──────
+   The page header says "Read-only: nothing is saved", and it was not true: the
+   sort tests wrote `sv-tablesort`, the shared frame's real save() wrote an `sv-data`
+   board (an empty one on a clean profile — over the reader's own board on a real
+   one), and the pin tests left `sv-pin` at '0'. On localhost this origin's sv-*
+   keys are whatever the person running the suite keeps there.
+
+   Snapshotted HERE, at the top of the script, before the gate at its foot creates
+   the first frame — a frame's boot is itself a write (applyPin stores `sv-pin`).
+   The last test puts every key back and checks it. The writers are also stopped
+   one by one where they write, so a run that dies half way leaves nothing behind
+   that the snapshot was needed to undo. */
+const svSnapshot = () => {
+  const o = {};
+  try {
+    Object.keys(localStorage).filter((k) => k.startsWith('sv-')).sort()
+      .forEach((k) => { o[k] = localStorage.getItem(k); });
+  } catch (e) { /* storage blocked: nothing to protect, nothing to compare */ }
+  return o;
+};
+const SV_AT_START = svSnapshot();
+/* What the shared frame's `lsSet` was asked to store, since run() stops it
+   storing anything — a test that pins WHERE a preference goes reads it here. */
+const LS_WRITES = [];
+function svRestoreStorage() {
+  try {
+    Object.keys(svSnapshot()).forEach((k) => { if (!(k in SV_AT_START)) localStorage.removeItem(k); });
+    Object.keys(SV_AT_START).forEach((k) => {
+      if (localStorage.getItem(k) !== SV_AT_START[k]) localStorage.setItem(k, SV_AT_START[k]);
+    });
+  } catch (e) { /* storage blocked: there was nothing to put back */ }
+}
+function svStorageDrift() {
+  const now = svSnapshot();
+  return [...new Set([...Object.keys(SV_AT_START), ...Object.keys(now)])].sort()
+    .filter((k) => SV_AT_START[k] !== now[k]);
+}
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -970,9 +1014,12 @@ t('the sort is a per-device preference, never data', () => {
     eq(w.svGet().settings.teamSort, undefined,
        'it is not in state — a sort is how one person is reading the table this '
        + 'afternoon, not something about the teams, and it has no business in a share link');
-    ok(/teamsTable:count:desc/.test(localStorage.getItem('sv-tablesort') || ''),
-       'it is beside the theme and the pin instead, one key for all six tables',
-       localStorage.getItem('sv-tablesort'));
+    /* Read off the write rather than out of storage: the suite may not store
+       anything in the reader's own `sv-tablesort` (2026-09-15 review). */
+    const stored = LS_WRITES.filter(([k]) => k === 'sv-tablesort').pop();
+    ok(stored && /teamsTable:count:desc/.test(stored[1]),
+       'it is written beside the theme and the pin instead, one key for all six tables',
+       stored && stored[1]);
     eq(w.__svTestHooks.parseSorts('teamsTable:count:junk').teamsTable.dir, 'desc',
        'an unreadable direction reads as the column’s own way');
     /* A key that no longer names a column is what a rename leaves in storage. */
@@ -3723,6 +3770,11 @@ t('the sign-in button and the cloud hooks are gone', () => {
    render draws into a box with no room and proves nothing. */
 t('the app actually runs — every tab drawn, every window opened', async () => {
   const before = localStorage.getItem('sv-data');
+  /* The walk presses every button that isn't destructive, and the 📌 is one: it
+     stores `sv-pin` for real, which save() being stubbed does nothing about. Put
+     back in the finally (2026-09-15 review) — it used to be left at '1', hidden
+     only because the pin test happened to finish on '0'. */
+  const keepPin = localStorage.getItem('sv-pin');
   const f = document.createElement('iframe');
   f.setAttribute('data-sv-tests', '');
   f.setAttribute('aria-hidden', 'true');
@@ -3819,6 +3871,8 @@ t('the app actually runs — every tab drawn, every window opened', async () => 
     /* The proof, not the intention: read the key back and compare. A stub that
        stopped working would show up here as a changed document rather than as a
        comment nobody re-checked. */
+    if (keepPin === null) localStorage.removeItem('sv-pin');
+    else localStorage.setItem('sv-pin', keepPin);
     const after = localStorage.getItem('sv-data');
     eq(after, before, 'the walk wrote to the reader’s own saved board');
   }
@@ -7139,6 +7193,7 @@ t('the arrows walk the charts on the view without coming back down', async () =>
    one: the shared frame is 1px wide, and a sticky offset measured there is
    measuring nothing. */
 t('the tab row can be pinned to the top', async () => {
+  const keepPin = localStorage.getItem('sv-pin');   // put back in the finally
   const f = document.createElement('iframe');
   f.setAttribute('data-sv-tests', '');
   f.setAttribute('aria-hidden', 'true');
@@ -7275,7 +7330,13 @@ t('the tab row can be pinned to the top', async () => {
     await new Promise((r) => setTimeout(r, 150));
     eq(W.localStorage.getItem('sv-pin'), '0', 'unpinning is remembered too');
     eq(cs(row).position, 'static', 'and the row is back in the flow');
-  } finally { f.remove(); }
+  } finally {
+    f.remove();
+    /* It stored '1' and then '0' for real — the assertions above read them —
+       so the reader's own pin goes back (2026-09-15 review). */
+    if (keepPin === null) localStorage.removeItem('sv-pin');
+    else localStorage.setItem('sv-pin', keepPin);
+  }
 });
 
 t('the full-screen button is furniture, so it never prints', () => {
@@ -7516,7 +7577,11 @@ async function restoreDialogClose(W) {
 }
 
 async function inFrame(tag, opts, fn) {
-  const o = Object.assign({ width: 1280, height: 900, sample: true }, opts || {});
+  const o = Object.assign({ width: 1280, height: 900, sample: true, blank: false }, opts || {});
+  /* A frame's boot stores `sv-pin` (applyPin), and the pin tests press it on and
+     off — so the reader's own value is put back when the frame goes, whatever
+     happened inside it (2026-09-15 review). */
+  const keepPin = localStorage.getItem('sv-pin');
   const f = document.createElement('iframe');
   f.setAttribute('data-sv-tests', '');
   f.setAttribute('aria-hidden', 'true');
@@ -7533,9 +7598,25 @@ async function inFrame(tag, opts, fn) {
     W.save = () => {};
     W.confirm = () => true;
     W.alert = () => {};
+    /* `blank`: the frame boots on whatever board this machine has saved, so a test
+       about the no-teams pages empties the frame's OWN state rather than the
+       reader's storage — their board is never taken out, not even for a moment. */
+    if (o.blank) {
+      const st = W.svGet();
+      ['teams', 'arts', 'pis', 'sprints', 'plans', 'objectives'].forEach((k) => { st[k] = []; });
+      st.settings.activeTeamId = null;
+      st.settings.activePiId = null;
+      W.__svTestHooks.svPlanning(false);
+      W.render();
+      await wait(150);
+    }
     if (o.sample) { W.loadSample(); await wait(300); }
     await fn(W, W.document, f);
-  } finally { f.remove(); }
+  } finally {
+    f.remove();
+    if (keepPin === null) localStorage.removeItem('sv-pin');
+    else localStorage.setItem('sv-pin', keepPin);
+  }
 }
 
 group('figures and Compare Teams (2026-09-15 review)');
@@ -8154,7 +8235,7 @@ group('a page with no tabs has no pin button either (2026-09-03 audit)');
    `hidden` as well as the cascade: a computed `position` is still `sticky` on a
    row that is display:none. */
 t('the welcome card, Forecast Ahead and a broken link show no lone 📌', async () => {
-  await inFrame('lonepin', { sample: false }, async (W, D) => {
+  await inFrame('lonepin', { sample: false, blank: true }, async (W, D) => {
     const row = D.querySelector('.tabrow');
     const btn = D.getElementById('pinBtn');
     const head = D.querySelector('header');
@@ -9408,6 +9489,34 @@ t('a control reached from the keyboard lands whole inside its table on a phone',
   });
 });
 
+group('the suite leaves storage exactly as it found it (2026-09-15 review)');
+/* LAST, on purpose: every test above has run, every frame has been removed. */
+t('every sv-* key is byte-identical to what it was before the suite ran', async () => {
+  await wait(300);
+  const drift = svStorageDrift();
+  /* A frame's BOOT may write, and that is the app, not a test: applyPin stores
+     the pin preference where there was none, boot deletes the keys sync left
+     behind, and a saved board that needs repairing is written back repaired. So
+     those, and only those, may have drifted before the restore. Anything else is
+     a test writing — the thing this exists to catch. */
+  const allowed = new Set(['sv-sync-uid', 'sv-updated']);
+  /* Only the DEFAULT a boot stores. A '1' is somebody pressing the pin — the smoke
+     walk presses every button — and the reader's next visit would open pinned. */
+  if (!('sv-pin' in SV_AT_START) && localStorage.getItem('sv-pin') === '0') allowed.add('sv-pin');
+  if (SV_AT_START['sv-data']) {
+    try {
+      w.sanitizeIds(w.coerceShape(JSON.parse(SV_AT_START['sv-data'])));
+      if (w.sanitizeIds.pruned || w.sanitizeIds.strippedNotes) allowed.add('sv-data');
+    } catch (e) { allowed.add('sv-data'); }
+  }
+  svRestoreStorage();
+  await wait(300);
+  eq(svStorageDrift(), [], 'after the restore, still different');
+  eq(drift.filter((k) => !allowed.has(k)), [],
+     'and no test wrote any of these while it ran (put back now, but a run that died '
+     + 'half way would have left them)');
+});
+
 async function run() {
 
 
@@ -9430,6 +9539,17 @@ async function run() {
       '<code>http://localhost:8012/tests.html</code>.</td></tr>';
     return;
   }
+  /* THE SHARED FRAME WRITES NOTHING (2026-09-15 review). Its real save() was
+     reached from the ART picker and forecast tests and stored a board — an empty
+     one on a clean profile, a rewritten copy of the reader's own on a real one —
+     and setSort() stored `sv-tablesort` through lsSet(). Both are top-level
+     function declarations, so they are properties of the frame's window and are
+     replaced here, once, before any test runs: a test that stubs save() for
+     itself and puts back "the real one" puts back this. lsSet() records what it
+     was asked to store instead, for the one test that pins where a preference
+     goes. Frames the tests boot for themselves stub their own. */
+  w.save = () => {};
+  w.lsSet = (k, v) => { LS_WRITES.push([k, String(v)]); };
   const out = document.getElementById('out');
   let pass = 0, fail = 0;
   for (const item of TESTS) {
