@@ -1180,7 +1180,18 @@ th .tile-help, td .tile-help { vertical-align: 1px; }
    Chrome and Firefox were always right here, which is why this went unnoticed —
    it is only ever visible on the phone. Mirrored in Flow Metrics, Money Map and Golf
    Handicap. */
-.tablewrap { overflow-x: auto; position: relative; }
+/* 4px OF PADDING, CANCELLED BY A -4px MARGIN (2026-09-15 review). overflow-x:
+   auto clips BOTH axes at the padding box, and with no padding the sort buttons
+   sat on that edge: every heading's focus ring lost its top, the first column
+   its left and the last its right, at every width. The tab row's shape
+   (`.tabs { padding: 4px; margin: -4px }`) — the box grows outward by exactly
+   what it gives the ring, so no table moves. The keyboard reveal below measures
+   against this padding edge. An inline margin-top on a .tablewrap replaces the
+   -4px, and it COLLAPSES with the margin of whatever sits above — so shaving the
+   4px off the margin is only right for one neighbour. Such a box keeps its margin
+   and takes `padding-top: 0` instead (PI Trend's capacity table, whose heading row
+   holds no control and so needs no ring room above it). */
+.tablewrap { overflow-x: auto; position: relative; padding: 4px; margin: -4px; }
 table { border-collapse: collapse; width: 100%; font-size: var(--fs-sm);
   font-variant-numeric: tabular-nums; }
 th, td { text-align: right; padding: 10px 12px; border-bottom: 1px solid var(--border); }
@@ -9863,6 +9874,8 @@ function piCapacityCard(teams, includeSix) {
         oneOffs.length === 1 ? 'it counts' : 'they count'} here at the full figure — the
       adjusted one is next sprint's target on the <strong>Rolling ${ROLLING_WINDOW}</strong> tab.</span></p>` : ''}
     <div class="tablewrap" style="margin-top:14px">
+
+    <div class="tablewrap" style="margin-top:14px;padding-top:0">
     <table aria-label="Suggested capacity per team for the next PI">
       <thead><tr><th scope="col">Team</th><th scope="col">Per sprint</th>
         <th scope="col">Across ${plural(slots, 'sprint')}</th></tr></thead>

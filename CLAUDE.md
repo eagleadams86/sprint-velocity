@@ -2661,3 +2661,21 @@ proven red against the commit before it.
   which is item 10's. Test: a 320×640 `inFrame`, Share opened by its button, the window's
   `scrollWidth <= clientWidth`, the picker inside its inner edge, and a fieldset's computed
   `min-inline-size` of 0.
+- **A table heading's focus ring has room on every side (2026-09-15).** `overflow-x: auto`
+  clips BOTH axes at the padding box, and `.tablewrap` had no padding, so every sortable
+  heading's ring lost its top edge (and the first column its left, the last its right) at every
+  width — at 1280 on PI Trend the "PI" ring showed only its left and bottom. `.tablewrap` now
+  takes the tab row's shape, `padding: 4px; margin: -4px`: the box grows outward by exactly
+  what it hands the ring, so nothing moves. Chosen over an inset `outline-offset` on
+  `th button` because it keeps the family's one ring, covers the row buttons in the first column
+  too, and gives item 10's reveal a padding edge to measure against. **The trap: an inline
+  `margin-top` on a `.tablewrap` replaces the -4px, and it COLLAPSES with the margin above.**
+  PI Trend's capacity table carried `margin-top:14px` under a note with a 16px bottom margin
+  (or under the tiles, with none), so shaving the margin to 10px was right for one neighbour and
+  4px wrong for the other; it keeps its 14px and takes `padding-top: 0` (its heading row holds
+  no control). **Measured against the previous commit** (Playwright, sample data, every view for
+  every team plus Teams & PIs, 176 measurements each at 1280×800 and 390×844): no table, first
+  cell, card or page height moved. A real Tab walk at 1280 on PI Trend: 61 headings short of ring
+  room → 0. Test: 1280 PI Trend and Compare Teams, 390 Team PI and Rolling 5 — ≥3.5px above every
+  heading, left of the first, right of the last at the scroll end (3px, the family's end
+  tolerance), and each table still on its card's content edge.

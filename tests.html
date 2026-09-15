@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 522;
+const EXPECTED = 523;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -9293,6 +9293,58 @@ t('the Share window does not scroll sideways on a 320px phone', async () => {
     eq(W.getComputedStyle(D.querySelector('#shareDialog fieldset')).minInlineSize, '0px',
        'and a fieldset may shrink like any other box — the cause, for every window');
     dlg.close();
+  });
+});
+t('a table heading’s focus ring has room on every side inside its scroller', async () => {
+  /* `.tablewrap` scrolls sideways, and overflow-x: auto clips BOTH axes at the
+     padding box. With no padding the heading buttons sat on its top edge, so the
+     ring showed only its left and bottom — at every width, on every sortable
+     table. 4px of padding cancelled by a -4px margin (the tab row's shape) gives
+     the ring its room without moving a table. */
+  const check = async (W, D, view, label) => {
+    D.querySelector('.tab[data-view="' + view + '"]').click();
+    await wait(400);
+    const wraps = [...D.querySelectorAll('#views .tablewrap')]
+      .filter((x) => x.querySelector('th.sortable button[data-sortcol]'));
+    ok(wraps.length > 0, label + ': a sortable table is on screen');
+    wraps.forEach((wrap, n) => {
+      const cs = W.getComputedStyle(wrap);
+      const box = () => {
+        const r = wrap.getBoundingClientRect();
+        return { l: r.left + parseFloat(cs.borderLeftWidth), r: r.right - parseFloat(cs.borderRightWidth),
+                 t: r.top + parseFloat(cs.borderTopWidth) };
+      };
+      ok(wrap.clientWidth > 0, label + ' table ' + n + ' measured at a real size', wrap.clientWidth);
+      const heads = [...wrap.querySelectorAll('thead th.sortable button[data-sortcol]')];
+      wrap.scrollLeft = 0;
+      const b0 = box(), first = heads[0].getBoundingClientRect();
+      heads.forEach((h) => {
+        const top = h.getBoundingClientRect().top - b0.t;
+        ok(top >= 3.5, label + ' table ' + n + ': "' + h.textContent.trim() + '" has ring room above it', top);
+      });
+      ok(first.left - b0.l >= 3.5, label + ' table ' + n + ': the first heading has room on its left',
+         first.left - b0.l);
+      wrap.scrollLeft = wrap.scrollWidth;
+      const b1 = box(), last = heads[heads.length - 1].getBoundingClientRect();
+      ok(b1.r - last.right >= 3, label + ' table ' + n + ': the last heading has room on its right at the end',
+         b1.r - last.right);
+      wrap.scrollLeft = 0;
+      /* Nothing moved: the table still starts at its card's content edge. */
+      const card = wrap.closest('.card');
+      const ccs = W.getComputedStyle(card);
+      const edge = card.getBoundingClientRect().left + parseFloat(ccs.borderLeftWidth)
+        + parseFloat(ccs.paddingLeft);
+      const tl = wrap.querySelector('table').getBoundingClientRect().left;
+      ok(Math.abs(tl - edge) < 0.5, label + ' table ' + n + ' still lines up with its card', tl + ' vs ' + edge);
+    });
+  };
+  await inFrame('ringroom1280', { width: 1280, height: 900 }, async (W, D) => {
+    await check(W, D, 'trend', '1280 PI Trend');
+    await check(W, D, 'teams', '1280 Compare Teams');
+  });
+  await inFrame('ringroom390', { width: 390, height: 844 }, async (W, D) => {
+    await check(W, D, 'pi', '390 Team PI');
+    await check(W, D, 'rolling', '390 Rolling 5');
   });
 });
 
