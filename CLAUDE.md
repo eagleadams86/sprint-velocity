@@ -534,7 +534,9 @@ but Charles had ever actually signed in.)
   the way they do: **predictability is the MEAN of the teams' own measures** (every team once,
   so it survives a train changing size, and the same method `renderArtPiView`'s tile uses so
   the two views can't disagree about one PI), while **commitment completion is POOLED**
-  (matching Team PI and the Dashboard) and openly does not survive it. A PI with nothing
+  (Team PI's and the Dashboard's method) and openly does not survive it. **It MATCHES those
+  two only with sprint 6 counted** — they always count the IP sprint and `piTrend()` leaves it
+  out by default — so every place that makes the claim says so (2026-09-15). A PI with nothing
   recorded is a GAP, not a zero — `any` is false and the view drops it rather than plotting a
   hole as a collapse; a PI with no business value leaves a hole in the predictability line for
   the same reason. **There is deliberately no total row**: adding PIs together answers
@@ -2503,3 +2505,13 @@ proven red against the commit before it.
   ignores a standing figure whenever a one-off sits on the next slot; noted, not changed here. The
   one-off is named under *⚑ One-off not stretched*, since the per-sprint figure no longer matches
   the Rolling 5 target for that team.
+- **PI Trend's "matches Team PI and the Dashboard" was false by default (2026-09-15).** Its
+  Complete % is pooled, the same method — but `piTrend()` drops the IP sprint unless the
+  include-sprint-6 toggle is on, while `renderPiView` and `renderArtPiView` always count it: PI
+  2026.1 read 132 / 109 / 83% / 122 on PI by Team and 104 / 85 / 82% / 98 on PI Trend. **The
+  method was kept and the claim corrected, not the other way round**: this file records the
+  leave-out as the design ("the IP sprint is left out on the same terms as everywhere else, so a
+  PI's delivery figures aren't diluted by the sprint that isn't for delivery") and a test pins
+  it. The Numbers card, the ⓘ window, the README and the `piTrend` bullet above now say it
+  matches only with sprint 6 counted; the test proves that with the toggle on the PI 2026.1 row
+  equals PI by Team's footer row.

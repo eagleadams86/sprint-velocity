@@ -4453,9 +4453,11 @@ function forecast(teamId, points, includeSix) {
 
    Predictability is the MEAN of the teams' own measures — SAFe's definition, and
    the same method the PI by Team tile uses, so the two views can't disagree about the
-   same PI. Commitment completion is POOLED, matching Team PI's headline tile
-   and the Agile Operations Dashboard. Neither picks a method silently; the table
-   says which is which. */
+   same PI. Commitment completion is POOLED, Team PI's headline method and the
+   Agile Operations Dashboard's — but it MATCHES those only with sprint 6 counted,
+   because both always count the IP sprint and this leaves it out by default. The
+   page says so wherever it makes the claim. Neither picks a method silently; the
+   table says which is which. */
 function piTrend(teams, includeSix) {
   const ids = (teams || []).map(t => t.id);
   return state.pis.map(pi => {
@@ -5140,9 +5142,12 @@ const METRIC_HELP = {
       measure averaged, so it stays comparable across PIs that covered different teams — a
       train that grew didn't get better because there is more of it.` },
   trendCommitment: { title: 'Commitment Completion', target: TARGET_COMPLETION,
-    body: `Every committed point across the PI's counted sprints, pooled — the same method the
-      Team PI tab and the Agile Operations Dashboard use. A train can move this without
-      moving predictability, or the reverse, and that gap is usually the conversation.` },
+    body: `<p>Every committed point across the PI's counted sprints, pooled — the same method the
+      Team PI tab and the Agile Operations Dashboard use. <strong>It matches them only with sprint
+      6 counted</strong>: they always count the IP sprint, and this view leaves it out unless
+      Include sprint 6 (IP) is ticked.</p>
+      <p>A train can move this without moving predictability, or the reverse, and that gap is
+      usually the conversation.</p>` },
   trendDelivered: { title: 'Delivered', target: null,
     body: `Total points completed in the PI, break-in included. Unlike predictability this is a
       raw total, so it moves with the size of the train as well as with how it did — read it
@@ -9547,8 +9552,13 @@ function renderPiTrendView() {
       <p class="sub">Oldest PI first. <strong>Predictability</strong> is each team's own measure
         averaged — every team counting once, which is what makes it comparable across PIs that
         cover different teams. <strong>Complete %</strong> is pooled: every point added up and
-        the percentage taken once, matching the Team PI tab and the Agile Operations
-        Dashboard.</p>
+        the percentage taken once, the method the Team PI tab and the Agile Operations
+        Dashboard use.${includeSix ? ' With sprint 6 counted, the figures match them.'
+          /* The claim used to be unconditional, and by default it was false: this view
+             leaves the IP sprint out and those two count it (2026-09-15). */
+          : ' Those two count sprint 6 and this view leaves it out, so the figures here match'
+            + ' them only with <strong>Include sprint 6 (IP)</strong> ticked on the Rolling '
+            + ROLLING_WINDOW + ' tab.'}</p>
       <div class="tablewrap">
       <table id="trendTable" aria-label="Every PI, oldest first">
         <thead><tr>${sortHead('trendTable', [

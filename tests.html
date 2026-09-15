@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 509;
+const EXPECTED = 510;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -7485,6 +7485,37 @@ t('What the Next PI Could Hold does not stretch a one-off across the PI', () => 
     ok(/One-off not stretched.*Team New Start/.test(notes),
        'the one-off it declined to stretch is named', notes);
   });
+});
+
+t('PI Trend says its Complete % matches Team PI only when sprint 6 is counted', () => {
+  /* piTrend() leaves the IP sprint out unless the toggle is on — deliberately, so a
+     PI's delivery figures are not diluted by the sprint that is not for delivery.
+     Team PI and PI by Team always count it. So the claim "matching the Team PI tab
+     and the Agile Operations Dashboard" was false by default: PI 2026.1 read
+     132 / 109 / 83% / 122 on PI by Team and 104 / 85 / 82% / 98 here. */
+  reviewView('trend', (st, d) => {
+    const numbers = reviewCard(d, 'The Numbers');
+    const sub = reviewText(numbers && numbers.querySelector('.sub'));
+    ok(/Team PI/.test(sub), 'the Numbers card still names the method it shares', sub);
+    ok(/sprint 6/i.test(sub), 'and, with sprint 6 left out, says that is the difference', sub);
+    const help = TG().METRIC_HELP.trendCommitment.body;
+    ok(/sprint 6/i.test(help), 'the ⓘ window makes the claim conditional too', help);
+  });
+  /* And the claim, as now made, is TRUE: with sprint 6 counted, PI 2026.1's row
+     here is PI by Team's footer row for the same PI. */
+  let trend = null, art = null;
+  reviewView('trend', (st, d) => {
+    const row = [...d.querySelectorAll('#trendTable tbody tr')]
+      .find(tr => tr.querySelector('th').textContent.trim() === 'PI 2026.1');
+    const c = row ? [...row.querySelectorAll('td')].map(reviewText) : [];
+    trend = [c[2], c[3], c[4].replace(/[^0-9]/g, ''), c[5]];
+  }, (st) => { st.settings.includeSprint6InRolling = true; });
+  reviewView('art', (st, d) => {
+    const c = [...d.querySelectorAll('#artTable tfoot td')].map(reviewText);
+    art = [c[1], c[2], c[3].replace(/[^0-9]/g, ''), c[4]];
+  }, (st) => { st.settings.activePiId = st.pis.find(p => p.name === 'PI 2026.1').id; });
+  eq(trend, art, 'committed, done, complete % and delivered agree once sprint 6 is counted');
+  eq(art, ['132', '109', '83', '122'], 'the PI by Team figures the review read');
 });
 
 group('a step lands the keyboard on the new chart (2026-09-03 audit)');

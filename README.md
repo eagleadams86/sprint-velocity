@@ -104,8 +104,10 @@ the view says so:
 
 That's the reason the two methods are split the way they are. **Predictability** is the mean
 of each team's own measure — every team counting once — which survives the comparison.
-**Complete %** is pooled, matching the Team PI tab and the Agile Operations Dashboard, and
-it doesn't.
+**Complete %** is pooled — the method the Team PI tab and the Agile Operations Dashboard
+use — and it doesn't. The figures only *match* those two with **Include sprint 6 (IP)**
+ticked: they always count the IP sprint, and this view leaves it out by default so a PI's
+delivery figures aren't diluted by the sprint that isn't for delivery. The page says which.
 
 A PI with nothing recorded is dropped rather than drawn as a hole, and a PI with no business
 value recorded leaves a gap in the predictability line rather than reading as 0%. Both are
