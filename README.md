@@ -614,7 +614,7 @@ rather than dragging them down.
 - **Compare Teams** — every team's rolling averages side by side, plus each team's next-sprint
   target in one column, so the one that needs attention is obvious. Its figures are the
   [average-of-sprints method](#two-ways-to-average-a-percentage), every column
-  [sorts](#sorting-the-table), and an **ART filter** runs across the top when your teams are
+  [sorts](#sorting-a-table), and an **ART filter** runs across the top when your teams are
   grouped into ARTs. It also carries a [**Trend**](#which-way-each-team-is-going) column and a
   [**Sprint goals**](#the-goals-column-and-the--finding) one.
 
