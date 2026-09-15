@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 518;
+const EXPECTED = 519;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -1835,6 +1835,21 @@ t('the share-meta label and timestamp are pinned too, not just allowed through',
   }));
   eq(out.label.length, 120, 'an unbounded label is capped like every other label');
   ok(!('sharedAt' in out), 'a sharedAt that is not a number is dropped, so the banner never says "Invalid Date"');
+});
+t('a sharedAt past the calendar’s end is dropped too, not just a non-number (2026-09-15 review)', () => {
+  /* Finite is not the same as a date. A JS Date holds ±8.64e15 ms and not one
+     more, so 1e300 passed the old isFinite pin and printed "Shared on Invalid
+     Date" — the exact banner the pin exists to prevent. */
+  const at = (v) => w.sanitizeIds(w.coerceShape({
+    v: 1, sharedAt: v, teams: [{ id: 't1', name: 'A' }], arts: [], pis: [], sprints: [], settings: {},
+  }));
+  ok(!('sharedAt' in at(1e300)), 'a huge sharedAt is dropped', at(1e300).sharedAt);
+  ok(!('sharedAt' in at(8.64e15 + 1)), 'one past the limit is dropped');
+  ok(!('sharedAt' in at(-1e300)), 'and so is a huge negative one');
+  eq(at(8.64e15).sharedAt, 8.64e15, 'the last real instant is kept');
+  eq(at(-8.64e15).sharedAt, -8.64e15, 'and so is the first');
+  eq(at(1755000000000).sharedAt, 1755000000000, 'an ordinary one is untouched');
+  ok(String(new Date(at(8.64e15).sharedAt)) !== 'Invalid Date', 'and every kept value is a real date');
 });
 
 group('nextSprintTarget — the availability adjustment');

@@ -2605,3 +2605,16 @@ proven red against the commit before it.
   `forecast()`, `forecastHasRate()`, the typed-rate caveat and `piCapacityCard()`. Unchanged: a
   typed rate takes no availability of either kind, next sprint's own figure still lets the
   one-off win outright, and a one-off is still never stretched.
+
+### Layout, the Data Boundary and the Suite
+
+Findings a reviewer confirmed by driving HEAD (`3cf836f`). One fix per commit, each with a test
+proven red against the commit before it.
+
+- **A `sharedAt` past the calendar is dropped, not only a non-number (2026-09-15).** The pin
+  beside `label` checked `Number.isFinite`, so a crafted link carrying `sharedAt: 1e300` crossed
+  it and the banner read "Shared on Invalid Date" — the exact thing the pin was written to stop.
+  A JS `Date` holds ±8.64e15 ms; the boundary now drops anything outside that. `sharedAt` is the
+  only millisecond date that crosses the boundary (every other date is a `YYYY-MM-DD` string
+  held to `DATE_RE`), so nothing else took the same change. Test: 1e300, one past the limit and
+  -1e300 dropped; ±8.64e15 kept.

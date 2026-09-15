@@ -3666,14 +3666,16 @@ function sanitizeIds(data) {
   /* Allowed through is not the same as trusted: the shared-view banner prints
      these two, so they're pinned to their types the way keepKnown pins every
      other value — or a crafted link rides an unbounded string in on `label`,
-     and a non-numeric `sharedAt` puts "Invalid Date" in the banner. */
+     and a `sharedAt` that is not a date puts "Invalid Date" in the banner.
+     Not a date means non-numeric OR past the calendar: a Date holds ±8.64e15 ms,
+     so 1e300 is finite and still Invalid Date (2026-09-15 review). */
   if ('label' in data) {
     const l = String(data.label).slice(0, 120);
     if (l !== data.label) { data.label = l; sanitizeIds.pruned++; }
   }
   if ('sharedAt' in data) {
     const n = Number(data.sharedAt);
-    if (!Number.isFinite(n)) { delete data.sharedAt; sanitizeIds.pruned++; }
+    if (!Number.isFinite(n) || Math.abs(n) > 8.64e15) { delete data.sharedAt; sanitizeIds.pruned++; }
     else if (n !== data.sharedAt) { data.sharedAt = n; sanitizeIds.pruned++; }
   }
   /* And the range, which the same banner reads through shareRangeNote(): a
