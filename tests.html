@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 520;
+const EXPECTED = 521;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -2713,22 +2713,46 @@ t('the import template comes out of a demo team as a real, re-importable file', 
       'and every one lands back on the sprint it came from');
   });
 });
-t('an import error quotes at most 40 characters of the cell that failed', () => {
-  withSample((id) => {
-    /* The echo is what makes a typo findable, and the cap is what keeps it
-       from being a disclosure: the cell most likely to run long is a Jira
-       summary in a paste that was never meant for this box, and an error row
-       must not put a readable copy of one on screen. Display only — nothing
-       an error row shows is ever stored — but the diagnostics rule is
-       point-don't-echo, and 40 characters is pointing. */
-    const summary = 'Implement the quarterly reconciliation export for the payments platform team';
-    const plan = w.parseImport('sprint\tteam\n3\t' + summary, null);
-    const problem = plan.rows[0].problem;
-    eq(plan.rows[0].record, null, 'the row failed (no such team)');
-    ok(problem.includes(summary.slice(0, 40) + '\u2026'),
-      'the first 40 characters and an ellipsis are quoted', problem);
-    ok(!problem.includes(summary),
-      'the full cell is not', problem);
+t('an import error points at the row and column and quotes nothing that was pasted (Charles, 2026-09-15)', () => {
+  withSample(() => {
+    /* It used to quote up to 40 characters of the failing cell. The cell most
+       likely to fail is a Jira summary in a paste never meant for this box, and
+       40 characters of one is a readable copy of it on screen. Charles decided
+       2026-09-15: point, never echo - the row (its line in the paste, blank
+       lines counted) and the column are what find the typo. Every failure branch
+       that used to quote a cell is driven, and the RENDERED preview is read as
+       well as the message, since that is what a reader actually sees. */
+    const M = 'Customer ACME SSO bypass lets tenant admins read every other tenant';
+    const leaks = (s) => /ACME|Customer|tenant/.test(s);
+    const cases = [
+      { paste: 'sprint\tteam\n\n3\t' + M, row: 3, col: 'Team column' },
+      { paste: 'team\tpi\tsprint\nTeam Baseline\t' + M + '\t2', row: 2, col: 'PI column' },
+      { paste: 'team\tsprint\nTeam Baseline\t' + M, row: 2, col: 'Sprint column' },
+      { paste: 'team\tsprint\tcommitted completed\n\n\nTeam Baseline\t40\t' + M, row: 4,
+        col: 'Committed completed column' },
+      { paste: 'team\tsprint\tstart\nTeam Baseline\t40\t' + M, row: 2, col: 'Start column' },
+    ];
+    const box = w.document.getElementById('importText');
+    const before = box.value;
+    try {
+      cases.forEach((c) => {
+        const r = w.parseImport(c.paste, null).rows[0];
+        eq(r.record, null, 'the row failed: ' + c.col);
+        ok(r.problem.startsWith('Row ' + c.row + ': '),
+           'it names the row by its line in the paste', r.problem);
+        ok(r.problem.includes(c.col), 'and the column that failed', r.problem);
+        ok(!leaks(r.problem), 'and quotes none of the cell', r.problem);
+        box.value = c.paste;
+        w.refreshImportPreview();
+        const seen = w.document.getElementById('importPreview').textContent
+          + w.document.getElementById('importWarn').textContent;
+        ok(seen.includes('Row ' + c.row + ':'), 'the preview shows the pointer', seen);
+        ok(!leaks(seen), 'and nothing on the preview repeats the pasted cell', seen);
+      });
+    } finally {
+      box.value = before;
+      w.refreshImportPreview();
+    }
   });
 });
 t('Team Live Sprint is deliberately unscored — its PI is still running', () => {
@@ -5999,7 +6023,9 @@ t('a name that matches nothing is a skipped row with a sentence, never a new tea
   withState(importFixture(), () => {
     const plan = w.parseImport(HEAD + '\nTeam Nine\tPI 1\t1\t20\t18', 't1');
     eq(plan.rows[0].record, null);
-    ok(plan.rows[0].problem.indexOf('Team Nine') >= 0, plan.rows[0].problem);
+    ok(/^Row 2: no team by that name in the Team column/.test(plan.rows[0].problem),
+       'it points at the row and the column', plan.rows[0].problem);
+    ok(plan.rows[0].problem.indexOf('Team Nine') < 0, 'and never quotes the cell', plan.rows[0].problem);
     eq(w.svGet().teams.length, 2, 'and nothing was created');
   });
 });
@@ -6007,7 +6033,8 @@ t('the same for a PI — a typo does not quietly file the sprint outside one', (
   withState(importFixture(), () => {
     const plan = w.parseImport(HEAD + '\nTeam One\tPI 9\t1\t20\t18', 't1');
     eq(plan.rows[0].record, null);
-    ok(plan.rows[0].problem.indexOf('PI 9') >= 0, plan.rows[0].problem);
+    ok(/^Row 2: no PI by that name in the PI column/.test(plan.rows[0].problem), plan.rows[0].problem);
+    ok(plan.rows[0].problem.indexOf('PI 9') < 0, 'never the cell', plan.rows[0].problem);
   });
 });
 t('names match loosely — case and spacing are not a reason to fail a paste', () => {
@@ -6021,7 +6048,17 @@ t('a figure that is present and is not a number stops the row', () => {
   withState(importFixture(), () => {
     const plan = w.parseImport(HEAD + '\nTeam One\tPI 1\t1\tn/a\t18', 't1');
     eq(plan.rows[0].record, null, 'better a skipped row than a plausible wrong history');
-    ok(plan.rows[0].problem.indexOf('n/a') >= 0, plan.rows[0].problem);
+    eq(plan.rows[0].problem, 'Row 2: the Committed column needs a number.',
+       'the row and the column, in this app’s own words — never the cell');
+  });
+});
+t('the Row an import names is the line in the paste, blank lines counted (2026-09-15)', () => {
+  withState(importFixture(), () => {
+    /* The row number is the only pointer back into the spreadsheet now that an
+       error quotes nothing, so it has to be the line the reader can find. */
+    const plan = w.parseImport(HEAD + '\n\nTeam One\tPI 1\t1\t20\t18\n\n  \nTeam Nine\tPI 1\t3\t20\t18', 't1');
+    eq(plan.rows.map(r => r.line), [3, 6], 'lines 3 and 6 of the paste, not rows 2 and 3');
+    ok(plan.rows[1].problem.startsWith('Row 6: '), 'and the message says the same', plan.rows[1].problem);
   });
 });
 t('an overwrite keeps everything the paste has no column for', () => {

@@ -2632,3 +2632,20 @@ proven red against the commit before it.
   so boot persists the minted ids once. `idOrNull` still collapses `''`/null to null: a
   REFERENCE holding one is not an id to mint. Test: the reviewer's payload through
   `sanitizeIds(coerceShape())`, then Teams & PIs rendered and the ghost's real Delete pressed.
+- **SV's import error rows POINT and never ECHO — Charles, 2026-09-15.** `parseImport()` used
+  to quote up to 40 characters of a failing cell through `echoCell`, on the argument that a
+  quote makes a typo findable. The cell most likely to fail is a Jira summary in a paste never
+  meant for this box, and 40 characters of one (`No team called "Customer ACME SSO bypass lets
+  tenant adm…"`) is a readable copy of it on screen. Charles decided to drop the quote. Every
+  error row now reads `Row N: <what the COLUMN needs>` — *no team by that name in the Team
+  column*, *the Committed column needs a number*, *the Start column needs a date written
+  YYYY-MM-DD* — naming the column in this app's own words (`COL`), never the pasted heading,
+  which is pasted text too. **N is the line in the SOURCE paste, blank lines counted**: blank
+  lines are still skipped, but each row keeps the line number it sat on (`lineNo`), because with
+  no quote the row is the only pointer back into the spreadsheet — it used to be the index among
+  non-blank lines, so a paste with a blank line pointed at the wrong row. **Don't reintroduce a
+  quote, capped or not**; this is the global point-don't-echo rule with no carve-out here (Flow
+  Metrics' shape-guarded issue key is a separate case, and SV stores no keys). Tests: every
+  branch that used to quote is driven with a marker cell, and the RENDERED preview is read as
+  well as the message; the three older import tests that asserted an echo assert the pointer
+  instead; and a new test pins the source-line numbering.

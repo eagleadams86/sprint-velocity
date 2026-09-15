@@ -1700,6 +1700,12 @@ that is present and isn't a number stops its row, because "n/a" in a committed c
 always means the columns are one out, and reading it as 0 would import a plausible, wrong
 history.
 
+**An error names the row and the column, and never repeats what was in the cell** —
+*Row 7: no team by that name in the Team column*. The row is the line in your paste, blank
+lines counted, so it is the line you'll find in the spreadsheet. Nothing from the cell is
+quoted, because a paste that went into the wrong box can carry a ticket summary, and an error
+message is no place to put one back on screen.
+
 **Names are looked up, never stored.** A `team` or `pi` cell finds a row that already exists
 and is then discarded — this never creates either, and it will tell you to add one first. That
 isn't caution about typos, it's the [numbers-and-dates rule](#what-it-tracks): the only things

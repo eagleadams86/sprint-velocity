@@ -13275,7 +13275,14 @@ const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
    `state`; applying is a separate pass over what this returned, so what the
    preview shows and what Import does cannot come apart. */
 function parseImport(text, fallbackTeamId) {
-  const lines = String(text || '').split(/\r?\n/).filter(l => l.trim() !== '');
+  /* Blank lines are skipped, but a row keeps the number of the line it sits on in
+     the PASTE (2026-09-15): an error row is the only pointer back into the
+     spreadsheet now that it quotes nothing, so "Row 7" has to be line 7 of what
+     was pasted, not the seventh line that had something on it. */
+  const lines = [], lineNo = [];
+  String(text || '').split(/\r?\n/).forEach((l, i) => {
+    if (l.trim() !== '') { lines.push(l); lineNo.push(i + 1); }
+  });
   if (!lines.length) return { rows: [], fatal: '' };
   const delim = lines[0].indexOf('\t') >= 0 ? '\t' : ',';
   const heads = splitImportLine(lines[0], delim).map(h => IMPORT_COLUMNS[importKey(h)] || null);
@@ -13297,18 +13304,18 @@ function parseImport(text, fallbackTeamId) {
   /* Matched on a squashed, case-folded name for the same reason the headings are:
      "Team Baseline" out of a spreadsheet and "team baseline" typed by hand are the
      same team, and failing the row over a capital reads as the app being broken. */
-  /* An error row quotes the cell that failed — that is what makes a typo
-     findable in a fifty-row paste — but it quotes at most the first 40
-     characters. The paste box is for figures, and the cell most likely to be
-     longer than that is a Jira summary in a paste that was never meant for
-     this box; an error message must not put a readable copy of one on screen.
-     Display only, never stored, and escaped at the render — this cap is the
-     diagnostics rule (point, don't echo) applied to the echo that earns its
-     keep. */
-  const echoCell = (v) => {
-    v = String(v);
-    return v.length > 40 ? v.slice(0, 40) + '\u2026' : v;
-  };
+  /* AN ERROR ROW POINTS AND NEVER ECHOES (Charles, 2026-09-15). It names the row
+     (its line in the paste), the column that failed and what that column needs,
+     and quotes NOTHING from the cell. It used to quote up to 40 characters, on
+     the argument that a quote makes a typo findable - but the cell most likely to
+     fail is a Jira summary in a paste never meant for this box, and 40 characters
+     of one is a readable copy of it on screen. The row and column find the typo
+     just as well: the reader has the spreadsheet open. Column names are this
+     app's own words, never the pasted heading, which is pasted text too. */
+  const COL = { team: 'Team', pi: 'PI', sprintNumber: 'Sprint', startDate: 'Start',
+    endDate: 'End', committed: 'Committed', committedCompleted: 'Committed completed',
+    totalCompleted: 'Total completed', added: 'Added', removed: 'Removed',
+    carriedIn: 'Carried in', carriedOut: 'Carried out', addedThenRemoved: 'Brought in then removed' };
 
   const teamByName = new Map(state.teams.map(t => [importKey(t.name), t]));
   const piByName = new Map(state.pis.map(pi => [importKey(pi.name), pi]));
@@ -13324,13 +13331,14 @@ function parseImport(text, fallbackTeamId) {
     heads.forEach((field, c) => {
       if (field) raw[field] = (cells[c] === undefined ? '' : String(cells[c]).trim());
     });
-    const row = { line: i + 1, raw, problem: '', action: '', record: null, label: '' };
+    const row = { line: lineNo[i], raw, problem: '', action: '', record: null, label: '' };
+    const at = `Row ${row.line}: `;
 
     const team = raw.team ? teamByName.get(importKey(raw.team)) : teamById(fallbackTeamId);
     if (!team) {
       row.problem = raw.team
-        ? `No team called “${echoCell(raw.team)}” — add it in Teams & PIs first, then paste again. `
-          + 'This never creates one.'
+        ? `${at}no team by that name in the ${COL.team} column — add it in Teams & PIs first, `
+          + 'then paste again. This never creates one.'
         : 'No team to put this on. Name one in a team column, or pick a team first.';
       rows.push(row); continue;
     }
@@ -13339,15 +13347,15 @@ function parseImport(text, fallbackTeamId) {
     if (raw.pi) {
       pi = piByName.get(importKey(raw.pi));
       if (!pi) {
-        row.problem = `No PI called “${echoCell(raw.pi)}” — add it in Teams & PIs, or clear the cell to `
-          + 'record the sprint outside a PI.';
+        row.problem = `${at}no PI by that name in the ${COL.pi} column — add it in Teams & PIs, `
+          + 'or clear the cell to record the sprint outside a PI.';
         rows.push(row); continue;
       }
     }
 
     const n = Math.round(parseFloat(raw.sprintNumber));
     if (!Number.isFinite(n) || n < 1 || n > MAX_SPRINT_NO) {
-      row.problem = `“${echoCell(raw.sprintNumber || '')}” isn’t a sprint number.`;
+      row.problem = `${at}the ${COL.sprintNumber} column needs a sprint number from 1 to ${MAX_SPRINT_NO}.`;
       rows.push(row); continue;
     }
     if (pi && n > SPRINTS_PER_PI) {
@@ -13366,7 +13374,7 @@ function parseImport(text, fallbackTeamId) {
       const v = raw[key];
       if (v === undefined || v === '') { nums[key] = 0; continue; }
       const f = parseFloat(String(v).replace(/,/g, ''));
-      if (!Number.isFinite(f)) { bad = `“${echoCell(v)}” in ${key} isn’t a number.`; break; }
+      if (!Number.isFinite(f)) { bad = `${at}the ${COL[key]} column needs a number.`; break; }
       nums[key] = Math.max(0, Math.round(f));
     }
     if (bad) { row.problem = bad; rows.push(row); continue; }
@@ -13374,7 +13382,7 @@ function parseImport(text, fallbackTeamId) {
     for (const key of ['startDate', 'endDate']) {
       const v = raw[key];
       if (v && !DATE_ONLY.test(v)) {
-        bad = `“${echoCell(v)}” isn’t a date. Format dates as YYYY-MM-DD — a spreadsheet will do it `
+        bad = `${at}the ${COL[key]} column needs a date written YYYY-MM-DD — a spreadsheet will do it `
           + 'with Format cells.';
         break;
       }
