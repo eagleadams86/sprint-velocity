@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 508;
+const EXPECTED = 509;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -7430,6 +7430,62 @@ async function inFrame(tag, opts, fn) {
     await fn(W, W.document, f);
   } finally { f.remove(); }
 }
+
+group('figures and Compare Teams (2026-09-15 review)');
+/* Nine findings from a reviewer driving the sample data, one fix per commit. Each
+   reads the RENDERED page where the claim is about the screen, because the
+   defects were all things a reader saw rather than values a function returned. */
+
+/* The sample, rendered on one view with the scope pinned: no ART filter, sprint 6
+   left out, running sprints not counted — the defaults a first run lands on.
+   withRenderedSample restores the whole settings object afterwards. */
+function reviewView(view, fn, extra) {
+  return withRenderedSample((st) => {
+    st.settings.artFilter = [];
+    st.settings.includeSprint6InRolling = false;
+    st.settings.includeInProgress = false;
+    if (extra) extra(st);
+    st.settings.view = view;
+    w.render();
+    return fn(st, w.document);
+  });
+}
+const reviewCard = (d, heading) => [...d.querySelectorAll('#views .card')]
+  .find(c => { const h = c.querySelector('h2'); return h && h.textContent.trim().startsWith(heading); }) || null;
+const reviewText = (el) => (el ? el.textContent.replace(/\s+/g, ' ').trim() : '');
+
+t('What the Next PI Could Hold does not stretch a one-off across the PI', () => {
+  reviewView('trend', (st, d) => {
+    const card = reviewCard(d, 'What the Next PI Could Hold');
+    ok(card, 'the card is on the PI Trend view');
+    ok(card && card.getClientRects().length > 0, 'and drawn, not hidden');
+    const row = card && [...card.querySelectorAll('tbody tr')]
+      .find(tr => tr.querySelector('th').textContent.trim() === 'Team New Start');
+    ok(row, 'Team New Start has a row');
+    const cells = row ? [...row.querySelectorAll('td')].map(reviewText) : [];
+    /* 14 and 11 finished; 50% leave is set against PI 2026.3 S3, a sprint in the
+       CURRENT PI. forecast() refuses to stretch a one-off over a span, and five
+       sprints of the next PI is a span. */
+    eq(cells[0], '13', 'per sprint is the unadjusted 12.5, not the 6 that next sprint’s leave makes it');
+    eq(cells[1], '63', 'across 5 sprints is 12.5 × 5');
+    const across = card && [...card.querySelectorAll('.tile')]
+      .find(el => el.querySelector('.label').textContent.trim().startsWith('Across the PI'));
+    /* 537.4 while the leave was stretched; + (12.5 − 6.25) × 5 = 568.65, so 569 on
+       the tile — not the 568 that adding 31 to the rounded 537 would suggest. */
+    eq(across ? across.querySelector('.value').textContent.replace(/[^0-9]/g, '') : null, '569',
+       'and the total follows: 537 while the leave was stretched over the PI');
+    /* The standing lever DOES hold across a span, so Team Live Sprint keeps its flag. */
+    const live = card && [...card.querySelectorAll('tbody tr')]
+      .find(tr => tr.querySelector('th').textContent.trim() === 'Team Live Sprint');
+    ok(live && /⚑ 90%/.test(reviewText(live)), 'a standing availability still flags its row', reviewText(live));
+    eq(/⚑ 50%/.test(reviewText(card)), false, 'no ⚑ for leave that is not in the next PI');
+    /* And the change is shown, not made silently: the per-sprint figure no longer
+       matches the Rolling 5 target, so the card has to say why. */
+    const notes = card ? [...card.querySelectorAll('.exnote')].map(reviewText).join(' | ') : '';
+    ok(/One-off not stretched.*Team New Start/.test(notes),
+       'the one-off it declined to stretch is named', notes);
+  });
+});
 
 group('a step lands the keyboard on the new chart (2026-09-03 audit)');
 /* Opening with ⤢ leaves the keyboard on that ⤢. A step then moves that card

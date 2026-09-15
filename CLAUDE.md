@@ -548,8 +548,10 @@ but Charles had ever actually signed in.)
 - **`piCapacityCard()` is the forward half of that view, and it multiplies rather than
   re-deriving.** Each team's `nextSprintTarget()` times the DELIVERY sprints in a PI
   (`SPRINTS_PER_PI - 1` — the IP sprint delivers none of it), so it inherits the whole method
-  including both availability levers and cannot drift from the Rolling 5 card that explains
-  the working. It covers only teams that have been in a PI, matching the table above it, and
+  and cannot drift from the Rolling 5 card that explains the working. **Except a ONE-OFF
+  availability (2026-09-15)**: the span rate is `planningBase` × the team's STANDING
+  availability, the `forecast()` rule, because a `plans` entry is leave against next sprint and
+  five times it is a smaller team for a whole PI. Named under *⚑ One-off not stretched*. It covers only teams that have been in a PI, matching the table above it, and
   names any it left out — a team that doesn't run PIs has no place under a heading about the
   next PI, and its target is on Rolling 5 where it lives.
 - **The demo carries THREE PIs so the trend has a direction** (≈75% → 81% → 86%, climbing out
@@ -2478,3 +2480,26 @@ the 2026-09-07 audit", each with a test proven red against main first:
   disabled alongside it", the Targets header's "only writes it on Save … Cancel really is a
   cancel", and `scoring`'s `// { teamId, piId }` (it carries `written` and now `from` too). All
   three rewritten to say what the code does; no test, one commit.
+
+## Fixes From the 2026-09-15 Review
+
+A reviewer drove HEAD (3cf836f) with the sample data and confirmed each finding on screen. One
+fix per commit, each with a test in the "figures and Compare Teams (2026-09-15 review)" group
+proven red against the commit before it.
+
+### Figures and Compare Teams
+
+- **What the Next PI Could Hold stretched a one-off over the whole PI (2026-09-15).** It
+  multiplied `nextSprintTarget().recommended` by the delivery sprints, and `recommended` already
+  carries the NEXT SLOT's availability — so Team New Start's 50% leave on PI 2026.3 S3 read "6 ⚑
+  50% · 31", and "Across the PI" 537. `forecast()` refuses exactly this ("stretching that over
+  ten sprints would forecast a team as permanently short-staffed off one holiday"), so the card
+  now takes its rule: span rate = `planningBase` × the STANDING availability, floor = `reliableBase`
+  × the same, `hasFloor` re-asked on those figures. New Start reads 13 · 63 and the total 569
+  (537.4 + 31.25 — the review's "568" was 537 + 31 rounded twice);
+  Team Live Sprint keeps "⚑ 90%". The standing figure is read off the team record rather than
+  `availabilitySource`, because a one-off on the next slot wins outright there and would hide a
+  standing figure that still holds for every other sprint — which means `forecast()` itself still
+  ignores a standing figure whenever a one-off sits on the next slot; noted, not changed here. The
+  one-off is named under *⚑ One-off not stretched*, since the per-sprint figure no longer matches
+  the Rolling 5 target for that team.

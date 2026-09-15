@@ -5152,10 +5152,13 @@ const METRIC_HELP = {
       totals: a PI covering five teams will out-deliver one covering two whatever either did,
       and predictability is the figure that survives the comparison.` },
   piCapacity: { title: 'What the Next PI Could Hold', target: null,
-    body: `Each team's next-sprint target multiplied by the delivery sprints in a PI, added up.
-      It inherits the whole method from the Rolling ${ROLLING_WINDOW} tab, availability
-      adjustments included — a starting point for PI planning, not a quota, and it assumes
-      every sprint goes to planned work.` },
+    body: `<p>Each team's next-sprint target multiplied by the delivery sprints in a PI, added
+      up. It inherits the whole method from the Rolling ${ROLLING_WINDOW} tab, a team's
+      standing availability included.</p>
+      <p><strong>A one-off set against a single sprint is not stretched across the PI</strong> —
+      it is leave for that sprint, not a smaller team for a whole PI.</p>
+      <p>A starting point for PI planning, not a quota, and it assumes every sprint goes to
+      planned work.</p>` },
   artPredictability: { title: 'ART Predictability', target: TARGET_PREDICTABILITY,
     body: `Each team's own measure, averaged — so <em>every team counts once</em>, whatever
       the size of its plan. That is the measure SAFe defines and the one an RTE reports at
@@ -9624,8 +9627,9 @@ function renderPiTrendView() {
    than on its own: at PI planning you look at how the last few went and then
    decide what to sign up for next. Every figure is the team's own sprint target
    (see nextSprintTarget) multiplied by the delivery sprints in a PI — so it
-   inherits the whole method, including the availability adjustments, and cannot
-   drift from the Rolling 5 card that explains it. */
+   inherits the whole method and cannot drift from the Rolling 5 card that
+   explains it. The one lever it does NOT inherit is a one-off availability,
+   which is leave against next sprint only; see `rows` below. */
 function piCapacityCard(teams, includeSix) {
   const slots = includeSix ? SPRINTS_PER_PI : SPRINTS_PER_PI - 1;
   /* Only teams that have ever been in a PI, matching the table above — a team that
@@ -9635,11 +9639,38 @@ function piCapacityCard(teams, includeSix) {
      the omission isn't silent. */
   const inPis = (t) => state.sprints.some(s => s.teamId === t.id && s.piId);
   const outside = (teams || []).filter(t => !inPis(t));
+  /* ── A ONE-OFF IS NOT STRETCHED ACROSS THE PI (2026-09-15) ──────────────────
+     `recommended` is next sprint's figure, and a `plans` entry is leave against
+     THAT ONE SLOT. Multiplying it by five stretched a fortnight's holiday over the
+     whole of the next PI — Team New Start's 50% leave in PI 2026.3 S3 read as a
+     team half-staffed for all of PI 2026.4, 6 a sprint instead of 13. forecast()
+     already refuses exactly this ("stretching that over ten sprints would forecast
+     a team as permanently short-staffed"), so the card takes its rule: the span
+     rate is `planningBase` times the STANDING availability, which is the lever
+     that genuinely holds across a span. Read off the team record rather than
+     `availabilitySource`, because a one-off on the next slot wins outright there
+     and would hide a standing figure that still applies to every other sprint. */
   const rows = (teams || []).filter(inPis)
-    .map(t => ({ team: t, t: nextSprintTarget(t.id, includeSix) }))
-    .filter(r => r.t);
+    .map(t => {
+      const target = nextSprintTarget(t.id, includeSix);
+      if (!target) return null;
+      const standing = typeof t.availability === 'number' && t.availability !== 100
+        ? t.availability : null;
+      const lasting = standing === null ? 1 : standing / 100;
+      const rate = target.planningBase * lasting;
+      const floorRate = target.reliableBase * lasting;
+      return {
+        team: t, t: target, rate, standing,
+        /* nextSprintTarget()'s own test, on the span's figures rather than next
+           sprint's — the one-point threshold is not scale-free. */
+        hasFloor: target.sprints >= 3 && (rate - floorRate) >= 1,
+        floorRate,
+        oneOff: target.availabilitySource === 'sprint' ? target.availability : null
+      };
+    })
+    .filter(Boolean);
   if (!rows.length) return '';
-  const total = rows.reduce((a, r) => a + r.t.recommended * slots, 0);
+  const total = rows.reduce((a, r) => a + r.rate * slots, 0);
   /* ── Only a team that HAS a floor contributes one ───────────────────────────
      `reliable` is the second-lowest result in the window, and for a team dragged
      down by a single bad sprint (10, 30, 32, 31, 29) that sits ABOVE its own mean.
@@ -9660,10 +9691,14 @@ function piCapacityCard(teams, includeSix) {
      already publishes, and the total can no longer exceed `total`. How many teams
      actually brought a floor is said out loud below, per the rule that an
      exclusion is never silent. */
-  const withFloor = rows.filter(r => r.t.hasFloor);
+  const withFloor = rows.filter(r => r.hasFloor);
   const floor = rows.reduce((a, r) =>
-    a + (r.t.hasFloor ? r.t.reliable : r.t.recommended) * slots, 0);
+    a + (r.hasFloor ? r.floorRate : r.rate) * slots, 0);
   const anyFloor = withFloor.length > 0;
+  /* Named, because the per-sprint figure now differs from the Rolling 5 target
+     for these teams, and a figure that moves for a reason not on the page is the
+     one thing every view here refuses. */
+  const oneOffs = rows.filter(r => r.oneOff !== null);
 
   return `<div class="card">
     <h2>What the Next PI Could Hold${helpBtn('piCapacity', 'what the next PI could hold')}</h2>
@@ -9692,15 +9727,23 @@ function piCapacityCard(teams, includeSix) {
         outside.length === 1 ? 'it is' : 'they are'} out of this figure. ${
         outside.length === 1 ? 'Its' : 'Their'} next-sprint target is on the
       <strong>Rolling ${ROLLING_WINDOW}</strong> tab.</span></p>` : ''}
+    ${oneOffs.length ? `<p class="sub exnote" style="margin-top:14px">
+      <span class="badge">⚑ One-off not stretched</span>
+      <span class="muted">${andList(oneOffs.map(r =>
+        `${esc(r.team.name)} (${r.oneOff}% next sprint)`))} ${
+        oneOffs.length === 1 ? 'has' : 'have'} availability set against a single sprint. That
+      is leave for one sprint, not a smaller team for a whole PI, so ${
+        oneOffs.length === 1 ? 'it counts' : 'they count'} here at the full figure — the
+      adjusted one is next sprint's target on the <strong>Rolling ${ROLLING_WINDOW}</strong> tab.</span></p>` : ''}
     <div class="tablewrap" style="margin-top:14px">
     <table aria-label="Suggested capacity per team for the next PI">
       <thead><tr><th scope="col">Team</th><th scope="col">Per sprint</th>
         <th scope="col">Across ${plural(slots, 'sprint')}</th></tr></thead>
       <tbody>${rows.map(r => `
         <tr><th scope="row">${esc(r.team.name)}</th>
-          <td>${fmtNum(Math.round(r.t.recommended))}${r.t.adjusted
-            ? ` <span class="badge">⚑ ${r.t.availability}%</span>` : ''}</td>
-          <td>${fmtNum(Math.round(r.t.recommended * slots))}</td></tr>`).join('')}</tbody>
+          <td>${fmtNum(Math.round(r.rate))}${r.standing !== null
+            ? ` <span class="badge">⚑ ${r.standing}%</span>` : ''}</td>
+          <td>${fmtNum(Math.round(r.rate * slots))}</td></tr>`).join('')}</tbody>
     </table></div>
   </div>`;
 }

@@ -128,8 +128,12 @@ few went and then decide what to sign up for next:
 
 It's each team's next-sprint target multiplied by the **delivery** sprints in a PI — five,
 not six, since the IP sprint delivers none of it. That means it inherits the whole method
-from [Rolling 5](#target-capacity-for-the-next-sprint), availability adjustments included, so
-it can't drift from the card that explains the working. A second figure appears alongside it
+from [Rolling 5](#target-capacity-for-the-next-sprint), so it can't drift from the card that
+explains the working — with one exception. A team's **standing** availability holds across the
+PI and keeps its ⚑; a **one-off** set against a single sprint does not, because it is leave for
+that sprint rather than a smaller team for a whole PI (the forecast card makes the same call).
+Such a team counts here at its full figure, and the card names it under *⚑ One-off not
+stretched*. A second figure appears alongside it
 for the [reliable commitment](#two-figures-not-one) where teams have one.
 
 That second figure is only ever the *lower* of the two, which takes a little care across a
