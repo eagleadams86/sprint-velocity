@@ -1071,6 +1071,16 @@ pointer, and moving something with the keyboard keeps your place on it.
 Adding is the same shape: **+ Add** puts a row in with a working default name and lands the
 cursor in it, already selected, so typing replaces it.
 
+**A long list gets a second + Add at its foot.** Once a list reaches **twelve** rows, its
+*+ Add* button appears again under the last row, so adding one more team doesn't mean
+scrolling back up to the heading first. It is a copy, not a move — the button beside the
+heading stays, and both do exactly the same thing. Each list counts only its own rows, so
+twelve teams bring it back under Teams and nowhere else. Below twelve there is only the one:
+at six teams the whole section fits in the window with room to spare, and a second button
+would just be clutter. Twelve was measured in this window — it is where the Teams heading
+scrolls out of sight — rather than copied from Flow Metrics, whose Teams section has a
+paragraph above its table and so reaches that point sooner.
+
 **A PI row says how many teams its sprints are spread across** — "17 sprints across 4
 teams", not a bare "17 sprints". A PI holds six sprints *per team*, and the count beside its
 name is every team's, so the row says which it means rather than leaving the two readings

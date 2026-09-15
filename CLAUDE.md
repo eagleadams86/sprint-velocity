@@ -1893,6 +1893,38 @@ its own — Charles asked for the two to match, and the two apps share their chr
   only written when `renderManage` runs. It writes nothing to storage, so the read-only
   promise still holds — and the last test puts the app's own rows back.
 
+## The Foot Add Button Is Measured Per Section (2026-09-11)
+
+Teams, ARTs and PIs each carry a SECOND Add button under their table (`#addTeamBtnFootRow`,
+`#addArtBtnFootRow`, `#addPiBtnFootRow`), shown by `syncAddFoot(rowId, count)` once that
+section's own count reaches **`ADD_FOOT_FROM` = 12**. Mirrored from Flow Metrics after Charles
+hit the problem there with sixteen teams (commits 2135044, ffbb555).
+
+- **A duplicate, not a move.** The heading-row button says what a section adds before you have
+  read a row of it; a button above and below a two-row table is clutter. Both buttons share
+  one handler (`addTeam` / `addArt` / `addPi`) — two listeners with the same body is how they
+  come to disagree.
+- **The rule is the thing shared, not the number.** A second button is earned when a section
+  grows taller than the dialog's visible height — the point where its heading and the end of
+  its list can no longer be seen at once. That is a different row count per section, because
+  the distance from a heading to the fold depends on what sits above the table.
+- **Twelve is measured, and it is NOT Flow Metrics' number.** It first shipped at the sibling's
+  six, and Charles said at once it was too low: at six teams this Teams section is 382px in a
+  734px dialog, heading, rows and button all in view. Measured in that dialog, the Teams
+  heading is still on screen at eleven rows and gone at twelve. Flow Metrics' Teams section is
+  TEN (and its Workflow Stages four, rows 2.7x taller) because it carries prose above its
+  table and this one carries none. **Never "align" the two**: agreeing would be a coincidence,
+  and a check pinning it would pin the coincidence. Re-measure THIS window if its prose or row
+  height changes, and give any new section with taller rows or prose its own figure.
+- **Counted per section, from that section's own list** (`state.teams.length`,
+  `state.arts.length`, `state.pis.length`), and a row count rather than a measured height: a
+  height would have to be re-measured on every render, in a dialog that can stay open while
+  the window resizes, to answer a question a count answers well enough.
+- **It must stay away as firmly as it turns up.** tests.html pins both directions against
+  `__svTestHooks.ADD_FOOT_FROM` (read off the app, never repeated) and checks the COMPUTED
+  display, not `.hidden` — see "`[hidden]` Now Wins Globally" above, which is the day all
+  three showed over empty lists.
+
 ## Targets and Business Value Save As You Go (2026-09-07)
 
 **Two windows stopped asking**: each box is written when you finish with it, and **Done**
