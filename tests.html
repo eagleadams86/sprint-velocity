@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 512;
+const EXPECTED = 513;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -7576,6 +7576,35 @@ t('with running sprints counted, Compare Teams, PI Trend and PI by Team all say 
   reviewView('trend', (st, d) => {
     const sub = reviewText(reviewCard(d, 'Every Team').querySelector('.sub'));
     eq(/still running/.test(sub), false, 'and PI Trend names no running sprint', sub);
+  });
+});
+
+t('Whole History counts a sprint left out of the rolling window, and says so', () => {
+  /* The row is pooled(counted), and counted includes a sprint marked `excluded` —
+     an exclusion narrows the rolling window and the capacity target, and the PI
+     totals still count it. The help window said the opposite. The demo has no
+     left-out sprint on a History team, so one is marked here. */
+  reviewView('history', (st, d) => {
+    const help = TG().METRIC_HELP.histTotalRow.body.replace(/\s+/g, ' ');
+    eq(/left out of the rolling average sit in the table above but not in this row/.test(help), false,
+       'the help no longer says a left-out sprint is missing from the row', help);
+    ok(/left out of the rolling[^.]*still in/i.test(help), 'it says the row still counts one', help);
+    const top = reviewText(reviewCard(d, 'Team Baseline — Every Sprint').querySelector('.sub'));
+    ok(/PI 2026\.1 · S4/.test(top) && /still counts/.test(top),
+       'the view names the sprint and says this view counts it', top);
+    /* And that is what the row does: the pooled figure over all nine sprints. */
+    const base = w.teamSprints(st.teams.find(t => t.name === 'Team Baseline').id);
+    const committed = base.reduce((a, x) => a + x.committed, 0);
+    const done = base.reduce((a, x) => a + x.committedCompleted, 0);
+    const foot = [...d.querySelectorAll('#histTable tfoot td')].map(reviewText);
+    ok(foot.includes(String(committed)) && foot.includes(String(done)),
+       'the footer row adds up every sprint, the left-out one included', foot.join(' | '));
+  }, (st) => {
+    const team = st.teams.find(t => t.name === 'Team Baseline');
+    const pi = st.pis.find(p => p.name === 'PI 2026.1');
+    const s = st.sprints.find(x => x.teamId === team.id && x.piId === pi.id && x.sprintNumber === 4);
+    s.excluded = true; s.excludeReason = 'incident';
+    st.settings.activeTeamId = team.id;
   });
 });
 

@@ -810,7 +810,10 @@ sprint** — PI Trend flattens the same history into one point per PI, which is 
 history stops being visible and starts being summarised.
 
 **History** has no window, and that is its whole definition. Every sprint on record, oldest
-first, with the in-flight and left-out ones drawn and marked rather than dropped.
+first, with the in-flight and left-out ones drawn and marked rather than dropped. A sprint in
+flight is left out of the figures; a sprint you've left out of the *rolling average* is **still
+counted** here — that choice narrows the rolling window and the capacity target, not a team's
+history, the same as it leaves the PI totals alone.
 
 ```
 Team Baseline — Every Sprint

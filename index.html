@@ -5270,8 +5270,9 @@ const METRIC_HELP = {
       conversations.` },
   histTotalRow: { title: 'Whole History', target: null,
     body: `Every counted sprint pooled into one total and divided once, the same method the
-      Team PI total uses. In-flight sprints and any sprint left out of the
-      rolling average sit in the table above but not in this row.` },
+      Team PI total uses. In-flight sprints sit in the table above but not in this row. A sprint
+      left out of the rolling average is still in it — that choice narrows the rolling window
+      and the capacity target, not a team's history, and the PI totals count it too.` },
 
   /* Compare Teams. Its one table is the AVERAGE-OF-SPRINTS method, and `teamsMean`
      has to say so outright and say where the pooled figures live — the standing
@@ -9322,7 +9323,8 @@ function renderHistoryView() {
         ${open.length === 1 ? 'is' : 'are'} drawn but left out of the figures.` : ''}${
         excluded.length ? ` ${andList(excluded.map(s => esc(sprintLabel(s))))} ${
           excluded.length === 1 ? 'is' : 'are'} held out of the rolling average and marked ⚑
-          here — this view still lists ${excluded.length === 1 ? 'it' : 'them'}.` : ''}</p>
+          here — this view still counts ${excluded.length === 1 ? 'it' : 'them'}, as the PI
+          totals do.` : ''}</p>
       <div class="tiles">
         ${tile('Sprints recorded', String(all.length), null,
           counted.length === all.length ? 'every one of them counts'
@@ -9367,8 +9369,8 @@ function renderHistoryView() {
         ${exportButtons('histTable', 'history')}
       </div>
       <p class="sub">Click any sprint to edit it. The ⚑ and the status badges are the same
-        marks the other views use, so a sprint left out of an average here is the one left
-        out there.</p>
+        marks the other views use, so a sprint marked ⚑ here is the one left out of the rolling
+        ${ROLLING_WINDOW} there — and, like the PI totals, this view's figures still count it.</p>
       <div class="tablewrap">
       <table id="histTable" aria-label="Every sprint ${esc(team.name)} has recorded">
         <thead><tr>${sortHead('histTable', SPRINT_COLS(true))}</tr></thead>

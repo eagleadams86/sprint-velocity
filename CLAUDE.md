@@ -986,7 +986,9 @@ but Charles had ever actually signed in.)
   three PIs behind it holding eighteen sprints nothing could show sprint by sprint (PI Trend
   flattens them to one point per PI). It deliberately does **not** call `rollingSprints()`:
   the two rolling toggles narrow a window and this view has none, so every sprint is listed,
-  with the in-flight and left-out ones drawn and marked rather than dropped. Its Direction
+  with the in-flight and left-out ones drawn and marked rather than dropped. **A left-out
+  sprint is COUNTED here** (`pooled(counted)`), like the PI totals — only in-flight ones are
+  out of the figures. Its Direction
   tile is `trendChange()` over the whole run, and the demo is built so it disagrees with the
   five-sprint figure on both long-history teams — that disagreement IS the argument for the
   view, and a test pins it so tidying those numbers can't quietly remove it.
@@ -2534,3 +2536,15 @@ proven red against the commit before it.
   by `piTrend()`'s own filter, PI by Team's `closed`), escaped, and empty with the setting off.
   It goes in the HEADING card's `.sub`, not in the toolbar's muted note, because the toolbar is
   furniture on paper and the print rule relies on the captions carrying every scope choice.
+- **The Whole History help said a left-out sprint was not in the row; it is (2026-09-15).** The
+  row and the tile are `pooled(counted)` and `counted` is `isCounted`, which knows nothing of
+  `excluded`. The CODE was kept and the words changed, because this file already says which is
+  intended: an exclusion lives in `rollingSprints()` "beside the IP-sprint rule", the PI totals
+  "still count an excluded sprint", and History "deliberately does not call `rollingSprints()`".
+  The help, the view's caption ("this view still counts it, as the PI totals do"), the table
+  caption and the README now say so. **The demo still has no left-out sprint on a History team,
+  on purpose**: Team Overcommitted owns the exclusion finding and has five sprints, and "Each demo
+  team is NAMED FOR THE ONE THING IT SHOWS" — marking one of Team Baseline's or Team Headroom's
+  sprints would give that finding a second owner, and inside either window it would also move
+  Rolling 5, Compare Teams and the next-PI card, whose figures the README and tests quote. The
+  test marks one on a rendered copy instead.
