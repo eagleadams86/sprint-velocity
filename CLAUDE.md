@@ -873,7 +873,7 @@ but Charles had ever actually signed in.)
   the two rolling toggles, which PI is selected, which sprints are excluded — so a second
   code path building "the same" rows from `state` would have to reproduce all of them and
   would drift from the screen the first time one changed. `tableToRows()` + `exportButtons()`
-  + one delegated listener on `viewsEl` serve all five tables; adding a table means giving it
+  + one delegated listener on `viewsEl` serve all six tables; adding a table means giving it
   an `id` and dropping `exportButtons()` into its `.row.cardhead`, nothing else.
 - **`cellText()` strips `[aria-hidden="true"]` as the general rule**, with `.sr-only`,
   `.badge`, `.tile-help` and `.artname` as named cases. Anything hidden from assistive
