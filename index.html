@@ -4781,6 +4781,23 @@ function openSprintsNote(teamId) {
   return open.map(s => 'S' + s.sprintNumber + ' ' + STATUS_SHORT[sprintStatus(s)]).join(', ');
 }
 
+/* The cross-team views' half of "every view says so" (2026-09-15). With "count
+   sprints that are still running" on, a running sprint is IN the figures, and
+   Compare Teams went on printing "Finished sprints only" while PI Trend and PI by
+   Team said nothing at all — PI Trend's latest PI moved 81% → 78% on Team Live
+   Sprint's S4 with no word on the page why. One sentence for all three, naming
+   team and sprint, because a cross-team page cannot say "S4" on its own. Markup,
+   so every name is escaped here; `withPi` for the view that spans PIs. Empty
+   when nothing running is counted, which is always the case with the setting off. */
+function countedRunningSentence(sprints, withPi) {
+  const live = (sprints || []).filter(s => isCounted(s) && sprintStatus(s) !== 'complete');
+  if (!live.length) return '';
+  const names = live.map(s => esc((teamById(s.teamId) || {}).name || '') + ' '
+    + esc(withPi ? sprintLabel(s) : 'S' + s.sprintNumber));
+  return `<strong>${andList(names)}</strong> ${live.length === 1 ? 'is' : 'are'} still
+    running and counted, because \u201ccount sprints that are still running\u201d is on`;
+}
+
 /* The rolling window: the most recent N sprints for a team, crossing PI
    boundaries. Sprint 6 is the IP sprint — excluded by default, because an
    innovation-and-planning sprint isn't meant to look like a delivery sprint and
@@ -9476,6 +9493,10 @@ function renderPiTrendView() {
 
   const latest = rows[rows.length - 1];
   const prev = rows[rows.length - 2];
+  /* The sprints piTrend() counted, by its own filter, so a running one is named. */
+  const runningLine = countedRunningSentence(state.sprints.filter(s =>
+    rows.some(r => r.pi.id === s.piId) && shown.some(t => t.id === s.teamId)
+    && (includeSix || !isIpSlot(s))), true);
   /* The change since last PI is the whole point of the tile — a bare percentage is
      already on two other views. Null when either side is unscored, because "up 5"
      against a PI nobody measured is an invention. */
@@ -9527,7 +9548,8 @@ function renderPiTrendView() {
       <h2>${heading} — Across ${plural(rows.length, 'PI')}</h2>
       <p class="sub">${esc(rows[0].pi.name)} → ${esc(latest.pi.name)}, oldest first.
         This is the Inspect &amp; Adapt read: not how the last PI went, but which way the
-        train is moving.${includeSix ? '' : ' Sprint 6 (IP) is left out of every figure.'}</p>
+        train is moving.${includeSix ? '' : ' Sprint 6 (IP) is left out of every figure.'}${
+        runningLine ? ' ' + runningLine + '.' : ''}</p>
       ${sizeNote}${emptyNote}${unscoredNote}
       <div class="tiles">
         ${tile('PI predictability', fmtPct(latest.predPct, 'predictability'),
@@ -9884,6 +9906,7 @@ function renderArtPiView() {
   const artVelocity = rows.reduce((a, r) => a + r.velocity, 0);
   const artCommitPct = artCommitted > 0 ? (artDone / artCommitted) * 100 : null;
   const openHere = rows.reduce((a, r) => a + r.open.length, 0);
+  const runningLine = countedRunningSentence(rows.reduce((a, r) => a.concat(r.closed), []), false);
 
   /* The teams the headline measure could not include. Named, never merely
      omitted: a train figure worked out from three of five teams while the page
@@ -9953,7 +9976,8 @@ function renderArtPiView() {
       <p class="sub">How the train did against what it planned. <strong>Predictability</strong> is
         business value delivered against business value committed at PI planning — the measure an
         RTE reports at Inspect &amp; Adapt, and a different question from whether the points
-        landed. The two sit side by side here because a train can hit one and miss the other.</p>
+        landed. The two sit side by side here because a train can hit one and miss the other.${
+        runningLine ? ' ' + runningLine + '.' : ''}</p>
       ${notInPiNote}${missingNote}${cancellingNote}
       <div class="tiles">
         ${tile('ART predictability', fmtPct(pred.mean, 'predictability'),
@@ -10697,7 +10721,8 @@ function renderTeamsView() {
       <h2>${heading} — Rolling ${ROLLING_WINDOW}-Sprint Averages</h2>
       <p class="sub">${esc(words.phrase)}, side by
         side${includeSix ? '' : ', with sprint 6 excluded'}.
-        ${state.arts.length && !filtered ? 'Grouped by ART. ' : ''}Finished sprints only${
+        ${state.arts.length && !filtered ? 'Grouped by ART. ' : ''}${
+        countedRunningSentence(allSprints, false) || 'Finished sprints only'}${
         anyOpen ? ` — ${anyOpen} sprint${anyOpen === 1 ? '' : 's'} still in flight
         ${anyOpen === 1 ? 'is' : 'are'} not counted` : ''}.
         ${withData.length ? 'The chart plots the commitment-completion figure from the table below.'

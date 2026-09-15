@@ -407,8 +407,9 @@ but Charles had ever actually signed in.)
   rules exist to prevent. `f_start.dataset.auto` marks a projection as still ours, so changing
   the sprint number re-projects but a hand-typed date survives.
 - `isCounted()` also honours `settings.includeInProgress` (default off), which opts running
-  sprints into every figure for last-day planning. It's deliberately one predicate so no two
-  views can disagree; `targetSprintSlot()` then stops aiming at the running sprint, since a
+  sprints into every figure for last-day planning, and every view that counts one SAYS so —
+  the cross-team three through `countedRunningSentence()`, which names team and sprint. It's
+  deliberately one predicate so no two views can disagree; `targetSprintSlot()` then stops aiming at the running sprint, since a
   sprint being counted as data isn't the one you're planning. Planned sprints never count.
 - **A PI IS OPTIONAL, AND `piId: null` IS A REAL ANSWER (2026-08-20).** A team's sprints
   live on one of two tracks: the **unassigned track** (`piId: null`), which is the app's
@@ -2524,3 +2525,12 @@ proven red against the commit before it.
   decimals and takes the first on the figure's own side, then truncates toward that side. The
   test checks the rendered string read BACK through `rag()` for 19 offsets around all eight
   default boundaries, not only the three the review found.
+- **"Every view says so" was false on the three cross-team views (2026-09-15).** With *count
+  sprints that are still running* on, Compare Teams still printed "Finished sprints only", and
+  PI Trend (latest PI 81% → 78%, 429 → 442 on Team Live Sprint's running S4) and PI by Team said
+  nothing. `countedRunningSentence(sprints, withPi)` is the one sentence all three use — "**Team
+  Live Sprint S4** is still running and counted, because “count sprints that are still running”
+  is on" — built from the sprints each view actually counted (Compare Teams' windows, PI Trend
+  by `piTrend()`'s own filter, PI by Team's `closed`), escaped, and empty with the setting off.
+  It goes in the HEADING card's `.sub`, not in the toolbar's muted note, because the toolbar is
+  furniture on paper and the print rule relies on the captions carrying every scope choice.

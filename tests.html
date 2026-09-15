@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 511;
+const EXPECTED = 512;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -7545,6 +7545,37 @@ t('fmtPct never prints a number that meets a target the figure misses', () => {
       if (w.rag(parseFloat(shown), scale) !== w.rag(v, scale)) wrong.push(scale + ' ' + v + ' → ' + shown);
     })));
     eq(wrong, [], 'every figure near every boundary prints on its own side of it');
+  });
+});
+
+t('with running sprints counted, Compare Teams, PI Trend and PI by Team all say so', () => {
+  /* README: "When it's on, every view says so". Compare Teams printed "Finished
+     sprints only" regardless, and the two PI views said nothing while PI Trend's
+     latest PI moved 81% → 78% and 429 → 442 on Team Live Sprint's running S4. */
+  const on = (st) => { st.settings.includeInProgress = true; };
+  const latestPi = (st) => { st.settings.activePiId = st.pis.find(p => p.name === 'PI 2026.3').id; };
+  reviewView('teams', (st, d) => {
+    const sub = reviewText(reviewCard(d, 'Every Team') && reviewCard(d, 'Every Team').querySelector('.sub'));
+    eq(/Finished sprints only/.test(sub), false, 'Compare Teams no longer claims finished sprints only', sub);
+    ok(/Team Live Sprint S4/.test(sub) && /still running/.test(sub),
+       'and names the running sprint it is counting', sub);
+  }, on);
+  reviewView('trend', (st, d) => {
+    const sub = reviewText(reviewCard(d, 'Every Team') && reviewCard(d, 'Every Team').querySelector('.sub'));
+    ok(/Team Live Sprint/.test(sub) && /still running/.test(sub), 'PI Trend says so under its heading', sub);
+  }, on);
+  reviewView('art', (st, d) => {
+    const sub = reviewText(reviewCard(d, 'Every Team') && reviewCard(d, 'Every Team').querySelector('.sub'));
+    ok(/Team Live Sprint/.test(sub) && /still running/.test(sub), 'and so does PI by Team', sub);
+  }, (st) => { on(st); latestPi(st); });
+  /* Off, which is the default: nothing is claimed that is not happening. */
+  reviewView('teams', (st, d) => {
+    const sub = reviewText(reviewCard(d, 'Every Team').querySelector('.sub'));
+    ok(/Finished sprints only/.test(sub), 'off, Compare Teams still says finished sprints only', sub);
+  });
+  reviewView('trend', (st, d) => {
+    const sub = reviewText(reviewCard(d, 'Every Team').querySelector('.sub'));
+    eq(/still running/.test(sub), false, 'and PI Trend names no running sprint', sub);
   });
 });
 

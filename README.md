@@ -517,7 +517,9 @@ sprints into every figure — the rolling window, the PI totals, the team compar
 capacity target. It's off by default, because the numbers genuinely aren't final.
 
 It's for the last day or two of a sprint, when you're planning the next one and today's
-provisional numbers beat last sprint's stale ones. When it's on, every view says so, and the
+provisional numbers beat last sprint's stale ones. When it's on, every view says so — the
+cross-team views too: Compare Teams, PI Trend and PI by Team name the team and the running
+sprint they are counting under their headings — and the
 capacity target stops aiming at the running sprint and points at the one after it — once a
 sprint is being counted as data, it isn't the sprint you're planning any more.
 
