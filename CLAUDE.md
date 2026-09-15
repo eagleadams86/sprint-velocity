@@ -1619,7 +1619,7 @@ under "No teams yet" in a fresh incognito window.
 - It cost an hour of chasing service workers and CDNs first. **An incognito window rules all of
   that out in ten seconds** and should be the first question asked, not the last.
 
-## One chart, filling the window (2026-08-30)
+## One Chart, Filling the Window (2026-08-30)
 
 **Every card that draws a chart carries a ⤢ button that lifts the card into a
 fixed overlay filling the window under the header.** Flow Metrics' feature
@@ -1664,7 +1664,7 @@ carry the feature:**
 `chartIn(card)` are top-level function declarations, so the suite drives the
 real thing through the frame's window.
 
-## Pinning the tab row (2026-09-03)
+## Pinning the Tab Row (2026-09-03)
 
 **The tab row held at the top of the window while the page scrolls under it**,
 off by default and toggled from a 📌 at the end of the row. Asked for in Flow
@@ -1811,7 +1811,7 @@ Flow Metrics carries the identical change in the same pass, and a change to one 
   only checks inside one, so EXPECTED stays 507 — this suite counts tests.
 
 
-## Stepping between charts in full screen (2026-09-03)
+## Stepping Between Charts in Full Screen (2026-09-03)
 
 **A `‹` and a `›` beside the ⤢ walk the charts on the view without coming back
 down.** Charles asked for it on 2026-09-03; built first in Flow Metrics and
@@ -1896,7 +1896,7 @@ its own — Charles asked for the two to match, and the two apps share their chr
   only written when `renderManage` runs. It writes nothing to storage, so the read-only
   promise still holds — and the last test puts the app's own rows back.
 
-## The Foot Add Button Is Measured Per Section (2026-09-11)
+## The Foot Add Button Is Measured per Section (2026-09-11)
 
 Teams, ARTs and PIs each carry a SECOND Add button under their table (`#addTeamBtnFootRow`,
 `#addArtBtnFootRow`, `#addPiBtnFootRow`), shown by `syncAddFoot(rowId, count)` once that
@@ -2321,7 +2321,7 @@ ones that need a real size boot their own 1280x900 frame through `inFrame()`.
   the button's centre, and headless with a real mouse click for all three deletes; `close`
   fires for Done, Escape and a backdrop click alike.
 
-### Round two, 2026-09-04
+### Round Two, 2026-09-04
 
 The leftovers of the same audit, fixed the next day. Each has a test in a group named
 "(2026-09-03 audit, round two)", proven to fail first against the unfixed index.html.

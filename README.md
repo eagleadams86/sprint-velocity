@@ -91,7 +91,7 @@ plots it per PI against the 80–100% band with a dashed trend line through it. 
 completion and delivered points sit beside it because a train can move one without the other
 — and when they disagree, as they do above, that gap is usually the conversation.
 
-### Comparing PIs that weren't the same train
+### Comparing PIs That Weren't the Same Train
 
 **Each PI is measured over the teams that were actually in it.** A train that grew from two
 teams to five didn't get better because there's more of it, so where the team count changes
@@ -115,7 +115,7 @@ There's deliberately **no total row**. Adding PIs together answers nothing — a
 history is a sequence, and the only summary worth having is which way it's going, which is
 what the trend line is.
 
-### What the next PI could hold
+### What the Next PI Could Hold
 
 At the foot of the same view, because PI planning is exactly when you look at how the last
 few went and then decide what to sign up for next:
@@ -160,7 +160,7 @@ they simply aren't there until you make one:
 | **PI by Team** | hidden | appears once an ART has a team on it |
 | PI business value / predictability | — | per team, per PI |
 
-### Starting without one, adding one later
+### Starting Without One, Adding One Later
 
 Every sprint carries a **PI** picker, which now offers **No PI** alongside your PIs. That's
 how a sprint moves into a PI after the fact — and back out again. Create the PI in *Teams,
@@ -183,7 +183,7 @@ other team is kept: switch back and you're on the PI and sprint you left.
 in the rolling window like any other and the "include sprint 6 (IP)" toggle doesn't appear
 for a team that isn't running PIs.
 
-### Deleting a PI no longer deletes its sprints
+### Deleting a PI No Longer Deletes Its Sprints
 
 It used to destroy every sprint in that PI across every team, because a sprint couldn't
 exist without one. Now it asks:
@@ -568,7 +568,7 @@ saved as Sprint 1 carrying slot 7's dates, which put it in the future and out of
 dates are left alone**, deliberately: dating them would flip them out of "complete" and pull
 real history out of your averages.
 
-### Carried in Fills Itself
+### Carried In Fills Itself
 
 Whenever you open a sprint that has no carried-in figure yet, it's filled with what the
 previous sprint carried out — crossing a PI boundary if you're on sprint 1. A note under the
@@ -1048,7 +1048,7 @@ the band and there are teams on **both** sides of it, the view says so above the
 naming the teams, and pointing you at the rows instead of the headline. (The demo's Platform
 ART is exactly this case, deliberately.)
 
-## Teams, ARTs & PIs: the Window Itself
+## Teams, ARTs & PIs: The Window Itself
 
 All three lists are managed in one window, and all three rows work the same way.
 
@@ -2183,7 +2183,7 @@ that is written and tested, and it is rebuilt whenever the app changes. It needs
 `markdown` package once (`pip3 install markdown`), to turn this README into the
 *How it works* window; the file it produces still carries no third-party code.
 
-### What is different in that copy
+### What Is Different in That Copy
 
 Everything that counts, draws or stores is the same app, byte for byte. What changes is
 the handful of things that only mean something on a website:
@@ -2201,7 +2201,7 @@ Three sections of this README are left out of that copy's *How it works* window 
 installing and working offline — because they describe features it does not have, and a
 guide explaining a button the reader cannot see is worse than a shorter guide.
 
-### Where your data lives in that copy
+### Where Your Data Lives in That Copy
 
 The same place: the browser you opened the file in, and nowhere else. One thing is worth
 knowing, though. Every file opened from your own disk shares a single browser identity, so
