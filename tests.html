@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 502;
+const EXPECTED = 507;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -7158,7 +7158,11 @@ t('the tab row can be pinned to the top', async () => {
     f.style.width = '1280px';
     f.style.height = '900px';
     await new Promise((r) => setTimeout(r, 350));
-    eq(cs(bar).flexWrap, 'wrap', 'and with room the row wraps as it always did');
+    /* Not "wraps as it always did" since 2026-09-14: the row is one line that
+       scrolls at EVERY width, and with room there is simply nothing to scroll. */
+    eq(cs(bar).flexWrap, 'nowrap', 'and with room the row is still one line');
+    ok(bar.scrollWidth - bar.clientWidth <= 1, 'with nothing to scroll at 1280px',
+       bar.scrollWidth - bar.clientWidth);
 
     W.svPin.apply(false);
     await new Promise((r) => setTimeout(r, 150));
@@ -7549,7 +7553,13 @@ t('at phone width the ring has 4px inside the scroller on every side, and nothin
        'and the 4px below stays', inset(rect(bar).bottom, rect(first).bottom));
     bar.scrollLeft = bar.scrollWidth;
     await wait(50);
-    ok(inset(rect(bar).right, rect(last).right) >= 4,
+    /* 3 and not 4 once the row is scrolled to its END (2026-09-14): the browser
+       clamps `scrollLeft` to `scrollWidth - clientWidth`, and `scrollWidth` is
+       rounded to a whole pixel, so the clamp can land up to a pixel short. The
+       tab bar's arrows narrowed the row in this mouse-driven frame and moved
+       that fraction from nothing to 3.x px — Money Map met the same thing the
+       same day. A padding actually missing still reads 0. */
+    ok(inset(rect(bar).right, rect(last).right) >= 3,
        'scrolled to the end, the last tab is 4px inside on the RIGHT',
        inset(rect(bar).right, rect(last).right));
     ok(bar.clientHeight >= Math.round(rect(first).height) + 8,
@@ -7563,7 +7573,10 @@ t('at phone width the ring has 4px inside the scroller on every side, and nothin
     W.scrollTo(0, 0);
     last.click();
     await wait(400);
-    ok(rect(bar).right - rect(last).right >= 3.5,
+    /* 3, not 3.5, on the RIGHT only (2026-09-14): landing the last tab is also
+       scrolling to the row's end, where the clamp above can come up to a pixel
+       short. The left-hand landing below is no clamp and keeps its 3.5. */
+    ok(rect(bar).right - rect(last).right >= 3,
        'a tab nudged in from the right lands 4px inside, with its ring room',
        rect(bar).right - rect(last).right);
     bar.scrollLeft = bar.scrollWidth;
@@ -7593,6 +7606,56 @@ t('at phone width the ring has 4px inside the scroller on every side, and nothin
        'and the pinned band is the row plus its 20px — the ring’s room added nothing');
     W.svPin.apply(false);
   });
+});
+
+group('the header and the tab bar are one scrolling line at every width (2026-09-14)');
+/* Charles, 2026-09-14, family-wide: "should we just make them both always single
+   line side scrollers?" A 705px desktop window had the header controls on three
+   lines and the tabs overflowing with nothing to say so. Measured in that window,
+   where both rows have something to scroll, and in a wide one, where nothing may
+   have changed. Flow Metrics carries the same check. */
+t('at 705px the header and the tabs are one line each with arrows; at 1600px nothing changed', async () => {
+  const rect = (el) => el.getBoundingClientRect();
+  const lines = (W, el) => new Set([...el.children]
+    .filter((c) => c.getClientRects().length && !c.classList.contains('sr-only')
+      && W.getComputedStyle(c).display !== 'none')
+    .map((c) => Math.round(rect(c).top))).size;
+  await inFrame('rowscroll', { width: 705, height: 900 }, async (W, D) => {
+    await wait(200);
+    const ctl = D.querySelector('.headctl'), tabs = D.querySelector('.tabs');
+    const headNav = D.querySelector('.headrow > .rownav'), tabNav = D.querySelector('.tabrow > .rownav');
+    ok(ctl && headNav && tabNav, 'the header scroller and an arrow box for each row are on the page');
+    eq(lines(W, ctl), 1, 'the header controls are one line');
+    eq(lines(W, tabs), 1, 'and the tabs are one row');
+    ok(ctl.scrollWidth > ctl.clientWidth && tabs.scrollWidth > tabs.clientWidth,
+       'both have something to scroll here — otherwise nothing is being measured',
+       ctl.scrollWidth + '/' + ctl.clientWidth + ', ' + tabs.scrollWidth + '/' + tabs.clientWidth);
+    ok(!headNav.hidden && !tabNav.hidden, 'so both rows show their arrows');
+    ok(!ctl.contains(headNav) && !tabs.contains(tabNav) && tabNav.parentElement === D.querySelector('.tabrow'),
+       'and neither arrow box is inside the thing it scrolls — the tab one is never inside the tablist');
+    const [prev, next] = headNav.querySelectorAll('button');
+    ok(prev.disabled && !next.disabled, 'at the start, ‹ is off and › is on');
+    next.click();
+    ok(ctl.scrollLeft > 0, 'pressing › scrolls the row', ctl.scrollLeft);
+    await wait(50);
+    ok(!prev.disabled, 'and ‹ comes on');
+    tabs.scrollLeft = 0;
+    tabNav.querySelectorAll('button')[1].click();
+    ok(tabs.scrollLeft > 0, 'the tab bar’s › scrolls the tabs', tabs.scrollLeft);
+  });
+  await inFrame('rowwide', { width: 1600, height: 900 }, async (W, D) => {
+    await wait(200);
+    const ctl = D.querySelector('.headctl');
+    ok(ctl.scrollWidth - ctl.clientWidth <= 1, '1600px: the controls fit', ctl.scrollWidth - ctl.clientWidth);
+    ok(D.querySelector('.headrow > .rownav').hidden && D.querySelector('.tabrow > .rownav').hidden,
+       'so neither row shows arrows');
+    ok(Math.abs(rect(ctl).top - rect(D.querySelector('.brand')).top) < 16,
+       'and the controls sit beside the name, on its line, as they always have');
+    eq(lines(W, D.querySelector('.tabs')), 1, 'the tabs one row');
+  });
+  ok(APP_SRC, 'index.html was not read — the fetch test above must run first');
+  ok(/@media \(hover: none\), \(pointer: coarse\) \{ \.rownav \{ display: none !important; \} \}/.test(APP_SRC),
+     'the arrows are for a mouse or trackpad — a finger swipes the row');
 });
 
 group('a page with no tabs has no pin button either (2026-09-03 audit)');

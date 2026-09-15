@@ -1716,6 +1716,55 @@ fit: a nowrap row only scrolls when there is something to scroll.
 Its own `t()` with its own 1280x900 frame: the shared frame is 1px wide, and a
 sticky offset measured there is measuring nothing.
 
+## The Header and the Tab Bar Are One Scrolling Line (2026-09-14)
+
+**Charles, 2026-09-14, family-wide: "should we just make them both always single line side
+scrollers?"** Before this, the header's controls WRAPPED at any width they did not fit, and the
+tab bar only scrolled below 820px. Money Map is the reference (financial-plan `b14f4ae`);
+Flow Metrics carries the identical change in the same pass, and a change to one belongs in both.
+
+- **The header.** The controls sit in `.headrow` (the row and its arrows) › `.headctl` (the
+  scroller: `nowrap`, `overflow-x: auto`, `scrollbar-width: none`, 4px padding with a -4px
+  margin so the focus ring has room and nothing moves, children `flex: 0 0 auto`, and its own
+  12px gap — a nested row inherits none). `.headrow` is `flex: 0 1 auto`: sized to its content,
+  so it sits beside the name while it fits (the name's auto margin still pushes it right), and
+  `.headbar`'s flex-wrap takes the WHOLE row onto a line of its own, where it shrinks and
+  scrolls, when it does not. **A header is one line or two, never three.** The ids and the
+  family's header order are unchanged; the header-order sweep reads `findBtn`'s parent, which is
+  `.headctl` now.
+- **The tabs.** `.tabs` is the scroller in the BASE rule (`.tabs > .tab` is `flex: 0 0 auto;
+  white-space: nowrap`). The 820px rule keeps only `margin: -4px -4px 0` — the bottom 4px
+  inside the row's height, which the pin measures — so the phone tab row is what it was.
+- **The arrows.** A `.rownav` box of two buttons (`tabindex="-1"`, `aria-hidden`) beside each
+  scroller, never inside it; the tab one sits between the tablist and the 📌 and is `no-print`.
+  Money Map borrows its year strip's `.ynav.snav` buttons; this app has none, so `.rownav button`
+  is drawn from tokens — no border, no fill until hover (`--surface-alt`), `--text-secondary`,
+  opacity .35 disabled — **identical in both apps**. `.rownav` sets no `display`, so `hidden`
+  works, and `@media (hover: none), (pointer: coarse)` hides it with `!important`: a finger
+  swipes the row, and in Money Map the arrows grew a phone's header 6px.
+- **`wireScrollRow(row, nav)` is Money Map's, verbatim** — ResizeObserver, MutationObserver,
+  scroll and resize keep it true; the arrows show only while the row has something off an end,
+  each is disabled at its own end, and a press steps 80% of the row, instantly. Money Map's tab
+  drag edge-scroll is NOT here: these tabs are not reordered by dragging.
+- **Print.** `.headctl` wraps and stops scrolling on paper, and `.rownav` joins the furniture.
+- **The print list named `.headbar > select, .headbar > button, .headbar > label`** — direct
+  children, which the wrapper would have silently put back on paper. It names `.headctl >` now.
+- **Measured against the previous commit** (Playwright, sample data loaded): 1600px identical. 705px: header
+  135 → 89px, the controls three lines → one with arrows, the tab bar one row with arrows.
+  1100px: 93 → 89px — the controls go onto their own line under the name, where five used to
+  sit beside it with two below. 390×844 phone: 210 → 118px. 844×390 sideways phone: 101 → 93px.
+  **The phones are not pixel-identical, and that is the change rather than a regression**: this
+  header never had a phone scroller (Money Map's did), so its controls used to stack two or three
+  lines deep there. The phone TAB rows are unchanged, and the arrows never show on touch.
+- **Tests.** A live `inFrame` test at 705px (one line each, both arrow boxes shown, › scrolls
+  and ‹ comes on, neither box inside its scroller) and 1600px (nothing overflows, no arrows,
+  controls beside the name), confirmed red on the old page. The pin test's 1280px "the row
+  wraps as it always did" is `nowrap` with nothing to scroll now. **Two ring-room checks at the
+  row's right END take 3px, not 4 / 3.5**: `scrollLeft` clamps to `scrollWidth - clientWidth`
+  and `scrollWidth` is rounded, so with the arrows narrowing the bar the end lands up to a pixel
+  short (Money Map met the same). A missing padding still reads 0. EXPECTED 502 → 507.
+
+
 ## Stepping between charts in full screen (2026-09-03)
 
 **A `‹` and a `›` beside the ⤢ walk the charts on the view without coming back
