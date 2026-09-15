@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 513;
+const EXPECTED = 514;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -7606,6 +7606,47 @@ t('Whole History counts a sprint left out of the rolling window, and says so', (
     s.excluded = true; s.excludeReason = 'incident';
     st.settings.activeTeamId = team.id;
   });
+});
+
+t('value delivered against nothing planned is named, and the business value columns add up', () => {
+  /* The window accepts planned 0, achieved 8. That team has a record (hasBv) and no
+     measure (pct null), and fell between the two: its row said "— Not recorded"
+     beside BV delivered 8, the footer's BV delivered left the 8 out, the ⚑ note
+     named only the team with no record at all, and Team PI read "8 of 0 business
+     value — not recorded". */
+  const setup = (st) => {
+    const pi = st.pis.find(p => p.name === 'PI 2026.3');
+    const live = st.teams.find(t => t.name === 'Team Live Sprint');
+    const fresh = st.teams.find(t => t.name === 'Team New Start');
+    st.objectives = st.objectives.filter(o => !(o.teamId === fresh.id && o.piId === pi.id));
+    st.objectives.push({ id: 'rvbv08', teamId: live.id, piId: pi.id, plannedBv: 0, actualBv: 8, stretchBv: 0 });
+    st.settings.activePiId = pi.id;
+    st.settings.activeTeamId = live.id;
+  };
+  reviewView('art', (st, d) => {
+    const rows = [...d.querySelectorAll('#artTable tbody tr')];
+    const cells = (tr) => [...tr.querySelectorAll('td')].map(reviewText);
+    const live = rows.find(tr => tr.querySelector('.rowbtn').textContent.trim() === 'Team Live Sprint');
+    ok(live, 'Team Live Sprint has a row');
+    const c = live ? cells(live) : [];
+    eq(c[6], '8', 'its BV delivered is the 8 recorded');
+    eq(/not recorded/i.test(c[7] || ''), false, 'and its predictability does not call it "not recorded"', c[7]);
+    const n = (x) => Number(String(x || '').replace(/[^0-9]/g, '')) || 0;
+    const foot = [...d.querySelectorAll('#artTable tfoot td')].map(reviewText);
+    eq(n(foot[6]), rows.reduce((a, tr) => a + n(cells(tr)[6]), 0), 'the footer’s BV delivered is its column added up');
+    eq(n(foot[5]), rows.reduce((a, tr) => a + n(cells(tr)[5]), 0), 'and so is BV planned');
+    const notes = [...reviewCard(d, 'Every Team').querySelectorAll('.exnote')].map(reviewText).join(' | ');
+    ok(/Team Live Sprint[^|]*no planned value/.test(notes), 'the team is named, with the reason', notes);
+    ok(/Not scored yet[^|]*Team New Start/.test(notes), 'beside the team with nothing recorded at all', notes);
+  }, setup);
+  reviewView('pi', (st, d) => {
+    const el = [...d.querySelectorAll('.tile')]
+      .find(x => x.querySelector('.label').textContent.trim().startsWith('PI predictability'));
+    ok(el, 'Team PI still shows the tile for a team with value recorded');
+    const text = reviewText(el);
+    eq(/not recorded/i.test(text), false, 'and does not call 8 of 0 "not recorded"', text);
+    ok(/none planned/i.test(text), 'it says none was planned', text);
+  }, setup);
 });
 
 group('a step lands the keyboard on the new chart (2026-09-03 audit)');

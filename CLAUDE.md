@@ -586,7 +586,8 @@ but Charles had ever actually signed in.)
   possible.** A record of three zeroes ("planned nothing") and no record at all ("nobody has
   filled this in") are different answers, so the empty record is deleted rather than stored
   and the ART view says which teams it left out of the predictability figures. It stays in
-  every points figure. Same never-silent rule as `orphanNote()` and `excludedTeamsLine()`.
+  every points figure. **A record with nothing PLANNED is the third case and is named too**
+  (`unplanned`, 2026-09-15): out of the mean, in the pooled row. Same never-silent rule as `orphanNote()` and `excludedTeamsLine()`.
 - **An orphaned objective is `pruned`, not `dropped`, and the distinction is the toast.** An
   orphaned sprint moves a rolling average with nothing on screen behind it, which is what
   `orphanNote()` exists to announce; business value is only ever read for a team and PI both
@@ -2548,3 +2549,17 @@ proven red against the commit before it.
   sprints would give that finding a second owner, and inside either window it would also move
   Rolling 5, Compare Teams and the next-PI card, whose figures the README and tests quote. The
   test marks one on a rendered copy instead.
+- **Value delivered against nothing planned fell between "scored" and "missing" (2026-09-15).**
+  The Business Value window accepts planned 0, achieved 8. `artPredictability()` counted a team
+  as scored only with a measure and as missing only with no record, so that team was in neither:
+  its PI by Team row read "— Not recorded" beside BV delivered 8, the ART total row summed only
+  scored teams (its BV delivered column did not add up), the ⚑ note named only the blank team,
+  and Team PI read "8 of 0 business value — not recorded". Now `recorded` and `unplanned` sit
+  beside `scored` and `missing`. **Pooled covers every recorded team** — this file defines it as
+  "adds all the value up and divides once", and value against nothing planned sits in the
+  numerator the way stretch does ("Stretch value is in the NUMERATOR and never the
+  DENOMINATOR") — while the mean still needs each team's own measure. The row and Team PI say
+  *nothing planned*, a ⚑ *Nothing planned* note names the team ("no planned value to score
+  against"), the methodnote says which teams each figure covers, and PI Trend's "N teams
+  unscored" counts them. The sample is unchanged: no demo team has this record, and giving one
+  it would unpick the band/under/over/unscored arrangement the demo is built on.

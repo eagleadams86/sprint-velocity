@@ -4476,6 +4476,7 @@ function piTrend(teams, includeSix) {
       predPct: pred.mean,
       scored: pred.scored,
       missing: pred.missing,
+      unplanned: pred.unplanned,
       goals: goalRecord(closed),
       /* A PI nobody recorded anything in is a gap in the history rather than a
          zero, and the view drops it rather than plotting a hole as a collapse. */
@@ -4585,12 +4586,23 @@ function artPredictability(teams, piId) {
   const rows = (teams || []).map(t => ({ team: t, bv: bvFigures(objectivesFor(t.id, piId)),
                                          has: hasBv(objectivesFor(t.id, piId)) }));
   const scored = rows.filter(r => r.has && r.bv.pct !== null);
-  const planned = scored.reduce((a, r) => a + r.bv.planned, 0);
-  const delivered = scored.reduce((a, r) => a + r.bv.delivered, 0);
+  /* ── A RECORD WITH NOTHING PLANNED (2026-09-15) ────────────────────────────
+     The window accepts planned 0 and achieved 8. That team HAS a record and has
+     no measure, and it fell between `scored` and `missing`: the ART total row
+     added up only scored teams, so its BV delivered column did not add up, and
+     the ⚑ note named only teams with no record. `pooled` is "all the value added
+     up and divided once", so it adds up every RECORDED team — 8 delivered against
+     0 planned sits in the numerator exactly as stretch does. `mean` needs each
+     team's own measure and still takes only `scored`; `unplanned` names the rest. */
+  const recorded = rows.filter(r => r.has);
+  const planned = recorded.reduce((a, r) => a + r.bv.planned, 0);
+  const delivered = recorded.reduce((a, r) => a + r.bv.delivered, 0);
   return {
     rows,
     scored: scored.length,
+    recorded: recorded.length,
     missing: rows.filter(r => !r.has).map(r => r.team),
+    unplanned: rows.filter(r => r.has && r.bv.pct === null).map(r => r.team),
     mean: scored.length ? scored.reduce((a, r) => a + r.bv.pct, 0) / scored.length : null,
     pooled: planned > 0 ? (delivered / planned) * 100 : null,
     planned, delivered
@@ -8010,11 +8022,17 @@ function renderPiView() {
              reads as a metric that failed rather than one nobody uses, and plenty
              of teams don't run PI objectives at all — the card below is what
              offers the feature to those who do. */
-          bvScored ? tile('PI predictability', fmtPct(bv.pct, 'predictability'),
+          bvScored ? (bv.pct === null
+            /* Value recorded against nothing planned: a record, and no measure.
+               "8 of 0 business value — not recorded" called a recorded 8 missing. */
+            ? tile('PI predictability', '—', null,
+                `${fmtNum(bv.delivered)} business value delivered, none planned — nothing to score against`,
+                false, 'piPredictability')
+            : tile('PI predictability', fmtPct(bv.pct, 'predictability'),
             rag(bv.pct, 'predictability'),
             `${fmtNum(bv.delivered)} of ${fmtNum(bv.planned)} business value — ${
               esc(predictabilityStatus(bv.pct)).toLowerCase()}`,
-            false, 'piPredictability') : ''}
+            false, 'piPredictability')) : ''}
       </div>
     </div>
 
@@ -8041,7 +8059,8 @@ function renderPiView() {
             <td>${fmtNum(bv.actual)}</td>
             <td>${fmtNum(bv.stretch)}</td>
             <td>${fmtNum(bv.delivered)}</td>
-            <td class="metric">${predPill(bv.pct)}</td>
+            <td class="metric">${bv.pct === null
+              ? '<span class="muted">nothing planned</span>' : predPill(bv.pct)}</td>
           </tr></tbody>
         </table></div>`
       : `<p class="sub">Nothing recorded for <strong>${esc(team.name)}</strong> in
@@ -9566,8 +9585,8 @@ function renderPiTrendView() {
           `points in ${esc(latest.pi.name)} — ${movement('velocity', '')}`,
           false, 'trendDelivered')}
         ${tile('Teams counted', String(latest.teamsIn.length), null,
-          `in ${esc(latest.pi.name)}${latest.missing.length
-            ? ` · ${plural(latest.missing.length, 'team')} unscored` : ''}`,
+          `in ${esc(latest.pi.name)}${latest.missing.length + latest.unplanned.length
+            ? ` · ${plural(latest.missing.length + latest.unplanned.length, 'team')} unscored` : ''}`,
           false, 'trendTeams')}
       </div>
     </div>
@@ -9931,6 +9950,17 @@ function renderArtPiView() {
         the team below.</span></p>`
     : '';
 
+  /* Recorded, with nothing planned to score it against — in neither list above
+     until 2026-09-15, so the row said "Not recorded" and the note said nothing. */
+  const unplannedNote = pred.unplanned.length
+    ? `<p class="sub exnote"><span class="badge">⚑ Nothing planned</span>
+        <span class="muted">${pred.unplanned.map(t => esc(t.name)).join(', ')} — business value
+        delivered is recorded in ${esc(pi.name)} but none planned, so there is no planned value
+        to score against. ${pred.unplanned.length === 1 ? 'It is' : 'They are'} out of the
+        ART predictability tile and in the ART total row, which adds up every unit delivered.
+        Fill in the planned figure on the <strong>Team PI</strong> tab.</span></p>`
+    : '';
+
   /* ── When the average hides the train ────────────────────────────────────
      A two-sided measure has a failure mode no one-sided one has: a team that
      under-delivered and a team that under-committed sit on OPPOSITE sides of
@@ -9980,7 +10010,7 @@ function renderArtPiView() {
         RTE reports at Inspect &amp; Adapt, and a different question from whether the points
         landed. The two sit side by side here because a train can hit one and miss the other.${
         runningLine ? ' ' + runningLine + '.' : ''}</p>
-      ${notInPiNote}${missingNote}${cancellingNote}
+      ${notInPiNote}${missingNote}${unplannedNote}${cancellingNote}
       <div class="tiles">
         ${tile('ART predictability', fmtPct(pred.mean, 'predictability'),
           rag(pred.mean, 'predictability'),
@@ -10052,8 +10082,9 @@ function renderArtPiView() {
             <td>${fmtNum(r.velocity)}</td>
             <td>${r.has ? fmtNum(r.bv.planned) : '<span class="muted">—</span>'}</td>
             <td>${r.has ? fmtNum(r.bv.delivered) : '<span class="muted">—</span>'}</td>
-            <td class="metric">${r.has ? predPill(r.bv.pct)
-              : '<span class="muted">not scored</span>'}</td></tr>`).join('')}</tbody>
+            <td class="metric">${!r.has ? '<span class="muted">not scored</span>'
+              : r.bv.pct === null ? '<span class="muted">nothing planned</span>'
+              : predPill(r.bv.pct)}</td></tr>`).join('')}</tbody>
         <tfoot>
           <tr>
             <th scope="row">${scopeLabel}${helpBtn('artTotalRow', 'the ART total row')}</th>
@@ -10062,9 +10093,9 @@ function renderArtPiView() {
             <td>${fmtNum(artDone)}</td>
             <td class="metric">${pill(artCommitPct, 'completion')}</td>
             <td>${fmtNum(artVelocity)}</td>
-            <td>${pred.scored ? fmtNum(pred.planned) : '<span class="muted">—</span>'}</td>
-            <td>${pred.scored ? fmtNum(pred.delivered) : '<span class="muted">—</span>'}</td>
-            <td class="metric">${pred.scored ? predPill(pred.pooled)
+            <td>${pred.recorded ? fmtNum(pred.planned) : '<span class="muted">—</span>'}</td>
+            <td>${pred.recorded ? fmtNum(pred.delivered) : '<span class="muted">—</span>'}</td>
+            <td class="metric">${pred.pooled !== null ? predPill(pred.pooled)
               : '<span class="muted">—</span>'}</td>
           </tr>
         </tfoot>
@@ -10077,7 +10108,10 @@ function renderArtPiView() {
         /* Against the rows on the page, not every team on the ART: a team with
            no sprint in this PI isn't in the table at all, so saying the figures
            cover fewer teams than it shows would be counting the wrong absence. */
-        pred.scored && pred.scored < rows.length
+        pred.unplanned.length
+          ? ` The tile covers the ${plural(pred.scored, 'team')} with a measure; the row adds up
+              all ${plural(pred.recorded, 'team')} with business value recorded.`
+          : pred.scored && pred.scored < rows.length
           ? ` Both cover the ${plural(pred.scored, 'team')} that ${
               pred.scored === 1 ? 'has' : 'have'} been scored.` : ''}</p>
     </div>`;

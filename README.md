@@ -1044,6 +1044,12 @@ figure and sits out the predictability ones, and a ⚑ note above the tiles says
 those are and where to record them. A train figure worked out from three of five teams while
 the page shows five is exactly the silent exclusion the rest of the app refuses.
 
+**So is a team with value delivered and nothing planned.** Planned 0 and achieved 8 is a
+record with no measure — nothing to score 8 against — so its row reads *nothing planned*, a
+⚑ *Nothing planned* note names it, it sits out the *ART predictability* tile, and its 8 counts
+in the *ART total* row, which adds up every unit of business value recorded. The columns of
+that row always add up.
+
 ### When the Average Hides the Train
 
 A two-sided measure has a failure mode a one-sided one doesn't. A team that **under-delivered**
