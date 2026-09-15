@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 519;
+const EXPECTED = 520;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -304,6 +304,61 @@ t('hostile ids are replaced and every reference rewritten through the same map',
   eq(out.pis[0].id, 'ok-pi', 'valid ids pass through untouched');
   eq(out.sprints.length, 1, 'a remapped sprint is not mistaken for an orphan');
   eq(w.sanitizeIds.dropped, 0, 'nothing dropped');
+});
+t('a record with a missing or numeric id gets a real one, and Delete can reach it (2026-09-15 review)', () => {
+  /* The reviewer's restore: a team with no id, one with a NUMBER for an id, a PI
+     with no id. All three used to cross with no id at all, Teams & PIs drew
+     data-del-team="", and pressing Delete threw on teamById('') returning null. */
+  const out = w.sanitizeIds(w.coerceShape({
+    teams: [{ name: 'Ghost' }, { id: 7, name: 'Numeric id' }, { id: 'ok1', name: 'Real' },
+            { id: null, name: 'Null id' }, { id: '', name: 'Empty id' }],
+    arts: [{ name: 'Ghost ART' }],
+    pis: [{ name: 'Ghost PI' }, { id: 'p1', name: 'PI 1' }],
+    sprints: [{ teamId: 7, piId: '', sprintNumber: 1, committed: 5 },
+              { id: 's2', teamId: 'ok1', piId: 'p1', sprintNumber: 2 }],
+    plans: [{ teamId: 'ok1', piId: null, sprintNumber: 3, availability: 50 }],
+    objectives: [{ teamId: 'ok1', piId: 'p1', plannedBv: 5 }],
+    settings: { activeTeamId: 7 },
+  }));
+  const ID = /^[A-Za-z0-9_-]{1,64}$/;
+  ['teams', 'arts', 'pis', 'sprints', 'plans', 'objectives'].forEach(k => {
+    ok(out[k].length > 0 && out[k].every(r => typeof r.id === 'string' && ID.test(r.id)),
+       'every record in ' + k + ' has a plain id', JSON.stringify(out[k].map(r => r.id)));
+  });
+  eq(out.teams.length, 5, 'no team was lost');
+  eq(new Set(out.teams.map(x => x.id)).size, 5, 'and no two of them share an id');
+  eq(out.teams[2].id, 'ok1', 'a good id is untouched');
+  const numeric = out.teams[1].id;
+  ok(numeric !== '7', 'the number is minted like a hostile string, not stringified', numeric);
+  eq(out.sprints[0].teamId, numeric, 'a sprint referring to 7 follows the team to its new id');
+  eq(out.settings.activeTeamId, numeric, 'and so does the active team');
+  eq(out.sprints[0].piId, null, 'while an empty piId still collapses to null');
+  eq(out.sprints.length, 2, 'so neither sprint is an orphan');
+  ok(w.sanitizeIds.pruned > 0, 'and the repair is counted, so boot persists the minted ids');
+
+  /* And the thing the ghost broke: Teams & PIs, its Delete button, pressed. */
+  const st = w.svGet();
+  const active = st.settings.activeTeamId;
+  const real = { confirm: w.confirm, save: w.save, toast: w.toast };
+  w.confirm = () => true; w.save = () => {};
+  try {
+    withState(out, () => {
+      w.renderManageTeamRows();
+      const dels = [...w.document.querySelectorAll('#teamRows [data-del-team]')];
+      eq(dels.length, 5, 'one Delete per team');
+      ok(dels.every(b => ID.test(b.dataset.delTeam)), 'none of them names an empty id',
+         JSON.stringify(dels.map(b => b.dataset.delTeam)));
+      const ghost = dels.find(b => b.dataset.delTeam === out.teams[0].id);
+      let threw = null;
+      try { ghost.click(); } catch (e) { threw = e; }
+      eq(threw, null, 'pressing Delete on the ghost does not throw');
+      eq(st.teams.some(x => x.name === 'Ghost'), false, 'and the ghost is gone');
+    });
+  } finally {
+    Object.assign(w, real);
+    st.settings.activeTeamId = active;
+    w.renderManageTeamRows();
+  }
 });
 t('a sprint whose TEAM is missing is dropped; a missing PI only UN-GROUPS it', () => {
   /* The drop used to take both, and while a PI was compulsory that was right: an

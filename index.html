@@ -3378,9 +3378,16 @@ function sanitizeIds(data) {
   sanitizeIds.unassigned = 0;  // sprints whose PI was missing, kept but un-grouped
   if (!data || typeof data !== 'object') return data;
   const remap = new Map();
+  /* A NUMBER goes through the same map as a hostile string (2026-09-15 review).
+     A hand-edited file saying `{"id": 7}` on a team and `"teamId": 7` on its
+     sprints means one team, so both are rewritten to the same fresh id — the Map
+     keys 7 and "7" apart, so a real "7" elsewhere is never merged with it. Null,
+     '' and anything else pass back as they came: `idOrNull` still collapses
+     those to null further down, and a reference holding one is dropped there. */
   const clean = (id) => {
-    if (typeof id !== 'string' || !id || ID_OK.test(id)) return id;
-    if (!remap.has(id)) remap.set(id, uid());
+    const finiteNum = typeof id === 'number' && Number.isFinite(id);
+    if (!finiteNum && (typeof id !== 'string' || !id || ID_OK.test(id))) return id;
+    if (!remap.has(id)) { remap.set(id, uid()); sanitizeIds.pruned++; }
     return remap.get(id);
   };
   const list = (v) => (Array.isArray(v) ? v : []);
@@ -3399,12 +3406,24 @@ function sanitizeIds(data) {
      JSON.stringify silently drops is a field that reads as "never set" on the
      next load rather than announcing itself, which is its own quiet bug. Any new
      optional field goes through here the same way. */
-  const cleanKey = (o, k) => { if (o && typeof o[k] === 'string') o[k] = clean(o[k]); };
-  list(data.teams).forEach(t => { cleanKey(t, 'id'); cleanKey(t, 'artId'); });
-  list(data.arts).forEach(a => cleanKey(a, 'id'));
-  list(data.pis).forEach(p => cleanKey(p, 'id'));
+  const cleanKey = (o, k) => {
+    if (o && (typeof o[k] === 'string' || typeof o[k] === 'number')) o[k] = clean(o[k]);
+  };
+  /* A RECORD'S OWN ID IS NEVER ABSENT (2026-09-15 review). cleanKey leaves a
+     missing, null, '' or object id alone, which is right for a reference and
+     wrong for the record itself: keepKnown then dropped the key, and a team with
+     no id rendered `data-del-team=""`, teamById('') found nothing, and Delete
+     threw — a ghost nobody could remove. Nothing can refer to an id that was
+     never there, so it gets a fresh one of its own rather than a remap entry. */
+  const ownId = (o) => {
+    cleanKey(o, 'id');
+    if (o && !(typeof o.id === 'string' && ID_OK.test(o.id))) { o.id = uid(); sanitizeIds.pruned++; }
+  };
+  list(data.teams).forEach(t => { ownId(t); cleanKey(t, 'artId'); });
+  list(data.arts).forEach(a => ownId(a));
+  list(data.pis).forEach(p => ownId(p));
   list(data.sprints).forEach(s => {
-    cleanKey(s, 'id');
+    ownId(s);
     cleanKey(s, 'teamId');
     cleanKey(s, 'piId');
     /* Sprints once carried a free-text `notes` object. The feature was removed
@@ -3417,12 +3436,12 @@ function sanitizeIds(data) {
     if ('notes' in s) { delete s.notes; sanitizeIds.strippedNotes++; }
   });
   list(data.plans).forEach(p => {
-    cleanKey(p, 'id');
+    ownId(p);
     cleanKey(p, 'teamId');
     cleanKey(p, 'piId');
   });
   list(data.objectives).forEach(o => {
-    cleanKey(o, 'id');
+    ownId(o);
     cleanKey(o, 'teamId');
     cleanKey(o, 'piId');
   });

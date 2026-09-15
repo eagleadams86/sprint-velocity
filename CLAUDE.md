@@ -2618,3 +2618,17 @@ proven red against the commit before it.
   only millisecond date that crosses the boundary (every other date is a `YYYY-MM-DD` string
   held to `DATE_RE`), so nothing else took the same change. Test: 1e300, one past the limit and
   -1e300 dropped; ±8.64e15 kept.
+- **A record whose own id is missing or not a string gets a minted one (2026-09-15).**
+  `cleanKey` only rewrote strings, and `keepKnown`'s `id` kind only kept them, so a restore
+  holding `{"name":"Ghost"}` or `{"id":7}` stored a team (or ART, PI, sprint, adjustment,
+  objective) with no id at all: Teams & PIs drew `data-del-team=""`, `teamById('')` returned
+  null and Delete threw, so the ghost could never be removed. Now every record in an id-keyed
+  collection goes through `ownId()` in `sanitizeIds`' first pass: a missing, null, `''` or object
+  id is replaced with a fresh `uid()` (nothing can refer to an id that was never there), and a
+  finite NUMBER goes through the same `remap` as a hostile string, so `"teamId": 7` on a sprint
+  and `"activeTeamId": 7` follow the team to its new id. The Map keys `7` and `"7"` apart, so a
+  real `"7"` elsewhere is not merged with it. A mint counts in `sanitizeIds.pruned` — hostile
+  strings included, which used to be re-minted on every boot and never scrubbed from storage —
+  so boot persists the minted ids once. `idOrNull` still collapses `''`/null to null: a
+  REFERENCE holding one is not an id to mint. Test: the reviewer's payload through
+  `sanitizeIds(coerceShape())`, then Teams & PIs rendered and the ghost's real Delete pressed.
