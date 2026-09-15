@@ -25,7 +25,7 @@ but Charles had ever actually signed in.)
   - **NO SCHEMA BUMP, and it is a stated call rather than an oversight.** CLAUDE.md's own procedure says to bump when a saved field is repurposed; index.html's `SCHEMA` doc gives the REASON behind it — a bump is earned where an older build silently stripping the field would go on to **state something wrong**. An old build reading a new copy drops the array and shows *All ARTs*: a WIDER scope that the picker and every heading name correctly, so nothing on the page is false. That is the forecast-fields case (which took no bump), not the `targets` case (which did, because the tiles judged figures against boundaries the file said had changed). Weighed against the cost: bumping puts the full-screen halt wall in front of anyone opening a stale cached tab, over a picker preference. **If this call is ever revisited, revisit it here** — the reasoning, not just the number.
   - **The menu survives a full re-render, which Flow Metrics' does not have to.** A tick re-renders, and this app rebuilds `viewsEl.innerHTML` wholesale, so the menu the reader is ticking through is destroyed on every press. `artPickOpen` / `artPickFocus` / `artPickScroll` live OUTSIDE the render and `wireArtToolbar()` re-applies all three; without the first, ticking a second ART is impossible, and without the second a keyboard reader loses focus to `<body>` on every Space. **`artPickView` is the fourth**, and it exists because a press on a tab closes the menu through the outside-press handler but an ARROW between tabs fires no press at all — without it the menu re-opened over a view the reader had just moved to.
   - **The ART label under a team's name is now keyed off the COUNT of ticks, not off "is a filter on".** It goes at one ART — the same word down every row is noise — and comes BACK at two, because rows drawn from two ARTs are a mixture the table cannot otherwise account for. Same for whether Compare Teams groups by ART.
-  - **`artScopeWords()` is the one place the scope is put into words**, and it replaced three separate `art ? … : noArt ? … : …` triads across four views plus `printMetaLine`. Three spellings of one scope was survivable; a list would have made it seven places that each had to know how to join names.
+  - **`artScopeWords()` is the one place the scope is put into words**, and it replaced three separate `art ? … : noArt ? … : …` triads across four views plus `printMetaLine`. **"No ART" is spelt out in every sentence form whether or not it is the only tick** (2026-09-15) — "Payments ART and Teams Without An ART", "on Payments ART and with no ART"; only `names`, the picker button's label, keeps "No ART". Three spellings of one scope was survivable; a list would have made it seven places that each had to know how to join names.
 - **⌕ Find / ⌘K is Money Map's window, ported (2026-08-23)** — `searchApp(st, query)` is PURE over the state it is handed and does NOT use the `teamById`/`piById`/`artById` helpers, which are bound to the live `state`; a search over a test fixture has to be a search over that fixture, and the sprint label is rebuilt from the lists in hand for the same reason. Two-character minimum, `SEARCH_CAP` of 80 with the overflow COUNTED so the cap is never silent, and the count span (`role="status"`) is the live region rather than the results list. `goToSearchHit` sets what the hit points at and then lets `renderTabs()` have the last word on the view — a PI hit asking for Team PI on a team with nothing in that PI falls back to Sprint by itself, so there is no second copy of the tab rules. `SEARCH_VIEW_LABEL` must name every `.tab[data-view]` and nothing else; a test asserts both directions. Mirrored into Flow Metrics and Golf Handicap in the same pass — a change to one belongs in all three — and the Task Dashboard has one too, which makes six windows in five apps plus the starter.
 - **THE WINDOW ITSELF IS PINNED, PROPERTY BY PROPERTY, AND THE SAME BLOCK IS IN ALL SIX APPS VERBATIM (2026-08-23).** 700px on 18px of padding — the Back Up & Restore window's size, the family's other fixed-width window — with the heading, the intro line, the box, the hit and its three lines, and the "Nothing matches" line all declared inside the `#searchDialog` block rather than borrowed from whatever quiet-text class the app happens to have. That borrowing is what made one window into six: 360px and 420px wide, a 320px box inside a 360px dialog, a hittab at `--fs-sm` here and `--fs-xs` there, `.04em` typed out beside `--ls-label`, and four different colours on the same sentence. A change to any of it belongs in all six. Two details worth keeping: `#searchDialog > p` is the DIRECT child only (the results list's message is a `<p>` too, and an id in that selector would out-rank `.searchresults .hint` and hand it the intro line's colour), and the block deliberately declares NO dialog chrome — backdrop, shadow, a field's touch-height floor, and the max-height Money Map divides by its own zoom all belong to the app's `dialog` rule and are shared with every other window it opens.
 - **The header buttons wear a glyph in front of the word** (2026-08-21) — plain text characters, NOT emoji and not an icon font: one more file to fetch is the last thing a header painted this early needs, and a text glyph inherits the theme's colour for free, so it can never become the thing that carries a meaning by hue. Each is `aria-hidden` — the word beside it is already the whole label. The glyphs are Money Map's own where the same button exists there (`⇩` Back up, `↗` Share, `⚙` settings), so one action looks the same in every app, and `☰` is the list/manage one the three list-managing apps share. Added to Sprint Predictability, Flow Metrics, Golf Handicap and PAPTrack in the same commit.
@@ -190,7 +190,8 @@ but Charles had ever actually signed in.)
     order rather than drawing a table sorted by nothing.
   - Compare Teams sorts `rowsData` BEFORE anything reads it, so **the chart above the table
     follows it** — two orders on one page, one of them the reader's own choice, is a page read
-    twice.
+    twice. **Which is why it registers `SORT_COLS.teamsTable` itself, before `sortRows()`**:
+    `sortOf()` ignores a saved key for an unregistered table, and `sortHead()` runs after.
   - **One delegated listener on `viewsEl`**, which survives every render (only its innerHTML is
     replaced), because the press destroys the button that is handling it. That is also why it
     hands the keyboard back: the new copy of the heading is found by its key and re-focused,
@@ -407,8 +408,9 @@ but Charles had ever actually signed in.)
   rules exist to prevent. `f_start.dataset.auto` marks a projection as still ours, so changing
   the sprint number re-projects but a hand-typed date survives.
 - `isCounted()` also honours `settings.includeInProgress` (default off), which opts running
-  sprints into every figure for last-day planning. It's deliberately one predicate so no two
-  views can disagree; `targetSprintSlot()` then stops aiming at the running sprint, since a
+  sprints into every figure for last-day planning, and every view that counts one SAYS so —
+  the cross-team three through `countedRunningSentence()`, which names team and sprint. It's
+  deliberately one predicate so no two views can disagree; `targetSprintSlot()` then stops aiming at the running sprint, since a
   sprint being counted as data isn't the one you're planning. Planned sprints never count.
 - **A PI IS OPTIONAL, AND `piId: null` IS A REAL ANSWER (2026-08-20).** A team's sprints
   live on one of two tracks: the **unassigned track** (`piId: null`), which is the app's
@@ -464,7 +466,7 @@ but Charles had ever actually signed in.)
 - **PI-scoped views leave out teams with nothing in the selected PI, and name them.** With a
   PI compulsory every team was in one, so `renderArtPiView()` mapping every shown team was
   safe; now a PI-less team would appear as a row of zeros, which reads as a team that
-  delivered nothing rather than one that isn't in this PI. `renderTabs()` hides **Current
+  delivered nothing rather than one that isn't in this PI. `renderTabs()` hides **Team
   PI** without a PI (and for a team with no PI'd sprint) as well as **PI by Team**.
 - **Deleting a PI asks whether to keep its sprints, and the renumbering is not optional.**
   It used to destroy every sprint in the PI across every team, which was the only coherent
@@ -534,7 +536,9 @@ but Charles had ever actually signed in.)
   the way they do: **predictability is the MEAN of the teams' own measures** (every team once,
   so it survives a train changing size, and the same method `renderArtPiView`'s tile uses so
   the two views can't disagree about one PI), while **commitment completion is POOLED**
-  (matching Team PI and the Dashboard) and openly does not survive it. A PI with nothing
+  (Team PI's and the Dashboard's method) and openly does not survive it. **It MATCHES those
+  two only with sprint 6 counted** — they always count the IP sprint and `piTrend()` leaves it
+  out by default — so every place that makes the claim says so (2026-09-15). A PI with nothing
   recorded is a GAP, not a zero — `any` is false and the view drops it rather than plotting a
   hole as a collapse; a PI with no business value leaves a hole in the predictability line for
   the same reason. **There is deliberately no total row**: adding PIs together answers
@@ -548,8 +552,10 @@ but Charles had ever actually signed in.)
 - **`piCapacityCard()` is the forward half of that view, and it multiplies rather than
   re-deriving.** Each team's `nextSprintTarget()` times the DELIVERY sprints in a PI
   (`SPRINTS_PER_PI - 1` — the IP sprint delivers none of it), so it inherits the whole method
-  including both availability levers and cannot drift from the Rolling 5 card that explains
-  the working. It covers only teams that have been in a PI, matching the table above it, and
+  and cannot drift from the Rolling 5 card that explains the working. **Except a ONE-OFF
+  availability (2026-09-15)**: the span rate is `planningBase` × the team's STANDING
+  availability, the `forecast()` rule, because a `plans` entry is leave against next sprint and
+  five times it is a smaller team for a whole PI. Named under *⚑ One-off not stretched*. It covers only teams that have been in a PI, matching the table above it, and
   names any it left out — a team that doesn't run PIs has no place under a heading about the
   next PI, and its target is on Rolling 5 where it lives.
 - **The demo carries THREE PIs so the trend has a direction** (≈75% → 81% → 86%, climbing out
@@ -581,7 +587,8 @@ but Charles had ever actually signed in.)
   possible.** A record of three zeroes ("planned nothing") and no record at all ("nobody has
   filled this in") are different answers, so the empty record is deleted rather than stored
   and the ART view says which teams it left out of the predictability figures. It stays in
-  every points figure. Same never-silent rule as `orphanNote()` and `excludedTeamsLine()`.
+  every points figure. **A record with nothing PLANNED is the third case and is named too**
+  (`unplanned`, 2026-09-15): out of the mean, in the pooled row. Same never-silent rule as `orphanNote()` and `excludedTeamsLine()`.
 - **An orphaned objective is `pruned`, not `dropped`, and the distinction is the toast.** An
   orphaned sprint moves a rolling average with nothing on screen behind it, which is what
   `orphanNote()` exists to announce; business value is only ever read for a team and PI both
@@ -628,9 +635,10 @@ but Charles had ever actually signed in.)
 - Exclusions must never be silent: every view that drops a sprint says which one and why
   (`openSprintsNote()`). A sprint sitting outside the numbers unnoticed is worse than the
   bug this replaced.
-- `fmtPct()` takes the RAG scale and drops to one decimal when rounding would cross a
-  threshold, so a displayed figure never contradicts the colour next to it (84.6% must not
-  render as "85%" in yellow). Any new percentage display must pass its scale.
+- `fmtPct()` takes the RAG scale and adds decimals when rounding would cross a threshold —
+  as many as it takes, up to four, then truncates toward the figure's own side — so a
+  displayed figure never contradicts the colour next to it (84.6% must not render as "85%" in
+  yellow, nor 84.97% as "85.0%"). Any new percentage display must pass its scale.
 - Sprint 6 is the IP sprint **of a PI**: excluded from the rolling window by default, with a
   toggle — and only for sprints actually in a PI (`isIpSlot`).
 - `nextSprintTarget()` recommends a commitment from **mean committed-points-completed**,
@@ -721,7 +729,9 @@ but Charles had ever actually signed in.)
   is a lasting change and holds for every sprint in the span; a `plans` entry is leave next
   fortnight, and stretching it over ten sprints would forecast a team as permanently
   short-staffed off one holiday. The card says which it did, either way — `lastingAdjustment`
-  and `oneOffIgnored` exist so it can.
+  and `oneOffIgnored` exist so it can. **Both can be true at once**, and the standing figure is
+  read with `standingAvailability(teamId)`, never `availabilitySource` — a one-off on the next
+  slot wins outright there and used to hide the standing figure from the whole span (2026-09-15).
 - **Delivery sprints are not calendar sprints, and the dates have to know it.** Unless the
   team counts it, sprint 6 delivers none of the work, so a span long enough to cross one
   takes an extra stride of calendar per crossing. `calendarSlots()` walks the slots from the
@@ -873,7 +883,7 @@ but Charles had ever actually signed in.)
   the two rolling toggles, which PI is selected, which sprints are excluded — so a second
   code path building "the same" rows from `state` would have to reproduce all of them and
   would drift from the screen the first time one changed. `tableToRows()` + `exportButtons()`
-  + one delegated listener on `viewsEl` serve all five tables; adding a table means giving it
+  + one delegated listener on `viewsEl` serve all six tables; adding a table means giving it
   an `id` and dropping `exportButtons()` into its `.row.cardhead`, nothing else.
 - **`cellText()` strips `[aria-hidden="true"]` as the general rule**, with `.sr-only`,
   `.badge`, `.tile-help` and `.artname` as named cases. Anything hidden from assistive
@@ -980,7 +990,9 @@ but Charles had ever actually signed in.)
   three PIs behind it holding eighteen sprints nothing could show sprint by sprint (PI Trend
   flattens them to one point per PI). It deliberately does **not** call `rollingSprints()`:
   the two rolling toggles narrow a window and this view has none, so every sprint is listed,
-  with the in-flight and left-out ones drawn and marked rather than dropped. Its Direction
+  with the in-flight and left-out ones drawn and marked rather than dropped. **A left-out
+  sprint is COUNTED here** (`pooled(counted)`), like the PI totals — only in-flight ones are
+  out of the figures. Its Direction
   tile is `trendChange()` over the whole run, and the demo is built so it disagrees with the
   five-sprint figure on both long-history teams — that disagreement IS the argument for the
   view, and a test pins it so tidying those numbers can't quietly remove it.
@@ -1493,7 +1505,10 @@ but Charles had ever actually signed in.)
   textContent the shared-view path rewrites). Other SMs use this app with their own data, so
   it exists for them: what is stored, that it stays in their browser, that share links
   upload nothing, and — for anyone who used sync before 2026-08-20 — the deletion contact.
-  Effective date is **2026-08-20**, moved when sync was removed. If share links or what the
+  Effective date is **2026-09-15**: moved to 2026-08-20 when sync was removed, and again on
+  2026-09-15 when its list of saved preferences was found to miss the pin, the table sorts
+  and the ART picker (text also changed on 2026-08-22 without a new date — don't repeat
+  that). If share links or what the
   app stores ever change, update it and its date in the same commit.
 - **README.md is the index** — keep it current whenever the app meaningfully changes.
 - After changes: **browser-test locally first** (`python3 -m http.server 8012`, or the
@@ -1616,7 +1631,7 @@ under "No teams yet" in a fresh incognito window.
 - It cost an hour of chasing service workers and CDNs first. **An incognito window rules all of
   that out in ten seconds** and should be the first question asked, not the last.
 
-## One chart, filling the window (2026-08-30)
+## One Chart, Filling the Window (2026-08-30)
 
 **Every card that draws a chart carries a ⤢ button that lifts the card into a
 fixed overlay filling the window under the header.** Flow Metrics' feature
@@ -1661,7 +1676,7 @@ carry the feature:**
 `chartIn(card)` are top-level function declarations, so the suite drives the
 real thing through the frame's window.
 
-## Pinning the tab row (2026-09-03)
+## Pinning the Tab Row (2026-09-03)
 
 **The tab row held at the top of the window while the page scrolls under it**,
 off by default and toggled from a 📌 at the end of the row. Asked for in Flow
@@ -1808,7 +1823,7 @@ Flow Metrics carries the identical change in the same pass, and a change to one 
   only checks inside one, so EXPECTED stays 507 — this suite counts tests.
 
 
-## Stepping between charts in full screen (2026-09-03)
+## Stepping Between Charts in Full Screen (2026-09-03)
 
 **A `‹` and a `›` beside the ⤢ walk the charts on the view without coming back
 down.** Charles asked for it on 2026-09-03; built first in Flow Metrics and
@@ -1892,6 +1907,38 @@ its own — Charles asked for the two to match, and the two apps share their chr
   reading whatever the app holds: the suite boots an app with no teams, and these tables are
   only written when `renderManage` runs. It writes nothing to storage, so the read-only
   promise still holds — and the last test puts the app's own rows back.
+
+## The Foot Add Button Is Measured per Section (2026-09-11)
+
+Teams, ARTs and PIs each carry a SECOND Add button under their table (`#addTeamBtnFootRow`,
+`#addArtBtnFootRow`, `#addPiBtnFootRow`), shown by `syncAddFoot(rowId, count)` once that
+section's own count reaches **`ADD_FOOT_FROM` = 12**. Mirrored from Flow Metrics after Charles
+hit the problem there with sixteen teams (commits 2135044, ffbb555).
+
+- **A duplicate, not a move.** The heading-row button says what a section adds before you have
+  read a row of it; a button above and below a two-row table is clutter. Both buttons share
+  one handler (`addTeam` / `addArt` / `addPi`) — two listeners with the same body is how they
+  come to disagree.
+- **The rule is the thing shared, not the number.** A second button is earned when a section
+  grows taller than the dialog's visible height — the point where its heading and the end of
+  its list can no longer be seen at once. That is a different row count per section, because
+  the distance from a heading to the fold depends on what sits above the table.
+- **Twelve is measured, and it is NOT Flow Metrics' number.** It first shipped at the sibling's
+  six, and Charles said at once it was too low: at six teams this Teams section is 382px in a
+  734px dialog, heading, rows and button all in view. Measured in that dialog, the Teams
+  heading is still on screen at eleven rows and gone at twelve. Flow Metrics' Teams section is
+  TEN (and its Workflow Stages four, rows 2.7x taller) because it carries prose above its
+  table and this one carries none. **Never "align" the two**: agreeing would be a coincidence,
+  and a check pinning it would pin the coincidence. Re-measure THIS window if its prose or row
+  height changes, and give any new section with taller rows or prose its own figure.
+- **Counted per section, from that section's own list** (`state.teams.length`,
+  `state.arts.length`, `state.pis.length`), and a row count rather than a measured height: a
+  height would have to be re-measured on every render, in a dialog that can stay open while
+  the window resizes, to answer a question a count answers well enough.
+- **It must stay away as firmly as it turns up.** tests.html pins both directions against
+  `__svTestHooks.ADD_FOOT_FROM` (read off the app, never repeated) and checks the COMPUTED
+  display, not `.hidden` — see "`[hidden]` Now Wins Globally" above, which is the day all
+  three showed over empty lists.
 
 ## Targets and Business Value Save As You Go (2026-09-07)
 
@@ -2286,7 +2333,7 @@ ones that need a real size boot their own 1280x900 frame through `inFrame()`.
   the button's centre, and headless with a real mouse click for all three deletes; `close`
   fires for Done, Escape and a backdrop click alike.
 
-### Round two, 2026-09-04
+### Round Two, 2026-09-04
 
 The leftovers of the same audit, fixed the next day. Each has a test in a group named
 "(2026-09-03 audit, round two)", proven to fail first against the unfixed index.html.
@@ -2443,3 +2490,241 @@ the 2026-09-07 audit", each with a test proven red against main first:
   disabled alongside it", the Targets header's "only writes it on Save … Cancel really is a
   cancel", and `scoring`'s `// { teamId, piId }` (it carries `written` and now `from` too). All
   three rewritten to say what the code does; no test, one commit.
+
+## Fixes From the 2026-09-15 Review
+
+A reviewer drove HEAD (3cf836f) with the sample data and confirmed each finding on screen. One
+fix per commit, each with a test in the "figures and Compare Teams (2026-09-15 review)" group
+proven red against the commit before it.
+
+### Figures and Compare Teams
+
+- **What the Next PI Could Hold stretched a one-off over the whole PI (2026-09-15).** It
+  multiplied `nextSprintTarget().recommended` by the delivery sprints, and `recommended` already
+  carries the NEXT SLOT's availability — so Team New Start's 50% leave on PI 2026.3 S3 read "6 ⚑
+  50% · 31", and "Across the PI" 537. `forecast()` refuses exactly this ("stretching that over
+  ten sprints would forecast a team as permanently short-staffed off one holiday"), so the card
+  now takes its rule: span rate = `planningBase` × the STANDING availability, floor = `reliableBase`
+  × the same, `hasFloor` re-asked on those figures. New Start reads 13 · 63 and the total 569
+  (537.4 + 31.25 — the review's "568" was 537 + 31 rounded twice);
+  Team Live Sprint keeps "⚑ 90%". The standing figure is read off the team record rather than
+  `availabilitySource`, because a one-off on the next slot wins outright there and would hide a
+  standing figure that still holds for every other sprint — `forecast()` had exactly that bug,
+  fixed in its own commit below. The
+  one-off is named under *⚑ One-off not stretched*, since the per-sprint figure no longer matches
+  the Rolling 5 target for that team.
+- **PI Trend's "matches Team PI and the Dashboard" was false by default (2026-09-15).** Its
+  Complete % is pooled, the same method — but `piTrend()` drops the IP sprint unless the
+  include-sprint-6 toggle is on, while `renderPiView` and `renderArtPiView` always count it: PI
+  2026.1 read 132 / 109 / 83% / 122 on PI by Team and 104 / 85 / 82% / 98 on PI Trend. **The
+  method was kept and the claim corrected, not the other way round**: this file records the
+  leave-out as the design ("the IP sprint is left out on the same terms as everywhere else, so a
+  PI's delivery figures aren't diluted by the sprint that isn't for delivery") and a test pins
+  it. The Numbers card, the ⓘ window, the README and the `piTrend` bullet above now say it
+  matches only with sprint 6 counted; the test proves that with the toggle on the PI 2026.1 row
+  equals PI by Team's footer row.
+- **`fmtPct()`'s one decimal could round onto the line (2026-09-15).** The rule was "a
+  decimal when rounding would cross", and a decimal is itself a rounding: 84.97% printed "85.0%
+  ! Watch" under "target ≥85%", carryover 15.02% "15.0%" under "≤15%", predictability 100.04%
+  "100.0%" at the band's edge (every predictability site goes through `pill()` → `fmtPct`, so
+  there was no separate band formatter to fix). It now re-judges the printed number at 1–4
+  decimals and takes the first on the figure's own side, then truncates toward that side. The
+  test checks the rendered string read BACK through `rag()` for 19 offsets around all eight
+  default boundaries, not only the three the review found.
+- **"Every view says so" was false on the three cross-team views (2026-09-15).** With *count
+  sprints that are still running* on, Compare Teams still printed "Finished sprints only", and
+  PI Trend (latest PI 81% → 78%, 429 → 442 on Team Live Sprint's running S4) and PI by Team said
+  nothing. `countedRunningSentence(sprints, withPi)` is the one sentence all three use — "**Team
+  Live Sprint S4** is still running and counted, because “count sprints that are still running”
+  is on" — built from the sprints each view actually counted (Compare Teams' windows, PI Trend
+  by `piTrend()`'s own filter, PI by Team's `closed`), escaped, and empty with the setting off.
+  It goes in the HEADING card's `.sub`, not in the toolbar's muted note, because the toolbar is
+  furniture on paper and the print rule relies on the captions carrying every scope choice.
+- **The Whole History help said a left-out sprint was not in the row; it is (2026-09-15).** The
+  row and the tile are `pooled(counted)` and `counted` is `isCounted`, which knows nothing of
+  `excluded`. The CODE was kept and the words changed, because this file already says which is
+  intended: an exclusion lives in `rollingSprints()` "beside the IP-sprint rule", the PI totals
+  "still count an excluded sprint", and History "deliberately does not call `rollingSprints()`".
+  The help, the view's caption ("this view still counts it, as the PI totals do"), the table
+  caption and the README now say so. **The demo still has no left-out sprint on a History team,
+  on purpose**: Team Overcommitted owns the exclusion finding and has five sprints, and "Each demo
+  team is NAMED FOR THE ONE THING IT SHOWS" — marking one of Team Baseline's or Team Headroom's
+  sprints would give that finding a second owner, and inside either window it would also move
+  Rolling 5, Compare Teams and the next-PI card, whose figures the README and tests quote. The
+  test marks one on a rendered copy instead.
+- **Value delivered against nothing planned fell between "scored" and "missing" (2026-09-15).**
+  The Business Value window accepts planned 0, achieved 8. `artPredictability()` counted a team
+  as scored only with a measure and as missing only with no record, so that team was in neither:
+  its PI by Team row read "— Not recorded" beside BV delivered 8, the ART total row summed only
+  scored teams (its BV delivered column did not add up), the ⚑ note named only the blank team,
+  and Team PI read "8 of 0 business value — not recorded". Now `recorded` and `unplanned` sit
+  beside `scored` and `missing`. **Pooled covers every recorded team** — this file defines it as
+  "adds all the value up and divides once", and value against nothing planned sits in the
+  numerator the way stretch does ("Stretch value is in the NUMERATOR and never the
+  DENOMINATOR") — while the mean still needs each team's own measure. The row and Team PI say
+  *nothing planned*, a ⚑ *Nothing planned* note names the team ("no planned value to score
+  against"), the methodnote says which teams each figure covers, and PI Trend's "N teams
+  unscored" counts them. The sample is unchanged: no demo team has this record, and giving one
+  it would unpick the band/under/over/unscored arrangement the demo is built on.
+- **Compare Teams drew a saved sort unsorted on its first render (2026-09-15).** `sortRows('teamsTable')`
+  ran before `sortHead('teamsTable', TEAM_COLS)`, and `sortOf()` honours a saved sort only once
+  `SORT_COLS[id]` is registered — which `sortHead()` does. After a reload the Avg velocity heading
+  carried `aria-sort` over rows and a chart in ART order; a second render put them right, so every
+  existing test (all in a frame that had drawn the table already) passed. The other five tables
+  call `sortHead` first; this one cannot, because the chart reads the sorted list, so it now
+  registers `SORT_COLS.teamsTable = TEAM_COLS` just before `sortRows()`. Registration was left
+  inside `sortHead` for the other five rather than moved out for all six: they are correct, and
+  a table drawing its header is still, by definition, a table saying what its columns are. The
+  test boots a FRESH frame (nothing registered), plants the sort with `lsSet` stubbed, and presses
+  the real tab.
+- **"Grouped by ART." outlived a column sort (2026-09-15).** Compare Teams' sub-caption keyed the
+  sentence off `state.arts.length && !filtered` alone, so it described an ART grouping over a
+  table the reader had just sorted by Avg velocity. It now also needs `!sortOf('teamsTable').key`,
+  which only answers correctly because of the fix above — the columns are registered before the
+  caption is built. The ART label under each name stays when sorted: a sorted table drawn from
+  two ARTs is still a mixture the reader needs the labels to account for. README's "sorts by ART"
+  line now says a column sort replaces it.
+- **A mixed ART tick read as an ART called "No ART" (2026-09-15).** `artScopeWords()` spelt
+  `ART_NONE` out only when it was the lone tick — its own comment gives the reason, "All teams on
+  No ART" reads as the name of an ART — and a mixed list fell back to the picker's label: "Payments
+  ART and No ART — Rolling 5-Sprint Averages", "Showing 4 of 6 teams, on Payments ART and No ART",
+  and the same in the sentence and the printed meta line. A mixed list now names its ARTs first
+  and spells the rest out in the lone tick's own words: `name` "Payments ART and Teams Without An
+  ART", `where` "on Payments ART and with no ART", `phrase` "Every team on Payments ART and every
+  team you haven’t put on an ART yet", `print` "Payments ART and teams with no ART". `label` is
+  untouched (a mixed list is several, so "All selected teams"), and so is `names`, which is the
+  picker button's. "Teams Without An ART" keeps the lone tick's capitalisation rather than
+  re-deciding Title Case for the mixed heading, so the two headings cannot drift apart.
+- **`forecast()` dropped a standing availability whenever a one-off sat on the next slot
+  (2026-09-15).** `lasting` asked `t.availabilitySource === 'team'`, and the slot entry wins
+  outright in `availabilityFor()`, so a team at a standing 80% with 50% leave next sprint read
+  'sprint' and forecast at FULL strength across the whole horizon. Pinned on capacityFixture
+  (done 10/20/30/40, standing 80%, one-off 50% on S5, 100 points): **before** rates 25 and 20,
+  4–5 sprints, no standing caveat; **after** 20 and 16, 5–7 sprints, `lastingAdjustment` 80 and
+  `oneOffIgnored` 50 both set. `standingAvailability(teamId)` is now the one span rule, read by
+  `forecast()`, `forecastHasRate()`, the typed-rate caveat and `piCapacityCard()`. Unchanged: a
+  typed rate takes no availability of either kind, next sprint's own figure still lets the
+  one-off win outright, and a one-off is still never stretched.
+
+### Layout, the Data Boundary and the Suite
+
+Findings a reviewer confirmed by driving HEAD (`3cf836f`). One fix per commit, each with a test
+proven red against the commit before it.
+
+- **A `sharedAt` past the calendar is dropped, not only a non-number (2026-09-15).** The pin
+  beside `label` checked `Number.isFinite`, so a crafted link carrying `sharedAt: 1e300` crossed
+  it and the banner read "Shared on Invalid Date" — the exact thing the pin was written to stop.
+  A JS `Date` holds ±8.64e15 ms; the boundary now drops anything outside that. `sharedAt` is the
+  only millisecond date that crosses the boundary (every other date is a `YYYY-MM-DD` string
+  held to `DATE_RE`), so nothing else took the same change. Test: 1e300, one past the limit and
+  -1e300 dropped; ±8.64e15 kept.
+- **A record whose own id is missing or not a string gets a minted one (2026-09-15).**
+  `cleanKey` only rewrote strings, and `keepKnown`'s `id` kind only kept them, so a restore
+  holding `{"name":"Ghost"}` or `{"id":7}` stored a team (or ART, PI, sprint, adjustment,
+  objective) with no id at all: Teams & PIs drew `data-del-team=""`, `teamById('')` returned
+  null and Delete threw, so the ghost could never be removed. Now every record in an id-keyed
+  collection goes through `ownId()` in `sanitizeIds`' first pass: a missing, null, `''` or object
+  id is replaced with a fresh `uid()` (nothing can refer to an id that was never there), and a
+  finite NUMBER goes through the same `remap` as a hostile string, so `"teamId": 7` on a sprint
+  and `"activeTeamId": 7` follow the team to its new id. The Map keys `7` and `"7"` apart, so a
+  real `"7"` elsewhere is not merged with it. A mint counts in `sanitizeIds.pruned` — hostile
+  strings included, which used to be re-minted on every boot and never scrubbed from storage —
+  so boot persists the minted ids once. `idOrNull` still collapses `''`/null to null: a
+  REFERENCE holding one is not an id to mint. Test: the reviewer's payload through
+  `sanitizeIds(coerceShape())`, then Teams & PIs rendered and the ghost's real Delete pressed.
+- **SV's import error rows POINT and never ECHO — Charles, 2026-09-15.** `parseImport()` used
+  to quote up to 40 characters of a failing cell through `echoCell`, on the argument that a
+  quote makes a typo findable. The cell most likely to fail is a Jira summary in a paste never
+  meant for this box, and 40 characters of one (`No team called "Customer ACME SSO bypass lets
+  tenant adm…"`) is a readable copy of it on screen. Charles decided to drop the quote. Every
+  error row now reads `Row N: <what the COLUMN needs>` — *no team by that name in the Team
+  column*, *the Committed column needs a number*, *the Start column needs a date written
+  YYYY-MM-DD* — naming the column in this app's own words (`COL`), never the pasted heading,
+  which is pasted text too. **N is the line in the SOURCE paste, blank lines counted**: blank
+  lines are still skipped, but each row keeps the line number it sat on (`lineNo`), because with
+  no quote the row is the only pointer back into the spreadsheet — it used to be the index among
+  non-blank lines, so a paste with a blank line pointed at the wrong row. **Don't reintroduce a
+  quote, capped or not**; this is the global point-don't-echo rule with no carve-out here (Flow
+  Metrics' shape-guarded issue key is a separate case, and SV stores no keys). Tests: every
+  branch that used to quote is driven with a marker cell, and the RENDERED preview is read as
+  well as the message; the three older import tests that asserted an echo assert the pointer
+  instead; and a new test pins the source-line numbering.
+- **A fieldset may shrink, and the share window's history picker is capped at its panel
+  (2026-09-15).** At 320×640 the Share window scrolled sideways 34px: the UA gives a `fieldset`
+  `min-inline-size: min-content`, so unlike a div it refuses to go narrower than its widest
+  child, and `#shareHistory` was as wide as its longest option (274px). "What to Include" ran
+  from 37 to 337px in a window ending at 304. The shared `fieldset, .formpanel` rule now carries
+  `min-inline-size: 0` (every window's fieldsets, not only this one) and `#shareHistory` takes
+  `max-width: 100%`; the chosen option still reads in full at 320px. A sweep of all twelve
+  dialogs at 320px (opened from their own buttons, sample loaded) found no other window with
+  the same cause — Teams & PIs is wider than the phone but scrolls INSIDE its `.tablewrap`,
+  which is item 10's. Test: a 320×640 `inFrame`, Share opened by its button, the window's
+  `scrollWidth <= clientWidth`, the picker inside its inner edge, and a fieldset's computed
+  `min-inline-size` of 0.
+- **A table heading's focus ring has room on every side (2026-09-15).** `overflow-x: auto`
+  clips BOTH axes at the padding box, and `.tablewrap` had no padding, so every sortable
+  heading's ring lost its top edge (and the first column its left, the last its right) at every
+  width — at 1280 on PI Trend the "PI" ring showed only its left and bottom. `.tablewrap` now
+  takes the tab row's shape, `padding: 4px; margin: -4px`: the box grows outward by exactly
+  what it hands the ring, so nothing moves. Chosen over an inset `outline-offset` on
+  `th button` because it keeps the family's one ring, covers the row buttons in the first column
+  too, and gives item 10's reveal a padding edge to measure against. **The trap: an inline
+  `margin-top` on a `.tablewrap` replaces the -4px, and it COLLAPSES with the margin above.**
+  PI Trend's capacity table carried `margin-top:14px` under a note with a 16px bottom margin
+  (or under the tiles, with none), so shaving the margin to 10px was right for one neighbour and
+  4px wrong for the other; it keeps its 14px and takes `padding-top: 0` (its heading row holds
+  no control). **Measured against the previous commit** (Playwright, sample data, every view for
+  every team plus Teams & PIs, 176 measurements each at 1280×800 and 390×844): no table, first
+  cell, card or page height moved. A real Tab walk at 1280 on PI Trend: 61 headings short of ring
+  room → 0. Test: 1280 PI Trend and Compare Teams, 390 Team PI and Rolling 5 — ≥3.5px above every
+  heading, left of the first, right of the last at the scroll end (3px, the family's end
+  tolerance), and each table still on its card's content edge.
+- **A control reached from the keyboard lands whole inside its table (2026-09-15).** The
+  fault `wireScrollRow`'s `focusin` fixed for the header and tabs on 2026-09-14 was still in
+  every sideways-scrolling table: the browser scrolls a focus target into view only when it is
+  ENTIRELY hidden, so at 390×844 Tab onto Team PI's "Total done" left 5px of its 102 showing,
+  Shift+Tab left the first column's "Edit sprint" buttons 14px past the left edge, and at 320px
+  every team's ART picker in Teams & PIs sat 56px past the right. One `focusin` on the
+  DOCUMENT, beside the two `wireScrollRow` calls, for anything inside a `.tablewrap`: the same
+  arithmetic as the rows (measured against the PADDING edge, so item 11's 4px stays the ring's;
+  only a `:focus-visible` focus). On the document rather than per table because every view
+  rebuilds its tables on each render and the Teams & PIs rows are rebuilt as they are edited;
+  the header and tab rows are not `.tablewrap`, so it never touches them, and `wireScrollRow`
+  stays byte-identical to the family's. **Measured against the previous commit** (Playwright,
+  sample data, real Tab and Shift+Tab): 390×844 forward over five table views 61 of 305 stops
+  clipped → 0; backward on Team PI and Compare Teams 40 of 122 → 0; Teams & PIs at 320×640 12 of
+  61 → 0 and at 390 → 0; 640×400 forward and 844×390 backward over every view → 0. **Test**: the
+  suite cannot send a trusted Tab, so it does what the header's reveal test does — every enabled
+  control in the scroller (Team PI and Compare Teams at 390, and the Teams & PIs teams table) is
+  scrolled until its middle sits on the right edge, focused, and measured; then the same on the
+  left edge. A control that is wholly outside is scrolled in by the browser anyway, so a test
+  that does not MAKE the straddle proves nothing. Red on the old page ("Sprint" 68px past the
+  left edge). A disabled control (the first row's Move up) takes no focus and is skipped.
+- **The suite leaves every `sv-*` key exactly as it found it (2026-09-15).** Its header said
+  "Read-only: nothing is saved", and a trace of every write from every frame (a Playwright
+  run with `Storage.prototype` wrapped, clean profile and planted profile) said otherwise:
+  nine sort tests stored `sv-tablesort` through `setSort()` → `lsSet()`; the ART-picker and
+  forecast tests reached the SHARED frame's real `save()`, which stored an `sv-data` board —
+  an empty one on a clean profile, a rewritten copy of the reader's own on a real one; the pin
+  test stored '1' and '0'; the smoke walk, which presses every button that isn't destructive,
+  pressed the 📌 and left `sv-pin` at '1' — hidden only because the pin test happened to finish
+  on '0', and found when the pin test started putting back what it found, which pinned every
+  later frame and put 20px on the phone ring-room test's row; and every frame's boot stores
+  `sv-pin` (`applyPin`). A planted `sv-tablesort` came back as `""`. Fixed where each one writes, so a run that dies half way
+  leaves nothing: `run()` stubs the shared frame's `save` and `lsSet` once, before any test
+  (`lsSet` records into `LS_WRITES`, and the one test that pins where the sort preference goes
+  reads the write there instead of storage); `inFrame`, the pin test and the smoke walk put
+  the raw `sv-pin` back in their `finally`; and `inFrame({ blank: true })` empties the FRAME'S state in memory for
+  the lone-📌 test, which used to fail on any machine with a real board saved and must never
+  take the reader's board out of storage, even for a moment. **The snapshot** (`SV_AT_START`) is
+  taken at the top of the script, before the gate creates the first frame, because a boot is
+  itself a write. **The last test** records the drift, puts every key back, and asserts both
+  that storage is byte-identical and that nothing drifted but what a BOOT may write (`sv-pin`
+  = '0' where there was none — a '1' is a press, and fails — the sync leftovers the app
+  deletes, and `sv-data` only if the saved board needs a boot repair). `bootWithSavedCopy` and the sync-leftover test still write real
+  storage — booting on a saved copy is what they test — and restore it themselves, as before.
+  **Proof:** the snapshot and a compare-only final test, on the old tests, failed with
+  `["sv-data","sv-pin","sv-tablesort"]` on a clean profile; two consecutive full runs on a
+  profile with a planted `sv-tablesort` and `sv-data` left both byte-identical. Don't run the
+  suite while editing the app in another tab of the same browser: the restore puts back what
+  was there when the suite started.

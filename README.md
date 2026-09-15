@@ -91,7 +91,7 @@ plots it per PI against the 80–100% band with a dashed trend line through it. 
 completion and delivered points sit beside it because a train can move one without the other
 — and when they disagree, as they do above, that gap is usually the conversation.
 
-### Comparing PIs that weren't the same train
+### Comparing PIs That Weren't the Same Train
 
 **Each PI is measured over the teams that were actually in it.** A train that grew from two
 teams to five didn't get better because there's more of it, so where the team count changes
@@ -104,8 +104,10 @@ the view says so:
 
 That's the reason the two methods are split the way they are. **Predictability** is the mean
 of each team's own measure — every team counting once — which survives the comparison.
-**Complete %** is pooled, matching the Team PI tab and the Agile Operations Dashboard, and
-it doesn't.
+**Complete %** is pooled — the method the Team PI tab and the Agile Operations Dashboard
+use — and it doesn't. The figures only *match* those two with **Include sprint 6 (IP)**
+ticked: they always count the IP sprint, and this view leaves it out by default so a PI's
+delivery figures aren't diluted by the sprint that isn't for delivery. The page says which.
 
 A PI with nothing recorded is dropped rather than drawn as a hole, and a PI with no business
 value recorded leaves a gap in the predictability line rather than reading as 0%. Both are
@@ -115,7 +117,7 @@ There's deliberately **no total row**. Adding PIs together answers nothing — a
 history is a sequence, and the only summary worth having is which way it's going, which is
 what the trend line is.
 
-### What the next PI could hold
+### What the Next PI Could Hold
 
 At the foot of the same view, because PI planning is exactly when you look at how the last
 few went and then decide what to sign up for next:
@@ -128,8 +130,12 @@ few went and then decide what to sign up for next:
 
 It's each team's next-sprint target multiplied by the **delivery** sprints in a PI — five,
 not six, since the IP sprint delivers none of it. That means it inherits the whole method
-from [Rolling 5](#target-capacity-for-the-next-sprint), availability adjustments included, so
-it can't drift from the card that explains the working. A second figure appears alongside it
+from [Rolling 5](#target-capacity-for-the-next-sprint), so it can't drift from the card that
+explains the working — with one exception. A team's **standing** availability holds across the
+PI and keeps its ⚑; a **one-off** set against a single sprint does not, because it is leave for
+that sprint rather than a smaller team for a whole PI (the forecast card makes the same call).
+Such a team counts here at its full figure, and the card names it under *⚑ One-off not
+stretched*. A second figure appears alongside it
 for the [reliable commitment](#two-figures-not-one) where teams have one.
 
 That second figure is only ever the *lower* of the two, which takes a little care across a
@@ -160,7 +166,7 @@ they simply aren't there until you make one:
 | **PI by Team** | hidden | appears once an ART has a team on it |
 | PI business value / predictability | — | per team, per PI |
 
-### Starting without one, adding one later
+### Starting Without One, Adding One Later
 
 Every sprint carries a **PI** picker, which now offers **No PI** alongside your PIs. That's
 how a sprint moves into a PI after the fact — and back out again. Create the PI in *Teams,
@@ -183,7 +189,7 @@ other team is kept: switch back and you're on the PI and sprint you left.
 in the rolling window like any other and the "include sprint 6 (IP)" toggle doesn't appear
 for a team that isn't running PIs.
 
-### Deleting a PI no longer deletes its sprints
+### Deleting a PI No Longer Deletes Its Sprints
 
 It used to destroy every sprint in that PI across every team, because a sprint couldn't
 exist without one. Now it asks:
@@ -375,7 +381,9 @@ left out of averages instead of dragging them down. Every other empty figure cou
 
 Percentages display as whole numbers, except when rounding would land on the wrong side of
 a target — 33 of 39 points is 84.6%, so it shows as `84.6%` in yellow rather than as `85%`
-in yellow, which would look like a bug. That's the only time you'll see a decimal.
+in yellow, which would look like a bug. That's the only time you'll see a decimal — and it
+takes as many as it needs: 84.97% shows as `84.97%`, because `85.0%` would be the same bug
+one place further along.
 
 ## Filling a Sprint from Jira
 
@@ -509,7 +517,9 @@ sprints into every figure — the rolling window, the PI totals, the team compar
 capacity target. It's off by default, because the numbers genuinely aren't final.
 
 It's for the last day or two of a sprint, when you're planning the next one and today's
-provisional numbers beat last sprint's stale ones. When it's on, every view says so, and the
+provisional numbers beat last sprint's stale ones. When it's on, every view says so — the
+cross-team views too: Compare Teams, PI Trend and PI by Team name the team and the running
+sprint they are counting under their headings — and the
 capacity target stops aiming at the running sprint and points at the one after it — once a
 sprint is being counted as data, it isn't the sprint you're planning any more.
 
@@ -568,7 +578,7 @@ saved as Sprint 1 carrying slot 7's dates, which put it in the future and out of
 dates are left alone**, deliberately: dating them would flip them out of "complete" and pull
 real history out of your averages.
 
-### Carried in Fills Itself
+### Carried In Fills Itself
 
 Whenever you open a sprint that has no carried-in figure yet, it's filled with what the
 previous sprint carried out — crossing a PI boundary if you're on sprint 1. A note under the
@@ -614,7 +624,7 @@ rather than dragging them down.
 - **Compare Teams** — every team's rolling averages side by side, plus each team's next-sprint
   target in one column, so the one that needs attention is obvious. Its figures are the
   [average-of-sprints method](#two-ways-to-average-a-percentage), every column
-  [sorts](#sorting-the-table), and an **ART filter** runs across the top when your teams are
+  [sorts](#sorting-a-table), and an **ART filter** runs across the top when your teams are
   grouped into ARTs. It also carries a [**Trend**](#which-way-each-team-is-going) column and a
   [**Sprint goals**](#the-goals-column-and-the--finding) one.
 
@@ -800,7 +810,10 @@ sprint** — PI Trend flattens the same history into one point per PI, which is 
 history stops being visible and starts being summarised.
 
 **History** has no window, and that is its whole definition. Every sprint on record, oldest
-first, with the in-flight and left-out ones drawn and marked rather than dropped.
+first, with the in-flight and left-out ones drawn and marked rather than dropped. A sprint in
+flight is left out of the figures; a sprint you've left out of the *rolling average* is **still
+counted** here — that choice narrows the rolling window and the capacity target, not a team's
+history, the same as it leaves the PI totals alone.
 
 ```
 Team Baseline — Every Sprint
@@ -908,7 +921,8 @@ ART grouping on Compare Teams. Three presses rather than a *Clear* button nobody
   the last sprint, **Sprint goals** on the rate rather than the count — "3 of 4" and "3 of 9"
   are not the same answer.
 
-Your choice is remembered per table on this device, and never travels in a share link.
+Your choice is remembered per table on this device — the rows and the chart open already in
+that order after a reload — and never travels in a share link.
 
 ### Which Way Each Team Is Going
 
@@ -1031,6 +1045,12 @@ figure and sits out the predictability ones, and a ⚑ note above the tiles says
 those are and where to record them. A train figure worked out from three of five teams while
 the page shows five is exactly the silent exclusion the rest of the app refuses.
 
+**So is a team with value delivered and nothing planned.** Planned 0 and achieved 8 is a
+record with no measure — nothing to score 8 against — so its row reads *nothing planned*, a
+⚑ *Nothing planned* note names it, it sits out the *ART predictability* tile, and its 8 counts
+in the *ART total* row, which adds up every unit of business value recorded. The columns of
+that row always add up.
+
 ### When the Average Hides the Train
 
 A two-sided measure has a failure mode a one-sided one doesn't. A team that **under-delivered**
@@ -1048,7 +1068,7 @@ the band and there are teams on **both** sides of it, the view says so above the
 naming the teams, and pointing you at the rows instead of the headline. (The demo's Platform
 ART is exactly this case, deliberately.)
 
-## Teams, ARTs & PIs: the Window Itself
+## Teams, ARTs & PIs: The Window Itself
 
 All three lists are managed in one window, and all three rows work the same way.
 
@@ -1070,6 +1090,16 @@ pointer, and moving something with the keyboard keeps your place on it.
 
 Adding is the same shape: **+ Add** puts a row in with a working default name and lands the
 cursor in it, already selected, so typing replaces it.
+
+**A long list gets a second + Add at its foot.** Once a list reaches **twelve** rows, its
+*+ Add* button appears again under the last row, so adding one more team doesn't mean
+scrolling back up to the heading first. It is a copy, not a move — the button beside the
+heading stays, and both do exactly the same thing. Each list counts only its own rows, so
+twelve teams bring it back under Teams and nowhere else. Below twelve there is only the one:
+at six teams the whole section fits in the window with room to spare, and a second button
+would just be clutter. Twelve was measured in this window — it is where the Teams heading
+scrolls out of sight — rather than copied from Flow Metrics, whose Teams section has a
+paragraph above its table and so reaches that point sooner.
 
 **A PI row says how many teams its sprints are spread across** — "17 sprints across 4
 teams", not a bare "17 sprints". A PI holds six sprints *per team*, and the count beside its
@@ -1123,7 +1153,9 @@ at:
   every other exclusion in the app says what it left out — a figure should never move for a
   reason that isn't on the page. With two or more ticked the button itself says *2 selected*;
   the names are in the line opposite it and in every heading below.
-- With no filter, the table **sorts by ART** so a train's teams sit together, and each team
+- With no filter, the table **sorts by ART** so a train's teams sit together — until you
+  [sort it by a column](#sorting-a-table), which replaces that order, and the line under the
+  heading stops calling it grouped — and each team
   carries its ART under its name. That label goes when you narrow to **one** ART — the same
   word down every row is noise — and **comes back the moment you tick a second**, because rows
   drawn from two ARTs are a mixture the table can't otherwise account for. The header team
@@ -1453,7 +1485,9 @@ Two kinds of change, and the tick box is the difference:
 | Why | It's over once the sprint is | The rolling window needs five sprints to catch up with a change in team size on its own |
 
 A one-off set against a particular sprint always wins over the standing figure — they
-never multiply, so the number on the card is always one you can reason about. **Remove
+never multiply, so the number on the card is always one you can reason about. That is for
+*that* sprint only: anything looking further ahead — the forecast and the next-PI card — still
+uses the standing figure for the sprints after it, and leaves the one-off out. **Remove
 adjustment** clears both, along with any sprint scaling (below).
 
 ### Scaling a Sprint the Team Has Outgrown
@@ -1497,7 +1531,7 @@ away, or a team merged and the sprints before it belong to a different team.
 
 The sprint form's **Rolling 5** section takes a sprint out of the rolling average
 and the capacity target, with a reason from the same kind of fixed list. Everything else
-about the sprint is untouched — its own figures still show in the Sprint view, the Current
+about the sprint is untouched — its own figures still show in the Sprint view, the Team
 PI view and Compare Teams, and it's still a finished sprint rather than one faked
 back to "planned" to hide it, which is how this used to have to be done.
 
@@ -1666,6 +1700,12 @@ that is present and isn't a number stops its row, because "n/a" in a committed c
 always means the columns are one out, and reading it as 0 would import a plausible, wrong
 history.
 
+**An error names the row and the column, and never repeats what was in the cell** —
+*Row 7: no team by that name in the Team column*. The row is the line in your paste, blank
+lines counted, so it is the line you'll find in the spreadsheet. Nothing from the cell is
+quoted, because a paste that went into the wrong box can carry a ticket summary, and an error
+message is no place to put one back on screen.
+
 **Names are looked up, never stored.** A `team` or `pi` cell finds a row that already exists
 and is then discarded — this never creates either, and it will tell you to add one first. That
 isn't caution about typos, it's the [numbers-and-dates rule](#what-it-tracks): the only things
@@ -1702,7 +1742,7 @@ written**, not only on the way back in: the object you name is the one that reac
 saved, imported or shared copy. Percentages and reason codes
 pass that same boundary, so a hand-edited file can't widen either.
 
-**Back up & restore** — the *Back up* button exports everything as a JSON file
+**Back Up & Restore** — the *Back Up* button exports everything as a JSON file
 (`sprint-velocity-YYYY-MM-DD.json`, dated in local time) and imports it back. Useful as a
 backup, for moving between browsers, or for handing a colleague a starting point.
 
@@ -1725,17 +1765,17 @@ enough to justify deleting a team's history on one click. It is one step back, n
 what an undo stack should survive (a reload? an import?) has no obvious answer here, and a
 half-answered one is worse than none.
 
-*Delete all data* deliberately has no Undo. That one is meant to be hard, it has its own
+*Delete All Data* deliberately has no Undo. That one is meant to be hard, it has its own
 dialog saying exactly how much is going, and it offers the backup that is the real way back —
 a ten-second Undo would quietly make it the easiest destructive thing in the app.
 
-**Starting again** — folded away at the foot of the same dialog, under *Start again*, is
-**Delete all data**. It's behind a fold on purpose: the one irreversible action in the app
+**Starting again** — folded away at the foot of the same dialog, under *Start Again*, is
+**Delete All Data**. It's behind a fold on purpose: the one irreversible action in the app
 shouldn't sit a mis-click away from Export. Pressing it opens a confirmation of its own that
 says exactly how much is going ("This deletes 2 teams, 1 PI and 3 recorded sprints") and
 offers the same JSON export as a last chance to keep any of it. There is no "…and every
 device you own" line any more: since sync was removed there is exactly one copy, and it is
-the one in this browser. Your theme survives; it lives under its own key rather than with the data.
+the one in this browser. Your theme survives, and so do the pinned tab row and your table sorts; each lives under its own key rather than with the data.
 
 **If one device is behind** — every saved copy carries the data format the app that wrote
 it understood. A copy written by a *newer* version than the one you're running won't be
@@ -1880,8 +1920,12 @@ were left out — so the page can't print a figure whose working is off the shee
 ## Sharing a Read-Only Link
 
 The *Share* button builds a link that shows someone your figures without them signing in —
-useful for a stakeholder, a manager, or an SM covering for you. They get the Sprint, Current
-PI and Rolling 5 views for the teams you picked, with every edit control gone.
+useful for a stakeholder, a manager, or an SM covering for you. They get the views that look
+into one team — **Sprint** and **Rolling 5**, **Team PI** for a team that runs PIs, and
+**History** for a team with more than five sprints — for each team you picked, with every edit control gone. The views
+that compare teams (**PI Trend**, **PI by Team** and **Compare Teams**) only come with the
+link when you tick the comparison option below, and even then each appears only where it
+would in your own copy: PI Trend needs two PIs, and PI by Team needs a PI and a team on an ART.
 
 It opens on the **most recent sprint that has data**, so the first thing they see is your
 latest numbers rather than an empty slot — and it follows each team to its own latest sprint
@@ -1898,6 +1942,8 @@ You choose per link:
 - **How much history** — all of it (the default), the last 2 PIs, this PI only, or the last 5
   or 10 sprints for each team. See below.
 - **The Compare Teams comparison view** — only offered when you've picked more than one team.
+  Ticking it sends all three views that compare teams: Compare Teams, PI by Team and PI Trend.
+  Left unticked, the recipient sees each team on its own and nothing that lines them up.
 
 A link only ever carries names, numbers and dates — there is no free-text anywhere in the
 data, so nothing written can travel by accident.
@@ -2119,6 +2165,11 @@ throws or a view comes back empty. Verified by breaking `renderTeamsView` on pur
 Nothing it does can write: `save()` and `confirm()` are replaced in that frame before
 anything is pressed, and the saved board is read back at the end and compared.
 
+**It leaves your saved data exactly as it found it.** Every `sv-` key in the browser is noted
+before the first test and checked by the last one, and the tests that could store something
+are stopped where they would — so running it on the machine where you keep your real teams,
+sort order and pin setting changes none of them.
+
 **It only runs on localhost, and enforces that itself.** The test code writes nothing, but
 the iframe boots the real app — and GitHub Pages publishes `tests.html` next to it, at
 `/sprint-velocity/tests.html`, where that iframe would be reading and writing somebody's real
@@ -2167,7 +2218,7 @@ that is written and tested, and it is rebuilt whenever the app changes. It needs
 `markdown` package once (`pip3 install markdown`), to turn this README into the
 *How it works* window; the file it produces still carries no third-party code.
 
-### What is different in that copy
+### What Is Different in That Copy
 
 Everything that counts, draws or stores is the same app, byte for byte. What changes is
 the handful of things that only mean something on a website:
@@ -2185,7 +2236,7 @@ Three sections of this README are left out of that copy's *How it works* window 
 installing and working offline — because they describe features it does not have, and a
 guide explaining a button the reader cannot see is worse than a shorter guide.
 
-### Where your data lives in that copy
+### Where Your Data Lives in That Copy
 
 The same place: the browser you opened the file in, and nowhere else. One thing is worth
 knowing, though. Every file opened from your own disk shares a single browser identity, so

@@ -19,7 +19,10 @@
      in a hidden same-origin iframe and calls its functions directly, so what's
      tested is exactly what ships — no copies, no build step. Serve over
      http://localhost (python3 -m http.server 8012); file:// iframes are blocked
-     in some browsers. Nothing here writes localStorage or calls save().
+     in some browsers. Nothing here leaves localStorage changed: the shared
+     frame's save() and lsSet() are stubbed before the first test, the few tests
+     that must store something for real put it back in a finally, and every sv-*
+     key is snapshotted at the top of the script and checked by the last test.
 
      But the iframe boots the real app, which is not nothing: it reads and can
      write this origin's sv-* keys, and on the published site those are somebody's
@@ -57,8 +60,9 @@
 <div class="wrap">
   <h1>Sprint Velocity — Pure-Function Tests</h1>
   <p class="sub">Runs against the real <code>index.html</code> in a hidden iframe. Read-only:
-    nothing is saved — and it only runs on <code>localhost</code>, where that iframe can't be
-    the copy of the app holding your own data.</p>
+    nothing is saved — every <code>sv-</code> key is noted before the first test and the last
+    test checks each one is as it was — and it only runs on <code>localhost</code>, where that
+    iframe can't be the copy of the app holding your own data.</p>
   <div id="summary">Loading app…</div>
   <table><tbody id="out"></tbody></table>
 </div>
@@ -102,7 +106,45 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 508;
+const EXPECTED = 525;
+
+/* ── THE SUITE LEAVES STORAGE EXACTLY AS IT FOUND IT (2026-09-15 review) ──────
+   The page header says "Read-only: nothing is saved", and it was not true: the
+   sort tests wrote `sv-tablesort`, the shared frame's real save() wrote an `sv-data`
+   board (an empty one on a clean profile — over the reader's own board on a real
+   one), and the pin tests left `sv-pin` at '0'. On localhost this origin's sv-*
+   keys are whatever the person running the suite keeps there.
+
+   Snapshotted HERE, at the top of the script, before the gate at its foot creates
+   the first frame — a frame's boot is itself a write (applyPin stores `sv-pin`).
+   The last test puts every key back and checks it. The writers are also stopped
+   one by one where they write, so a run that dies half way leaves nothing behind
+   that the snapshot was needed to undo. */
+const svSnapshot = () => {
+  const o = {};
+  try {
+    Object.keys(localStorage).filter((k) => k.startsWith('sv-')).sort()
+      .forEach((k) => { o[k] = localStorage.getItem(k); });
+  } catch (e) { /* storage blocked: nothing to protect, nothing to compare */ }
+  return o;
+};
+const SV_AT_START = svSnapshot();
+/* What the shared frame's `lsSet` was asked to store, since run() stops it
+   storing anything — a test that pins WHERE a preference goes reads it here. */
+const LS_WRITES = [];
+function svRestoreStorage() {
+  try {
+    Object.keys(svSnapshot()).forEach((k) => { if (!(k in SV_AT_START)) localStorage.removeItem(k); });
+    Object.keys(SV_AT_START).forEach((k) => {
+      if (localStorage.getItem(k) !== SV_AT_START[k]) localStorage.setItem(k, SV_AT_START[k]);
+    });
+  } catch (e) { /* storage blocked: there was nothing to put back */ }
+}
+function svStorageDrift() {
+  const now = svSnapshot();
+  return [...new Set([...Object.keys(SV_AT_START), ...Object.keys(now)])].sort()
+    .filter((k) => SV_AT_START[k] !== now[k]);
+}
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -304,6 +346,61 @@ t('hostile ids are replaced and every reference rewritten through the same map',
   eq(out.pis[0].id, 'ok-pi', 'valid ids pass through untouched');
   eq(out.sprints.length, 1, 'a remapped sprint is not mistaken for an orphan');
   eq(w.sanitizeIds.dropped, 0, 'nothing dropped');
+});
+t('a record with a missing or numeric id gets a real one, and Delete can reach it (2026-09-15 review)', () => {
+  /* The reviewer's restore: a team with no id, one with a NUMBER for an id, a PI
+     with no id. All three used to cross with no id at all, Teams & PIs drew
+     data-del-team="", and pressing Delete threw on teamById('') returning null. */
+  const out = w.sanitizeIds(w.coerceShape({
+    teams: [{ name: 'Ghost' }, { id: 7, name: 'Numeric id' }, { id: 'ok1', name: 'Real' },
+            { id: null, name: 'Null id' }, { id: '', name: 'Empty id' }],
+    arts: [{ name: 'Ghost ART' }],
+    pis: [{ name: 'Ghost PI' }, { id: 'p1', name: 'PI 1' }],
+    sprints: [{ teamId: 7, piId: '', sprintNumber: 1, committed: 5 },
+              { id: 's2', teamId: 'ok1', piId: 'p1', sprintNumber: 2 }],
+    plans: [{ teamId: 'ok1', piId: null, sprintNumber: 3, availability: 50 }],
+    objectives: [{ teamId: 'ok1', piId: 'p1', plannedBv: 5 }],
+    settings: { activeTeamId: 7 },
+  }));
+  const ID = /^[A-Za-z0-9_-]{1,64}$/;
+  ['teams', 'arts', 'pis', 'sprints', 'plans', 'objectives'].forEach(k => {
+    ok(out[k].length > 0 && out[k].every(r => typeof r.id === 'string' && ID.test(r.id)),
+       'every record in ' + k + ' has a plain id', JSON.stringify(out[k].map(r => r.id)));
+  });
+  eq(out.teams.length, 5, 'no team was lost');
+  eq(new Set(out.teams.map(x => x.id)).size, 5, 'and no two of them share an id');
+  eq(out.teams[2].id, 'ok1', 'a good id is untouched');
+  const numeric = out.teams[1].id;
+  ok(numeric !== '7', 'the number is minted like a hostile string, not stringified', numeric);
+  eq(out.sprints[0].teamId, numeric, 'a sprint referring to 7 follows the team to its new id');
+  eq(out.settings.activeTeamId, numeric, 'and so does the active team');
+  eq(out.sprints[0].piId, null, 'while an empty piId still collapses to null');
+  eq(out.sprints.length, 2, 'so neither sprint is an orphan');
+  ok(w.sanitizeIds.pruned > 0, 'and the repair is counted, so boot persists the minted ids');
+
+  /* And the thing the ghost broke: Teams & PIs, its Delete button, pressed. */
+  const st = w.svGet();
+  const active = st.settings.activeTeamId;
+  const real = { confirm: w.confirm, save: w.save, toast: w.toast };
+  w.confirm = () => true; w.save = () => {};
+  try {
+    withState(out, () => {
+      w.renderManageTeamRows();
+      const dels = [...w.document.querySelectorAll('#teamRows [data-del-team]')];
+      eq(dels.length, 5, 'one Delete per team');
+      ok(dels.every(b => ID.test(b.dataset.delTeam)), 'none of them names an empty id',
+         JSON.stringify(dels.map(b => b.dataset.delTeam)));
+      const ghost = dels.find(b => b.dataset.delTeam === out.teams[0].id);
+      let threw = null;
+      try { ghost.click(); } catch (e) { threw = e; }
+      eq(threw, null, 'pressing Delete on the ghost does not throw');
+      eq(st.teams.some(x => x.name === 'Ghost'), false, 'and the ghost is gone');
+    });
+  } finally {
+    Object.assign(w, real);
+    st.settings.activeTeamId = active;
+    w.renderManageTeamRows();
+  }
 });
 t('a sprint whose TEAM is missing is dropped; a missing PI only UN-GROUPS it', () => {
   /* The drop used to take both, and while a PI was compulsory that was right: an
@@ -915,9 +1012,12 @@ t('the sort is a per-device preference, never data', () => {
     eq(w.svGet().settings.teamSort, undefined,
        'it is not in state — a sort is how one person is reading the table this '
        + 'afternoon, not something about the teams, and it has no business in a share link');
-    ok(/teamsTable:count:desc/.test(localStorage.getItem('sv-tablesort') || ''),
-       'it is beside the theme and the pin instead, one key for all six tables',
-       localStorage.getItem('sv-tablesort'));
+    /* Read off the write rather than out of storage: the suite may not store
+       anything in the reader's own `sv-tablesort` (2026-09-15 review). */
+    const stored = LS_WRITES.filter(([k]) => k === 'sv-tablesort').pop();
+    ok(stored && /teamsTable:count:desc/.test(stored[1]),
+       'it is written beside the theme and the pin instead, one key for all six tables',
+       stored && stored[1]);
     eq(w.__svTestHooks.parseSorts('teamsTable:count:junk').teamsTable.dir, 'desc',
        'an unreadable direction reads as the column’s own way');
     /* A key that no longer names a column is what a rename leaves in storage. */
@@ -1836,6 +1936,21 @@ t('the share-meta label and timestamp are pinned too, not just allowed through',
   eq(out.label.length, 120, 'an unbounded label is capped like every other label');
   ok(!('sharedAt' in out), 'a sharedAt that is not a number is dropped, so the banner never says "Invalid Date"');
 });
+t('a sharedAt past the calendar’s end is dropped too, not just a non-number (2026-09-15 review)', () => {
+  /* Finite is not the same as a date. A JS Date holds ±8.64e15 ms and not one
+     more, so 1e300 passed the old isFinite pin and printed "Shared on Invalid
+     Date" — the exact banner the pin exists to prevent. */
+  const at = (v) => w.sanitizeIds(w.coerceShape({
+    v: 1, sharedAt: v, teams: [{ id: 't1', name: 'A' }], arts: [], pis: [], sprints: [], settings: {},
+  }));
+  ok(!('sharedAt' in at(1e300)), 'a huge sharedAt is dropped', at(1e300).sharedAt);
+  ok(!('sharedAt' in at(8.64e15 + 1)), 'one past the limit is dropped');
+  ok(!('sharedAt' in at(-1e300)), 'and so is a huge negative one');
+  eq(at(8.64e15).sharedAt, 8.64e15, 'the last real instant is kept');
+  eq(at(-8.64e15).sharedAt, -8.64e15, 'and so is the first');
+  eq(at(1755000000000).sharedAt, 1755000000000, 'an ordinary one is untouched');
+  ok(String(new Date(at(8.64e15).sharedAt)) !== 'Invalid Date', 'and every kept value is a real date');
+});
 
 group('nextSprintTarget — the availability adjustment');
 t('with nothing set the figure is the plain mean, and says it is unadjusted', () => {
@@ -2643,22 +2758,46 @@ t('the import template comes out of a demo team as a real, re-importable file', 
       'and every one lands back on the sprint it came from');
   });
 });
-t('an import error quotes at most 40 characters of the cell that failed', () => {
-  withSample((id) => {
-    /* The echo is what makes a typo findable, and the cap is what keeps it
-       from being a disclosure: the cell most likely to run long is a Jira
-       summary in a paste that was never meant for this box, and an error row
-       must not put a readable copy of one on screen. Display only — nothing
-       an error row shows is ever stored — but the diagnostics rule is
-       point-don't-echo, and 40 characters is pointing. */
-    const summary = 'Implement the quarterly reconciliation export for the payments platform team';
-    const plan = w.parseImport('sprint\tteam\n3\t' + summary, null);
-    const problem = plan.rows[0].problem;
-    eq(plan.rows[0].record, null, 'the row failed (no such team)');
-    ok(problem.includes(summary.slice(0, 40) + '\u2026'),
-      'the first 40 characters and an ellipsis are quoted', problem);
-    ok(!problem.includes(summary),
-      'the full cell is not', problem);
+t('an import error points at the row and column and quotes nothing that was pasted (Charles, 2026-09-15)', () => {
+  withSample(() => {
+    /* It used to quote up to 40 characters of the failing cell. The cell most
+       likely to fail is a Jira summary in a paste never meant for this box, and
+       40 characters of one is a readable copy of it on screen. Charles decided
+       2026-09-15: point, never echo - the row (its line in the paste, blank
+       lines counted) and the column are what find the typo. Every failure branch
+       that used to quote a cell is driven, and the RENDERED preview is read as
+       well as the message, since that is what a reader actually sees. */
+    const M = 'Customer ACME SSO bypass lets tenant admins read every other tenant';
+    const leaks = (s) => /ACME|Customer|tenant/.test(s);
+    const cases = [
+      { paste: 'sprint\tteam\n\n3\t' + M, row: 3, col: 'Team column' },
+      { paste: 'team\tpi\tsprint\nTeam Baseline\t' + M + '\t2', row: 2, col: 'PI column' },
+      { paste: 'team\tsprint\nTeam Baseline\t' + M, row: 2, col: 'Sprint column' },
+      { paste: 'team\tsprint\tcommitted completed\n\n\nTeam Baseline\t40\t' + M, row: 4,
+        col: 'Committed completed column' },
+      { paste: 'team\tsprint\tstart\nTeam Baseline\t40\t' + M, row: 2, col: 'Start column' },
+    ];
+    const box = w.document.getElementById('importText');
+    const before = box.value;
+    try {
+      cases.forEach((c) => {
+        const r = w.parseImport(c.paste, null).rows[0];
+        eq(r.record, null, 'the row failed: ' + c.col);
+        ok(r.problem.startsWith('Row ' + c.row + ': '),
+           'it names the row by its line in the paste', r.problem);
+        ok(r.problem.includes(c.col), 'and the column that failed', r.problem);
+        ok(!leaks(r.problem), 'and quotes none of the cell', r.problem);
+        box.value = c.paste;
+        w.refreshImportPreview();
+        const seen = w.document.getElementById('importPreview').textContent
+          + w.document.getElementById('importWarn').textContent;
+        ok(seen.includes('Row ' + c.row + ':'), 'the preview shows the pointer', seen);
+        ok(!leaks(seen), 'and nothing on the preview repeats the pasted cell', seen);
+      });
+    } finally {
+      box.value = before;
+      w.refreshImportPreview();
+    }
   });
 });
 t('Team Live Sprint is deliberately unscored — its PI is still running', () => {
@@ -3629,6 +3768,11 @@ t('the sign-in button and the cloud hooks are gone', () => {
    render draws into a box with no room and proves nothing. */
 t('the app actually runs — every tab drawn, every window opened', async () => {
   const before = localStorage.getItem('sv-data');
+  /* The walk presses every button that isn't destructive, and the 📌 is one: it
+     stores `sv-pin` for real, which save() being stubbed does nothing about. Put
+     back in the finally (2026-09-15 review) — it used to be left at '1', hidden
+     only because the pin test happened to finish on '0'. */
+  const keepPin = localStorage.getItem('sv-pin');
   const f = document.createElement('iframe');
   f.setAttribute('data-sv-tests', '');
   f.setAttribute('aria-hidden', 'true');
@@ -3725,6 +3869,8 @@ t('the app actually runs — every tab drawn, every window opened', async () => 
     /* The proof, not the intention: read the key back and compare. A stub that
        stopped working would show up here as a changed document rather than as a
        comment nobody re-checked. */
+    if (keepPin === null) localStorage.removeItem('sv-pin');
+    else localStorage.setItem('sv-pin', keepPin);
     const after = localStorage.getItem('sv-data');
     eq(after, before, 'the walk wrote to the reader’s own saved board');
   }
@@ -5929,7 +6075,9 @@ t('a name that matches nothing is a skipped row with a sentence, never a new tea
   withState(importFixture(), () => {
     const plan = w.parseImport(HEAD + '\nTeam Nine\tPI 1\t1\t20\t18', 't1');
     eq(plan.rows[0].record, null);
-    ok(plan.rows[0].problem.indexOf('Team Nine') >= 0, plan.rows[0].problem);
+    ok(/^Row 2: no team by that name in the Team column/.test(plan.rows[0].problem),
+       'it points at the row and the column', plan.rows[0].problem);
+    ok(plan.rows[0].problem.indexOf('Team Nine') < 0, 'and never quotes the cell', plan.rows[0].problem);
     eq(w.svGet().teams.length, 2, 'and nothing was created');
   });
 });
@@ -5937,7 +6085,8 @@ t('the same for a PI — a typo does not quietly file the sprint outside one', (
   withState(importFixture(), () => {
     const plan = w.parseImport(HEAD + '\nTeam One\tPI 9\t1\t20\t18', 't1');
     eq(plan.rows[0].record, null);
-    ok(plan.rows[0].problem.indexOf('PI 9') >= 0, plan.rows[0].problem);
+    ok(/^Row 2: no PI by that name in the PI column/.test(plan.rows[0].problem), plan.rows[0].problem);
+    ok(plan.rows[0].problem.indexOf('PI 9') < 0, 'never the cell', plan.rows[0].problem);
   });
 });
 t('names match loosely — case and spacing are not a reason to fail a paste', () => {
@@ -5951,7 +6100,17 @@ t('a figure that is present and is not a number stops the row', () => {
   withState(importFixture(), () => {
     const plan = w.parseImport(HEAD + '\nTeam One\tPI 1\t1\tn/a\t18', 't1');
     eq(plan.rows[0].record, null, 'better a skipped row than a plausible wrong history');
-    ok(plan.rows[0].problem.indexOf('n/a') >= 0, plan.rows[0].problem);
+    eq(plan.rows[0].problem, 'Row 2: the Committed column needs a number.',
+       'the row and the column, in this app’s own words — never the cell');
+  });
+});
+t('the Row an import names is the line in the paste, blank lines counted (2026-09-15)', () => {
+  withState(importFixture(), () => {
+    /* The row number is the only pointer back into the spreadsheet now that an
+       error quotes nothing, so it has to be the line the reader can find. */
+    const plan = w.parseImport(HEAD + '\n\nTeam One\tPI 1\t1\t20\t18\n\n  \nTeam Nine\tPI 1\t3\t20\t18', 't1');
+    eq(plan.rows.map(r => r.line), [3, 6], 'lines 3 and 6 of the paste, not rows 2 and 3');
+    ok(plan.rows[1].problem.startsWith('Row 6: '), 'and the message says the same', plan.rows[1].problem);
   });
 });
 t('an overwrite keeps everything the paste has no column for', () => {
@@ -7032,6 +7191,7 @@ t('the arrows walk the charts on the view without coming back down', async () =>
    one: the shared frame is 1px wide, and a sticky offset measured there is
    measuring nothing. */
 t('the tab row can be pinned to the top', async () => {
+  const keepPin = localStorage.getItem('sv-pin');   // put back in the finally
   const f = document.createElement('iframe');
   f.setAttribute('data-sv-tests', '');
   f.setAttribute('aria-hidden', 'true');
@@ -7168,7 +7328,13 @@ t('the tab row can be pinned to the top', async () => {
     await new Promise((r) => setTimeout(r, 150));
     eq(W.localStorage.getItem('sv-pin'), '0', 'unpinning is remembered too');
     eq(cs(row).position, 'static', 'and the row is back in the flow');
-  } finally { f.remove(); }
+  } finally {
+    f.remove();
+    /* It stored '1' and then '0' for real — the assertions above read them —
+       so the reader's own pin goes back (2026-09-15 review). */
+    if (keepPin === null) localStorage.removeItem('sv-pin');
+    else localStorage.setItem('sv-pin', keepPin);
+  }
 });
 
 t('the full-screen button is furniture, so it never prints', () => {
@@ -7409,7 +7575,11 @@ async function restoreDialogClose(W) {
 }
 
 async function inFrame(tag, opts, fn) {
-  const o = Object.assign({ width: 1280, height: 900, sample: true }, opts || {});
+  const o = Object.assign({ width: 1280, height: 900, sample: true, blank: false }, opts || {});
+  /* A frame's boot stores `sv-pin` (applyPin), and the pin tests press it on and
+     off — so the reader's own value is put back when the frame goes, whatever
+     happened inside it (2026-09-15 review). */
+  const keepPin = localStorage.getItem('sv-pin');
   const f = document.createElement('iframe');
   f.setAttribute('data-sv-tests', '');
   f.setAttribute('aria-hidden', 'true');
@@ -7426,10 +7596,373 @@ async function inFrame(tag, opts, fn) {
     W.save = () => {};
     W.confirm = () => true;
     W.alert = () => {};
+    /* `blank`: the frame boots on whatever board this machine has saved, so a test
+       about the no-teams pages empties the frame's OWN state rather than the
+       reader's storage — their board is never taken out, not even for a moment. */
+    if (o.blank) {
+      const st = W.svGet();
+      ['teams', 'arts', 'pis', 'sprints', 'plans', 'objectives'].forEach((k) => { st[k] = []; });
+      st.settings.activeTeamId = null;
+      st.settings.activePiId = null;
+      W.__svTestHooks.svPlanning(false);
+      W.render();
+      await wait(150);
+    }
     if (o.sample) { W.loadSample(); await wait(300); }
     await fn(W, W.document, f);
-  } finally { f.remove(); }
+  } finally {
+    f.remove();
+    if (keepPin === null) localStorage.removeItem('sv-pin');
+    else localStorage.setItem('sv-pin', keepPin);
+  }
 }
+
+group('figures and Compare Teams (2026-09-15 review)');
+/* Nine findings from a reviewer driving the sample data, one fix per commit. Each
+   reads the RENDERED page where the claim is about the screen, because the
+   defects were all things a reader saw rather than values a function returned. */
+
+/* The sample, rendered on one view with the scope pinned: no ART filter, sprint 6
+   left out, running sprints not counted — the defaults a first run lands on.
+   withRenderedSample restores the whole settings object afterwards. */
+function reviewView(view, fn, extra) {
+  return withRenderedSample((st) => {
+    st.settings.artFilter = [];
+    st.settings.includeSprint6InRolling = false;
+    st.settings.includeInProgress = false;
+    if (extra) extra(st);
+    st.settings.view = view;
+    w.render();
+    return fn(st, w.document);
+  });
+}
+const reviewCard = (d, heading) => [...d.querySelectorAll('#views .card')]
+  .find(c => { const h = c.querySelector('h2'); return h && h.textContent.trim().startsWith(heading); }) || null;
+const reviewText = (el) => (el ? el.textContent.replace(/\s+/g, ' ').trim() : '');
+
+t('What the Next PI Could Hold does not stretch a one-off across the PI', () => {
+  reviewView('trend', (st, d) => {
+    const card = reviewCard(d, 'What the Next PI Could Hold');
+    ok(card, 'the card is on the PI Trend view');
+    ok(card && card.getClientRects().length > 0, 'and drawn, not hidden');
+    const row = card && [...card.querySelectorAll('tbody tr')]
+      .find(tr => tr.querySelector('th').textContent.trim() === 'Team New Start');
+    ok(row, 'Team New Start has a row');
+    const cells = row ? [...row.querySelectorAll('td')].map(reviewText) : [];
+    /* 14 and 11 finished; 50% leave is set against PI 2026.3 S3, a sprint in the
+       CURRENT PI. forecast() refuses to stretch a one-off over a span, and five
+       sprints of the next PI is a span. */
+    eq(cells[0], '13', 'per sprint is the unadjusted 12.5, not the 6 that next sprint’s leave makes it');
+    eq(cells[1], '63', 'across 5 sprints is 12.5 × 5');
+    const across = card && [...card.querySelectorAll('.tile')]
+      .find(el => el.querySelector('.label').textContent.trim().startsWith('Across the PI'));
+    /* 537.4 while the leave was stretched; + (12.5 − 6.25) × 5 = 568.65, so 569 on
+       the tile — not the 568 that adding 31 to the rounded 537 would suggest. */
+    eq(across ? across.querySelector('.value').textContent.replace(/[^0-9]/g, '') : null, '569',
+       'and the total follows: 537 while the leave was stretched over the PI');
+    /* The standing lever DOES hold across a span, so Team Live Sprint keeps its flag. */
+    const live = card && [...card.querySelectorAll('tbody tr')]
+      .find(tr => tr.querySelector('th').textContent.trim() === 'Team Live Sprint');
+    ok(live && /⚑ 90%/.test(reviewText(live)), 'a standing availability still flags its row', reviewText(live));
+    eq(/⚑ 50%/.test(reviewText(card)), false, 'no ⚑ for leave that is not in the next PI');
+    /* And the change is shown, not made silently: the per-sprint figure no longer
+       matches the Rolling 5 target, so the card has to say why. */
+    const notes = card ? [...card.querySelectorAll('.exnote')].map(reviewText).join(' | ') : '';
+    ok(/One-off not stretched.*Team New Start/.test(notes),
+       'the one-off it declined to stretch is named', notes);
+  });
+});
+
+t('PI Trend says its Complete % matches Team PI only when sprint 6 is counted', () => {
+  /* piTrend() leaves the IP sprint out unless the toggle is on — deliberately, so a
+     PI's delivery figures are not diluted by the sprint that is not for delivery.
+     Team PI and PI by Team always count it. So the claim "matching the Team PI tab
+     and the Agile Operations Dashboard" was false by default: PI 2026.1 read
+     132 / 109 / 83% / 122 on PI by Team and 104 / 85 / 82% / 98 here. */
+  reviewView('trend', (st, d) => {
+    const numbers = reviewCard(d, 'The Numbers');
+    const sub = reviewText(numbers && numbers.querySelector('.sub'));
+    ok(/Team PI/.test(sub), 'the Numbers card still names the method it shares', sub);
+    ok(/sprint 6/i.test(sub), 'and, with sprint 6 left out, says that is the difference', sub);
+    const help = TG().METRIC_HELP.trendCommitment.body;
+    ok(/sprint 6/i.test(help), 'the ⓘ window makes the claim conditional too', help);
+  });
+  /* And the claim, as now made, is TRUE: with sprint 6 counted, PI 2026.1's row
+     here is PI by Team's footer row for the same PI. */
+  let trend = null, art = null;
+  reviewView('trend', (st, d) => {
+    const row = [...d.querySelectorAll('#trendTable tbody tr')]
+      .find(tr => tr.querySelector('th').textContent.trim() === 'PI 2026.1');
+    const c = row ? [...row.querySelectorAll('td')].map(reviewText) : [];
+    trend = [c[2], c[3], c[4].replace(/[^0-9]/g, ''), c[5]];
+  }, (st) => { st.settings.includeSprint6InRolling = true; });
+  reviewView('art', (st, d) => {
+    const c = [...d.querySelectorAll('#artTable tfoot td')].map(reviewText);
+    art = [c[1], c[2], c[3].replace(/[^0-9]/g, ''), c[4]];
+  }, (st) => { st.settings.activePiId = st.pis.find(p => p.name === 'PI 2026.1').id; });
+  eq(trend, art, 'committed, done, complete % and delivered agree once sprint 6 is counted');
+  eq(art, ['132', '109', '83', '122'], 'the PI by Team figures the review read');
+});
+
+t('fmtPct never prints a number that meets a target the figure misses', () => {
+  /* One decimal was the old escape, and one decimal can round ONTO the line:
+     84.97% printed "85.0% ! Watch" under "target ≥85%". The rule is about the
+     number a reader sees, so it is checked against that number, read back. */
+  withTargets(null, () => {
+    const fmtPct = TG().fmtPct;
+    eq(fmtPct(84.97, 'completion'), '84.97%', 'not 85.0% beside a Watch flag');
+    eq(fmtPct(15.02, 'churn'), '15.02%', 'not 15.0% under a ≤15% target');
+    eq(fmtPct(100.04, 'predictability'), '100.04%', 'not 100.0% at the band’s top edge');
+    eq(fmtPct(79.96, 'predictability'), '79.96%', 'nor 80.0% at its bottom edge');
+    eq(fmtPct(84.99999, 'completion'), '84.9999%',
+       'past four decimals it truncates toward the side the figure is really on');
+    eq(fmtPct(84.6, 'completion'), '84.6%', 'the one-decimal case is unchanged');
+    eq(fmtPct(85.2, 'completion'), '85%', 'and a figure rounding safely stays whole');
+    const t = TG().tgt();
+    const edges = { completion: [t.completionGreen, t.completionRed],
+                    churn: [t.churnGreen, t.churnRed],
+                    predictability: [t.predUnderRed, t.predLow, t.predHigh, t.predOverRed] };
+    const offs = [-0.6, -0.5, -0.45, -0.051, -0.05, -0.049, -0.03, -0.005, -0.0004, 0,
+                  0.0004, 0.005, 0.03, 0.049, 0.05, 0.051, 0.45, 0.5, 0.6];
+    const wrong = [];
+    Object.keys(edges).forEach(scale => edges[scale].forEach(edge => offs.forEach(o => {
+      const v = edge + o;
+      const shown = fmtPct(v, scale);
+      if (w.rag(parseFloat(shown), scale) !== w.rag(v, scale)) wrong.push(scale + ' ' + v + ' → ' + shown);
+    })));
+    eq(wrong, [], 'every figure near every boundary prints on its own side of it');
+  });
+});
+
+t('with running sprints counted, Compare Teams, PI Trend and PI by Team all say so', () => {
+  /* README: "When it's on, every view says so". Compare Teams printed "Finished
+     sprints only" regardless, and the two PI views said nothing while PI Trend's
+     latest PI moved 81% → 78% and 429 → 442 on Team Live Sprint's running S4. */
+  const on = (st) => { st.settings.includeInProgress = true; };
+  const latestPi = (st) => { st.settings.activePiId = st.pis.find(p => p.name === 'PI 2026.3').id; };
+  reviewView('teams', (st, d) => {
+    const sub = reviewText(reviewCard(d, 'Every Team') && reviewCard(d, 'Every Team').querySelector('.sub'));
+    eq(/Finished sprints only/.test(sub), false, 'Compare Teams no longer claims finished sprints only', sub);
+    ok(/Team Live Sprint S4/.test(sub) && /still running/.test(sub),
+       'and names the running sprint it is counting', sub);
+  }, on);
+  reviewView('trend', (st, d) => {
+    const sub = reviewText(reviewCard(d, 'Every Team') && reviewCard(d, 'Every Team').querySelector('.sub'));
+    ok(/Team Live Sprint/.test(sub) && /still running/.test(sub), 'PI Trend says so under its heading', sub);
+  }, on);
+  reviewView('art', (st, d) => {
+    const sub = reviewText(reviewCard(d, 'Every Team') && reviewCard(d, 'Every Team').querySelector('.sub'));
+    ok(/Team Live Sprint/.test(sub) && /still running/.test(sub), 'and so does PI by Team', sub);
+  }, (st) => { on(st); latestPi(st); });
+  /* Off, which is the default: nothing is claimed that is not happening. */
+  reviewView('teams', (st, d) => {
+    const sub = reviewText(reviewCard(d, 'Every Team').querySelector('.sub'));
+    ok(/Finished sprints only/.test(sub), 'off, Compare Teams still says finished sprints only', sub);
+  });
+  reviewView('trend', (st, d) => {
+    const sub = reviewText(reviewCard(d, 'Every Team').querySelector('.sub'));
+    eq(/still running/.test(sub), false, 'and PI Trend names no running sprint', sub);
+  });
+});
+
+t('Whole History counts a sprint left out of the rolling window, and says so', () => {
+  /* The row is pooled(counted), and counted includes a sprint marked `excluded` —
+     an exclusion narrows the rolling window and the capacity target, and the PI
+     totals still count it. The help window said the opposite. The demo has no
+     left-out sprint on a History team, so one is marked here. */
+  reviewView('history', (st, d) => {
+    const help = TG().METRIC_HELP.histTotalRow.body.replace(/\s+/g, ' ');
+    eq(/left out of the rolling average sit in the table above but not in this row/.test(help), false,
+       'the help no longer says a left-out sprint is missing from the row', help);
+    ok(/left out of the rolling[^.]*still in/i.test(help), 'it says the row still counts one', help);
+    const top = reviewText(reviewCard(d, 'Team Baseline — Every Sprint').querySelector('.sub'));
+    ok(/PI 2026\.1 · S4/.test(top) && /still counts/.test(top),
+       'the view names the sprint and says this view counts it', top);
+    /* And that is what the row does: the pooled figure over all nine sprints. */
+    const base = w.teamSprints(st.teams.find(t => t.name === 'Team Baseline').id);
+    const committed = base.reduce((a, x) => a + x.committed, 0);
+    const done = base.reduce((a, x) => a + x.committedCompleted, 0);
+    const foot = [...d.querySelectorAll('#histTable tfoot td')].map(reviewText);
+    ok(foot.includes(String(committed)) && foot.includes(String(done)),
+       'the footer row adds up every sprint, the left-out one included', foot.join(' | '));
+  }, (st) => {
+    const team = st.teams.find(t => t.name === 'Team Baseline');
+    const pi = st.pis.find(p => p.name === 'PI 2026.1');
+    const s = st.sprints.find(x => x.teamId === team.id && x.piId === pi.id && x.sprintNumber === 4);
+    s.excluded = true; s.excludeReason = 'incident';
+    st.settings.activeTeamId = team.id;
+  });
+});
+
+t('value delivered against nothing planned is named, and the business value columns add up', () => {
+  /* The window accepts planned 0, achieved 8. That team has a record (hasBv) and no
+     measure (pct null), and fell between the two: its row said "— Not recorded"
+     beside BV delivered 8, the footer's BV delivered left the 8 out, the ⚑ note
+     named only the team with no record at all, and Team PI read "8 of 0 business
+     value — not recorded". */
+  const setup = (st) => {
+    const pi = st.pis.find(p => p.name === 'PI 2026.3');
+    const live = st.teams.find(t => t.name === 'Team Live Sprint');
+    const fresh = st.teams.find(t => t.name === 'Team New Start');
+    st.objectives = st.objectives.filter(o => !(o.teamId === fresh.id && o.piId === pi.id));
+    st.objectives.push({ id: 'rvbv08', teamId: live.id, piId: pi.id, plannedBv: 0, actualBv: 8, stretchBv: 0 });
+    st.settings.activePiId = pi.id;
+    st.settings.activeTeamId = live.id;
+  };
+  reviewView('art', (st, d) => {
+    const rows = [...d.querySelectorAll('#artTable tbody tr')];
+    const cells = (tr) => [...tr.querySelectorAll('td')].map(reviewText);
+    const live = rows.find(tr => tr.querySelector('.rowbtn').textContent.trim() === 'Team Live Sprint');
+    ok(live, 'Team Live Sprint has a row');
+    const c = live ? cells(live) : [];
+    eq(c[6], '8', 'its BV delivered is the 8 recorded');
+    eq(/not recorded/i.test(c[7] || ''), false, 'and its predictability does not call it "not recorded"', c[7]);
+    const n = (x) => Number(String(x || '').replace(/[^0-9]/g, '')) || 0;
+    const foot = [...d.querySelectorAll('#artTable tfoot td')].map(reviewText);
+    eq(n(foot[6]), rows.reduce((a, tr) => a + n(cells(tr)[6]), 0), 'the footer’s BV delivered is its column added up');
+    eq(n(foot[5]), rows.reduce((a, tr) => a + n(cells(tr)[5]), 0), 'and so is BV planned');
+    const notes = [...reviewCard(d, 'Every Team').querySelectorAll('.exnote')].map(reviewText).join(' | ');
+    ok(/Team Live Sprint[^|]*no planned value/.test(notes), 'the team is named, with the reason', notes);
+    ok(/Not scored yet[^|]*Team New Start/.test(notes), 'beside the team with nothing recorded at all', notes);
+  }, setup);
+  reviewView('pi', (st, d) => {
+    const el = [...d.querySelectorAll('.tile')]
+      .find(x => x.querySelector('.label').textContent.trim().startsWith('PI predictability'));
+    ok(el, 'Team PI still shows the tile for a team with value recorded');
+    const text = reviewText(el);
+    eq(/not recorded/i.test(text), false, 'and does not call 8 of 0 "not recorded"', text);
+    ok(/none planned/i.test(text), 'it says none was planned', text);
+  }, setup);
+});
+
+t('a saved Compare Teams sort is honoured on the first render after a reload', async () => {
+  /* sortRows('teamsTable') ran before sortHead('teamsTable') registered the
+     columns, and sortOf() ignores a saved key for a table with no columns
+     registered — so after a reload the Avg velocity heading said sorted while the
+     rows and the chart were in ART order. The other tests sort in a frame that
+     has already drawn the table once, which is why none of them saw it. A FRESH
+     frame is the reload: nothing registered, a sort already saved. */
+  await inFrame('firstsort', {}, async (W, D) => {
+    W.lsSet = () => {};   // the saved sort is planted in memory, never in storage
+    W.__svTestHooks.setSort('teamsTable', 'vel', 'desc');
+    ok(!W.__svTestHooks.SORT_COLS.teamsTable, 'Compare Teams has not been drawn in this frame yet');
+    D.querySelector('.tab[data-view="teams"]').click();
+    await wait(300);
+    const rows = [...D.querySelectorAll('#teamsTable tbody tr')];
+    ok(rows.length > 2, 'the table is on screen', rows.length);
+    const names = rows.map(tr => tr.querySelector('.rowbtn').textContent.trim());
+    const vel = rows.map(tr => {
+      const t = tr.querySelectorAll('td')[6].textContent.replace(/[^0-9.]/g, '');
+      return t === '' ? null : Number(t);
+    });
+    const want = names.map((n, i) => ({ n, v: vel[i], i }))
+      .sort((a, b) => (a.v === null) - (b.v === null) || (b.v - a.v) || (a.i - b.i)).map(x => x.n);
+    eq(names, want, 'rows are in Avg velocity order on the very first render');
+    const th = [...D.querySelectorAll('#teamsTable thead th')].find(x => /Avg velocity/.test(x.textContent));
+    eq(th && th.getAttribute('aria-sort'), 'descending', 'and the heading says so');
+    const chart = W.Chart.getChart('teamsChart');
+    eq(chart ? chart.data.labels : null, names.filter((n, i) => rows[i] && vel[i] !== null),
+       'the chart above follows the same order');
+  });
+});
+
+t('Compare Teams stops saying "Grouped by ART." once a column sorts the table', () => {
+  /* The sentence was keyed off the ART count and the filter alone, so it went on
+     describing an ART grouping over a table the reader had just sorted by Avg
+     velocity. Storage is stubbed for the length of the test and the table's own
+     sort put back, so nothing here is written. */
+  const H = w.__svTestHooks;
+  const realLsSet = w.lsSet;
+  const keep = H.sortOf('teamsTable');
+  w.lsSet = () => {};
+  try {
+    const sub = (d) => reviewText(reviewCard(d, 'Every Team') && reviewCard(d, 'Every Team').querySelector('.sub'));
+    reviewView('teams', (st, d) => {
+      ok(/Grouped by ART\./.test(sub(d)), 'unsorted, with two ARTs and no filter, it is grouped and says so', sub(d));
+    }, () => H.setSort('teamsTable', null, 'desc'));
+    reviewView('teams', (st, d) => {
+      const th = [...d.querySelectorAll('#teamsTable thead th')].find(x => /Avg velocity/.test(x.textContent));
+      eq(th && th.getAttribute('aria-sort'), 'descending', 'the table really is sorted by a column');
+      eq(/Grouped by ART/.test(sub(d)), false, 'and the page no longer claims the ART grouping', sub(d));
+    }, () => H.setSort('teamsTable', 'vel', 'desc'));
+  } finally {
+    H.setSort('teamsTable', keep.key, keep.dir);
+    w.lsSet = realLsSet;
+    w.render();
+  }
+});
+
+t('an ART ticked beside "no ART" spells the teams with no ART out, in every form', () => {
+  /* artScopeWords() spelt ART_NONE out only when it was the ONLY tick — its own
+     comment says "on No ART" reads as an ART somebody called No ART — and a mixed
+     list fell back to the picker's label: "Payments ART and No ART — Rolling
+     5-Sprint Averages", "Showing 4 of 6 teams, on Payments ART and No ART". */
+  const NONE = w.__svTestHooks.ART_NONE;
+  withState({ teams: [{ id: 'mxt1', name: 'A', artId: 'mxa1' }, { id: 'mxt2', name: 'B' }],
+              arts: [{ id: 'mxa1', name: 'Payments ART' }, { id: 'mxa2', name: 'Platform ART' }],
+              pis: [], sprints: [], plans: [], objectives: [] }, () => {
+    const one = w.artScopeWords(['mxa1', NONE]);
+    eq(one.name, 'Payments ART and Teams Without An ART', 'the heading');
+    eq(one.where, 'on Payments ART and with no ART', 'the picker’s line');
+    eq(one.phrase, 'Every team on Payments ART and every team you haven’t put on an ART yet', 'the sentence');
+    eq(one.print, 'Payments ART and teams with no ART', 'the printed meta line');
+    eq(one.label, 'All selected teams', 'the footer row still names one and counts several');
+    const two = w.artScopeWords([NONE, 'mxa1', 'mxa2']);
+    eq(two.name, 'Payments ART, Platform ART and Teams Without An ART', 'ARTs first, the teams with none last');
+    eq(/No ART/.test([two.name, two.where, two.phrase, two.print].join(' | ')), false,
+       'no form reads as an ART named No ART', [two.name, two.where, two.phrase, two.print].join(' | '));
+    eq(w.artScopeWords([NONE]).name, 'Teams Without An ART', 'the lone tick is unchanged');
+    eq(w.artScopeWords(['mxa1']).where, 'on Payments ART', 'and so is a lone ART');
+  });
+  /* On the page, where the review read it. */
+  reviewView('teams', (st, d) => {
+    const h = reviewText(d.querySelector('#views .card:not(.toolbarcard) h2'));
+    ok(/^Payments ART and Teams Without An ART — Rolling/.test(h), 'the Compare Teams heading', h);
+    const line = reviewText(d.querySelector('.toolbarcard .muted'));
+    ok(/on Payments ART and with no ART/.test(line) && !/and No ART/.test(line), 'and the picker’s line', line);
+  }, (st) => { st.settings.artFilter = [st.arts.find(a => a.name === 'Payments ART').id, NONE]; });
+});
+
+t('forecast keeps a standing availability when a one-off sits on the next sprint', () => {
+  /* `lasting` asked `availabilitySource === 'team'`, and a one-off on the next
+     slot wins outright there, so the source read 'sprint' and the standing 80%
+     was dropped from the WHOLE horizon: a team that had lost a fifth of its
+     people for good forecast at full strength because of one fortnight's leave.
+     capacityFixture: done 10/20/30/40, so planningBase 25 and second-lowest 20.
+       before: rates 25 and 20  → 100 points in 4–5 sprints, no standing caveat
+       after:  rates 20 and 16  → 100 points in 5–7 sprints, both caveats */
+  w.__svTestHooks.svTypedRate();
+  w.__svTestHooks.svAdjust();
+  const fx = capacityFixture({
+    plans: [{ id: 'pl1', teamId: 't1', piId: 'p1', sprintNumber: 5, availability: 50, reason: 'leave' }]
+  });
+  fx.teams = [{ id: 't1', name: 'Team One', availability: 80, availabilityReason: 'teamChange' }];
+  withState(fx, () => {
+    const t = w.nextSprintTarget('t1', false);
+    eq(t.availabilitySource, 'sprint', 'the one-off really is what sits on the next slot');
+    approx(t.recommended, 12.5, 'and next sprint still takes it: 25 × 50%');
+    const f = w.forecast('t1', 100, false);
+    approx(f.meanRate, 20, 'the standing 80% holds across the span: 25 × 80%, not 25');
+    approx(f.floorRate, 16, 'and the floor with it: 20 × 80%, not 20');
+    eq([f.fast, f.slow], [5, 7], '100 points in 5–7 sprints, not 4–5');
+    eq(f.lastingAdjustment, 80, 'the card says the standing figure was applied');
+    eq(f.oneOffIgnored, 50, 'and that the one-off was not stretched');
+    /* One rule for both span figures: the next-PI card reads the same helper. */
+    const html = w.piCapacityCard(w.svGet().teams, false);
+    ok(/⚑ 80%/.test(html), 'the next-PI card flags the same standing figure', html.slice(0, 200));
+  });
+  /* The typed-rate exception is untouched: a stated rate is already the team as
+     it will be, so no availability of either kind is applied to it. */
+  w.__svTestHooks.svTypedRate(30, 30, true);
+  try {
+    withState(fx, () => {
+      const f = w.forecast('t1', 100, false);
+      approx(f.meanRate, 30, 'a typed rate is not knocked down for the standing figure');
+      eq(f.lastingAdjustment, null);
+      eq(f.oneOffIgnored, null);
+    });
+  } finally { w.__svTestHooks.svTypedRate(); }
+});
 
 group('a step lands the keyboard on the new chart (2026-09-03 audit)');
 /* Opening with ⤢ leaves the keyboard on that ⤢. A step then moves that card
@@ -7700,7 +8233,7 @@ group('a page with no tabs has no pin button either (2026-09-03 audit)');
    `hidden` as well as the cascade: a computed `position` is still `sticky` on a
    row that is display:none. */
 t('the welcome card, Forecast Ahead and a broken link show no lone 📌', async () => {
-  await inFrame('lonepin', { sample: false }, async (W, D) => {
+  await inFrame('lonepin', { sample: false, blank: true }, async (W, D) => {
     const row = D.querySelector('.tabrow');
     const btn = D.getElementById('pinBtn');
     const head = D.querySelector('header');
@@ -8817,6 +9350,170 @@ t('a tab press goes to the top; the team picker holds the scroll', async () => {
   });
 });
 
+group('Layout, the data boundary and the suite (2026-09-15 review)');
+t('the Share window does not scroll sideways on a 320px phone', async () => {
+  /* A fieldset will not shrink below its widest content (the UA gives it
+     min-inline-size: min-content), and the history picker was fixed at the width
+     of its longest option — so at 320px "What to Include" ran 34px past a window
+     that then scrolled sideways. Opened by its own button, so it is populated. */
+  await inFrame('share320', { width: 320, height: 640 }, async (W, D) => {
+    D.getElementById('shareBtn').click();
+    await wait(900);
+    const dlg = D.getElementById('shareDialog');
+    ok(dlg.open, 'the Share window is open');
+    ok(dlg.clientWidth > 0, 'and measured at a real size', dlg.clientWidth);
+    ok(dlg.scrollWidth <= dlg.clientWidth,
+       'nothing in it runs past its edge', dlg.scrollWidth + ' > ' + dlg.clientWidth);
+    const box = dlg.getBoundingClientRect();
+    const inner = box.right - parseFloat(W.getComputedStyle(dlg).borderRightWidth);
+    const sel = D.getElementById('shareHistory').getBoundingClientRect();
+    ok(sel.width > 0 && sel.right <= inner + 0.5,
+       'the history picker sits inside the window', sel.right + ' vs ' + inner);
+    eq(W.getComputedStyle(D.querySelector('#shareDialog fieldset')).minInlineSize, '0px',
+       'and a fieldset may shrink like any other box — the cause, for every window');
+    dlg.close();
+  });
+});
+t('a table heading’s focus ring has room on every side inside its scroller', async () => {
+  /* `.tablewrap` scrolls sideways, and overflow-x: auto clips BOTH axes at the
+     padding box. With no padding the heading buttons sat on its top edge, so the
+     ring showed only its left and bottom — at every width, on every sortable
+     table. 4px of padding cancelled by a -4px margin (the tab row's shape) gives
+     the ring its room without moving a table. */
+  const check = async (W, D, view, label) => {
+    D.querySelector('.tab[data-view="' + view + '"]').click();
+    await wait(400);
+    const wraps = [...D.querySelectorAll('#views .tablewrap')]
+      .filter((x) => x.querySelector('th.sortable button[data-sortcol]'));
+    ok(wraps.length > 0, label + ': a sortable table is on screen');
+    wraps.forEach((wrap, n) => {
+      const cs = W.getComputedStyle(wrap);
+      const box = () => {
+        const r = wrap.getBoundingClientRect();
+        return { l: r.left + parseFloat(cs.borderLeftWidth), r: r.right - parseFloat(cs.borderRightWidth),
+                 t: r.top + parseFloat(cs.borderTopWidth) };
+      };
+      ok(wrap.clientWidth > 0, label + ' table ' + n + ' measured at a real size', wrap.clientWidth);
+      const heads = [...wrap.querySelectorAll('thead th.sortable button[data-sortcol]')];
+      wrap.scrollLeft = 0;
+      const b0 = box(), first = heads[0].getBoundingClientRect();
+      heads.forEach((h) => {
+        const top = h.getBoundingClientRect().top - b0.t;
+        ok(top >= 3.5, label + ' table ' + n + ': "' + h.textContent.trim() + '" has ring room above it', top);
+      });
+      ok(first.left - b0.l >= 3.5, label + ' table ' + n + ': the first heading has room on its left',
+         first.left - b0.l);
+      wrap.scrollLeft = wrap.scrollWidth;
+      const b1 = box(), last = heads[heads.length - 1].getBoundingClientRect();
+      ok(b1.r - last.right >= 3, label + ' table ' + n + ': the last heading has room on its right at the end',
+         b1.r - last.right);
+      wrap.scrollLeft = 0;
+      /* Nothing moved: the table still starts at its card's content edge. */
+      const card = wrap.closest('.card');
+      const ccs = W.getComputedStyle(card);
+      const edge = card.getBoundingClientRect().left + parseFloat(ccs.borderLeftWidth)
+        + parseFloat(ccs.paddingLeft);
+      const tl = wrap.querySelector('table').getBoundingClientRect().left;
+      ok(Math.abs(tl - edge) < 0.5, label + ' table ' + n + ' still lines up with its card', tl + ' vs ' + edge);
+    });
+  };
+  await inFrame('ringroom1280', { width: 1280, height: 900 }, async (W, D) => {
+    await check(W, D, 'trend', '1280 PI Trend');
+    await check(W, D, 'teams', '1280 Compare Teams');
+  });
+  await inFrame('ringroom390', { width: 390, height: 844 }, async (W, D) => {
+    await check(W, D, 'pi', '390 Team PI');
+    await check(W, D, 'rolling', '390 Rolling 5');
+  });
+});
+t('a control reached from the keyboard lands whole inside its table on a phone', async () => {
+  /* The browser scrolls a focus target into view only when it is ENTIRELY
+     hidden, so Tab onto a heading half past a table's edge left it half past —
+     at 390px Team PI's "Total done" showed 5px of 102. Every control in the
+     scroller is walked, at the right edge (Tab) and then the left (Shift+Tab).
+     The straddle is MADE, as the header's reveal test makes it: each control is
+     scrolled until its middle sits on the edge before it is focused, because
+     one that is wholly outside is scrolled in by the browser anyway and proves
+     nothing. A script focus in this frame is :focus-visible, which is what the
+     reveal answers to. */
+  const walk = (W, wrap, label) => {
+    const rect = (el) => el.getBoundingClientRect();
+    /* Not a disabled control: it takes no focus (the first row's Move up), so
+       there is nothing for a keyboard to land on and nothing to reveal. */
+    const items = [...wrap.querySelectorAll('button, select, input, a[href]')]
+      .filter((el) => el.getClientRects().length && !el.closest('[hidden]') && !el.disabled);
+    ok(wrap.clientWidth > 0 && wrap.scrollWidth > wrap.clientWidth + 1,
+       label + ': the table really scrolls here, or nothing is being measured',
+       wrap.scrollWidth + '/' + wrap.clientWidth);
+    ok(items.length > 2, label + ': there are controls to walk', items.length);
+    let straddled = 0;
+    const edge = (el, side) => {
+      el.blur();
+      wrap.scrollLeft = 0;
+      const box = rect(wrap), r0 = rect(el);
+      const at = side === 'right' ? box.right : box.left;
+      wrap.scrollLeft += r0.left + r0.width / 2 - at;
+      const r1 = rect(el);
+      if (!(r1.left < at && r1.right > at)) return;   // pinned at a scroll end: cannot straddle
+      straddled++;
+      el.focus();
+      const r = rect(el), b = rect(wrap);
+      const name = (el.getAttribute('aria-label') || el.textContent || el.tagName).trim().slice(0, 30);
+      ok(r.left - b.left >= 3 && b.right - r.right >= 3,
+         label + ': "' + name + '" focused across the ' + side + ' edge lands whole inside, ring room kept',
+         (r.left - b.left).toFixed(1) + ' / ' + (b.right - r.right).toFixed(1));
+      el.blur();
+    };
+    items.forEach((el) => { if (rect(el).width < wrap.clientWidth - 8) { edge(el, 'right'); edge(el, 'left'); } });
+    ok(straddled >= 4, label + ': enough controls were set across an edge to prove it', straddled);
+    wrap.scrollLeft = 0;
+  };
+  await inFrame('reveal390', { width: 390, height: 844 }, async (W, D) => {
+    for (const view of ['pi', 'teams']) {
+      D.querySelector('.tab[data-view="' + view + '"]').click();
+      await wait(400);
+      const wrap = [...D.querySelectorAll('#views .tablewrap')]
+        .find((x) => x.querySelector('th.sortable button[data-sortcol]'));
+      ok(wrap, view + ': a sortable table is on screen');
+      if (wrap) walk(W, wrap, '390 ' + view);
+    }
+    D.getElementById('manageBtn').click();
+    await wait(500);
+    const teams = D.getElementById('teamRows').closest('.tablewrap');
+    ok(teams, 'Teams & PIs has its teams table');
+    if (teams) walk(W, teams, '390 Teams & PIs');
+    D.getElementById('manageDialog').close();
+  });
+});
+
+group('the suite leaves storage exactly as it found it (2026-09-15 review)');
+/* LAST, on purpose: every test above has run, every frame has been removed. */
+t('every sv-* key is byte-identical to what it was before the suite ran', async () => {
+  await wait(300);
+  const drift = svStorageDrift();
+  /* A frame's BOOT may write, and that is the app, not a test: applyPin stores
+     the pin preference where there was none, boot deletes the keys sync left
+     behind, and a saved board that needs repairing is written back repaired. So
+     those, and only those, may have drifted before the restore. Anything else is
+     a test writing — the thing this exists to catch. */
+  const allowed = new Set(['sv-sync-uid', 'sv-updated']);
+  /* Only the DEFAULT a boot stores. A '1' is somebody pressing the pin — the smoke
+     walk presses every button — and the reader's next visit would open pinned. */
+  if (!('sv-pin' in SV_AT_START) && localStorage.getItem('sv-pin') === '0') allowed.add('sv-pin');
+  if (SV_AT_START['sv-data']) {
+    try {
+      w.sanitizeIds(w.coerceShape(JSON.parse(SV_AT_START['sv-data'])));
+      if (w.sanitizeIds.pruned || w.sanitizeIds.strippedNotes) allowed.add('sv-data');
+    } catch (e) { allowed.add('sv-data'); }
+  }
+  svRestoreStorage();
+  await wait(300);
+  eq(svStorageDrift(), [], 'after the restore, still different');
+  eq(drift.filter((k) => !allowed.has(k)), [],
+     'and no test wrote any of these while it ran (put back now, but a run that died '
+     + 'half way would have left them)');
+});
+
 async function run() {
 
 
@@ -8839,6 +9536,17 @@ async function run() {
       '<code>http://localhost:8012/tests.html</code>.</td></tr>';
     return;
   }
+  /* THE SHARED FRAME WRITES NOTHING (2026-09-15 review). Its real save() was
+     reached from the ART picker and forecast tests and stored a board — an empty
+     one on a clean profile, a rewritten copy of the reader's own on a real one —
+     and setSort() stored `sv-tablesort` through lsSet(). Both are top-level
+     function declarations, so they are properties of the frame's window and are
+     replaced here, once, before any test runs: a test that stubs save() for
+     itself and puts back "the real one" puts back this. lsSet() records what it
+     was asked to store instead, for the one test that pins where a preference
+     goes. Frames the tests boot for themselves stub their own. */
+  w.save = () => {};
+  w.lsSet = (k, v) => { LS_WRITES.push([k, String(v)]); };
   const out = document.getElementById('out');
   let pass = 0, fail = 0;
   for (const item of TESTS) {

@@ -1180,7 +1180,18 @@ th .tile-help, td .tile-help { vertical-align: 1px; }
    Chrome and Firefox were always right here, which is why this went unnoticed —
    it is only ever visible on the phone. Mirrored in Flow Metrics, Money Map and Golf
    Handicap. */
-.tablewrap { overflow-x: auto; position: relative; }
+/* 4px OF PADDING, CANCELLED BY A -4px MARGIN (2026-09-15 review). overflow-x:
+   auto clips BOTH axes at the padding box, and with no padding the sort buttons
+   sat on that edge: every heading's focus ring lost its top, the first column
+   its left and the last its right, at every width. The tab row's shape
+   (`.tabs { padding: 4px; margin: -4px }`) — the box grows outward by exactly
+   what it gives the ring, so no table moves. The keyboard reveal below measures
+   against this padding edge. An inline margin-top on a .tablewrap replaces the
+   -4px, and it COLLAPSES with the margin of whatever sits above — so shaving the
+   4px off the margin is only right for one neighbour. Such a box keeps its margin
+   and takes `padding-top: 0` instead (PI Trend's capacity table, whose heading row
+   holds no control and so needs no ring room above it). */
+.tablewrap { overflow-x: auto; position: relative; padding: 4px; margin: -4px; }
 table { border-collapse: collapse; width: 100%; font-size: var(--fs-sm);
   font-variant-numeric: tabular-nums; }
 th, td { text-align: right; padding: 10px 12px; border-bottom: 1px solid var(--border); }
@@ -1812,8 +1823,12 @@ dialog h3 { margin: 0 0 12px; font-size: var(--fs-md); }
 /* Every block in the sprint form is a raised panel a shade lighter than the dialog,
    with the input boxes inside it a shade darker again. That two-tone is what makes
    the fields read as sitting *in* a section rather than floating on a flat sheet. */
+/* `min-inline-size: 0` (2026-09-15 review): the UA gives a fieldset
+   `min-inline-size: min-content`, so unlike a div it will not shrink below its
+   widest child — at 320px the Share window's "What to Include" ran 34px past the
+   window, which then scrolled sideways. Every window's fieldsets take it. */
 fieldset, .formpanel { border: 1px solid var(--border); border-radius: var(--radius-sm);
-  padding: 12px; margin: 0; background: var(--bg-card-alt); }
+  padding: 12px; margin: 0; background: var(--bg-card-alt); min-inline-size: 0; }
 /* ── The gap between stacked panels, and only between them ──────────────────
    Money Map's rule, adopted here on 2026-08-22 so the share window's spacing
    matches it. An ADJACENT-SIBLING rule rather than a margin on every panel
@@ -2060,6 +2075,10 @@ footer .applink { margin: 0 19px 0 auto; }
 }
 .checkline { display: flex; gap: 8px; align-items: center; font-size: var(--fs-sm); }
 .checkline input { flex: none; }
+/* A select is as wide as its longest option ("As much as fits in a mailable
+   link", 274px) — the other half of the 320px sideways scroll. Capped at its
+   panel; the chosen option still reads, the open list is the browser's own. */
+#shareHistory { max-width: 100%; }
 /* The share window's list grouped by ART: a heading line per ART, its teams
    indented so each team's box sits under the ART's NAME rather than under the
    ART's own box. 24px is measured, not summed from the box alone: the browser
@@ -3378,9 +3397,16 @@ function sanitizeIds(data) {
   sanitizeIds.unassigned = 0;  // sprints whose PI was missing, kept but un-grouped
   if (!data || typeof data !== 'object') return data;
   const remap = new Map();
+  /* A NUMBER goes through the same map as a hostile string (2026-09-15 review).
+     A hand-edited file saying `{"id": 7}` on a team and `"teamId": 7` on its
+     sprints means one team, so both are rewritten to the same fresh id — the Map
+     keys 7 and "7" apart, so a real "7" elsewhere is never merged with it. Null,
+     '' and anything else pass back as they came: `idOrNull` still collapses
+     those to null further down, and a reference holding one is dropped there. */
   const clean = (id) => {
-    if (typeof id !== 'string' || !id || ID_OK.test(id)) return id;
-    if (!remap.has(id)) remap.set(id, uid());
+    const finiteNum = typeof id === 'number' && Number.isFinite(id);
+    if (!finiteNum && (typeof id !== 'string' || !id || ID_OK.test(id))) return id;
+    if (!remap.has(id)) { remap.set(id, uid()); sanitizeIds.pruned++; }
     return remap.get(id);
   };
   const list = (v) => (Array.isArray(v) ? v : []);
@@ -3399,12 +3425,24 @@ function sanitizeIds(data) {
      JSON.stringify silently drops is a field that reads as "never set" on the
      next load rather than announcing itself, which is its own quiet bug. Any new
      optional field goes through here the same way. */
-  const cleanKey = (o, k) => { if (o && typeof o[k] === 'string') o[k] = clean(o[k]); };
-  list(data.teams).forEach(t => { cleanKey(t, 'id'); cleanKey(t, 'artId'); });
-  list(data.arts).forEach(a => cleanKey(a, 'id'));
-  list(data.pis).forEach(p => cleanKey(p, 'id'));
+  const cleanKey = (o, k) => {
+    if (o && (typeof o[k] === 'string' || typeof o[k] === 'number')) o[k] = clean(o[k]);
+  };
+  /* A RECORD'S OWN ID IS NEVER ABSENT (2026-09-15 review). cleanKey leaves a
+     missing, null, '' or object id alone, which is right for a reference and
+     wrong for the record itself: keepKnown then dropped the key, and a team with
+     no id rendered `data-del-team=""`, teamById('') found nothing, and Delete
+     threw — a ghost nobody could remove. Nothing can refer to an id that was
+     never there, so it gets a fresh one of its own rather than a remap entry. */
+  const ownId = (o) => {
+    cleanKey(o, 'id');
+    if (o && !(typeof o.id === 'string' && ID_OK.test(o.id))) { o.id = uid(); sanitizeIds.pruned++; }
+  };
+  list(data.teams).forEach(t => { ownId(t); cleanKey(t, 'artId'); });
+  list(data.arts).forEach(a => ownId(a));
+  list(data.pis).forEach(p => ownId(p));
   list(data.sprints).forEach(s => {
-    cleanKey(s, 'id');
+    ownId(s);
     cleanKey(s, 'teamId');
     cleanKey(s, 'piId');
     /* Sprints once carried a free-text `notes` object. The feature was removed
@@ -3417,12 +3455,12 @@ function sanitizeIds(data) {
     if ('notes' in s) { delete s.notes; sanitizeIds.strippedNotes++; }
   });
   list(data.plans).forEach(p => {
-    cleanKey(p, 'id');
+    ownId(p);
     cleanKey(p, 'teamId');
     cleanKey(p, 'piId');
   });
   list(data.objectives).forEach(o => {
-    cleanKey(o, 'id');
+    ownId(o);
     cleanKey(o, 'teamId');
     cleanKey(o, 'piId');
   });
@@ -3666,14 +3704,16 @@ function sanitizeIds(data) {
   /* Allowed through is not the same as trusted: the shared-view banner prints
      these two, so they're pinned to their types the way keepKnown pins every
      other value — or a crafted link rides an unbounded string in on `label`,
-     and a non-numeric `sharedAt` puts "Invalid Date" in the banner. */
+     and a `sharedAt` that is not a date puts "Invalid Date" in the banner.
+     Not a date means non-numeric OR past the calendar: a Date holds ±8.64e15 ms,
+     so 1e300 is finite and still Invalid Date (2026-09-15 review). */
   if ('label' in data) {
     const l = String(data.label).slice(0, 120);
     if (l !== data.label) { data.label = l; sanitizeIds.pruned++; }
   }
   if ('sharedAt' in data) {
     const n = Number(data.sharedAt);
-    if (!Number.isFinite(n)) { delete data.sharedAt; sanitizeIds.pruned++; }
+    if (!Number.isFinite(n) || Math.abs(n) > 8.64e15) { delete data.sharedAt; sanitizeIds.pruned++; }
     else if (n !== data.sharedAt) { data.sharedAt = n; sanitizeIds.pruned++; }
   }
   /* And the range, which the same banner reads through shareRangeNote(): a
@@ -4208,6 +4248,16 @@ function artScopeWords(scope) {
   const join = (parts) => parts.length < 2 ? (parts[0] || '')
     : parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1];
   const onlyNone = list.length === 1 && list[0] === ART_NONE;
+  /* ── "no ART" BESIDE AN ART (2026-09-15) ──────────────────────────────────
+     The spelling-out above applied only to a lone tick, so Payments ART plus no
+     ART read "Payments ART and No ART" in the heading and "on Payments ART and No
+     ART" on the picker's line — the ART-called-No-ART reading the rule exists to
+     prevent. A mixed list names its ARTs and then spells the rest out in the
+     same words the lone tick uses. `names` keeps "No ART": it is the picker
+     button's label, where it is one option beside the names. */
+  const withNone = !onlyNone && list.includes(ART_NONE);
+  const artNames = list.filter(id => id !== ART_NONE)
+    .map(id => (state.arts.find(a => a.id === id) || {}).name || '');
   return {
     ids: list,
     names,
@@ -4215,7 +4265,8 @@ function artScopeWords(scope) {
        had in the one-ART and no-filter cases — this is a widening, not a
        rewrite, and a heading that changed for teams nobody regrouped would be
        churn a reader has to account for. */
-    name:  !list.length ? 'Every Team' : onlyNone ? 'Teams Without An ART' : join(names),
+    name:  !list.length ? 'Every Team' : onlyNone ? 'Teams Without An ART'
+      : withNone ? join(artNames.concat('Teams Without An ART')) : join(names),
     /* `where` is the bare prepositional phrase, and `label` is the footer row's
        "All teams …" built from it, so the two can never disagree about how the
        ARTs are named. The picker's own muted line takes `where` on its own.
@@ -4228,17 +4279,21 @@ function artScopeWords(scope) {
        every figure to its right. Charles reported it on both apps the same day.
        One ART is still named, because a name is shorter than any phrase standing
        in for it, and past that the heading over the table lists them in full. */
-    where: !list.length ? '' : onlyNone ? 'with no ART' : 'on ' + join(names),
+    where: !list.length ? '' : onlyNone ? 'with no ART'
+      : withNone ? 'on ' + join(artNames) + (artNames.length > 1 ? ', and' : ' and') + ' with no ART'
+      : 'on ' + join(names),
     label: !list.length ? 'All teams'
       : onlyNone ? 'All teams with no ART'
       : list.length === 1 ? 'All teams on ' + names[0]
       : 'All selected teams',
     phrase: !list.length ? 'Every team you support'
       : onlyNone ? 'Every team you haven\u2019t put on an ART yet'
+      : withNone ? 'Every team on ' + join(artNames) + ' and every team you haven\u2019t put on an ART yet'
       : 'Every team on ' + join(names),
     /* What the printed meta line says. Empty with no filter, because naming the
        view and naming the teams it covers are two different jobs. */
-    print: !list.length ? '' : onlyNone ? 'Teams with no ART' : join(names)
+    print: !list.length ? '' : onlyNone ? 'Teams with no ART'
+      : withNone ? join(artNames.concat('teams with no ART')) : join(names)
   };
 }
 
@@ -4290,7 +4345,11 @@ function forecast(teamId, points, includeSix) {
      a statement about the team as it will be; knocking it down for the standing
      availability on top would apply the same allowance twice, which is the same
      guess-times-a-guess this app refuses elsewhere. */
-  const lasting = (!typed && t && t.availabilitySource === 'team') ? t.availability / 100 : 1;
+  /* Read off the team record, NOT `t.availabilitySource`: a one-off on the next
+     slot wins outright there, so the source said 'sprint' and a standing 80% was
+     dropped from the whole horizon (2026-09-15). */
+  const standing = (!typed && t) ? standingAvailability(teamId) : null;
+  const lasting = standing === null ? 1 : standing / 100;
   /* Kept apart by WHAT THEY ARE rather than by which is bigger, because the card
      has to name each end ("the 20 they average", "the 17 they hit in 3 of the
      last 4") and those two sentences are not interchangeable. Which one is the
@@ -4425,7 +4484,7 @@ function forecast(teamId, points, includeSix) {
     /* Carried straight through so the card's caveats read from one object. */
     /* Both null under a typed rate: neither was applied, and a caveat about an
        adjustment that did not happen is worse than no caveat. */
-    lastingAdjustment: (!typed && t && t.availabilitySource === 'team') ? t.availability : null,
+    lastingAdjustment: standing,
     oneOffIgnored: (!typed && t && t.availabilitySource === 'sprint') ? t.availability : null,
     sprints: t ? t.sprints : 0,
     /* A typed rate has no history to be thin or unsteady, so the two caveats
@@ -4453,9 +4512,11 @@ function forecast(teamId, points, includeSix) {
 
    Predictability is the MEAN of the teams' own measures — SAFe's definition, and
    the same method the PI by Team tile uses, so the two views can't disagree about the
-   same PI. Commitment completion is POOLED, matching Team PI's headline tile
-   and the Agile Operations Dashboard. Neither picks a method silently; the table
-   says which is which. */
+   same PI. Commitment completion is POOLED, Team PI's headline method and the
+   Agile Operations Dashboard's — but it MATCHES those only with sprint 6 counted,
+   because both always count the IP sprint and this leaves it out by default. The
+   page says so wherever it makes the claim. Neither picks a method silently; the
+   table says which is which. */
 function piTrend(teams, includeSix) {
   const ids = (teams || []).map(t => t.id);
   return state.pis.map(pi => {
@@ -4474,6 +4535,7 @@ function piTrend(teams, includeSix) {
       predPct: pred.mean,
       scored: pred.scored,
       missing: pred.missing,
+      unplanned: pred.unplanned,
       goals: goalRecord(closed),
       /* A PI nobody recorded anything in is a gap in the history rather than a
          zero, and the view drops it rather than plotting a hole as a collapse. */
@@ -4583,12 +4645,23 @@ function artPredictability(teams, piId) {
   const rows = (teams || []).map(t => ({ team: t, bv: bvFigures(objectivesFor(t.id, piId)),
                                          has: hasBv(objectivesFor(t.id, piId)) }));
   const scored = rows.filter(r => r.has && r.bv.pct !== null);
-  const planned = scored.reduce((a, r) => a + r.bv.planned, 0);
-  const delivered = scored.reduce((a, r) => a + r.bv.delivered, 0);
+  /* ── A RECORD WITH NOTHING PLANNED (2026-09-15) ────────────────────────────
+     The window accepts planned 0 and achieved 8. That team HAS a record and has
+     no measure, and it fell between `scored` and `missing`: the ART total row
+     added up only scored teams, so its BV delivered column did not add up, and
+     the ⚑ note named only teams with no record. `pooled` is "all the value added
+     up and divided once", so it adds up every RECORDED team — 8 delivered against
+     0 planned sits in the numerator exactly as stretch does. `mean` needs each
+     team's own measure and still takes only `scored`; `unplanned` names the rest. */
+  const recorded = rows.filter(r => r.has);
+  const planned = recorded.reduce((a, r) => a + r.bv.planned, 0);
+  const delivered = recorded.reduce((a, r) => a + r.bv.delivered, 0);
   return {
     rows,
     scored: scored.length,
+    recorded: recorded.length,
     missing: rows.filter(r => !r.has).map(r => r.team),
+    unplanned: rows.filter(r => r.has && r.bv.pct === null).map(r => r.team),
     mean: scored.length ? scored.reduce((a, r) => a + r.bv.pct, 0) / scored.length : null,
     pooled: planned > 0 ? (delivered / planned) * 100 : null,
     planned, delivered
@@ -4659,6 +4732,18 @@ function availabilityFor(teamId, piId, num) {
   if (team && typeof team.availability === 'number' && team.availability !== 100)
     return { pct: team.availability, reason: team.availabilityReason, source: 'team' };
   return { pct: 100, reason: null, source: null };
+}
+
+/* The STANDING availability alone — the team's lasting figure, or null when it is
+   100 or unset — for anything that looks across a SPAN of sprints rather than at
+   the next one (2026-09-15). availabilityFor() cannot answer that: a one-off on the
+   slot wins outright there, so asking it which figure is in force hides a standing
+   80% behind next sprint's 50% leave. forecast(), forecastHasRate() and
+   piCapacityCard() all read this, so the span rule lives in one place. */
+function standingAvailability(teamId) {
+  const team = teamById(teamId);
+  return team && typeof team.availability === 'number' && team.availability !== 100
+    ? team.availability : null;
 }
 
 /* The team's most recent recorded sprint. teamSprints() is already in program
@@ -4777,6 +4862,23 @@ function openSprintsNote(teamId) {
   const open = openSprints(teamId);
   if (!open.length) return '';
   return open.map(s => 'S' + s.sprintNumber + ' ' + STATUS_SHORT[sprintStatus(s)]).join(', ');
+}
+
+/* The cross-team views' half of "every view says so" (2026-09-15). With "count
+   sprints that are still running" on, a running sprint is IN the figures, and
+   Compare Teams went on printing "Finished sprints only" while PI Trend and PI by
+   Team said nothing at all — PI Trend's latest PI moved 81% → 78% on Team Live
+   Sprint's S4 with no word on the page why. One sentence for all three, naming
+   team and sprint, because a cross-team page cannot say "S4" on its own. Markup,
+   so every name is escaped here; `withPi` for the view that spans PIs. Empty
+   when nothing running is counted, which is always the case with the setting off. */
+function countedRunningSentence(sprints, withPi) {
+  const live = (sprints || []).filter(s => isCounted(s) && sprintStatus(s) !== 'complete');
+  if (!live.length) return '';
+  const names = live.map(s => esc((teamById(s.teamId) || {}).name || '') + ' '
+    + esc(withPi ? sprintLabel(s) : 'S' + s.sprintNumber));
+  return `<strong>${andList(names)}</strong> ${live.length === 1 ? 'is' : 'are'} still
+    running and counted, because \u201ccount sprints that are still running\u201d is on`;
 }
 
 /* The rolling window: the most recent N sprints for a team, crossing PI
@@ -5140,9 +5242,12 @@ const METRIC_HELP = {
       measure averaged, so it stays comparable across PIs that covered different teams — a
       train that grew didn't get better because there is more of it.` },
   trendCommitment: { title: 'Commitment Completion', target: TARGET_COMPLETION,
-    body: `Every committed point across the PI's counted sprints, pooled — the same method the
-      Team PI tab and the Agile Operations Dashboard use. A train can move this without
-      moving predictability, or the reverse, and that gap is usually the conversation.` },
+    body: `<p>Every committed point across the PI's counted sprints, pooled — the same method the
+      Team PI tab and the Agile Operations Dashboard use. <strong>It matches them only with sprint
+      6 counted</strong>: they always count the IP sprint, and this view leaves it out unless
+      Include sprint 6 (IP) is ticked.</p>
+      <p>A train can move this without moving predictability, or the reverse, and that gap is
+      usually the conversation.</p>` },
   trendDelivered: { title: 'Delivered', target: null,
     body: `Total points completed in the PI, break-in included. Unlike predictability this is a
       raw total, so it moves with the size of the train as well as with how it did — read it
@@ -5152,10 +5257,13 @@ const METRIC_HELP = {
       totals: a PI covering five teams will out-deliver one covering two whatever either did,
       and predictability is the figure that survives the comparison.` },
   piCapacity: { title: 'What the Next PI Could Hold', target: null,
-    body: `Each team's next-sprint target multiplied by the delivery sprints in a PI, added up.
-      It inherits the whole method from the Rolling ${ROLLING_WINDOW} tab, availability
-      adjustments included — a starting point for PI planning, not a quota, and it assumes
-      every sprint goes to planned work.` },
+    body: `<p>Each team's next-sprint target multiplied by the delivery sprints in a PI, added
+      up. It inherits the whole method from the Rolling ${ROLLING_WINDOW} tab, a team's
+      standing availability included.</p>
+      <p><strong>A one-off set against a single sprint is not stretched across the PI</strong> —
+      it is leave for that sprint, not a smaller team for a whole PI.</p>
+      <p>A starting point for PI planning, not a quota, and it assumes every sprint goes to
+      planned work.</p>` },
   artPredictability: { title: 'ART Predictability', target: TARGET_PREDICTABILITY,
     body: `Each team's own measure, averaged — so <em>every team counts once</em>, whatever
       the size of its plan. That is the measure SAFe defines and the one an RTE reports at
@@ -5245,8 +5353,9 @@ const METRIC_HELP = {
       conversations.` },
   histTotalRow: { title: 'Whole History', target: null,
     body: `Every counted sprint pooled into one total and divided once, the same method the
-      Team PI total uses. In-flight sprints and any sprint left out of the
-      rolling average sit in the table above but not in this row.` },
+      Team PI total uses. In-flight sprints sit in the table above but not in this row. A sprint
+      left out of the rolling average is still in it — that choice narrows the rolling window
+      and the capacity target, not a team's history, and the PI totals count it too.` },
 
   /* Compare Teams. Its one table is the AVERAGE-OF-SPRINTS method, and `teamsMean`
      has to say so outright and say where the pooled figures live — the standing
@@ -5873,13 +5982,27 @@ function deriveFromJira(parsed) {
 
 /* Percentages show as whole numbers, except where rounding would put the figure on
    the wrong side of its target: 84.6% must not display as "85%" next to a yellow
-   flag when the target is "85% or better". In that one case a decimal is shown, so
-   the number and the colour beside it never contradict each other. */
+   flag when the target is "85% or better". In that one case decimals are shown, so
+   the number and the colour beside it never contradict each other.
+
+   AS MANY AS IT TAKES, NOT ONE (2026-09-15). One decimal can round onto the line
+   itself — 84.97% printed "85.0%" beside ! Watch, 15.02% carryover "15.0%" under
+   "≤15%", 100.04% predictability "100.0%" — so the number is re-judged at each
+   precision and the first that lands on the figure's own side wins. Past four
+   decimals it truncates TOWARD that side (away from the rounded value that
+   crossed), which cannot cross back: a figure that close to a line is on it in
+   every sense but the colour, and the colour is what the number must not deny. */
 const fmtPct = (v, scale) => {
   if (v === null || v === undefined || !isFinite(v)) return '—';
   const rounded = Math.round(v);
-  if (scale && rag(rounded, scale) !== rag(v, scale)) return v.toFixed(1) + '%';
-  return rounded + '%';
+  if (!scale || rag(rounded, scale) === rag(v, scale)) return rounded + '%';
+  const side = rag(v, scale);
+  for (let d = 1; d <= 4; d++) {
+    const s = v.toFixed(d);
+    if (rag(Number(s), scale) === side) return s + '%';
+  }
+  const cut = rounded > v ? Math.floor(v * 1e4) / 1e4 : Math.ceil(v * 1e4) / 1e4;
+  return cut.toFixed(4) + '%';
 };
 const fmtNum = (v) => (v === null || v === undefined || !isFinite(v) ? '—'
   : (Math.round(v * 10) / 10).toLocaleString());
@@ -7970,11 +8093,17 @@ function renderPiView() {
              reads as a metric that failed rather than one nobody uses, and plenty
              of teams don't run PI objectives at all — the card below is what
              offers the feature to those who do. */
-          bvScored ? tile('PI predictability', fmtPct(bv.pct, 'predictability'),
+          bvScored ? (bv.pct === null
+            /* Value recorded against nothing planned: a record, and no measure.
+               "8 of 0 business value — not recorded" called a recorded 8 missing. */
+            ? tile('PI predictability', '—', null,
+                `${fmtNum(bv.delivered)} business value delivered, none planned — nothing to score against`,
+                false, 'piPredictability')
+            : tile('PI predictability', fmtPct(bv.pct, 'predictability'),
             rag(bv.pct, 'predictability'),
             `${fmtNum(bv.delivered)} of ${fmtNum(bv.planned)} business value — ${
               esc(predictabilityStatus(bv.pct)).toLowerCase()}`,
-            false, 'piPredictability') : ''}
+            false, 'piPredictability')) : ''}
       </div>
     </div>
 
@@ -8001,7 +8130,8 @@ function renderPiView() {
             <td>${fmtNum(bv.actual)}</td>
             <td>${fmtNum(bv.stretch)}</td>
             <td>${fmtNum(bv.delivered)}</td>
-            <td class="metric">${predPill(bv.pct)}</td>
+            <td class="metric">${bv.pct === null
+              ? '<span class="muted">nothing planned</span>' : predPill(bv.pct)}</td>
           </tr></tbody>
         </table></div>`
       : `<p class="sub">Nothing recorded for <strong>${esc(team.name)}</strong> in
@@ -8537,7 +8667,8 @@ function forecastClearAdjustments() {
 function forecastHasRate(teamId, includeSix) {
   const t = nextSprintTarget(teamId, includeSix);
   if (!t) return false;
-  const lasting = t.availabilitySource === 'team' ? t.availability / 100 : 1;
+  const standing = standingAvailability(teamId);
+  const lasting = standing === null ? 1 : standing / 100;
   return Math.min(t.planningBase, t.reliableBase) * lasting > 0;
 }
 
@@ -8702,7 +8833,7 @@ function forecastResultHtml(team, includeSix) {
     caveats.push(`${who} <strong>does</strong> have finished sprints to draw from —
       untick the box above to forecast from them instead.`);
   if (f.typed && nextSprintTarget(teamId, includeSix)
-      && nextSprintTarget(teamId, includeSix).availabilitySource === 'team')
+      && standingAvailability(teamId) !== null)
     caveats.push(`The team's standing availability is <em>not</em> applied on top of a typed
       velocity: a rate you state is already a statement about the team as it will be, and knocking
       it down again would allow for the same absence twice.`);
@@ -9283,7 +9414,8 @@ function renderHistoryView() {
         ${open.length === 1 ? 'is' : 'are'} drawn but left out of the figures.` : ''}${
         excluded.length ? ` ${andList(excluded.map(s => esc(sprintLabel(s))))} ${
           excluded.length === 1 ? 'is' : 'are'} held out of the rolling average and marked ⚑
-          here — this view still lists ${excluded.length === 1 ? 'it' : 'them'}.` : ''}</p>
+          here — this view still counts ${excluded.length === 1 ? 'it' : 'them'}, as the PI
+          totals do.` : ''}</p>
       <div class="tiles">
         ${tile('Sprints recorded', String(all.length), null,
           counted.length === all.length ? 'every one of them counts'
@@ -9328,8 +9460,8 @@ function renderHistoryView() {
         ${exportButtons('histTable', 'history')}
       </div>
       <p class="sub">Click any sprint to edit it. The ⚑ and the status badges are the same
-        marks the other views use, so a sprint left out of an average here is the one left
-        out there.</p>
+        marks the other views use, so a sprint marked ⚑ here is the one left out of the rolling
+        ${ROLLING_WINDOW} there — and, like the PI totals, this view's figures still count it.</p>
       <div class="tablewrap">
       <table id="histTable" aria-label="Every sprint ${esc(team.name)} has recorded">
         <thead><tr>${sortHead('histTable', SPRINT_COLS(true))}</tr></thead>
@@ -9454,6 +9586,10 @@ function renderPiTrendView() {
 
   const latest = rows[rows.length - 1];
   const prev = rows[rows.length - 2];
+  /* The sprints piTrend() counted, by its own filter, so a running one is named. */
+  const runningLine = countedRunningSentence(state.sprints.filter(s =>
+    rows.some(r => r.pi.id === s.piId) && shown.some(t => t.id === s.teamId)
+    && (includeSix || !isIpSlot(s))), true);
   /* The change since last PI is the whole point of the tile — a bare percentage is
      already on two other views. Null when either side is unscored, because "up 5"
      against a PI nobody measured is an invention. */
@@ -9505,7 +9641,8 @@ function renderPiTrendView() {
       <h2>${heading} — Across ${plural(rows.length, 'PI')}</h2>
       <p class="sub">${esc(rows[0].pi.name)} → ${esc(latest.pi.name)}, oldest first.
         This is the Inspect &amp; Adapt read: not how the last PI went, but which way the
-        train is moving.${includeSix ? '' : ' Sprint 6 (IP) is left out of every figure.'}</p>
+        train is moving.${includeSix ? '' : ' Sprint 6 (IP) is left out of every figure.'}${
+        runningLine ? ' ' + runningLine + '.' : ''}</p>
       ${sizeNote}${emptyNote}${unscoredNote}
       <div class="tiles">
         ${tile('PI predictability', fmtPct(latest.predPct, 'predictability'),
@@ -9520,8 +9657,8 @@ function renderPiTrendView() {
           `points in ${esc(latest.pi.name)} — ${movement('velocity', '')}`,
           false, 'trendDelivered')}
         ${tile('Teams counted', String(latest.teamsIn.length), null,
-          `in ${esc(latest.pi.name)}${latest.missing.length
-            ? ` · ${plural(latest.missing.length, 'team')} unscored` : ''}`,
+          `in ${esc(latest.pi.name)}${latest.missing.length + latest.unplanned.length
+            ? ` · ${plural(latest.missing.length + latest.unplanned.length, 'team')} unscored` : ''}`,
           false, 'trendTeams')}
       </div>
     </div>
@@ -9544,8 +9681,13 @@ function renderPiTrendView() {
       <p class="sub">Oldest PI first. <strong>Predictability</strong> is each team's own measure
         averaged — every team counting once, which is what makes it comparable across PIs that
         cover different teams. <strong>Complete %</strong> is pooled: every point added up and
-        the percentage taken once, matching the Team PI tab and the Agile Operations
-        Dashboard.</p>
+        the percentage taken once, the method the Team PI tab and the Agile Operations
+        Dashboard use.${includeSix ? ' With sprint 6 counted, the figures match them.'
+          /* The claim used to be unconditional, and by default it was false: this view
+             leaves the IP sprint out and those two count it (2026-09-15). */
+          : ' Those two count sprint 6 and this view leaves it out, so the figures here match'
+            + ' them only with <strong>Include sprint 6 (IP)</strong> ticked on the Rolling '
+            + ROLLING_WINDOW + ' tab.'}</p>
       <div class="tablewrap">
       <table id="trendTable" aria-label="Every PI, oldest first">
         <thead><tr>${sortHead('trendTable', [
@@ -9624,8 +9766,9 @@ function renderPiTrendView() {
    than on its own: at PI planning you look at how the last few went and then
    decide what to sign up for next. Every figure is the team's own sprint target
    (see nextSprintTarget) multiplied by the delivery sprints in a PI — so it
-   inherits the whole method, including the availability adjustments, and cannot
-   drift from the Rolling 5 card that explains it. */
+   inherits the whole method and cannot drift from the Rolling 5 card that
+   explains it. The one lever it does NOT inherit is a one-off availability,
+   which is leave against next sprint only; see `rows` below. */
 function piCapacityCard(teams, includeSix) {
   const slots = includeSix ? SPRINTS_PER_PI : SPRINTS_PER_PI - 1;
   /* Only teams that have ever been in a PI, matching the table above — a team that
@@ -9635,11 +9778,37 @@ function piCapacityCard(teams, includeSix) {
      the omission isn't silent. */
   const inPis = (t) => state.sprints.some(s => s.teamId === t.id && s.piId);
   const outside = (teams || []).filter(t => !inPis(t));
+  /* ── A ONE-OFF IS NOT STRETCHED ACROSS THE PI (2026-09-15) ──────────────────
+     `recommended` is next sprint's figure, and a `plans` entry is leave against
+     THAT ONE SLOT. Multiplying it by five stretched a fortnight's holiday over the
+     whole of the next PI — Team New Start's 50% leave in PI 2026.3 S3 read as a
+     team half-staffed for all of PI 2026.4, 6 a sprint instead of 13. forecast()
+     already refuses exactly this ("stretching that over ten sprints would forecast
+     a team as permanently short-staffed"), so the card takes its rule: the span
+     rate is `planningBase` times the STANDING availability, which is the lever
+     that genuinely holds across a span — `standingAvailability()`, the one helper
+     forecast() reads too, because a one-off on the next slot wins outright in
+     `availabilitySource` and would hide a standing figure that still applies. */
   const rows = (teams || []).filter(inPis)
-    .map(t => ({ team: t, t: nextSprintTarget(t.id, includeSix) }))
-    .filter(r => r.t);
+    .map(t => {
+      const target = nextSprintTarget(t.id, includeSix);
+      if (!target) return null;
+      const standing = standingAvailability(t.id);
+      const lasting = standing === null ? 1 : standing / 100;
+      const rate = target.planningBase * lasting;
+      const floorRate = target.reliableBase * lasting;
+      return {
+        team: t, t: target, rate, standing,
+        /* nextSprintTarget()'s own test, on the span's figures rather than next
+           sprint's — the one-point threshold is not scale-free. */
+        hasFloor: target.sprints >= 3 && (rate - floorRate) >= 1,
+        floorRate,
+        oneOff: target.availabilitySource === 'sprint' ? target.availability : null
+      };
+    })
+    .filter(Boolean);
   if (!rows.length) return '';
-  const total = rows.reduce((a, r) => a + r.t.recommended * slots, 0);
+  const total = rows.reduce((a, r) => a + r.rate * slots, 0);
   /* ── Only a team that HAS a floor contributes one ───────────────────────────
      `reliable` is the second-lowest result in the window, and for a team dragged
      down by a single bad sprint (10, 30, 32, 31, 29) that sits ABOVE its own mean.
@@ -9660,10 +9829,14 @@ function piCapacityCard(teams, includeSix) {
      already publishes, and the total can no longer exceed `total`. How many teams
      actually brought a floor is said out loud below, per the rule that an
      exclusion is never silent. */
-  const withFloor = rows.filter(r => r.t.hasFloor);
+  const withFloor = rows.filter(r => r.hasFloor);
   const floor = rows.reduce((a, r) =>
-    a + (r.t.hasFloor ? r.t.reliable : r.t.recommended) * slots, 0);
+    a + (r.hasFloor ? r.floorRate : r.rate) * slots, 0);
   const anyFloor = withFloor.length > 0;
+  /* Named, because the per-sprint figure now differs from the Rolling 5 target
+     for these teams, and a figure that moves for a reason not on the page is the
+     one thing every view here refuses. */
+  const oneOffs = rows.filter(r => r.oneOff !== null);
 
   return `<div class="card">
     <h2>What the Next PI Could Hold${helpBtn('piCapacity', 'what the next PI could hold')}</h2>
@@ -9692,15 +9865,23 @@ function piCapacityCard(teams, includeSix) {
         outside.length === 1 ? 'it is' : 'they are'} out of this figure. ${
         outside.length === 1 ? 'Its' : 'Their'} next-sprint target is on the
       <strong>Rolling ${ROLLING_WINDOW}</strong> tab.</span></p>` : ''}
-    <div class="tablewrap" style="margin-top:14px">
+    ${oneOffs.length ? `<p class="sub exnote" style="margin-top:14px">
+      <span class="badge">⚑ One-off not stretched</span>
+      <span class="muted">${andList(oneOffs.map(r =>
+        `${esc(r.team.name)} (${r.oneOff}% next sprint)`))} ${
+        oneOffs.length === 1 ? 'has' : 'have'} availability set against a single sprint. That
+      is leave for one sprint, not a smaller team for a whole PI, so ${
+        oneOffs.length === 1 ? 'it counts' : 'they count'} here at the full figure — the
+      adjusted one is next sprint's target on the <strong>Rolling ${ROLLING_WINDOW}</strong> tab.</span></p>` : ''}
+    <div class="tablewrap" style="margin-top:14px;padding-top:0">
     <table aria-label="Suggested capacity per team for the next PI">
       <thead><tr><th scope="col">Team</th><th scope="col">Per sprint</th>
         <th scope="col">Across ${plural(slots, 'sprint')}</th></tr></thead>
       <tbody>${rows.map(r => `
         <tr><th scope="row">${esc(r.team.name)}</th>
-          <td>${fmtNum(Math.round(r.t.recommended))}${r.t.adjusted
-            ? ` <span class="badge">⚑ ${r.t.availability}%</span>` : ''}</td>
-          <td>${fmtNum(Math.round(r.t.recommended * slots))}</td></tr>`).join('')}</tbody>
+          <td>${fmtNum(Math.round(r.rate))}${r.standing !== null
+            ? ` <span class="badge">⚑ ${r.standing}%</span>` : ''}</td>
+          <td>${fmtNum(Math.round(r.rate * slots))}</td></tr>`).join('')}</tbody>
     </table></div>
   </div>`;
 }
@@ -9817,6 +9998,7 @@ function renderArtPiView() {
   const artVelocity = rows.reduce((a, r) => a + r.velocity, 0);
   const artCommitPct = artCommitted > 0 ? (artDone / artCommitted) * 100 : null;
   const openHere = rows.reduce((a, r) => a + r.open.length, 0);
+  const runningLine = countedRunningSentence(rows.reduce((a, r) => a.concat(r.closed), []), false);
 
   /* The teams the headline measure could not include. Named, never merely
      omitted: a train figure worked out from three of five teams while the page
@@ -9837,6 +10019,17 @@ function renderArtPiView() {
         ${pred.missing.length === 1 ? 'it is' : 'they are'} out of the predictability figures
         and in every points figure. Record it on the <strong>Team PI</strong> tab, or click
         the team below.</span></p>`
+    : '';
+
+  /* Recorded, with nothing planned to score it against — in neither list above
+     until 2026-09-15, so the row said "Not recorded" and the note said nothing. */
+  const unplannedNote = pred.unplanned.length
+    ? `<p class="sub exnote"><span class="badge">⚑ Nothing planned</span>
+        <span class="muted">${pred.unplanned.map(t => esc(t.name)).join(', ')} — business value
+        delivered is recorded in ${esc(pi.name)} but none planned, so there is no planned value
+        to score against. ${pred.unplanned.length === 1 ? 'It is' : 'They are'} out of the
+        ART predictability tile and in the ART total row, which adds up every unit delivered.
+        Fill in the planned figure on the <strong>Team PI</strong> tab.</span></p>`
     : '';
 
   /* ── When the average hides the train ────────────────────────────────────
@@ -9886,8 +10079,9 @@ function renderArtPiView() {
       <p class="sub">How the train did against what it planned. <strong>Predictability</strong> is
         business value delivered against business value committed at PI planning — the measure an
         RTE reports at Inspect &amp; Adapt, and a different question from whether the points
-        landed. The two sit side by side here because a train can hit one and miss the other.</p>
-      ${notInPiNote}${missingNote}${cancellingNote}
+        landed. The two sit side by side here because a train can hit one and miss the other.${
+        runningLine ? ' ' + runningLine + '.' : ''}</p>
+      ${notInPiNote}${missingNote}${unplannedNote}${cancellingNote}
       <div class="tiles">
         ${tile('ART predictability', fmtPct(pred.mean, 'predictability'),
           rag(pred.mean, 'predictability'),
@@ -9959,8 +10153,9 @@ function renderArtPiView() {
             <td>${fmtNum(r.velocity)}</td>
             <td>${r.has ? fmtNum(r.bv.planned) : '<span class="muted">—</span>'}</td>
             <td>${r.has ? fmtNum(r.bv.delivered) : '<span class="muted">—</span>'}</td>
-            <td class="metric">${r.has ? predPill(r.bv.pct)
-              : '<span class="muted">not scored</span>'}</td></tr>`).join('')}</tbody>
+            <td class="metric">${!r.has ? '<span class="muted">not scored</span>'
+              : r.bv.pct === null ? '<span class="muted">nothing planned</span>'
+              : predPill(r.bv.pct)}</td></tr>`).join('')}</tbody>
         <tfoot>
           <tr>
             <th scope="row">${scopeLabel}${helpBtn('artTotalRow', 'the ART total row')}</th>
@@ -9969,9 +10164,9 @@ function renderArtPiView() {
             <td>${fmtNum(artDone)}</td>
             <td class="metric">${pill(artCommitPct, 'completion')}</td>
             <td>${fmtNum(artVelocity)}</td>
-            <td>${pred.scored ? fmtNum(pred.planned) : '<span class="muted">—</span>'}</td>
-            <td>${pred.scored ? fmtNum(pred.delivered) : '<span class="muted">—</span>'}</td>
-            <td class="metric">${pred.scored ? predPill(pred.pooled)
+            <td>${pred.recorded ? fmtNum(pred.planned) : '<span class="muted">—</span>'}</td>
+            <td>${pred.recorded ? fmtNum(pred.delivered) : '<span class="muted">—</span>'}</td>
+            <td class="metric">${pred.pooled !== null ? predPill(pred.pooled)
               : '<span class="muted">—</span>'}</td>
           </tr>
         </tfoot>
@@ -9984,7 +10179,10 @@ function renderArtPiView() {
         /* Against the rows on the page, not every team on the ART: a team with
            no sprint in this PI isn't in the table at all, so saying the figures
            cover fewer teams than it shows would be counting the wrong absence. */
-        pred.scored && pred.scored < rows.length
+        pred.unplanned.length
+          ? ` The tile covers the ${plural(pred.scored, 'team')} with a measure; the row adds up
+              all ${plural(pred.recorded, 'team')} with business value recorded.`
+          : pred.scored && pred.scored < rows.length
           ? ` Both cover the ${plural(pred.scored, 'team')} that ${
               pred.scored === 1 ? 'has' : 'have'} been scored.` : ''}</p>
     </div>`;
@@ -10490,8 +10688,13 @@ function renderTeamsView() {
   /* SORTED HERE, before anything reads the list — so the chart on the card above
      plots the teams in the order the table lists them. Two orders on one page,
      one of them the reader's own choice, is a page that has to be read twice.
-     The columns are registered by the header row below, which is why this reads
-     the id and not a list of its own. */
+     REGISTERED HERE, not only by the header row below (2026-09-15). sortOf()
+     honours a saved sort only once SORT_COLS knows the table, and sortHead()
+     registers it — which on this view runs AFTER the rows are sorted. So on the
+     first render after a reload the heading said "sorted by Avg velocity" over
+     rows and a chart in ART order. The other five tables draw their header first;
+     this one cannot, because the chart above has to read the sorted list. */
+  SORT_COLS.teamsTable = TEAM_COLS;
   const rowsData = sortRows('teamsTable', rowsRaw);
   const withData = rowsData.filter(r => r.count > 0);
   const anyOpen = shown.reduce((a, t) => a + openSprints(t.id).length, 0);
@@ -10630,7 +10833,12 @@ function renderTeamsView() {
       <h2>${heading} — Rolling ${ROLLING_WINDOW}-Sprint Averages</h2>
       <p class="sub">${esc(words.phrase)}, side by
         side${includeSix ? '' : ', with sprint 6 excluded'}.
-        ${state.arts.length && !filtered ? 'Grouped by ART. ' : ''}Finished sprints only${
+        ${/* Only while the ART grouping IS the order: a column sort replaces it, and
+             the sentence went on describing a grouping the reader had just undone
+             (2026-09-15). sortOf() can answer here because the columns are
+             registered above, before the rows were sorted. */
+          state.arts.length && !filtered && !sortOf('teamsTable').key ? 'Grouped by ART. ' : ''}${
+        countedRunningSentence(allSprints, false) || 'Finished sprints only'}${
         anyOpen ? ` — ${anyOpen} sprint${anyOpen === 1 ? '' : 's'} still in flight
         ${anyOpen === 1 ? 'is' : 'are'} not counted` : ''}.
         ${withData.length ? 'The chart plots the commitment-completion figure from the table below.'
@@ -13086,7 +13294,14 @@ const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
    `state`; applying is a separate pass over what this returned, so what the
    preview shows and what Import does cannot come apart. */
 function parseImport(text, fallbackTeamId) {
-  const lines = String(text || '').split(/\r?\n/).filter(l => l.trim() !== '');
+  /* Blank lines are skipped, but a row keeps the number of the line it sits on in
+     the PASTE (2026-09-15): an error row is the only pointer back into the
+     spreadsheet now that it quotes nothing, so "Row 7" has to be line 7 of what
+     was pasted, not the seventh line that had something on it. */
+  const lines = [], lineNo = [];
+  String(text || '').split(/\r?\n/).forEach((l, i) => {
+    if (l.trim() !== '') { lines.push(l); lineNo.push(i + 1); }
+  });
   if (!lines.length) return { rows: [], fatal: '' };
   const delim = lines[0].indexOf('\t') >= 0 ? '\t' : ',';
   const heads = splitImportLine(lines[0], delim).map(h => IMPORT_COLUMNS[importKey(h)] || null);
@@ -13108,18 +13323,18 @@ function parseImport(text, fallbackTeamId) {
   /* Matched on a squashed, case-folded name for the same reason the headings are:
      "Team Baseline" out of a spreadsheet and "team baseline" typed by hand are the
      same team, and failing the row over a capital reads as the app being broken. */
-  /* An error row quotes the cell that failed — that is what makes a typo
-     findable in a fifty-row paste — but it quotes at most the first 40
-     characters. The paste box is for figures, and the cell most likely to be
-     longer than that is a Jira summary in a paste that was never meant for
-     this box; an error message must not put a readable copy of one on screen.
-     Display only, never stored, and escaped at the render — this cap is the
-     diagnostics rule (point, don't echo) applied to the echo that earns its
-     keep. */
-  const echoCell = (v) => {
-    v = String(v);
-    return v.length > 40 ? v.slice(0, 40) + '\u2026' : v;
-  };
+  /* AN ERROR ROW POINTS AND NEVER ECHOES (Charles, 2026-09-15). It names the row
+     (its line in the paste), the column that failed and what that column needs,
+     and quotes NOTHING from the cell. It used to quote up to 40 characters, on
+     the argument that a quote makes a typo findable - but the cell most likely to
+     fail is a Jira summary in a paste never meant for this box, and 40 characters
+     of one is a readable copy of it on screen. The row and column find the typo
+     just as well: the reader has the spreadsheet open. Column names are this
+     app's own words, never the pasted heading, which is pasted text too. */
+  const COL = { team: 'Team', pi: 'PI', sprintNumber: 'Sprint', startDate: 'Start',
+    endDate: 'End', committed: 'Committed', committedCompleted: 'Committed completed',
+    totalCompleted: 'Total completed', added: 'Added', removed: 'Removed',
+    carriedIn: 'Carried in', carriedOut: 'Carried out', addedThenRemoved: 'Brought in then removed' };
 
   const teamByName = new Map(state.teams.map(t => [importKey(t.name), t]));
   const piByName = new Map(state.pis.map(pi => [importKey(pi.name), pi]));
@@ -13135,13 +13350,14 @@ function parseImport(text, fallbackTeamId) {
     heads.forEach((field, c) => {
       if (field) raw[field] = (cells[c] === undefined ? '' : String(cells[c]).trim());
     });
-    const row = { line: i + 1, raw, problem: '', action: '', record: null, label: '' };
+    const row = { line: lineNo[i], raw, problem: '', action: '', record: null, label: '' };
+    const at = `Row ${row.line}: `;
 
     const team = raw.team ? teamByName.get(importKey(raw.team)) : teamById(fallbackTeamId);
     if (!team) {
       row.problem = raw.team
-        ? `No team called “${echoCell(raw.team)}” — add it in Teams & PIs first, then paste again. `
-          + 'This never creates one.'
+        ? `${at}no team by that name in the ${COL.team} column — add it in Teams & PIs first, `
+          + 'then paste again. This never creates one.'
         : 'No team to put this on. Name one in a team column, or pick a team first.';
       rows.push(row); continue;
     }
@@ -13150,15 +13366,15 @@ function parseImport(text, fallbackTeamId) {
     if (raw.pi) {
       pi = piByName.get(importKey(raw.pi));
       if (!pi) {
-        row.problem = `No PI called “${echoCell(raw.pi)}” — add it in Teams & PIs, or clear the cell to `
-          + 'record the sprint outside a PI.';
+        row.problem = `${at}no PI by that name in the ${COL.pi} column — add it in Teams & PIs, `
+          + 'or clear the cell to record the sprint outside a PI.';
         rows.push(row); continue;
       }
     }
 
     const n = Math.round(parseFloat(raw.sprintNumber));
     if (!Number.isFinite(n) || n < 1 || n > MAX_SPRINT_NO) {
-      row.problem = `“${echoCell(raw.sprintNumber || '')}” isn’t a sprint number.`;
+      row.problem = `${at}the ${COL.sprintNumber} column needs a sprint number from 1 to ${MAX_SPRINT_NO}.`;
       rows.push(row); continue;
     }
     if (pi && n > SPRINTS_PER_PI) {
@@ -13177,7 +13393,7 @@ function parseImport(text, fallbackTeamId) {
       const v = raw[key];
       if (v === undefined || v === '') { nums[key] = 0; continue; }
       const f = parseFloat(String(v).replace(/,/g, ''));
-      if (!Number.isFinite(f)) { bad = `“${echoCell(v)}” in ${key} isn’t a number.`; break; }
+      if (!Number.isFinite(f)) { bad = `${at}the ${COL[key]} column needs a number.`; break; }
       nums[key] = Math.max(0, Math.round(f));
     }
     if (bad) { row.problem = bad; rows.push(row); continue; }
@@ -13185,7 +13401,7 @@ function parseImport(text, fallbackTeamId) {
     for (const key of ['startDate', 'endDate']) {
       const v = raw[key];
       if (v && !DATE_ONLY.test(v)) {
-        bad = `“${echoCell(v)}” isn’t a date. Format dates as YYYY-MM-DD — a spreadsheet will do it `
+        bad = `${at}the ${COL[key]} column needs a date written YYYY-MM-DD — a spreadsheet will do it `
           + 'with Format cells.';
         break;
       }
@@ -14585,6 +14801,30 @@ function wireScrollRow(row, nav) {
 }
 wireScrollRow(document.querySelector('.headctl'), document.querySelector('.headrow > .rownav'));
 wireScrollRow(document.querySelector('.tabs'), document.querySelector('.tabrow > .rownav'));
+
+/* A CONTROL REACHED FROM THE KEYBOARD LANDS WHOLE INSIDE ITS TABLE (2026-09-15
+   review). The same fault wireScrollRow's focusin fixes for the header and the
+   tabs, in every sideways-scrolling table: the browser scrolls a focus target
+   into view only when it is ENTIRELY hidden, so on a 390px phone Tab onto Team
+   PI's "Total done" heading left 5px of its 102 showing, and at 320px every
+   team's ART picker in Teams & PIs sat 36px past the edge. One listener on the
+   document rather than one per table, because every view rebuilds its tables
+   on each render and the Teams & PIs rows are rebuilt as they are edited — a
+   listener on the box would have to be re-attached every time. Measured against
+   the PADDING edge, so the 4px .tablewrap gives the ring stays the ring's, and
+   only for a `:focus-visible` focus, like the rows: a mouse press needs no help.
+   The header and tab rows are not .tablewrap, so this never touches them. */
+document.addEventListener('focusin', (e) => {
+  const t = e.target;
+  if (!t || typeof t.closest !== 'function' || !t.matches(':focus-visible')) return;
+  const box = t.closest('.tablewrap');
+  if (!box || box === t || box.scrollWidth - box.clientWidth <= 1) return;
+  const cs = getComputedStyle(box);
+  const padL = parseFloat(cs.paddingLeft) || 0, padR = parseFloat(cs.paddingRight) || 0;
+  const b = box.getBoundingClientRect(), r = t.getBoundingClientRect();
+  if (r.left < b.left + padL) box.scrollLeft += r.left - b.left - padL;
+  else if (r.right > b.right - padR) box.scrollLeft += r.right - b.right + padR;
+});
 
 /* ── Hooks the test harness reads ───────────────────────────────────────────
    `svGet` was one of three exports the sync module called (`svAdopt` replaced
