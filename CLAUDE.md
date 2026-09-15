@@ -190,7 +190,8 @@ but Charles had ever actually signed in.)
     order rather than drawing a table sorted by nothing.
   - Compare Teams sorts `rowsData` BEFORE anything reads it, so **the chart above the table
     follows it** — two orders on one page, one of them the reader's own choice, is a page read
-    twice.
+    twice. **Which is why it registers `SORT_COLS.teamsTable` itself, before `sortRows()`**:
+    `sortOf()` ignores a saved key for an unregistered table, and `sortHead()` runs after.
   - **One delegated listener on `viewsEl`**, which survives every render (only its innerHTML is
     replaced), because the press destroys the button that is handling it. That is also why it
     hands the keyboard back: the new copy of the heading is found by its key and re-focused,
@@ -2563,3 +2564,14 @@ proven red against the commit before it.
   against"), the methodnote says which teams each figure covers, and PI Trend's "N teams
   unscored" counts them. The sample is unchanged: no demo team has this record, and giving one
   it would unpick the band/under/over/unscored arrangement the demo is built on.
+- **Compare Teams drew a saved sort unsorted on its first render (2026-09-15).** `sortRows('teamsTable')`
+  ran before `sortHead('teamsTable', TEAM_COLS)`, and `sortOf()` honours a saved sort only once
+  `SORT_COLS[id]` is registered — which `sortHead()` does. After a reload the Avg velocity heading
+  carried `aria-sort` over rows and a chart in ART order; a second render put them right, so every
+  existing test (all in a frame that had drawn the table already) passed. The other five tables
+  call `sortHead` first; this one cannot, because the chart reads the sorted list, so it now
+  registers `SORT_COLS.teamsTable = TEAM_COLS` just before `sortRows()`. Registration was left
+  inside `sortHead` for the other five rather than moved out for all six: they are correct, and
+  a table drawing its header is still, by definition, a table saying what its columns are. The
+  test boots a FRESH frame (nothing registered), plants the sort with `lsSet` stubbed, and presses
+  the real tab.

@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 514;
+const EXPECTED = 515;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -7647,6 +7647,37 @@ t('value delivered against nothing planned is named, and the business value colu
     eq(/not recorded/i.test(text), false, 'and does not call 8 of 0 "not recorded"', text);
     ok(/none planned/i.test(text), 'it says none was planned', text);
   }, setup);
+});
+
+t('a saved Compare Teams sort is honoured on the first render after a reload', async () => {
+  /* sortRows('teamsTable') ran before sortHead('teamsTable') registered the
+     columns, and sortOf() ignores a saved key for a table with no columns
+     registered — so after a reload the Avg velocity heading said sorted while the
+     rows and the chart were in ART order. The other tests sort in a frame that
+     has already drawn the table once, which is why none of them saw it. A FRESH
+     frame is the reload: nothing registered, a sort already saved. */
+  await inFrame('firstsort', {}, async (W, D) => {
+    W.lsSet = () => {};   // the saved sort is planted in memory, never in storage
+    W.__svTestHooks.setSort('teamsTable', 'vel', 'desc');
+    ok(!W.__svTestHooks.SORT_COLS.teamsTable, 'Compare Teams has not been drawn in this frame yet');
+    D.querySelector('.tab[data-view="teams"]').click();
+    await wait(300);
+    const rows = [...D.querySelectorAll('#teamsTable tbody tr')];
+    ok(rows.length > 2, 'the table is on screen', rows.length);
+    const names = rows.map(tr => tr.querySelector('.rowbtn').textContent.trim());
+    const vel = rows.map(tr => {
+      const t = tr.querySelectorAll('td')[6].textContent.replace(/[^0-9.]/g, '');
+      return t === '' ? null : Number(t);
+    });
+    const want = names.map((n, i) => ({ n, v: vel[i], i }))
+      .sort((a, b) => (a.v === null) - (b.v === null) || (b.v - a.v) || (a.i - b.i)).map(x => x.n);
+    eq(names, want, 'rows are in Avg velocity order on the very first render');
+    const th = [...D.querySelectorAll('#teamsTable thead th')].find(x => /Avg velocity/.test(x.textContent));
+    eq(th && th.getAttribute('aria-sort'), 'descending', 'and the heading says so');
+    const chart = W.Chart.getChart('teamsChart');
+    eq(chart ? chart.data.labels : null, names.filter((n, i) => rows[i] && vel[i] !== null),
+       'the chart above follows the same order');
+  });
 });
 
 group('a step lands the keyboard on the new chart (2026-09-03 audit)');

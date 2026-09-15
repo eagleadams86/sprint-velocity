@@ -10617,8 +10617,13 @@ function renderTeamsView() {
   /* SORTED HERE, before anything reads the list — so the chart on the card above
      plots the teams in the order the table lists them. Two orders on one page,
      one of them the reader's own choice, is a page that has to be read twice.
-     The columns are registered by the header row below, which is why this reads
-     the id and not a list of its own. */
+     REGISTERED HERE, not only by the header row below (2026-09-15). sortOf()
+     honours a saved sort only once SORT_COLS knows the table, and sortHead()
+     registers it — which on this view runs AFTER the rows are sorted. So on the
+     first render after a reload the heading said "sorted by Avg velocity" over
+     rows and a chart in ART order. The other five tables draw their header first;
+     this one cannot, because the chart above has to read the sorted list. */
+  SORT_COLS.teamsTable = TEAM_COLS;
   const rowsData = sortRows('teamsTable', rowsRaw);
   const withData = rowsData.filter(r => r.count > 0);
   const anyOpen = shown.reduce((a, t) => a + openSprints(t.id).length, 0);

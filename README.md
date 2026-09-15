@@ -921,7 +921,8 @@ ART grouping on Compare Teams. Three presses rather than a *Clear* button nobody
   the last sprint, **Sprint goals** on the rate rather than the count — "3 of 4" and "3 of 9"
   are not the same answer.
 
-Your choice is remembered per table on this device, and never travels in a share link.
+Your choice is remembered per table on this device — the rows and the chart open already in
+that order after a reload — and never travels in a share link.
 
 ### Which Way Each Team Is Going
 
