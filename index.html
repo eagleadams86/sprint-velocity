@@ -10762,7 +10762,11 @@ function renderTeamsView() {
       <h2>${heading} — Rolling ${ROLLING_WINDOW}-Sprint Averages</h2>
       <p class="sub">${esc(words.phrase)}, side by
         side${includeSix ? '' : ', with sprint 6 excluded'}.
-        ${state.arts.length && !filtered ? 'Grouped by ART. ' : ''}${
+        ${/* Only while the ART grouping IS the order: a column sort replaces it, and
+             the sentence went on describing a grouping the reader had just undone
+             (2026-09-15). sortOf() can answer here because the columns are
+             registered above, before the rows were sorted. */
+          state.arts.length && !filtered && !sortOf('teamsTable').key ? 'Grouped by ART. ' : ''}${
         countedRunningSentence(allSprints, false) || 'Finished sprints only'}${
         anyOpen ? ` — ${anyOpen} sprint${anyOpen === 1 ? '' : 's'} still in flight
         ${anyOpen === 1 ? 'is' : 'are'} not counted` : ''}.

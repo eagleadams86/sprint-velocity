@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 515;
+const EXPECTED = 516;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -7678,6 +7678,32 @@ t('a saved Compare Teams sort is honoured on the first render after a reload', a
     eq(chart ? chart.data.labels : null, names.filter((n, i) => rows[i] && vel[i] !== null),
        'the chart above follows the same order');
   });
+});
+
+t('Compare Teams stops saying "Grouped by ART." once a column sorts the table', () => {
+  /* The sentence was keyed off the ART count and the filter alone, so it went on
+     describing an ART grouping over a table the reader had just sorted by Avg
+     velocity. Storage is stubbed for the length of the test and the table's own
+     sort put back, so nothing here is written. */
+  const H = w.__svTestHooks;
+  const realLsSet = w.lsSet;
+  const keep = H.sortOf('teamsTable');
+  w.lsSet = () => {};
+  try {
+    const sub = (d) => reviewText(reviewCard(d, 'Every Team') && reviewCard(d, 'Every Team').querySelector('.sub'));
+    reviewView('teams', (st, d) => {
+      ok(/Grouped by ART\./.test(sub(d)), 'unsorted, with two ARTs and no filter, it is grouped and says so', sub(d));
+    }, () => H.setSort('teamsTable', null, 'desc'));
+    reviewView('teams', (st, d) => {
+      const th = [...d.querySelectorAll('#teamsTable thead th')].find(x => /Avg velocity/.test(x.textContent));
+      eq(th && th.getAttribute('aria-sort'), 'descending', 'the table really is sorted by a column');
+      eq(/Grouped by ART/.test(sub(d)), false, 'and the page no longer claims the ART grouping', sub(d));
+    }, () => H.setSort('teamsTable', 'vel', 'desc'));
+  } finally {
+    H.setSort('teamsTable', keep.key, keep.dir);
+    w.lsSet = realLsSet;
+    w.render();
+  }
 });
 
 group('a step lands the keyboard on the new chart (2026-09-03 audit)');

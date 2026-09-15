@@ -2575,3 +2575,10 @@ proven red against the commit before it.
   a table drawing its header is still, by definition, a table saying what its columns are. The
   test boots a FRESH frame (nothing registered), plants the sort with `lsSet` stubbed, and presses
   the real tab.
+- **"Grouped by ART." outlived a column sort (2026-09-15).** Compare Teams' sub-caption keyed the
+  sentence off `state.arts.length && !filtered` alone, so it described an ART grouping over a
+  table the reader had just sorted by Avg velocity. It now also needs `!sortOf('teamsTable').key`,
+  which only answers correctly because of the fix above — the columns are registered before the
+  caption is built. The ART label under each name stays when sorted: a sorted table drawn from
+  two ARTs is still a mixture the reader needs the labels to account for. README's "sorts by ART"
+  line now says a column sort replaces it.

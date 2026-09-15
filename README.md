@@ -1153,7 +1153,9 @@ at:
   every other exclusion in the app says what it left out — a figure should never move for a
   reason that isn't on the page. With two or more ticked the button itself says *2 selected*;
   the names are in the line opposite it and in every heading below.
-- With no filter, the table **sorts by ART** so a train's teams sit together, and each team
+- With no filter, the table **sorts by ART** so a train's teams sit together — until you
+  [sort it by a column](#sorting-a-table), which replaces that order, and the line under the
+  heading stops calling it grouped — and each team
   carries its ART under its name. That label goes when you narrow to **one** ART — the same
   word down every row is noise — and **comes back the moment you tick a second**, because rows
   drawn from two ARTs are a mixture the table can't otherwise account for. The header team
