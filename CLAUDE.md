@@ -1726,10 +1726,12 @@ Flow Metrics carries the identical change in the same pass, and a change to one 
 - **The header.** The controls sit in `.headrow` (the row and its arrows) › `.headctl` (the
   scroller: `nowrap`, `overflow-x: auto`, `scrollbar-width: none`, 4px padding with a -4px
   margin so the focus ring has room and nothing moves, children `flex: 0 0 auto`, and its own
-  12px gap — a nested row inherits none). `.headrow` is `flex: 0 1 auto`: sized to its content,
-  so it sits beside the name while it fits (the name's auto margin still pushes it right), and
-  `.headbar`'s flex-wrap takes the WHOLE row onto a line of its own, where it shrinks and
-  scrolls, when it does not. **A header is one line or two, never three.** The ids and the
+  12px gap — a nested row inherits none). **The row stays BESIDE THE NAME and scrolls there**
+  (a correction the same evening — see the last bullet): `.headrow` is `flex: 1 1 0%` with
+  `min-width: min(15rem, 100%)` and `justify-content: flex-end`, so it takes what the name leaves
+  with its controls packed right, and `.headbar`'s flex-wrap takes it under the name only when
+  that would leave it under 15rem — an upright phone. **A header is one line or two, never
+  three.** The ids and the
   family's header order are unchanged; the header-order sweep reads `findBtn`'s parent, which is
   `.headctl` now.
 - **The tabs.** `.tabs` is the scroller in the BASE rule (`.tabs > .tab` is `flex: 0 0 auto;
@@ -1745,7 +1747,10 @@ Flow Metrics carries the identical change in the same pass, and a change to one 
 - **`wireScrollRow(row, nav)` is Money Map's, verbatim** — ResizeObserver, MutationObserver,
   scroll and resize keep it true; the arrows show only while the row has something off an end,
   each is disabled at its own end, and a press steps 80% of the row, instantly. Money Map's tab
-  drag edge-scroll is NOT here: these tabs are not reordered by dragging.
+  drag edge-scroll is NOT here: these tabs are not reordered by dragging. **A control reached
+  from the KEYBOARD lands whole inside the row** (a `focusin` guarded by `:focus-visible`,
+  measured against the padding edge) — the browser scrolls a focus target into view only when
+  it is wholly hidden, so Tab onto a button half past the edge used to leave it half past.
 - **Print.** `.headctl` wraps and stops scrolling on paper, and `.rownav` joins the furniture.
 - **The print list named `.headbar > select, .headbar > button, .headbar > label`** — direct
   children, which the wrapper would have silently put back on paper. It names `.headctl >` now.
@@ -1763,6 +1768,21 @@ Flow Metrics carries the identical change in the same pass, and a change to one 
   row's right END take 3px, not 4 / 3.5**: `scrollLeft` clamps to `scrollWidth - clientWidth`
   and `scrollWidth` is rounded, so with the arrows narrowing the bar the end lands up to a pixel
   short (Money Map met the same). A missing padding still reads 0. EXPECTED 502 → 507.
+- **Beside the name, and the keyboard reveal (the same evening, 2026-09-14).** Charles: *"keep
+  buttons beside the name"* — the first cut was content-sized and wrapped the whole row under
+  the name the moment it did not fit, leaving the name alone on a line above seven controls at
+  1100px. The row rule above is Money Map's (financial-plan `2c19e01`), verbatim, and so is the
+  `focusin` reveal, so `wireScrollRow` is byte-identical across the family again; Flow Metrics
+  carries both, plus this app's padding-edge tab nudge, ported. **Measured against the previous
+  commit** (Playwright, sample data): 1600px and 390×844 pixel-identical; header 89 → 51px at
+  1100 and at 705, 93 → 55 at 844×390, the controls beside the name on one line in all three.
+  A real Tab walk at 705 had Share 24px past the edge; nothing is clipped now (the tab bar's
+  arrow keys already landed whole, through `renderTabs()`'s nudge). **Tests**, in the same
+  `inFrame` test: the controls beside the name at 705, and a reveal check on the header and the
+  tabs that scrolls an item until its middle sits ON the edge before focusing it, rather than
+  hoping one straddles at rest. The first was red on the old page; the reveal, which that throw
+  never reached, was proved red separately with only the `focusin` disabled. No test was added,
+  only checks inside one, so EXPECTED stays 507 — this suite counts tests.
 
 
 ## Stepping between charts in full screen (2026-09-03)

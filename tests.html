@@ -7627,6 +7627,40 @@ t('at 705px the header and the tabs are one line each with arrows; at 1600px not
     ok(ctl && headNav && tabNav, 'the header scroller and an arrow box for each row are on the page');
     eq(lines(W, ctl), 1, 'the header controls are one line');
     eq(lines(W, tabs), 1, 'and the tabs are one row');
+    const brandTop = rect(D.querySelector('.brand')).top;
+    ok(Math.abs(rect(ctl).top - brandTop) < 16,
+       'the controls stay BESIDE the name and scroll there, rather than taking a line of their own '
+       + '(Charles, 2026-09-14: "keep buttons beside the name")', rect(ctl).top - brandTop);
+    /* A control half past the edge, focused from the keyboard, is brought
+       WHOLE into the row with its ring's 4px — the browser only scrolls a
+       focus target that is entirely hidden. Money Map's check, verbatim. */
+    const reveal = (row, items) => {
+      /* The straddle is MADE rather than hoped for: at rest a 12px gap can
+         land exactly on the edge, and then nothing is half past it. The
+         first item reaching past the edge is scrolled until its middle sits
+         on the edge. */
+      row.scrollLeft = 0;
+      let box = rect(row);
+      const half = items.find((el) => rect(el).right > box.right - 1);
+      ok(half, 'there is an item reaching past the edge to test with');
+      if (!half) return;
+      const r0 = rect(half);
+      row.scrollLeft += Math.max(0, r0.left + r0.width / 2 - box.right);
+      box = rect(row);
+      const r1 = rect(half);
+      ok(r1.left < box.right && r1.right > box.right, 'set up: it straddles the edge', `${r1.left} ${r1.right} vs ${box.right}`);
+      half.focus();
+      const r = rect(half), b2 = rect(row);
+      ok(b2.right - r.right >= 3 && r.left - b2.left >= 3,
+         'focused, it is scrolled fully inside the row with its ring room', `${(r.left - b2.left).toFixed(1)} / ${(b2.right - r.right).toFixed(1)}`);
+      half.blur();
+    };
+    reveal(ctl, [...ctl.children].filter((c) => c.getClientRects().length && !c.classList.contains('sr-only')));
+    reveal(tabs, [...tabs.querySelectorAll('[role="tab"]')].filter((t) => !t.hidden));
+    ok(/if \(t === row \|\| !t\.matches\(':focus-visible'\)\) return;/.test(APP_SRC),
+       'only a keyboard focus scrolls the row — a mouse press needs no help');
+    ctl.scrollLeft = 0;
+    tabs.scrollLeft = 0;
     ok(ctl.scrollWidth > ctl.clientWidth && tabs.scrollWidth > tabs.clientWidth,
        'both have something to scroll here — otherwise nothing is being measured',
        ctl.scrollWidth + '/' + ctl.clientWidth + ', ' + tabs.scrollWidth + '/' + tabs.clientWidth);

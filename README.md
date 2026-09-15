@@ -663,8 +663,10 @@ Sprint, an ART picker on three of the others, two toolbar cards on Compare Teams
 is no second row that is the same row from one view to the next.
 
 **The header's controls and the tab bar are each one line that scrolls sideways, at any
-width** (since 14 September 2026). When the window is too narrow for them, the controls move onto
-a line of their own under the name instead of stacking two or three deep, and **‹ ›** arrows
+width** (since 14 September 2026). When the window is too narrow for them, the controls keep their
+place beside the name and scroll there instead of stacking two or three deep — only an upright
+phone, where the name leaves too little room, puts them on a line of their own under it. Tabbing
+onto a control that is half past the edge scrolls it fully into view, and **‹ ›** arrows
 appear beside any row with more off an end — press one to slide the row along. On a touch
 screen the arrows stay away and you swipe the row instead. A window wide enough for everything
 looks exactly as it did. Flow Metrics and Money Map work the same way.
