@@ -2649,3 +2649,15 @@ proven red against the commit before it.
   branch that used to quote is driven with a marker cell, and the RENDERED preview is read as
   well as the message; the three older import tests that asserted an echo assert the pointer
   instead; and a new test pins the source-line numbering.
+- **A fieldset may shrink, and the share window's history picker is capped at its panel
+  (2026-09-15).** At 320×640 the Share window scrolled sideways 34px: the UA gives a `fieldset`
+  `min-inline-size: min-content`, so unlike a div it refuses to go narrower than its widest
+  child, and `#shareHistory` was as wide as its longest option (274px). "What to Include" ran
+  from 37 to 337px in a window ending at 304. The shared `fieldset, .formpanel` rule now carries
+  `min-inline-size: 0` (every window's fieldsets, not only this one) and `#shareHistory` takes
+  `max-width: 100%`; the chosen option still reads in full at 320px. A sweep of all twelve
+  dialogs at 320px (opened from their own buttons, sample loaded) found no other window with
+  the same cause — Teams & PIs is wider than the phone but scrolls INSIDE its `.tablewrap`,
+  which is item 10's. Test: a 320×640 `inFrame`, Share opened by its button, the window's
+  `scrollWidth <= clientWidth`, the picker inside its inner edge, and a fieldset's computed
+  `min-inline-size` of 0.

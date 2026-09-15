@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 521;
+const EXPECTED = 522;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -9268,6 +9268,31 @@ t('a tab press goes to the top; the team picker holds the scroll', async () => {
     eq(W.scrollY, onTeam,
        'changing team HOLDS the scroll — reading the same card for two teams is the '
        + 'comparison this app is for');
+  });
+});
+
+group('Layout, the data boundary and the suite (2026-09-15 review)');
+t('the Share window does not scroll sideways on a 320px phone', async () => {
+  /* A fieldset will not shrink below its widest content (the UA gives it
+     min-inline-size: min-content), and the history picker was fixed at the width
+     of its longest option — so at 320px "What to Include" ran 34px past a window
+     that then scrolled sideways. Opened by its own button, so it is populated. */
+  await inFrame('share320', { width: 320, height: 640 }, async (W, D) => {
+    D.getElementById('shareBtn').click();
+    await wait(900);
+    const dlg = D.getElementById('shareDialog');
+    ok(dlg.open, 'the Share window is open');
+    ok(dlg.clientWidth > 0, 'and measured at a real size', dlg.clientWidth);
+    ok(dlg.scrollWidth <= dlg.clientWidth,
+       'nothing in it runs past its edge', dlg.scrollWidth + ' > ' + dlg.clientWidth);
+    const box = dlg.getBoundingClientRect();
+    const inner = box.right - parseFloat(W.getComputedStyle(dlg).borderRightWidth);
+    const sel = D.getElementById('shareHistory').getBoundingClientRect();
+    ok(sel.width > 0 && sel.right <= inner + 0.5,
+       'the history picker sits inside the window', sel.right + ' vs ' + inner);
+    eq(W.getComputedStyle(D.querySelector('#shareDialog fieldset')).minInlineSize, '0px',
+       'and a fieldset may shrink like any other box — the cause, for every window');
+    dlg.close();
   });
 });
 
