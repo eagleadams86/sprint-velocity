@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 516;
+const EXPECTED = 517;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -7704,6 +7704,37 @@ t('Compare Teams stops saying "Grouped by ART." once a column sorts the table', 
     w.lsSet = realLsSet;
     w.render();
   }
+});
+
+t('an ART ticked beside "no ART" spells the teams with no ART out, in every form', () => {
+  /* artScopeWords() spelt ART_NONE out only when it was the ONLY tick — its own
+     comment says "on No ART" reads as an ART somebody called No ART — and a mixed
+     list fell back to the picker's label: "Payments ART and No ART — Rolling
+     5-Sprint Averages", "Showing 4 of 6 teams, on Payments ART and No ART". */
+  const NONE = w.__svTestHooks.ART_NONE;
+  withState({ teams: [{ id: 'mxt1', name: 'A', artId: 'mxa1' }, { id: 'mxt2', name: 'B' }],
+              arts: [{ id: 'mxa1', name: 'Payments ART' }, { id: 'mxa2', name: 'Platform ART' }],
+              pis: [], sprints: [], plans: [], objectives: [] }, () => {
+    const one = w.artScopeWords(['mxa1', NONE]);
+    eq(one.name, 'Payments ART and Teams Without An ART', 'the heading');
+    eq(one.where, 'on Payments ART and with no ART', 'the picker’s line');
+    eq(one.phrase, 'Every team on Payments ART and every team you haven’t put on an ART yet', 'the sentence');
+    eq(one.print, 'Payments ART and teams with no ART', 'the printed meta line');
+    eq(one.label, 'All selected teams', 'the footer row still names one and counts several');
+    const two = w.artScopeWords([NONE, 'mxa1', 'mxa2']);
+    eq(two.name, 'Payments ART, Platform ART and Teams Without An ART', 'ARTs first, the teams with none last');
+    eq(/No ART/.test([two.name, two.where, two.phrase, two.print].join(' | ')), false,
+       'no form reads as an ART named No ART', [two.name, two.where, two.phrase, two.print].join(' | '));
+    eq(w.artScopeWords([NONE]).name, 'Teams Without An ART', 'the lone tick is unchanged');
+    eq(w.artScopeWords(['mxa1']).where, 'on Payments ART', 'and so is a lone ART');
+  });
+  /* On the page, where the review read it. */
+  reviewView('teams', (st, d) => {
+    const h = reviewText(d.querySelector('#views .card:not(.toolbarcard) h2'));
+    ok(/^Payments ART and Teams Without An ART — Rolling/.test(h), 'the Compare Teams heading', h);
+    const line = reviewText(d.querySelector('.toolbarcard .muted'));
+    ok(/on Payments ART and with no ART/.test(line) && !/and No ART/.test(line), 'and the picker’s line', line);
+  }, (st) => { st.settings.artFilter = [st.arts.find(a => a.name === 'Payments ART').id, NONE]; });
 });
 
 group('a step lands the keyboard on the new chart (2026-09-03 audit)');

@@ -4208,6 +4208,16 @@ function artScopeWords(scope) {
   const join = (parts) => parts.length < 2 ? (parts[0] || '')
     : parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1];
   const onlyNone = list.length === 1 && list[0] === ART_NONE;
+  /* ── "no ART" BESIDE AN ART (2026-09-15) ──────────────────────────────────
+     The spelling-out above applied only to a lone tick, so Payments ART plus no
+     ART read "Payments ART and No ART" in the heading and "on Payments ART and No
+     ART" on the picker's line — the ART-called-No-ART reading the rule exists to
+     prevent. A mixed list names its ARTs and then spells the rest out in the
+     same words the lone tick uses. `names` keeps "No ART": it is the picker
+     button's label, where it is one option beside the names. */
+  const withNone = !onlyNone && list.includes(ART_NONE);
+  const artNames = list.filter(id => id !== ART_NONE)
+    .map(id => (state.arts.find(a => a.id === id) || {}).name || '');
   return {
     ids: list,
     names,
@@ -4215,7 +4225,8 @@ function artScopeWords(scope) {
        had in the one-ART and no-filter cases — this is a widening, not a
        rewrite, and a heading that changed for teams nobody regrouped would be
        churn a reader has to account for. */
-    name:  !list.length ? 'Every Team' : onlyNone ? 'Teams Without An ART' : join(names),
+    name:  !list.length ? 'Every Team' : onlyNone ? 'Teams Without An ART'
+      : withNone ? join(artNames.concat('Teams Without An ART')) : join(names),
     /* `where` is the bare prepositional phrase, and `label` is the footer row's
        "All teams …" built from it, so the two can never disagree about how the
        ARTs are named. The picker's own muted line takes `where` on its own.
@@ -4228,17 +4239,21 @@ function artScopeWords(scope) {
        every figure to its right. Charles reported it on both apps the same day.
        One ART is still named, because a name is shorter than any phrase standing
        in for it, and past that the heading over the table lists them in full. */
-    where: !list.length ? '' : onlyNone ? 'with no ART' : 'on ' + join(names),
+    where: !list.length ? '' : onlyNone ? 'with no ART'
+      : withNone ? 'on ' + join(artNames) + (artNames.length > 1 ? ', and' : ' and') + ' with no ART'
+      : 'on ' + join(names),
     label: !list.length ? 'All teams'
       : onlyNone ? 'All teams with no ART'
       : list.length === 1 ? 'All teams on ' + names[0]
       : 'All selected teams',
     phrase: !list.length ? 'Every team you support'
       : onlyNone ? 'Every team you haven\u2019t put on an ART yet'
+      : withNone ? 'Every team on ' + join(artNames) + ' and every team you haven\u2019t put on an ART yet'
       : 'Every team on ' + join(names),
     /* What the printed meta line says. Empty with no filter, because naming the
        view and naming the teams it covers are two different jobs. */
-    print: !list.length ? '' : onlyNone ? 'Teams with no ART' : join(names)
+    print: !list.length ? '' : onlyNone ? 'Teams with no ART'
+      : withNone ? join(artNames.concat('teams with no ART')) : join(names)
   };
 }
 
