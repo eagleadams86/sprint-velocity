@@ -1497,7 +1497,7 @@ away, or a team merged and the sprints before it belong to a different team.
 
 The sprint form's **Rolling 5** section takes a sprint out of the rolling average
 and the capacity target, with a reason from the same kind of fixed list. Everything else
-about the sprint is untouched — its own figures still show in the Sprint view, the Current
+about the sprint is untouched — its own figures still show in the Sprint view, the Team
 PI view and Compare Teams, and it's still a finished sprint rather than one faked
 back to "planned" to hide it, which is how this used to have to be done.
 
@@ -1880,8 +1880,12 @@ were left out — so the page can't print a figure whose working is off the shee
 ## Sharing a Read-Only Link
 
 The *Share* button builds a link that shows someone your figures without them signing in —
-useful for a stakeholder, a manager, or an SM covering for you. They get the Sprint, Current
-PI and Rolling 5 views for the teams you picked, with every edit control gone.
+useful for a stakeholder, a manager, or an SM covering for you. They get the views that look
+into one team — **Sprint** and **Rolling 5**, **Team PI** for a team that runs PIs, and
+**History** for a team with more than five sprints — for each team you picked, with every edit control gone. The views
+that compare teams (**PI Trend**, **PI by Team** and **Compare Teams**) only come with the
+link when you tick the comparison option below, and even then each appears only where it
+would in your own copy: PI Trend needs two PIs, and PI by Team needs a PI and a team on an ART.
 
 It opens on the **most recent sprint that has data**, so the first thing they see is your
 latest numbers rather than an empty slot — and it follows each team to its own latest sprint
@@ -1898,6 +1902,8 @@ You choose per link:
 - **How much history** — all of it (the default), the last 2 PIs, this PI only, or the last 5
   or 10 sprints for each team. See below.
 - **The Compare Teams comparison view** — only offered when you've picked more than one team.
+  Ticking it sends all three views that compare teams: Compare Teams, PI by Team and PI Trend.
+  Left unticked, the recipient sees each team on its own and nothing that lines them up.
 
 A link only ever carries names, numbers and dates — there is no free-text anywhere in the
 data, so nothing written can travel by accident.

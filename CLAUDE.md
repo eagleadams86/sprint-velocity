@@ -464,7 +464,7 @@ but Charles had ever actually signed in.)
 - **PI-scoped views leave out teams with nothing in the selected PI, and name them.** With a
   PI compulsory every team was in one, so `renderArtPiView()` mapping every shown team was
   safe; now a PI-less team would appear as a row of zeros, which reads as a team that
-  delivered nothing rather than one that isn't in this PI. `renderTabs()` hides **Current
+  delivered nothing rather than one that isn't in this PI. `renderTabs()` hides **Team
   PI** without a PI (and for a team with no PI'd sprint) as well as **PI by Team**.
 - **Deleting a PI asks whether to keep its sprints, and the renumbering is not optional.**
   It used to destroy every sprint in the PI across every team, which was the only coherent
