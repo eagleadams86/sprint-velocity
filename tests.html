@@ -9450,10 +9450,9 @@ t('a control reached from the keyboard lands whole inside its table on a phone',
     const edge = (el, side) => {
       el.blur();
       wrap.scrollLeft = 0;
-      let box = rect(wrap), r0 = rect(el);
+      const box = rect(wrap), r0 = rect(el);
       const at = side === 'right' ? box.right : box.left;
       wrap.scrollLeft += r0.left + r0.width / 2 - at;
-      box = rect(wrap);
       const r1 = rect(el);
       if (!(r1.left < at && r1.right > at)) return;   // pinned at a scroll end: cannot straddle
       straddled++;
