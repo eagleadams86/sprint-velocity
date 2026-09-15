@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 510;
+const EXPECTED = 511;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -7516,6 +7516,36 @@ t('PI Trend says its Complete % matches Team PI only when sprint 6 is counted', 
   }, (st) => { st.settings.activePiId = st.pis.find(p => p.name === 'PI 2026.1').id; });
   eq(trend, art, 'committed, done, complete % and delivered agree once sprint 6 is counted');
   eq(art, ['132', '109', '83', '122'], 'the PI by Team figures the review read');
+});
+
+t('fmtPct never prints a number that meets a target the figure misses', () => {
+  /* One decimal was the old escape, and one decimal can round ONTO the line:
+     84.97% printed "85.0% ! Watch" under "target ≥85%". The rule is about the
+     number a reader sees, so it is checked against that number, read back. */
+  withTargets(null, () => {
+    const fmtPct = TG().fmtPct;
+    eq(fmtPct(84.97, 'completion'), '84.97%', 'not 85.0% beside a Watch flag');
+    eq(fmtPct(15.02, 'churn'), '15.02%', 'not 15.0% under a ≤15% target');
+    eq(fmtPct(100.04, 'predictability'), '100.04%', 'not 100.0% at the band’s top edge');
+    eq(fmtPct(79.96, 'predictability'), '79.96%', 'nor 80.0% at its bottom edge');
+    eq(fmtPct(84.99999, 'completion'), '84.9999%',
+       'past four decimals it truncates toward the side the figure is really on');
+    eq(fmtPct(84.6, 'completion'), '84.6%', 'the one-decimal case is unchanged');
+    eq(fmtPct(85.2, 'completion'), '85%', 'and a figure rounding safely stays whole');
+    const t = TG().tgt();
+    const edges = { completion: [t.completionGreen, t.completionRed],
+                    churn: [t.churnGreen, t.churnRed],
+                    predictability: [t.predUnderRed, t.predLow, t.predHigh, t.predOverRed] };
+    const offs = [-0.6, -0.5, -0.45, -0.051, -0.05, -0.049, -0.03, -0.005, -0.0004, 0,
+                  0.0004, 0.005, 0.03, 0.049, 0.05, 0.051, 0.45, 0.5, 0.6];
+    const wrong = [];
+    Object.keys(edges).forEach(scale => edges[scale].forEach(edge => offs.forEach(o => {
+      const v = edge + o;
+      const shown = fmtPct(v, scale);
+      if (w.rag(parseFloat(shown), scale) !== w.rag(v, scale)) wrong.push(scale + ' ' + v + ' → ' + shown);
+    })));
+    eq(wrong, [], 'every figure near every boundary prints on its own side of it');
+  });
 });
 
 group('a step lands the keyboard on the new chart (2026-09-03 audit)');

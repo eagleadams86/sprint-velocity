@@ -632,9 +632,10 @@ but Charles had ever actually signed in.)
 - Exclusions must never be silent: every view that drops a sprint says which one and why
   (`openSprintsNote()`). A sprint sitting outside the numbers unnoticed is worse than the
   bug this replaced.
-- `fmtPct()` takes the RAG scale and drops to one decimal when rounding would cross a
-  threshold, so a displayed figure never contradicts the colour next to it (84.6% must not
-  render as "85%" in yellow). Any new percentage display must pass its scale.
+- `fmtPct()` takes the RAG scale and adds decimals when rounding would cross a threshold —
+  as many as it takes, up to four, then truncates toward the figure's own side — so a
+  displayed figure never contradicts the colour next to it (84.6% must not render as "85%" in
+  yellow, nor 84.97% as "85.0%"). Any new percentage display must pass its scale.
 - Sprint 6 is the IP sprint **of a PI**: excluded from the rolling window by default, with a
   toggle — and only for sprints actually in a PI (`isIpSlot`).
 - `nextSprintTarget()` recommends a commitment from **mean committed-points-completed**,
@@ -2515,3 +2516,11 @@ proven red against the commit before it.
   it. The Numbers card, the ⓘ window, the README and the `piTrend` bullet above now say it
   matches only with sprint 6 counted; the test proves that with the toggle on the PI 2026.1 row
   equals PI by Team's footer row.
+- **`fmtPct()`'s one decimal could round onto the line (2026-09-15).** The rule was "a
+  decimal when rounding would cross", and a decimal is itself a rounding: 84.97% printed "85.0%
+  ! Watch" under "target ≥85%", carryover 15.02% "15.0%" under "≤15%", predictability 100.04%
+  "100.0%" at the band's edge (every predictability site goes through `pill()` → `fmtPct`, so
+  there was no separate band formatter to fix). It now re-judges the printed number at 1–4
+  decimals and takes the first on the figure's own side, then truncates toward that side. The
+  test checks the rendered string read BACK through `rag()` for 19 offsets around all eight
+  default boundaries, not only the three the review found.

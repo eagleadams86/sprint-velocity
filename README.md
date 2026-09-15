@@ -381,7 +381,9 @@ left out of averages instead of dragging them down. Every other empty figure cou
 
 Percentages display as whole numbers, except when rounding would land on the wrong side of
 a target — 33 of 39 points is 84.6%, so it shows as `84.6%` in yellow rather than as `85%`
-in yellow, which would look like a bug. That's the only time you'll see a decimal.
+in yellow, which would look like a bug. That's the only time you'll see a decimal — and it
+takes as many as it needs: 84.97% shows as `84.97%`, because `85.0%` would be the same bug
+one place further along.
 
 ## Filling a Sprint from Jira
 

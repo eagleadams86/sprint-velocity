@@ -5881,13 +5881,27 @@ function deriveFromJira(parsed) {
 
 /* Percentages show as whole numbers, except where rounding would put the figure on
    the wrong side of its target: 84.6% must not display as "85%" next to a yellow
-   flag when the target is "85% or better". In that one case a decimal is shown, so
-   the number and the colour beside it never contradict each other. */
+   flag when the target is "85% or better". In that one case decimals are shown, so
+   the number and the colour beside it never contradict each other.
+
+   AS MANY AS IT TAKES, NOT ONE (2026-09-15). One decimal can round onto the line
+   itself — 84.97% printed "85.0%" beside ! Watch, 15.02% carryover "15.0%" under
+   "≤15%", 100.04% predictability "100.0%" — so the number is re-judged at each
+   precision and the first that lands on the figure's own side wins. Past four
+   decimals it truncates TOWARD that side (away from the rounded value that
+   crossed), which cannot cross back: a figure that close to a line is on it in
+   every sense but the colour, and the colour is what the number must not deny. */
 const fmtPct = (v, scale) => {
   if (v === null || v === undefined || !isFinite(v)) return '—';
   const rounded = Math.round(v);
-  if (scale && rag(rounded, scale) !== rag(v, scale)) return v.toFixed(1) + '%';
-  return rounded + '%';
+  if (!scale || rag(rounded, scale) === rag(v, scale)) return rounded + '%';
+  const side = rag(v, scale);
+  for (let d = 1; d <= 4; d++) {
+    const s = v.toFixed(d);
+    if (rag(Number(s), scale) === side) return s + '%';
+  }
+  const cut = rounded > v ? Math.floor(v * 1e4) / 1e4 : Math.ceil(v * 1e4) / 1e4;
+  return cut.toFixed(4) + '%';
 };
 const fmtNum = (v) => (v === null || v === undefined || !isFinite(v) ? '—'
   : (Math.round(v * 10) / 10).toLocaleString());
