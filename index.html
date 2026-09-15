@@ -693,11 +693,18 @@ html[data-pin] .tabrow {
 }
 /* Nothing in the app scrolls the page to an element — every focus() it makes
    passes `preventScroll`. The BROWSER's own Tab-key scrolling does, though, and
-   it knows nothing about a pinned row, so a control tabbed into lands behind it.
-   `--pin-clear` is the height of everything actually stuck. */
-html[data-pin] #views :is(button, a[href], input, select, textarea, [tabindex]) {
-  scroll-margin-top: var(--pin-clear, 0px);
-}
+   it knows nothing about a sticky bar, so a control tabbed into lands behind it.
+   `--pin-clear` is the height of everything actually stuck — the header, plus
+   the tab row while it is pinned — and 8px for the focus ring.
+   ON THE ROOT, AND PINNED OR NOT (2026-09-14, Charles: "fix the sticky header
+   shift+tab issue too"). This was a `scroll-margin-top` on #views' controls
+   under `html[data-pin]` only, and the HEADER is sticky whether or not the row
+   is pinned: unpinned, Shift+Tab back up the page lined each control up with
+   the top of the window, behind the header — 60 of 201 stops at 1280×800 with
+   the sample loaded. Scroll padding on the scrolling element covers every
+   scroll into view the page makes, and the margin rule went with it: the two
+   would have added together. Money Map's shape, to its numbers. */
+html { scroll-padding-top: var(--pin-clear, 0px); }
 
 /* ── ONE ROW THAT SCROLLS SIDEWAYS, NOT THREE THAT WRAP ─────────────────────
    Asked for by Charles on 2026-09-03, straight after the pin and for the pin's
@@ -6723,10 +6730,12 @@ function applyPin(on) {
   dressPinBtn();
   if (pinWatch) {
     pinWatch.disconnect();
-    if (on) {
-      pinWatch.observe(document.querySelector('header'));
-      pinWatch.observe(document.querySelector('.tabrow'));
-    }
+    /* The HEADER always (2026-09-14): its height is `--pin-clear` even with
+       nothing pinned now, since the root's scroll padding keeps every focus
+       scroll clear of it, and it changes depth with no resize (a longer team
+       name, the controls wrapping under the name on a phone). */
+    pinWatch.observe(document.querySelector('header'));
+    if (on) pinWatch.observe(document.querySelector('.tabrow'));
   }
   /* NO render(). Nothing about the markup changes — this is paint and position
      and nothing else — so the toggle keeps the reader's scroll place and their
@@ -6736,7 +6745,8 @@ function applyPin(on) {
 /* Both boxes change height for reasons that are not a window resize: a longer
    team name wrapping the header, a tab appearing when the team gains a sprint,
    the row going away in a shared view. An observer catches every one without a
-   list of call sites to keep in step. Connected only while the pin is on. */
+   list of call sites to keep in step. The header is watched always, the row
+   only while the pin is on. */
 const pinWatch = ('ResizeObserver' in window)
   ? new ResizeObserver(() => measurePinTop()) : null;
 

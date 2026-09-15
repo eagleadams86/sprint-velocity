@@ -1690,6 +1690,29 @@ rectangle, `sv-pin` in localStorage.
 - **Z-index 12 is penned in on both sides**: under the header's 20 and under
   `#chartMaxi`'s 15, because a maximised chart covers the page and `.wrap` is
   inert underneath it.
+- **A focus scrolled into view clears the chrome, PINNED OR NOT (2026-09-14,
+  Charles: "fix the sticky header shift+tab issue too").** `html {
+  scroll-padding-top: var(--pin-clear, 0px) }` — root scroll padding covers every
+  scroll into view the page makes. It replaced `html[data-pin] #views
+  :is(button, …) { scroll-margin-top: var(--pin-clear) }`, which forgot that the
+  HEADER is sticky with nothing pinned: unpinned, Shift+Tab up a long view lined
+  each control up behind it. **Never put the per-control margin back beside the
+  padding — the two add together.** The ResizeObserver in `applyPin()` now
+  watches the header ALWAYS (the row only while pinned), so `--pin-clear` (header
+  + stuck row + 8px) stays current unpinned too. Money Map's shape, and Flow
+  Metrics carries the identical change. **Measured** (Playwright, sample loaded,
+  real Shift+Tab from the page end and Tab from the top, 300 presses): hidden
+  under the chrome before → after, unpinned: 1280×800 60 → 0, 390×844 12 → 0,
+  844×390 24 → 0; pinned: 0 → 0 at all three (the old margin covered `#views`).
+  Nothing else reads `--pin-clear`. **The failure is the NO-SCROLL case**: a
+  control already inside the window but under the bar is "in view" to the
+  browser, so stepping up onto it scrolls nothing; one wholly outside the window
+  is CENTRED by `focus()` and by a real Shift+Tab alike (probe: top 342 of 700 on
+  both pages), so a test that scrolls its target far above the window cannot go
+  red. Test: "a control scrolled into view lands below the header, and below the
+  pinned row too" — a `#views` button PARKED halfway down the stuck chrome, then
+  `focus()` (no preventScroll), unpinned and pinned; red on the old page at the
+  unpinned landing. EXPECTED 507 → 508.
 
 **No phone rule for the PIN, deliberately.** Flow Metrics needs one because it
 pins two rows and has to drop one on a phone; there is only one row here.

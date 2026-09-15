@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 507;
+const EXPECTED = 508;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -7741,6 +7741,75 @@ t('the welcome card, Forecast Ahead and a broken link show no lone 📌', async 
     ok(!shown(row) && !shown(btn), 'and it shows no lone 📌');
     ok(!W.svPin.stuck(), 'nor a stuck row');
     W.svPin.apply(false);
+  });
+});
+
+group('a focus scrolled into view lands below the sticky chrome, pinned or not (2026-09-14)');
+/* Charles, 2026-09-14: "fix the sticky header shift+tab issue too". The header is
+   sticky whether or not the tab row is pinned, and the clearance used to be a
+   scroll-margin on #views' controls under `html[data-pin]` only — so unpinned,
+   Shift+Tab back up the page lined each control up with the top of the window,
+   behind the header (60 of 201 stops at 1280×800 with the sample loaded). A
+   focus() without preventScroll is the same scroll the browser makes for a Tab.
+   A spacer at the foot guarantees there is page to scroll past, so the set-up is
+   never at the mercy of how long the sample's view happens to be. */
+t('a control scrolled into view lands below the header, and below the pinned row too', async () => {
+  ok(APP_SRC, 'index.html was not read — the fetch test above must run first');
+  await inFrame('focusclear', { width: 1280, height: 700 }, async (W, D) => {
+    const spacer = D.createElement('div');
+    spacer.style.height = '3000px';
+    D.body.appendChild(spacer);
+    const pinWas = W.svPin.on();
+    /* The bottom of whatever is actually stuck: the header always, the row when
+       pinned. Asked of the cascade, the way pinStuck() asks. */
+    const floorOf = () => Math.max(0, ...[D.querySelector('header'), D.querySelector('.tabrow')]
+      .filter((el) => el && !el.hidden && W.getComputedStyle(el).position === 'sticky'
+        && el.getClientRects().length)
+      .map((el) => el.getBoundingClientRect().bottom));
+    try {
+      for (const pinned of [false, true]) {
+        const label = pinned ? 'pinned' : 'unpinned';
+        W.svPin.apply(pinned);
+        await wait(200);
+        W.scrollTo(0, 0);
+        await wait(50);
+        const target = [...D.querySelectorAll('#views button')].find((b) => b.getClientRects().length
+          && !b.closest('.tablewrap, .tabrow')
+          && b.getBoundingClientRect().top + W.scrollY > 400);
+        ok(target, label + ': there is a control a little way down the page to reach');
+        /* PARKED HALFWAY DOWN THE STUCK CHROME — inside the window, behind the
+           bar. That is what Shift+Tab meets stepping up one control at a time,
+           and it is what the old rule missed: the browser skips the scroll for
+           an element it believes is already in view. A control wholly OUTSIDE
+           the window is centred by focus() and by a real Shift+Tab alike, which
+           clears any bar and proves nothing — measured before this was written
+           (top 342 of 700 on the old page and the new). */
+        W.scrollBy(0, target.getBoundingClientRect().top);
+        await wait(60);
+        W.scrollBy(0, target.getBoundingClientRect().top - Math.round(floorOf() / 2));
+        await wait(60);
+        const parked = target.getBoundingClientRect().top;
+        ok(parked >= 0 && parked < floorOf() - 1,
+           label + ': set up — it sits behind the chrome, inside the window',
+           Math.round(parked) + ' vs ' + Math.round(floorOf()));
+        target.focus();
+        await wait(30);
+        const floor = floorOf();
+        ok(floor > 0, label + ': the header is stuck at the top of the window');
+        ok(target.getBoundingClientRect().top >= floor - 0.5,
+           label + ': focused, it lands below the chrome, not behind it',
+           Math.round(target.getBoundingClientRect().top) + ' vs ' + Math.round(floor));
+        target.blur();
+      }
+    } finally {
+      W.svPin.apply(pinWas);
+      spacer.remove();
+    }
+    const code = stripComments(APP_SRC);
+    ok(/html \{ scroll-padding-top: var\(--pin-clear, 0px\); \}/.test(code),
+       'the clearance is the root’s scroll padding, pinned or not');
+    ok(!/scroll-margin-top: var\(--pin-clear/.test(code),
+       'and the old per-control margin is gone — the two would add together');
   });
 });
 

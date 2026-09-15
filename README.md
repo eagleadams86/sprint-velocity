@@ -656,6 +656,13 @@ scroll away, and it is remembered for next time. Nothing else moves when you pin
 is exactly the height it was. It is the same feature, and the same button, as in Money Map
 and Flow Metrics.
 
+**Tabbing never leaves a control behind the header.** The header stays at the top of the
+window as you scroll, pinned or not, so when the keyboard moves to a control above the window
+— Shift+Tab back up a long view, above all — the page scrolls it into view just *below* the
+header (and below the tab row, when that is pinned) rather than underneath it. Until
+14 September 2026 that only worked while the row was pinned; unpinned, a control could land
+hidden behind the header. Flow Metrics and Money Map work the same way.
+
 **The row, and nothing under it.** Flow Metrics pins its tabs together with the control
 strip beneath them, because that strip is shared and means the same thing on both of its
 views. Everything under the tabs here belongs to the view you are on — the PI picker on
