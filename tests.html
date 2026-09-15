@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 523;
+const EXPECTED = 524;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -9345,6 +9345,66 @@ t('a table heading’s focus ring has room on every side inside its scroller', a
   await inFrame('ringroom390', { width: 390, height: 844 }, async (W, D) => {
     await check(W, D, 'pi', '390 Team PI');
     await check(W, D, 'rolling', '390 Rolling 5');
+  });
+});
+t('a control reached from the keyboard lands whole inside its table on a phone', async () => {
+  /* The browser scrolls a focus target into view only when it is ENTIRELY
+     hidden, so Tab onto a heading half past a table's edge left it half past —
+     at 390px Team PI's "Total done" showed 5px of 102. Every control in the
+     scroller is walked, at the right edge (Tab) and then the left (Shift+Tab).
+     The straddle is MADE, as the header's reveal test makes it: each control is
+     scrolled until its middle sits on the edge before it is focused, because
+     one that is wholly outside is scrolled in by the browser anyway and proves
+     nothing. A script focus in this frame is :focus-visible, which is what the
+     reveal answers to. */
+  const walk = (W, wrap, label) => {
+    const rect = (el) => el.getBoundingClientRect();
+    /* Not a disabled control: it takes no focus (the first row's Move up), so
+       there is nothing for a keyboard to land on and nothing to reveal. */
+    const items = [...wrap.querySelectorAll('button, select, input, a[href]')]
+      .filter((el) => el.getClientRects().length && !el.closest('[hidden]') && !el.disabled);
+    ok(wrap.clientWidth > 0 && wrap.scrollWidth > wrap.clientWidth + 1,
+       label + ': the table really scrolls here, or nothing is being measured',
+       wrap.scrollWidth + '/' + wrap.clientWidth);
+    ok(items.length > 2, label + ': there are controls to walk', items.length);
+    let straddled = 0;
+    const edge = (el, side) => {
+      el.blur();
+      wrap.scrollLeft = 0;
+      let box = rect(wrap), r0 = rect(el);
+      const at = side === 'right' ? box.right : box.left;
+      wrap.scrollLeft += r0.left + r0.width / 2 - at;
+      box = rect(wrap);
+      const r1 = rect(el);
+      if (!(r1.left < at && r1.right > at)) return;   // pinned at a scroll end: cannot straddle
+      straddled++;
+      el.focus();
+      const r = rect(el), b = rect(wrap);
+      const name = (el.getAttribute('aria-label') || el.textContent || el.tagName).trim().slice(0, 30);
+      ok(r.left - b.left >= 3 && b.right - r.right >= 3,
+         label + ': "' + name + '" focused across the ' + side + ' edge lands whole inside, ring room kept',
+         (r.left - b.left).toFixed(1) + ' / ' + (b.right - r.right).toFixed(1));
+      el.blur();
+    };
+    items.forEach((el) => { if (rect(el).width < wrap.clientWidth - 8) { edge(el, 'right'); edge(el, 'left'); } });
+    ok(straddled >= 4, label + ': enough controls were set across an edge to prove it', straddled);
+    wrap.scrollLeft = 0;
+  };
+  await inFrame('reveal390', { width: 390, height: 844 }, async (W, D) => {
+    for (const view of ['pi', 'teams']) {
+      D.querySelector('.tab[data-view="' + view + '"]').click();
+      await wait(400);
+      const wrap = [...D.querySelectorAll('#views .tablewrap')]
+        .find((x) => x.querySelector('th.sortable button[data-sortcol]'));
+      ok(wrap, view + ': a sortable table is on screen');
+      if (wrap) walk(W, wrap, '390 ' + view);
+    }
+    D.getElementById('manageBtn').click();
+    await wait(500);
+    const teams = D.getElementById('teamRows').closest('.tablewrap');
+    ok(teams, 'Teams & PIs has its teams table');
+    if (teams) walk(W, teams, '390 Teams & PIs');
+    D.getElementById('manageDialog').close();
   });
 });
 

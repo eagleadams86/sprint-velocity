@@ -2679,3 +2679,24 @@ proven red against the commit before it.
   room → 0. Test: 1280 PI Trend and Compare Teams, 390 Team PI and Rolling 5 — ≥3.5px above every
   heading, left of the first, right of the last at the scroll end (3px, the family's end
   tolerance), and each table still on its card's content edge.
+- **A control reached from the keyboard lands whole inside its table (2026-09-15).** The
+  fault `wireScrollRow`'s `focusin` fixed for the header and tabs on 2026-09-14 was still in
+  every sideways-scrolling table: the browser scrolls a focus target into view only when it is
+  ENTIRELY hidden, so at 390×844 Tab onto Team PI's "Total done" left 5px of its 102 showing,
+  Shift+Tab left the first column's "Edit sprint" buttons 14px past the left edge, and at 320px
+  every team's ART picker in Teams & PIs sat 56px past the right. One `focusin` on the
+  DOCUMENT, beside the two `wireScrollRow` calls, for anything inside a `.tablewrap`: the same
+  arithmetic as the rows (measured against the PADDING edge, so item 11's 4px stays the ring's;
+  only a `:focus-visible` focus). On the document rather than per table because every view
+  rebuilds its tables on each render and the Teams & PIs rows are rebuilt as they are edited;
+  the header and tab rows are not `.tablewrap`, so it never touches them, and `wireScrollRow`
+  stays byte-identical to the family's. **Measured against the previous commit** (Playwright,
+  sample data, real Tab and Shift+Tab): 390×844 forward over five table views 61 of 305 stops
+  clipped → 0; backward on Team PI and Compare Teams 40 of 122 → 0; Teams & PIs at 320×640 12 of
+  61 → 0 and at 390 → 0; 640×400 forward and 844×390 backward over every view → 0. **Test**: the
+  suite cannot send a trusted Tab, so it does what the header's reveal test does — every enabled
+  control in the scroller (Team PI and Compare Teams at 390, and the Teams & PIs teams table) is
+  scrolled until its middle sits on the right edge, focused, and measured; then the same on the
+  left edge. A control that is wholly outside is scrolled in by the browser anyway, so a test
+  that does not MAKE the straddle proves nothing. Red on the old page ("Sprint" 68px past the
+  left edge). A disabled control (the first row's Move up) takes no focus and is skipped.

@@ -14804,6 +14804,30 @@ function wireScrollRow(row, nav) {
 wireScrollRow(document.querySelector('.headctl'), document.querySelector('.headrow > .rownav'));
 wireScrollRow(document.querySelector('.tabs'), document.querySelector('.tabrow > .rownav'));
 
+/* A CONTROL REACHED FROM THE KEYBOARD LANDS WHOLE INSIDE ITS TABLE (2026-09-15
+   review). The same fault wireScrollRow's focusin fixes for the header and the
+   tabs, in every sideways-scrolling table: the browser scrolls a focus target
+   into view only when it is ENTIRELY hidden, so on a 390px phone Tab onto Team
+   PI's "Total done" heading left 5px of its 102 showing, and at 320px every
+   team's ART picker in Teams & PIs sat 36px past the edge. One listener on the
+   document rather than one per table, because every view rebuilds its tables
+   on each render and the Teams & PIs rows are rebuilt as they are edited — a
+   listener on the box would have to be re-attached every time. Measured against
+   the PADDING edge, so the 4px .tablewrap gives the ring stays the ring's, and
+   only for a `:focus-visible` focus, like the rows: a mouse press needs no help.
+   The header and tab rows are not .tablewrap, so this never touches them. */
+document.addEventListener('focusin', (e) => {
+  const t = e.target;
+  if (!t || typeof t.closest !== 'function' || !t.matches(':focus-visible')) return;
+  const box = t.closest('.tablewrap');
+  if (!box || box === t || box.scrollWidth - box.clientWidth <= 1) return;
+  const cs = getComputedStyle(box);
+  const padL = parseFloat(cs.paddingLeft) || 0, padR = parseFloat(cs.paddingRight) || 0;
+  const b = box.getBoundingClientRect(), r = t.getBoundingClientRect();
+  if (r.left < b.left + padL) box.scrollLeft += r.left - b.left - padL;
+  else if (r.right > b.right - padR) box.scrollLeft += r.right - b.right + padR;
+});
+
 /* ── Hooks the test harness reads ───────────────────────────────────────────
    `svGet` was one of three exports the sync module called (`svAdopt` replaced
    the whole state from a cloud document; `svCounts` counted a copy for the
