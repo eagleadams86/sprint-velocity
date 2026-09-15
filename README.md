@@ -1485,7 +1485,9 @@ Two kinds of change, and the tick box is the difference:
 | Why | It's over once the sprint is | The rolling window needs five sprints to catch up with a change in team size on its own |
 
 A one-off set against a particular sprint always wins over the standing figure — they
-never multiply, so the number on the card is always one you can reason about. **Remove
+never multiply, so the number on the card is always one you can reason about. That is for
+*that* sprint only: anything looking further ahead — the forecast and the next-PI card — still
+uses the standing figure for the sprints after it, and leaves the one-off out. **Remove
 adjustment** clears both, along with any sprint scaling (below).
 
 ### Scaling a Sprint the Team Has Outgrown

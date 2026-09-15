@@ -102,7 +102,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 517;
+const EXPECTED = 518;
 /* HTML comments explain things by naming them — including the very elements
    these assertions look for, and one of those notes lives in a <style> block a
    strip does not reach. So the comments come out before the page is matched
@@ -7735,6 +7735,47 @@ t('an ART ticked beside "no ART" spells the teams with no ART out, in every form
     const line = reviewText(d.querySelector('.toolbarcard .muted'));
     ok(/on Payments ART and with no ART/.test(line) && !/and No ART/.test(line), 'and the picker’s line', line);
   }, (st) => { st.settings.artFilter = [st.arts.find(a => a.name === 'Payments ART').id, NONE]; });
+});
+
+t('forecast keeps a standing availability when a one-off sits on the next sprint', () => {
+  /* `lasting` asked `availabilitySource === 'team'`, and a one-off on the next
+     slot wins outright there, so the source read 'sprint' and the standing 80%
+     was dropped from the WHOLE horizon: a team that had lost a fifth of its
+     people for good forecast at full strength because of one fortnight's leave.
+     capacityFixture: done 10/20/30/40, so planningBase 25 and second-lowest 20.
+       before: rates 25 and 20  → 100 points in 4–5 sprints, no standing caveat
+       after:  rates 20 and 16  → 100 points in 5–7 sprints, both caveats */
+  w.__svTestHooks.svTypedRate();
+  w.__svTestHooks.svAdjust();
+  const fx = capacityFixture({
+    plans: [{ id: 'pl1', teamId: 't1', piId: 'p1', sprintNumber: 5, availability: 50, reason: 'leave' }]
+  });
+  fx.teams = [{ id: 't1', name: 'Team One', availability: 80, availabilityReason: 'teamChange' }];
+  withState(fx, () => {
+    const t = w.nextSprintTarget('t1', false);
+    eq(t.availabilitySource, 'sprint', 'the one-off really is what sits on the next slot');
+    approx(t.recommended, 12.5, 'and next sprint still takes it: 25 × 50%');
+    const f = w.forecast('t1', 100, false);
+    approx(f.meanRate, 20, 'the standing 80% holds across the span: 25 × 80%, not 25');
+    approx(f.floorRate, 16, 'and the floor with it: 20 × 80%, not 20');
+    eq([f.fast, f.slow], [5, 7], '100 points in 5–7 sprints, not 4–5');
+    eq(f.lastingAdjustment, 80, 'the card says the standing figure was applied');
+    eq(f.oneOffIgnored, 50, 'and that the one-off was not stretched');
+    /* One rule for both span figures: the next-PI card reads the same helper. */
+    const html = w.piCapacityCard(w.svGet().teams, false);
+    ok(/⚑ 80%/.test(html), 'the next-PI card flags the same standing figure', html.slice(0, 200));
+  });
+  /* The typed-rate exception is untouched: a stated rate is already the team as
+     it will be, so no availability of either kind is applied to it. */
+  w.__svTestHooks.svTypedRate(30, 30, true);
+  try {
+    withState(fx, () => {
+      const f = w.forecast('t1', 100, false);
+      approx(f.meanRate, 30, 'a typed rate is not knocked down for the standing figure');
+      eq(f.lastingAdjustment, null);
+      eq(f.oneOffIgnored, null);
+    });
+  } finally { w.__svTestHooks.svTypedRate(); }
 });
 
 group('a step lands the keyboard on the new chart (2026-09-03 audit)');

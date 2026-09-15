@@ -729,7 +729,9 @@ but Charles had ever actually signed in.)
   is a lasting change and holds for every sprint in the span; a `plans` entry is leave next
   fortnight, and stretching it over ten sprints would forecast a team as permanently
   short-staffed off one holiday. The card says which it did, either way — `lastingAdjustment`
-  and `oneOffIgnored` exist so it can.
+  and `oneOffIgnored` exist so it can. **Both can be true at once**, and the standing figure is
+  read with `standingAvailability(teamId)`, never `availabilitySource` — a one-off on the next
+  slot wins outright there and used to hide the standing figure from the whole span (2026-09-15).
 - **Delivery sprints are not calendar sprints, and the dates have to know it.** Unless the
   team counts it, sprint 6 delivers none of the work, so a span long enough to cross one
   takes an extra stride of calendar per crossing. `calendarSlots()` walks the slots from the
@@ -2507,8 +2509,8 @@ proven red against the commit before it.
   (537.4 + 31.25 — the review's "568" was 537 + 31 rounded twice);
   Team Live Sprint keeps "⚑ 90%". The standing figure is read off the team record rather than
   `availabilitySource`, because a one-off on the next slot wins outright there and would hide a
-  standing figure that still holds for every other sprint — which means `forecast()` itself still
-  ignores a standing figure whenever a one-off sits on the next slot; noted, not changed here. The
+  standing figure that still holds for every other sprint — `forecast()` had exactly that bug,
+  fixed in its own commit below. The
   one-off is named under *⚑ One-off not stretched*, since the per-sprint figure no longer matches
   the Rolling 5 target for that team.
 - **PI Trend's "matches Team PI and the Dashboard" was false by default (2026-09-15).** Its
@@ -2593,3 +2595,13 @@ proven red against the commit before it.
   untouched (a mixed list is several, so "All selected teams"), and so is `names`, which is the
   picker button's. "Teams Without An ART" keeps the lone tick's capitalisation rather than
   re-deciding Title Case for the mixed heading, so the two headings cannot drift apart.
+- **`forecast()` dropped a standing availability whenever a one-off sat on the next slot
+  (2026-09-15).** `lasting` asked `t.availabilitySource === 'team'`, and the slot entry wins
+  outright in `availabilityFor()`, so a team at a standing 80% with 50% leave next sprint read
+  'sprint' and forecast at FULL strength across the whole horizon. Pinned on capacityFixture
+  (done 10/20/30/40, standing 80%, one-off 50% on S5, 100 points): **before** rates 25 and 20,
+  4–5 sprints, no standing caveat; **after** 20 and 16, 5–7 sprints, `lastingAdjustment` 80 and
+  `oneOffIgnored` 50 both set. `standingAvailability(teamId)` is now the one span rule, read by
+  `forecast()`, `forecastHasRate()`, the typed-rate caveat and `piCapacityCard()`. Unchanged: a
+  typed rate takes no availability of either kind, next sprint's own figure still lets the
+  one-off win outright, and a one-off is still never stretched.

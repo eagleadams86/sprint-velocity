@@ -4305,7 +4305,11 @@ function forecast(teamId, points, includeSix) {
      a statement about the team as it will be; knocking it down for the standing
      availability on top would apply the same allowance twice, which is the same
      guess-times-a-guess this app refuses elsewhere. */
-  const lasting = (!typed && t && t.availabilitySource === 'team') ? t.availability / 100 : 1;
+  /* Read off the team record, NOT `t.availabilitySource`: a one-off on the next
+     slot wins outright there, so the source said 'sprint' and a standing 80% was
+     dropped from the whole horizon (2026-09-15). */
+  const standing = (!typed && t) ? standingAvailability(teamId) : null;
+  const lasting = standing === null ? 1 : standing / 100;
   /* Kept apart by WHAT THEY ARE rather than by which is bigger, because the card
      has to name each end ("the 20 they average", "the 17 they hit in 3 of the
      last 4") and those two sentences are not interchangeable. Which one is the
@@ -4440,7 +4444,7 @@ function forecast(teamId, points, includeSix) {
     /* Carried straight through so the card's caveats read from one object. */
     /* Both null under a typed rate: neither was applied, and a caveat about an
        adjustment that did not happen is worse than no caveat. */
-    lastingAdjustment: (!typed && t && t.availabilitySource === 'team') ? t.availability : null,
+    lastingAdjustment: standing,
     oneOffIgnored: (!typed && t && t.availabilitySource === 'sprint') ? t.availability : null,
     sprints: t ? t.sprints : 0,
     /* A typed rate has no history to be thin or unsteady, so the two caveats
@@ -4688,6 +4692,18 @@ function availabilityFor(teamId, piId, num) {
   if (team && typeof team.availability === 'number' && team.availability !== 100)
     return { pct: team.availability, reason: team.availabilityReason, source: 'team' };
   return { pct: 100, reason: null, source: null };
+}
+
+/* The STANDING availability alone — the team's lasting figure, or null when it is
+   100 or unset — for anything that looks across a SPAN of sprints rather than at
+   the next one (2026-09-15). availabilityFor() cannot answer that: a one-off on the
+   slot wins outright there, so asking it which figure is in force hides a standing
+   80% behind next sprint's 50% leave. forecast(), forecastHasRate() and
+   piCapacityCard() all read this, so the span rule lives in one place. */
+function standingAvailability(teamId) {
+  const team = teamById(teamId);
+  return team && typeof team.availability === 'number' && team.availability !== 100
+    ? team.availability : null;
 }
 
 /* The team's most recent recorded sprint. teamSprints() is already in program
@@ -8611,7 +8627,8 @@ function forecastClearAdjustments() {
 function forecastHasRate(teamId, includeSix) {
   const t = nextSprintTarget(teamId, includeSix);
   if (!t) return false;
-  const lasting = t.availabilitySource === 'team' ? t.availability / 100 : 1;
+  const standing = standingAvailability(teamId);
+  const lasting = standing === null ? 1 : standing / 100;
   return Math.min(t.planningBase, t.reliableBase) * lasting > 0;
 }
 
@@ -8776,7 +8793,7 @@ function forecastResultHtml(team, includeSix) {
     caveats.push(`${who} <strong>does</strong> have finished sprints to draw from —
       untick the box above to forecast from them instead.`);
   if (f.typed && nextSprintTarget(teamId, includeSix)
-      && nextSprintTarget(teamId, includeSix).availabilitySource === 'team')
+      && standingAvailability(teamId) !== null)
     caveats.push(`The team's standing availability is <em>not</em> applied on top of a typed
       velocity: a rate you state is already a statement about the team as it will be, and knocking
       it down again would allow for the same absence twice.`);
@@ -9729,15 +9746,14 @@ function piCapacityCard(teams, includeSix) {
      already refuses exactly this ("stretching that over ten sprints would forecast
      a team as permanently short-staffed"), so the card takes its rule: the span
      rate is `planningBase` times the STANDING availability, which is the lever
-     that genuinely holds across a span. Read off the team record rather than
-     `availabilitySource`, because a one-off on the next slot wins outright there
-     and would hide a standing figure that still applies to every other sprint. */
+     that genuinely holds across a span — `standingAvailability()`, the one helper
+     forecast() reads too, because a one-off on the next slot wins outright in
+     `availabilitySource` and would hide a standing figure that still applies. */
   const rows = (teams || []).filter(inPis)
     .map(t => {
       const target = nextSprintTarget(t.id, includeSix);
       if (!target) return null;
-      const standing = typeof t.availability === 'number' && t.availability !== 100
-        ? t.availability : null;
+      const standing = standingAvailability(t.id);
       const lasting = standing === null ? 1 : standing / 100;
       const rate = target.planningBase * lasting;
       const floorRate = target.reliableBase * lasting;
