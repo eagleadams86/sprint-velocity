@@ -1305,7 +1305,7 @@ that would take.
 PI 2026.3 has no delivery sprints left — the next slot is the IP sprint —
 so all of this falls into the PI after it.
 
-7 at the 20 points a sprint they average, 8 at the 17 they finished in 3 of the last 4.
+7 at the 19.8 points a sprint they average, 8 at the 17 they finished in 3 of the last 4.
 ```
 
 **The rate is committed points finished, never velocity** — the same stance as the capacity
@@ -1317,6 +1317,15 @@ confident date slips a sprint at a time.
 It's always a **range**, from the same two rates the [capacity card](#two-figures-not-one)
 shows, and each end names what it assumes. A single number would be a guess wearing a
 forecast's clothes.
+
+**Each rate is one you can check by dividing.** It is shown as a whole number unless the whole
+number would give you a different sprint count than the card's — 120 ÷ 20 is 6, and the answer
+above is 7 because the team averages 19.8 — and then it is shown to one decimal. Under a
+[standing availability](#adjusting-for-a-sprint-that-isnt-normal) the card names the rate *and* where it
+came from: *"4 at 32 points a sprint (90% of the 35 they average), 5 at 29.7 (90% of the 33
+they finished in 4 of the last 5)"*. The "4 of the last 5" is a count of sprints that cleared
+the 33, so it sits beside the 33 — not beside the adjusted figure, which the team may well
+have cleared every time.
 
 Where the team's dates are known it adds calendar weeks and a landing date. **Delivery
 sprints and calendar sprints aren't the same thing**: unless you've opted the IP sprint into

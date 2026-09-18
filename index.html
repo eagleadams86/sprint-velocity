@@ -4619,6 +4619,18 @@ function forecast(teamId, points, includeSix) {
     growthLo: growth.lo, growthHi: growth.hi, lostSprints: lost,
     grownPoints: growth.hi > 0 || growth.lo > 0 ? [fastPoints, slowPoints] : null,
     reliableMet: t ? t.reliableMet : null,
+    /* The two HISTORY figures the rates were scaled from, handed over rather than
+       left for the card to divide back out of a rounded rate (2026-09-18). Under a
+       standing availability the rate is not what the team averages and
+       `reliableMet` is not a count of sprints that cleared it — it counts the
+       sprints that cleared `reliableBase` — so the card needs both the figure it
+       divided by and the one its history sentence is true of. Null under a typed
+       rate, which has no history behind it. */
+    meanBase: (!typed && t) ? t.planningBase : null,
+    floorBase: (!typed && t) ? t.reliableBase : null,
+    /* The work each end was divided INTO, so the card can check its own rounding
+       against the division the reader will do. */
+    fastPoints, slowPoints,
     /* Whole weeks, from the team's own stride rather than an assumed fortnight. */
     fastWeeks: c && !beyondHorizon
       ? Math.round(calendarSlots(fastDeliver + lost) * c.stride / 7) : null,
@@ -9009,13 +9021,44 @@ function forecastResultHtml(team, includeSix) {
   /* Under a typed rate both ends are the reader's own numbers, so they are named
      as such: "the 20 they average" over a team that has averaged nothing is the
      card inventing a history to justify an answer. */
+  /* ── A rate the reader can check (2026-09-18) ────────────────────────────
+     Two faults, one sentence. A team on a standing 90% finishing 30, 35, 38, 40,
+     33 was told "4 at the 32 points a sprint they average, 5 at the 30 they
+     finished in 4 of the last 5". They average 35, not 32; they finished at least
+     30 in FIVE of five — the "4 of 5" is a count of sprints that cleared the
+     unadjusted 33; and 120 / 30 is 4, not 5, because the real rate was 29.7. It
+     is the capacity card's old fault ("finished an average of 19.2" when the
+     sprints said 24) on this card: a sentence about the PAST has to quote the
+     history figure, and the adjustment is named beside it rather than folded in.
+
+     The rate is shown whole UNLESS the whole number would give the reader a
+     different sprint count by their own division, and then to one decimal —
+     `fmtNum` rounds to one already. `pts` is the work that end was divided into
+     (they differ once scope growth is on). */
+  const showRate = (rate, pts) => {
+    const whole = Math.round(rate);
+    return whole > 0 && Math.ceil(pts / whole) === Math.ceil(pts / rate)
+      ? fmtNum(whole) : fmtNum(rate);
+  };
+  const meanIsFast = f.meanRate >= f.floorRate;
+  const meanShown = showRate(f.meanRate, meanIsFast ? f.fastPoints : f.slowPoints);
+  const floorShown = showRate(f.floorRate, meanIsFast ? f.slowPoints : f.fastPoints);
+  /* In brackets so the phrase reads the same wherever it is dealt — either end
+     of the range, or both inside "At …, and at …, it comes to the same number". */
+  const adjusted = !f.typed && f.lastingAdjustment !== null;
   const meanPhrase = f.typed
     ? `the <strong>${fmtNum(Math.round(f.meanRate))}</strong> points a sprint you typed as the
        optimistic end`
-    : `the <strong>${fmtNum(Math.round(f.meanRate))}</strong> points a sprint they average`;
+    : adjusted
+    ? `<strong>${meanShown}</strong> points a sprint (${f.lastingAdjustment}% of the
+       ${fmtNum(Math.round(f.meanBase))} they average)`
+    : `the <strong>${meanShown}</strong> points a sprint they average`;
   const floorPhrase = f.typed
     ? `the <strong>${fmtNum(Math.round(f.floorRate))}</strong> you typed as the cautious end`
-    : `the <strong>${fmtNum(Math.round(f.floorRate))}</strong> they finished in
+    : adjusted
+    ? `<strong>${floorShown}</strong> (${f.lastingAdjustment}% of the
+       ${fmtNum(Math.round(f.floorBase))} they finished in ${f.reliableMet} of the last ${f.sprints})`
+    : `the <strong>${floorShown}</strong> they finished in
        ${f.reliableMet} of the last ${f.sprints}`;
   const fastPhrase = f.meanRate >= f.floorRate ? meanPhrase : floorPhrase;
   const slowPhrase = f.meanRate >= f.floorRate ? floorPhrase : meanPhrase;

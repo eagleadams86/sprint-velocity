@@ -10467,6 +10467,72 @@ t('closing Teams, ARTs & PIs after Start Fresh replaced the welcome card lands o
    ═════════════════════════════════════════════════════════════════════════ */
 group('the forecast card, dates and the demo (2026-09-18 review)');
 
+/* The forecast card's words, read as text. `forecastPoints` is a setting and
+   withState() does not swap settings, so it is put back by hand. */
+function forecastCardText(fx, points, includeSix) {
+  const st = w.svGet(), before = st.settings.forecastPoints;
+  st.settings.forecastPoints = String(points);
+  try {
+    return withState(fx, () => {
+      typed(); adjust();
+      const el = document.createElement('div');
+      el.innerHTML = w.forecastResultHtml(w.svGet().teams[0], !!includeSix);
+      return el.textContent.replace(/\s+/g, ' ').trim();
+    });
+  } finally { st.settings.forecastPoints = before; typed(); adjust(); }
+}
+/* One team, five finished dateless sprints on the unassigned track (no PI, so no
+   IP sprint and no "fits in the PI" sentence riding along). */
+function forecastWordsFixture(done, availability) {
+  const team = { id: 't1', name: 'Team One' };
+  if (availability !== undefined) team.availability = availability;
+  return { teams: [team], arts: [], pis: [], plans: [],
+    sprints: done.map((v, i) => ({ id: 's' + (i + 1), teamId: 't1', piId: null, sprintNumber: i + 1,
+      committed: v, committedCompleted: v, totalCompleted: v,
+      added: 0, removed: 0, carriedIn: 0, carriedOut: 0, addedThenRemoved: 0 })) };
+}
+t('under a standing availability the forecast card names the history figure AND the adjustment (2026-09-18 review)', () => {
+  /* 30, 35, 38, 40, 33 at a standing 90%: the mean is 35.2 and the second-lowest
+     33, cleared in 4 of 5. The rates are 31.68 and 29.7. The card used to say
+     "4 at the 32 points a sprint they average, 5 at the 30 they finished in 4 of
+     the last 5" — they average 35, they cleared 30 in FIVE of five, and 120 / 30
+     is 4, not 5. */
+  const fx = forecastWordsFixture([30, 35, 38, 40, 33], 90);
+  withState(fx, () => {
+    typed(); adjust();
+    const f = w.forecast('t1', 120, false);
+    eq([f.fast, f.slow], [4, 5], 'ceil(120 / 31.68) and ceil(120 / 29.7)');
+    approx(f.meanBase, 35.2, 'the unadjusted mean is handed over, not divided back out');
+    eq(f.floorBase, 33, 'and the unadjusted floor');
+    eq(f.reliableMet, 4, '4 of 5 cleared the 33 — that is what the count is a count OF');
+  });
+  const text = forecastCardText(fx, 120);
+  ok(!/32 points a sprint they average/.test(text),
+    'the adjusted 32 is never called what they average', text);
+  ok(/4 at 32 points a sprint \(90% of the 35 they average\)/.test(text),
+    'the faster end names the rate, the adjustment and the history figure', text);
+  ok(/5 at 29\.7 \(90% of the 33 they finished in 4 of the last 5\)/.test(text),
+    'the slower end is shown to a decimal, because 120 / 30 is 4 and the answer is 5 — and the '
+    + '"4 of the last 5" sits beside the 33 it is true of', text);
+});
+t('a rate is shown to one decimal only where the whole number would not divide to the same answer (2026-09-18 review)', () => {
+  /* No availability at all: 29, 30, 30, 30, 30 averages 29.8, and 120 / 29.8 is
+     5 sprints where the reader's own 120 / 30 is 4. */
+  const close = forecastCardText(forecastWordsFixture([29, 30, 30, 30, 30]), 120);
+  ok(/29\.8 points a sprint they average/.test(close),
+    'the mean is shown as 29.8, not as a 30 that divides to a different answer', close);
+  /* And where the whole number divides to the same count it stays whole: mean 25,
+     floor 20, 100 points → 4 and 5. */
+  const plain = forecastCardText(capacityFixture({ pis: [], sprints: capacityFixture().sprints
+    .map(s => Object.assign({}, s, { piId: null })) }), 100);
+  ok(/4 at the 25 points a sprint they average, 5 at the 20 they finished in 3 of the last 4\./.test(plain),
+    'the unadjusted sentence is word for word what it was', plain);
+  /* Same number at both ends, adjusted: the brackets read inside that sentence too. */
+  const same = forecastCardText(forecastWordsFixture([30, 35, 38, 40, 33], 90), 20);
+  ok(/At 32 points a sprint \(90% of the 35 they average\), and at 30 \(90% of the 33 they finished in 4 of the last 5\), it comes to the same number\./.test(same),
+    'and 20 points is one sprint either way, so both rates stay whole', same);
+});
+
 /* ═══════════════════ 2026-09-18 review — block D ═══════════════════════════
    One fix per commit, each test proven red against the commit before it. Tests
    for this block go DIRECTLY under its group() line and above the next banner,

@@ -725,7 +725,9 @@ but Charles had ever actually signed in.)
   is bigger** — the card names each end ("the 20 they average", "the 17 they finished in 3 of
   the last 4"), those sentences are not interchangeable, and which is faster genuinely swaps
   for a left-skewed team (see `hasFloor`). `Math.ceil` on both ends: you do not finish in 4.4
-  sprints.
+  sprints. **Under a standing availability the sentence names the rate AND the history figure
+  it was scaled from** ("32 points a sprint (90% of the 35 they average)") — `meanBase` and
+  `floorBase`, 2026-09-18; see that review's bullet.
 - **A STANDING availability applies across the horizon; a ONE-OFF does not.** `team.availability`
   is a lasting change and holds for every sprint in the span; a `plans` entry is leave next
   fortnight, and stretching it over ten sprints would forecast a team as permanently
@@ -2995,6 +2997,23 @@ Each bullet below is one commit.
 
 Forward planning by hand against the card, and dates that are the right shape and
 impossible. Each bullet below is one commit.
+
+- **Under a standing availability the forecast card names the history figure AND the adjustment
+  (2026-09-18).** The capacity card's old fault ("finished an average of 19.2" when the sprints
+  said 24), on the forecast card. A team on a standing 90% finishing 30, 35, 38, 40, 33 with 120
+  points typed read "4 at the 32 points a sprint they average, 5 at the 30 they finished in 4 of
+  the last 5". They average 35.2, not 32; they cleared 30 in FIVE of five — `reliableMet` counts
+  the sprints that cleared the unadjusted `reliableBase`, 33; and 120 / 30 is 4, not 5, because
+  the rate was 29.7. It reads "4 at 32 points a sprint (90% of the 35 they average), 5 at 29.7
+  (90% of the 33 they finished in 4 of the last 5)" now. `forecast()` hands over `meanBase` and
+  `floorBase` (null under a typed rate) rather than the card dividing a rounded rate back, plus
+  `fastPoints`/`slowPoints`, the work each end was divided into. **`showRate()` prints a rate
+  whole unless the whole number would give the reader a different sprint count by their own
+  division, and then to one decimal** — on every history rate, adjusted or not (29, 30, 30, 30,
+  30 averages 29.8 and is 5 sprints for 120 where "30" divides to 4). The adjusted phrases are
+  in BRACKETS so one phrase reads right at either end of the range and inside "At …, and at …,
+  it comes to the same number". An unadjusted team's sentence is word for word what it was, and
+  a typed rate's wording is untouched — it takes no availability.
 
 
 ### Import, Boundaries and the Rest
