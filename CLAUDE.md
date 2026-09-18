@@ -1300,7 +1300,9 @@ but Charles had ever actually signed in.)
   finite numbers, dates must match `YYYY-MM-DD` or become `''`, status must be one of the
   four, names capped at 120), and drops stray top-level keys too — except the share-meta
   keys (`v`/`sharedAt`/`label`/`allTeams`/`range`), which the shared-view banner needs and
-  which never persist because `save()` is a no-op there. `notes` is still counted separately
+  which never persist because `save()` is a no-op there. **That last clause was only true of the share path**: Restore crosses the same
+  boundary, and until 2026-09-18 `adoptState()` copied all five into the saved board — it strips
+  them now, and `v`/`allTeams` are typed like the other three. `notes` is still counted separately
   in `sanitizeIds.strippedNotes` (it gets the boot toast — a person's own writing went
   away); everything else lands in `sanitizeIds.pruned` (a silent boot `save()`, so the scrub
   reaches localStorage immediately — and ONLY when something was scrubbed: since 2026-09-01
@@ -2826,3 +2828,18 @@ Each bullet below is one commit.
   makes the offer worthless in exactly the window where the toast is held longest. Still one
   step and not a stack, and the snapshots are still stringified rather than a hand-written
   inverse per delete — the older comment's reasoning holds; only what is done with them changed.
+- **The share-meta keys are typed, and never reach the reader's own board (2026-09-18).** `TOP`
+  admits `v`, `sharedAt`, `label`, `allTeams` and `range` for the share link's sake; three were
+  pinned and `v`/`allTeams` were not, and the claim that they "never persist because `save()` is a
+  no-op there" held only on the SHARE path. Restore crosses the same boundary with `save()` live:
+  a backup holding `"v": "<11,611 characters>"`, `"allTeams": {"notes": "…"}` and a `label` was
+  restored with all of it, written to `sv-data`, kept across reboots and handed back in every
+  later backup — free text at rest in the app whose rule is that there is none. `v` must be a
+  finite number and `allTeams` a boolean (a `1` is read as yes) or they are dropped and counted;
+  and `adoptState()` — boot and Restore, never the share path — deletes all five.
+  **Trap met while fixing:** the key list was first a top-level `const` beside `adoptState()`,
+  which sits BELOW `let state = load()`. `load()` → `adoptState()` runs while the script is
+  still evaluating, so the const was in its temporal dead zone at boot, and `load()`'s catch
+  would have turned the ReferenceError into a blank board with every test green (the suite calls
+  `adoptState` long after boot). The list lives inside the function. **Anything `load()` can
+  reach must be a function declaration or sit above line ~4013.**

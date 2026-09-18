@@ -3717,6 +3717,21 @@ function sanitizeIds(data) {
      and a `sharedAt` that is not a date puts "Invalid Date" in the banner.
      Not a date means non-numeric OR past the calendar: a Date holds ±8.64e15 ms,
      so 1e300 is finite and still Invalid Date (2026-09-15 review). */
+  /* `v` and `allTeams` crossed un-pinned until 2026-09-18 — allowed through, and
+     then nothing asked what they were. Only their truthiness and size are ever
+     read, so no script could ride in; what could was TEXT: a backup file holding
+     `"v": "<11,000 characters>"` or `"allTeams": {"notes": "…"}` was restored
+     with both intact, and adoptState() wrote them into the saved board, where
+     they stayed and left again in every backup after it. A version is a number
+     and a permission is a yes or a no; anything else is dropped. */
+  if ('v' in data && !(typeof data.v === 'number' && Number.isFinite(data.v))) {
+    delete data.v; sanitizeIds.pruned++;
+  }
+  if ('allTeams' in data && typeof data.allTeams !== 'boolean') {
+    const yes = data.allTeams === 1;      // the one other spelling a link has ever carried
+    if (yes) data.allTeams = true; else delete data.allTeams;
+    sanitizeIds.pruned++;
+  }
   if ('label' in data) {
     const l = String(data.label).slice(0, 120);
     if (l !== data.label) { data.label = l; sanitizeIds.pruned++; }
@@ -4021,8 +4036,20 @@ let state = load();
    holds new fields — and the next older build to see it sails past
    haltForNewerData() and strips them, which is the exact loss the stamp exists
    to prevent. It went unnoticed while SCHEMA had never moved off 1. */
+/* What a SHARE LINK carries beside the board: read once by openSharedView() into
+   `shareMeta`, never part of anybody's saved data. adoptState() is the reader's
+   OWN board arriving — boot and Restore — so they are taken off here (2026-09-18):
+   sanitizeIds() lets them through for the link's sake, and a restored file holding
+   a `label` (120 characters of anything) used to keep it in storage for good.
+
+   The list lives INSIDE the function on purpose: `let state = load()` runs above
+   this line while the script is still being evaluated, so a `const` declared out
+   here would not exist yet at boot — and load()'s catch would turn that
+   ReferenceError into a blank board, silently. */
 function adoptState(parsed) {
-  return Object.assign(blankState(), parsed, {
+  const own = Object.assign({}, parsed);
+  ['v', 'sharedAt', 'label', 'allTeams', 'range'].forEach(k => { delete own[k]; });
+  return Object.assign(blankState(), own, {
     settings: Object.assign(blankState().settings, (parsed && parsed.settings) || {}),
     version: SCHEMA
   });

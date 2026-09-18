@@ -9721,6 +9721,29 @@ t('Undo puts back what the delete took, and leaves everything done since alone',
   }));
   w.render();
 });
+t('a restored file cannot park text on the share-meta keys', () => {
+  /* `v` and `allTeams` were allowed through the boundary and never typed, and
+     adoptState() copied all five share-meta keys into the saved board — so a
+     hand-edited backup kept 11,000 characters of anything in storage for good. */
+  const essay = 'Customer ACME SSO bypass, because Bob was on leave. '.repeat(200);
+  const file = { version: 5, teams: [{ id: 't1', name: 'Team One' }], arts: [], pis: [], sprints: [],
+    plans: [], objectives: [], settings: {},
+    v: essay, allTeams: { notes: essay, nested: [{ why: essay }] }, label: essay,
+    sharedAt: 1750000000000, range: { kind: 'pi', n: 2 } };
+  const clean = w.sanitizeIds(w.coerceShape(JSON.parse(JSON.stringify(file))));
+  ok(!('v' in clean), 'a version that is not a number is dropped', typeof clean.v);
+  ok(!('allTeams' in clean), 'a permission that is not a yes or a no is dropped', typeof clean.allTeams);
+  ok(w.sanitizeIds.pruned >= 2, 'and both are counted as repairs', w.sanitizeIds.pruned);
+  const adopted = w.adoptState(clean);
+  ['v', 'sharedAt', 'label', 'allTeams', 'range'].forEach((k) =>
+    ok(!(k in adopted), 'the reader’s own board never holds `' + k + '`'));
+  ok(!JSON.stringify(adopted).includes('ACME'), 'none of the text reached the board');
+  /* A real link's own values still cross: the banner and the tab rules read them. */
+  const link = w.sanitizeIds(w.coerceShape({ v: 4, allTeams: true, label: 'Team One', sharedAt: 1750000000000,
+    teams: [{ id: 't1', name: 'Team One' }], sprints: [] }));
+  eq([link.v, link.allTeams, link.label], [4, true, 'Team One']);
+  eq(w.sanitizeIds(w.coerceShape({ allTeams: false, teams: [], sprints: [] })).allTeams, false, 'a no is a value');
+});
 t('“Skip to content” in a shared view stays in the shared view', async () => {
   /* It was a bare href="#maincontent": the share fragment was replaced, the
      hashchange handler read "no longer shared" and RELOADED — onto the reader's own
