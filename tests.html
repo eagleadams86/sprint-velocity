@@ -9952,6 +9952,13 @@ t('the ART menu closes when the keyboard leaves it — and only then', async () 
        a label's text, the window losing focus. All have no relatedTarget. */
     p.boxes()[1].dispatchEvent(new W.FocusEvent('focusout', { bubbles: true, relatedTarget: null }));
     eq(p.says().open, true, 'a blur towards nothing leaves it open');
+    /* A mouse press on a label's TEXT sends the focus to <main> — focusable, for the
+       skip link, and the nearest focusable thing round the picker. Closing on that
+       hides the menu before the click lands, and the tick never happens. */
+    const main = D.getElementById('maincontent');
+    ok(main && main.contains(p.boxes()[1]), 'the picker sits inside the focusable <main>');
+    p.boxes()[1].dispatchEvent(new W.FocusEvent('focusout', { bubbles: true, relatedTarget: main }));
+    eq(p.says().open, true, 'a blur towards a container the picker is INSIDE leaves it open too');
     p.boxes()[1].focus();
     p.moveFocus(p.boxes()[1], p.boxes()[0]);
     eq(p.says().open, true, 'and so does a move INSIDE the picker');

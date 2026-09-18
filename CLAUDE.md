@@ -2869,7 +2869,12 @@ worded for a number other than the one beside them. Each bullet below is one com
   null `relatedTarget` is deliberately ignored, which is the guard the render-surviving state
   depends on**: a tick's re-render destroys the focused box, a press on a label's text or the
   menu's padding blurs towards nothing, and so does the window losing focus; none is the reader
-  leaving, all have no relatedTarget, and a Tab always has one. Escape now returns only when a
+  leaving, all have no relatedTarget, and a Tab always has one. **Nor when it lands on an
+  ANCESTOR of the picker** (`to.contains(from)`): `<main>` is `tabindex="-1"` for the skip link,
+  so a mouse press on a label's TEXT focuses `<main>` on the mousedown — the first cut closed on
+  that, hid the menu before the click arrived, and the tick never happened. Only a real press in
+  a real browser showed it (the reviewer's `s12-artpick.mjs` plus a label click); no synthetic
+  event in the suite would have. Escape now returns only when a
   `dialog[open]` owns it, and hands the keyboard to the button only if it was in the picker.
   `goToSearchHit()` clears `artPickOpen`, the flag that survives a render. **Flow Metrics, the
   reference implementation, has the same gap** and wants the same three changes. The tests send

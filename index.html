@@ -10885,13 +10885,23 @@ document.addEventListener('keydown', (e) => {
    a moment before wireArtToolbar() puts it back; a press on a label's text, or on
    the menu's own padding, blurs the box towards nothing as well; so does the
    window losing focus. None of those is the reader leaving, and all of them have
-   no relatedTarget. A Tab always has one. Bound once, out here, like the two
-   handlers above and for the same reason. Flow Metrics' picker has the same gap. */
+   no relatedTarget. A Tab always has one.
+
+   NOR WHEN IT LANDS ON SOMETHING THE PICKER IS INSIDE. `<main>` is focusable
+   (tabindex="-1", for the skip link), so a mouse press on a label's TEXT — not
+   the box — moves the focus to <main>, the nearest focusable thing round it, on
+   the mousedown. Closing on that hid the menu before the click arrived and the
+   tick never happened: found by pressing a label in a real browser, which no
+   synthetic event in the suite would have shown. A Tab cannot land on an
+   ancestor of the picker, and a press genuinely outside it is the mousedown
+   handler's business. Bound once, out here, like the two handlers above and for
+   the same reason. Flow Metrics' picker has the same gap. */
 document.addEventListener('focusout', (e) => {
   if (!artPickOpen) return;
   const from = e.target && e.target.closest && e.target.closest('.art-pick');
   const to = e.relatedTarget;
   if (!from || !to || (to.closest && to.closest('.art-pick'))) return;
+  if (to.contains && to.contains(from)) return;
   closeArtMenu();
 }, true);
 document.addEventListener('mousedown', (e) => {
