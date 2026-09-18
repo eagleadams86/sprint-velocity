@@ -4020,6 +4020,11 @@ let bootUnassigned = 0;   // sprints the boundary un-grouped rather than dropped
 let bootStrippedNotes = 0;   // legacy free-text notes found in the saved copy
 let bootPruned = 0;          // stray keys or wrong-typed values found in it
 
+/* The `sv-data` string this copy last READ or WROTE — what save() holds storage up
+   against before writing over it (see save()). Declared above load(), which sets
+   it while the script is still being evaluated. */
+let storedRaw = null;
+
 let state = load();
 
 /* ── Adopting a copy from outside ───────────────────────────────────────────
@@ -4072,6 +4077,7 @@ function load() {
 
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
+    storedRaw = raw;
     if (!raw) return blankState();
     const parsed = sanitizeIds(coerceShape(JSON.parse(raw)));
     bootOrphans = sanitizeIds.dropped;
@@ -4094,11 +4100,41 @@ function save() {
      sync was removed there is no second copy anywhere to fall back on, so
      saying so is all the more the honest thing to do. */
   try {
+    /* ── Two copies of the app open at once (2026-09-18) ─────────────────────
+       save() writes the WHOLE in-memory board, and nearly everything saves — a
+       tab press, a picker, a toggle. So with the app open twice (two tabs, or the
+       installed window and a tab), the copy that had NOT been reloaded wrote its
+       stale board over the other's work the next time anything in it was
+       pressed: a sprint imported in one window was gone after a tab click in the
+       other, and neither said a word. Storage is held up against what THIS copy
+       last read or wrote; if somebody else has written since, their board is
+       adopted instead of overwritten, and the one change that did not land is
+       said out loud. Losing one press, announced, beats losing a sprint in silence. */
+    if (localStorage.getItem(STORAGE_KEY) !== storedRaw) { adoptOtherCopy(true); return; }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    /* Read BACK rather than remembered: a browser that accepts the write and keeps
+       nothing must not look, next time, like another window having emptied it. */
+    storedRaw = localStorage.getItem(STORAGE_KEY);
   } catch (e) {
     console.warn('Could not write saved data', e);
     toast('⚠️ This browser is blocking storage (full, or private mode?) — changes may be lost when the tab closes');
   }
+}
+
+/* Another window's board, taken in place of this one's. load() is boot's own
+   reader, so a copy written by a NEWER build halts here exactly as it would at
+   boot. Any open window is closed first: its boxes were filled from the board that
+   has just been replaced. `lostChange` is save()'s case — this copy was about to
+   write and did not — and gets the sentence that says so; the idle case (the
+   `storage` listener at the foot of the file) is only news. */
+function adoptOtherCopy(lostChange) {
+  state = load();
+  document.querySelectorAll('dialog[open]').forEach(d => d.close());
+  render();
+  toast(lostChange
+    ? 'This board was changed in another tab or window, so that copy is loaded here now. '
+      + 'Your last change here was not saved — make it again.'
+    : 'Updated — this board was changed in another tab or window.');
 }
 
 /* Sync was removed on 2026-08-20, and its two keys are actively DELETED rather
@@ -15005,6 +15041,21 @@ addEventListener('hashchange', () => {
   }
   if (nowShared !== viewOnly || (nowShared && location.hash.slice(SHARE_PREFIX.length) !== shareToken))
     location.reload();
+});
+
+/* The other half of save()'s two-copies guard: an IDLE copy takes the other
+   window's board as soon as it lands, so what is on screen is never older than
+   what is stored. Not while a window is open here — its boxes are a draft, and
+   save() settles it on the next write — and only in a top-level window: a frame
+   (the suite's) shares this origin's storage with frames that plant fixtures in
+   it, the same rule the service-worker block uses. */
+if (window.top === window.self) addEventListener('storage', (e) => {
+  if (viewOnly || e.storageArea !== localStorage) return;
+  if (e.key !== null && e.key !== STORAGE_KEY) return;      // null is clear()
+  if (document.querySelector('dialog[open]')) return;
+  let there = null;
+  try { there = localStorage.getItem(STORAGE_KEY); } catch (err) { return; }
+  if (there !== storedRaw) adoptOtherCopy(false);
 });
 
 /* The skip link does its job without touching the address at all — the fragment

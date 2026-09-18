@@ -2858,3 +2858,25 @@ Each bullet below is one commit.
   (`restoreBlankName`). The boundary is unchanged: a nameless record in a hand-edited file still
   arrives nameless — it renders without throwing and its box in this window is where it is
   fixed. The test deep-copies `MANAGE_FIXTURE`, because these handlers write to the records.
+- **Two open copies of the app no longer overwrite each other (2026-09-18, found by two
+  reviewers).** `save()` writes the WHOLE in-memory board and nearly everything saves — a tab
+  press, a picker, a toggle — and there was no `storage` listener. With the app open twice (two
+  tabs, or the installed window and a tab) the copy that had not been reloaded wrote its stale
+  board over the other's the next time anything in it was pressed: import a sprint in A, click a
+  tab in B, reload A, sprint gone, not a word from either. Two halves, one function:
+  - **`save()` holds storage up against `storedRaw`** — the `sv-data` string this copy last read
+    (`load()`) or wrote — and if they differ, calls `adoptOtherCopy(true)` INSTEAD of writing:
+    `state = load()` (so a copy from a newer build halts exactly as at boot), every open dialog
+    closed (its boxes were filled from the board just replaced), `render()`, and a toast that
+    says the last change here did not land. One press lost, announced, against a sprint lost in
+    silence. `storedRaw` is read BACK after `setItem` rather than remembered, so a browser that
+    accepts a write and keeps nothing never looks like another window having emptied it.
+  - **A `storage` listener adopts an IDLE copy at once** (`adoptOtherCopy(false)`, "Updated — …"),
+    so the screen is never older than storage. Not while a dialog is open (a draft; `save()`
+    settles it), not in a shared view, and **only in a top-level window** — the suite's frames
+    share this origin's storage with frames that plant fixtures in it, the rule the
+    service-worker block already uses. That is also why the listener is pinned as SOURCE and
+    the `save()` half is what the suite drives, in a real frame with the real `save()`.
+  - `let storedRaw` is declared ABOVE `let state = load()`: `load()` assigns it during script
+    evaluation (the TDZ trap, again). Flow Metrics, Money Map and Golf save the same way — this
+    belongs in each of them; not ported here.

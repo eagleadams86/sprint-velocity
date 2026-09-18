@@ -1738,6 +1738,13 @@ you'd rather change a number than start from nothing.
 **No account is needed and no data leaves your machine** — the page's CSP names no external
 origin at all, so the browser itself refuses to let it try.
 
+**Open twice, it stays one board.** With the app open in two tabs — or an installed window
+and a tab — a window that is sitting idle picks up the other's changes as they are saved, and a
+window that was about to save over a newer board loads that board instead and says so: *"This
+board was changed in another tab or window… Your last change here was not saved — make it
+again."* (Until 2026-09-18 the window that had not been reloaded silently wrote its old board
+over the other's work the next time anything in it was pressed.)
+
 What's saved per sprint is the seven figures, its dates, its status, and — if you've set
 one — whether it's left out of the rolling average and which of the fixed reasons applies.
 A capacity adjustment saves as a percentage and a reason code against a team and a sprint

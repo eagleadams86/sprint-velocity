@@ -9794,6 +9794,56 @@ t('a team, ART or PI name cannot be saved blank', () => {
   w.renderManage();
   w.render();
 });
+t('a copy of the app that is out of date adopts the other window’s board instead of writing over it', async () => {
+  /* Two windows, one storage. B records a sprint; A — never reloaded — is pressed
+     anywhere at all, and its save() wrote A's whole stale board over B's sprint.
+     A REAL frame with the REAL save(), so the reader's own `sv-data` and `sv-pin`
+     are put back afterwards, whatever happens. */
+  const beforeData = localStorage.getItem('sv-data'), beforePin = localStorage.getItem('sv-pin');
+  const f = document.createElement('iframe');
+  try {
+    localStorage.setItem('sv-data', JSON.stringify(savedCopy()));
+    f.setAttribute('data-sv-tests', '');
+    f.setAttribute('aria-hidden', 'true');
+    f.style.cssText = 'position:absolute;left:-9999px;width:1280px;height:900px;border:0';
+    await new Promise((resolve) => { f.onload = resolve; f.src = 'index.html?twocopies=' + Date.now(); document.body.appendChild(f); });
+    await wait(300);
+    const W = f.contentWindow;
+    eq(W.svGet().sprints.length, 1, 'window A booted on the one-sprint board');
+    /* Window B records a second sprint. */
+    const other = savedCopy();
+    other.sprints.push(Object.assign({}, other.sprints[0], { id: 's2', sprintNumber: 2 }));
+    const otherRaw = JSON.stringify(other);
+    localStorage.setItem('sv-data', otherRaw);
+    /* A is pressed: a tab click is `settings.view = …; save(); render()`. */
+    W.svGet().settings.view = 'rolling';
+    W.save();
+    await wait(100);
+    eq(JSON.parse(localStorage.getItem('sv-data')).sprints.length, 2, 'B’s sprint is still in storage');
+    eq(localStorage.getItem('sv-data'), otherRaw, 'byte for byte — A wrote nothing');
+    eq(W.svGet().sprints.length, 2, 'and A is showing B’s board now');
+    const said = W.document.getElementById('toast').textContent;
+    ok(/another tab or window/.test(said) && /not saved/.test(said), 'A says what happened, and what did not land', said);
+    /* From here A is current, and saves as it always did. */
+    W.svGet().settings.view = 'history';
+    W.save();
+    eq(JSON.parse(localStorage.getItem('sv-data')).settings.view, 'history', 'the next press is saved');
+    eq(JSON.parse(localStorage.getItem('sv-data')).sprints.length, 2, 'on top of B’s board');
+  } finally {
+    f.remove();
+    if (beforeData === null) localStorage.removeItem('sv-data'); else localStorage.setItem('sv-data', beforeData);
+    if (beforePin === null) localStorage.removeItem('sv-pin'); else localStorage.setItem('sv-pin', beforePin);
+  }
+});
+t('an idle copy listens for the other window, but never from inside a frame', () => {
+  /* The listener cannot be driven here: the suite's frames share this origin's
+     storage with frames that plant fixtures in it, which is exactly why it is
+     top-level only. Pinned as source, with the rule beside it. */
+  const src = appCode();
+  ok(/if \(window\.top === window\.self\) addEventListener\('storage'/.test(src), 'a storage listener, top-level windows only');
+  ok(/dialog\[open\]'\)\) return;\s*let there/.test(src), 'that leaves an open window’s draft alone');
+  ok(typeof w.adoptOtherCopy === 'function', 'and both halves go through adoptOtherCopy()');
+});
 t('“Skip to content” in a shared view stays in the shared view', async () => {
   /* It was a bare href="#maincontent": the share fragment was replaced, the
      hashchange handler read "no longer shared" and RELOADED — onto the reader's own
