@@ -2945,6 +2945,22 @@ Each bullet below is one commit.
   counting it like any other sprint, which moves those figures." A PI with no sprint 6 reads as
   before. Same commit: the JS overwrote the markup's Title Case "Delete the Sprints Too" with
   "Delete the sprints too", beside "Keep the Sprints".
+- **Save Sprint, Delete Sprint, Save Adjustment and Remove Adjustment land the keyboard
+  (2026-09-18).** All four ran `dialog.close(); render();` — the close returns the focus to
+  `#editSprintBtn`, a `.rowbtn` or `#adjustBtn`, and the render destroys that node: the
+  2026-09-07 Targets/BV fault, in the windows that did not get its fix. `openAdjust()` takes
+  `focusOrigin()` and lands with `landFocus(from, 'adjustBtn')`. The sprint form can be opened
+  from a table ROW, whose button has no id, so `rowFocusOrigin()` adds `{table, num, id, index}`
+  (the row identifies its sprint by `data-num` on `#piTable` and `data-id` on `#rollTable` /
+  `#histTable`) and `landRowFocus(from, 'editSprintBtn')` re-finds the row for the same sprint,
+  else the row now at that position (the last, if it was last) — which is where Delete Sprint
+  lands — else it IS `landFocus()`. Delete's landing sits AFTER `undoableToast()`, because that
+  is what closes and renders. Cancel & Undo Save lands too (the auto-save and its undo both
+  render under the open form), and a best-effort `close` listener covers Escape/backdrop after
+  an auto-save — best-effort because that event does not reliably arrive (the Paste from Jira
+  bullets), which is why the buttons land for themselves; it carries the `bvDialog` open check.
+  **A mouse click on a row's cells (not its button) has no origin row** and falls through to
+  the fallback id, which only the Sprint view has — a pointer user loses nothing by it.
 
 
 ### The Forecast Card, Dates and the Demo

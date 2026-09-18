@@ -11384,6 +11384,46 @@ function landFocus(from, fallbackId) {
   if (el && el.isConnected) el.focus({ preventScroll: true });
 }
 
+/* ── The same landing, for a window opened from a table ROW (2026-09-18 review) ──
+   Save Sprint, Delete Sprint, Save Adjustment and Remove Adjustment all run
+   `dialog.close(); render();` — close() hands the focus back to the button that
+   opened the window and render() then destroys that button, so the keyboard fell
+   to <body>: the 2026-09-07 fault above, in the windows that did not get its fix.
+   `#editSprintBtn` and `#adjustBtn` have ids and land through landFocus(). A row
+   button has none — the row identifies its sprint instead (`data-num` on the Team
+   PI table, `data-id` on Rolling 5 and History) — so the origin also remembers the
+   table, the row's key and its position, and the landing re-finds the row for the
+   same sprint, or, when that row is gone (the sprint was deleted, or left the
+   window), the row now in its place, the last one if it was last. With no row to
+   find it is landFocus() exactly. */
+function rowFocusOrigin() {
+  const from = focusOrigin();
+  const a = document.activeElement;
+  const tr = a && a.closest ? a.closest('tr') : null;
+  const table = tr && viewsEl.contains(tr) ? tr.closest('table') : null;
+  if (table && table.id && table.tBodies[0]) {
+    from.row = { table: table.id, num: tr.dataset.num || '', id: tr.dataset.id || '',
+      index: [...table.tBodies[0].rows].indexOf(tr) };
+  }
+  return from;
+}
+function landRowFocus(from, fallbackId) {
+  const r = from && from.row;
+  const table = r ? document.getElementById(r.table) : null;
+  let btn = null;
+  if (table && viewsEl.contains(table) && table.tBodies[0]) {
+    const rows = [...table.tBodies[0].rows];
+    const tr = rows.find(x => (r.id && x.dataset.id === r.id) || (r.num && x.dataset.num === r.num))
+      || rows[Math.max(0, Math.min(r.index, rows.length - 1))];
+    btn = tr ? tr.querySelector('.rowbtn') : null;
+  }
+  if (!btn) { landFocus(from, fallbackId); return; }
+  /* The same "survived" test as landFocus, for the same reason. */
+  const a = document.activeElement;
+  if (a && a !== document.body && a.isConnected && a.getClientRects().length) return;
+  btn.focus({ preventScroll: true });
+}
+
 function openModal(dlg) {
   dlg.showModal();
   if (!window.matchMedia('(pointer: coarse)').matches) return;
@@ -11740,7 +11780,8 @@ function fillSprintNumbers(teamId, piId, chosen) {
 function openSprint(teamId, piId, sprintNumber) {
   piId = piKey(piId);
   const existing = findSprint(teamId, piId, sprintNumber);
-  editing = { teamId, piId, sprintNumber, id: existing ? existing.id : null };
+  /* `from`: what had the keyboard when the form opened — see landRowFocus. */
+  editing = { teamId, piId, sprintNumber, id: existing ? existing.id : null, from: rowFocusOrigin() };
 
   const pi = piId ? piById(piId) : null;
   F('sprintDialogTitle').textContent =
@@ -12447,7 +12488,18 @@ function autoSaveJiraNumbers() {
 F('sprintCancelBtn').onclick = () => {
   if (pendingJiraSave) revertJiraSave();
   sprintDialog.close();
+  /* Both the auto-save and its undo render while the form is up, so the button the
+     close returns to may be a detached node here too. A no-op when it is not. */
+  landRowFocus(editing && editing.from, 'editSprintBtn');
 };
+/* Escape and a backdrop click keep an auto-save, which also rendered under the open
+   form. Best effort only — this event is a queued task that does not always arrive
+   (see above), which is why the three buttons land for themselves; and the open
+   check is the bvDialog one: a late event must not act for the NEXT form. */
+sprintDialog.addEventListener('close', () => {
+  if (sprintDialog.open) return;
+  landRowFocus(editing && editing.from, 'editSprintBtn');
+});
 
 F('f_excluded').onchange = syncExcludeReason;
 
@@ -12464,7 +12516,7 @@ function openAdjust(teamId, includeSix) {
   const { piId, sprintNumber } = t.slot;
   /* The window is snapshotted so the live preview can recompute the mean from the
      scale boxes without re-reading state — the boxes ARE the draft state until Save. */
-  adjusting = { teamId, piId, sprintNumber,
+  adjusting = { teamId, piId, sprintNumber, from: focusOrigin(),   // see landFocus
     window: rollingSprints(teamId, includeSix).map(sp => ({
       id: sp.id, label: sprintLabel(sp), done: metrics(sp).committedCompleted,
       scale: typeof sp.capacityScale === 'number' ? sp.capacityScale : 100 })) };
@@ -12615,6 +12667,7 @@ F('adjustSaveBtn').onclick = () => {
   save();
   adjustDialog.close();
   render();
+  landFocus(adjusting.from, 'adjustBtn');   // the render rebuilt the button the close returned to (2026-09-18)
   toast(untouched ? 'Adjustment removed' : 'Capacity adjusted');
 };
 
@@ -12637,6 +12690,7 @@ F('adjustRemoveBtn').onclick = () => {
   save();
   adjustDialog.close();
   render();
+  landFocus(adjusting.from, 'adjustBtn');   // as Save Adjustment
   toast('Adjustment removed');
 };
 
@@ -12818,6 +12872,9 @@ F('sprintSaveBtn').onclick = () => {
   clearPendingJiraSave();
   sprintDialog.close();
   render();
+  /* The close handed the focus to the button that opened the form and the render
+     threw that button away (2026-09-18) — see landRowFocus. */
+  landRowFocus(editing && editing.from, 'editSprintBtn');
   toast('Sprint saved');
 };
 
@@ -12832,6 +12889,9 @@ F('sprintDeleteBtn').onclick = () => {
   clearPendingJiraSave();                  // deleting is the intent; nothing to put back
   undoableToast(() => { state.sprints = state.sprints.filter(s => s.id !== editing.id); },
     `${name} deleted`, () => sprintDialog.close());
+  /* undoableToast() has closed the form and rendered by now. The row is gone with
+     the sprint, so from a table this lands on the row that took its place. */
+  landRowFocus(editing && editing.from, 'editSprintBtn');
 };
 
 /* ═════════════════════════ Teams & PIs management ═════════════════════════ */

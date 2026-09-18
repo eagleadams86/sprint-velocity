@@ -2359,3 +2359,9 @@ best-practice rules, in all four themes, with data loaded, on every tab and in e
 (last run 2026-09-05). The things axe cannot see are checked by hand the same day: a Tab
 through every view reading the focus ring, every window opened from the keyboard and closed
 with Esc, hover colours, a 320px-wide window, widened text spacing and reduced motion.
+
+**A window that saves puts the keyboard back where it was.** Saving redraws the page, which
+throws away the button the window was opened from — so after Save Sprint, Delete Sprint, Save
+Adjustment and Remove Adjustment the focus lands on the redrawn copy of that button (from a
+table row: the row for the same sprint, or the row that took a deleted sprint's place) rather
+than falling off the page. Until 2026-09-18 only the Business Value and Targets windows did.

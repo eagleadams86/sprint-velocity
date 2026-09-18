@@ -10249,6 +10249,97 @@ t('Keep the Sprints does not promise untouched figures when a sprint 6 would sto
   });
 });
 
+/* `close(); render();` — the close hands the focus to the button that opened the
+   window and the render destroys that button. Four buttons, two windows, and a row
+   button has no id to be re-found by. */
+const tick = () => new Promise((r) => setTimeout(r, 0));
+const focusName = (a) => (a ? (a.id || a.className || a.tagName) : 'nothing');
+async function sixFrame(tag, fn) {
+  /* Six dated-free finished sprints: enough for a rolling window and a PI table. */
+  await formFrame(tag, formFixture([1, 2, 3, 4, 5, 6].map((n) => ({ sprintNumber: n }))), async (W, D, st) => {
+    W.toast = () => {};
+    const show = async (view, num) => {
+      st.settings.view = view;
+      if (num) st.settings.activeSprintNum = num;
+      W.render();
+      await wait(60);
+    };
+    await fn(W, D, st, show);
+  });
+}
+
+t('Save Sprint and Delete Sprint leave the keyboard on the control that opened the form', async () => {
+  await sixFrame('b6sprint', async (W, D, st, show) => {
+    const save = async () => { D.getElementById('sprintSaveBtn').click(); await tick(); await wait(30); };
+
+    await show('sprint', 3);
+    let btn = D.getElementById('editSprintBtn');
+    ok(btn, 'the Sprint view has its Edit Sprint button');
+    btn.focus(); btn.click(); await wait(30);
+    ok(D.getElementById('sprintDialog').open, 'the form opened from it');
+    await save();
+    ok(D.getElementById('editSprintBtn') !== btn, 'the save re-rendered the view, so that button is a new node');
+    ok(D.activeElement === D.getElementById('editSprintBtn'),
+       'and the keyboard is on the CURRENT Edit Sprint button, not <body>', focusName(D.activeElement));
+
+    await show('pi');
+    const rowBtn = (n) => D.querySelector(`#piTable tr[data-num="${n}"] .rowbtn`);
+    ok(rowBtn(2), 'the Team PI table has a row button for sprint 2');
+    rowBtn(2).focus(); rowBtn(2).click(); await wait(30);
+    eq(D.getElementById('f_num').value, '2', 'the form opened on sprint 2 from its row');
+    await save();
+    ok(D.activeElement === rowBtn(2),
+       'from a row — which has no id — the keyboard is back on the same sprint’s row button', focusName(D.activeElement));
+
+    /* Delete: the row goes with the sprint, so the row now in its place takes it. */
+    rowBtn(2).focus(); rowBtn(2).click(); await wait(30);
+    D.getElementById('sprintDeleteBtn').click();
+    await tick(); await wait(30);
+    eq(st.sprints.some(x => x.sprintNumber === 2), false, 'sprint 2 is deleted');
+    ok(D.activeElement === rowBtn(2),
+       'and the keyboard is on the row in its place (the empty slot’s Add button)', focusName(D.activeElement));
+
+    await show('rolling');
+    const rolls = () => [...D.querySelectorAll('#rollTable tbody .rowbtn')];
+    ok(rolls().length > 1, 'the Rolling 5 table has row buttons');
+    const last = rolls().length - 1;
+    const label = rolls()[last].textContent;
+    rolls()[last].focus(); rolls()[last].click(); await wait(30);
+    D.getElementById('sprintDeleteBtn').click();
+    await tick(); await wait(30);
+    const a = D.activeElement;
+    ok(a && a.classList.contains('rowbtn') && D.getElementById('rollTable').contains(a),
+       'deleting from the last Rolling 5 row lands on a row of that table', focusName(a));
+    ok(a && a.textContent !== label, 'a different sprint’s — the deleted one has no row', a && a.textContent);
+  });
+});
+
+t('Save Adjustment and Remove Adjustment leave the keyboard on Adjust Capacity', async () => {
+  await sixFrame('b6adjust', async (W, D, st, show) => {
+    await show('rolling');
+    const open = async () => {
+      const b = D.getElementById('adjustBtn');
+      ok(b, 'the capacity card has its Adjust Capacity button');
+      b.focus(); b.click(); await wait(30);
+      ok(D.getElementById('adjustDialog').open, 'the window opened from it');
+      return b;
+    };
+    let was = await open();
+    const pct = D.getElementById('a_pct');
+    pct.value = '80'; fire(W, pct, 'input');
+    D.getElementById('adjustSaveBtn').click();
+    await tick(); await wait(30);
+    ok(D.getElementById('adjustBtn') !== was, 'Save Adjustment re-rendered the card');
+    ok(D.activeElement === D.getElementById('adjustBtn'),
+       'and the keyboard is on the current Adjust Capacity button, not <body>', focusName(D.activeElement));
+    was = await open();
+    D.getElementById('adjustRemoveBtn').click();
+    await tick(); await wait(30);
+    ok(D.activeElement === D.getElementById('adjustBtn'),
+       'Remove Adjustment too', focusName(D.activeElement));
+  });
+});
+
 /* ═══════════════════ 2026-09-18 review — block C ═══════════════════════════
    One fix per commit, each test proven red against the commit before it. Tests
    for this block go DIRECTLY under its group() line and above the next banner,
