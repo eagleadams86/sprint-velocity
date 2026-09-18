@@ -10339,7 +10339,7 @@ t('Save Adjustment and Remove Adjustment leave the keyboard on Adjust Capacity',
     ok(D.getElementById('adjustBtn') !== was, 'Save Adjustment re-rendered the card');
     ok(D.activeElement === D.getElementById('adjustBtn'),
        'and the keyboard is on the current Adjust Capacity button, not <body>', focusName(D.activeElement));
-    was = await open();
+    await open();
     D.getElementById('adjustRemoveBtn').click();
     await tick(); await wait(30);
     ok(D.activeElement === D.getElementById('adjustBtn'),
