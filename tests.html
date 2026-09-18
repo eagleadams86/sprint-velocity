@@ -106,7 +106,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 528;
+const EXPECTED = 529;
 
 /* ── THE SUITE LEAVES STORAGE EXACTLY AS IT FOUND IT (2026-09-15 review) ──────
    The page header says "Read-only: nothing is saved", and it was not true: the
@@ -5400,6 +5400,42 @@ t('a team that runs no PIs gets forecast dates between sprints too (2026-09-18 r
     eq(f.piId, null, 'still no PI to fit inside');
   });
   adjust();
+});
+t('a sprint saved ahead as Planned is the one the capacity card plans, not the slot after it (2026-09-18 review)', () => {
+  /* S1–S4 finished; S5 saved at planning with 22 committed and 50% leave recorded
+     against it. The target used to be "the last record + 1" = S6: titled for the IP
+     sprint, the leave ignored, and Adjust Capacity aimed at the wrong slot — until
+     S5's start date arrived and it flipped back by itself. */
+  const planned = (n, committed) => ({ id: 's' + n, teamId: 't1', piId: 'p1', sprintNumber: n,
+    status: 'planned', committed, committedCompleted: 0, totalCompleted: 0, added: 0,
+    removed: 0, carriedIn: 0, carriedOut: 0, addedThenRemoved: 0 });
+  const fx = capacityFixture({ plans: [{ id: 'pl1', teamId: 't1', piId: 'p1', sprintNumber: 5,
+    availability: 50, reason: 'leave' }] });
+  fx.sprints.push(planned(5, 22));
+  withState(fx, () => {
+    const slot = w.targetSprintSlot('t1');
+    eq([slot.piId, slot.sprintNumber, !!slot.planned], ['p1', 5, true], 'aimed at the planned S5');
+    eq(slot.last.sprintNumber, 4, 'and the carryover still comes from the last FINISHED sprint');
+    const tg = w.nextSprintTarget('t1', false);
+    eq([tg.availability, tg.recommended], [50, 12.5], 'S5’s own leave is the one in force');
+    eq([tg.committedAlready, tg.inFlight, tg.plannedAhead], [22, false, true]);
+    const html = w.targetCapacityCard(w.svGet().teams[0], false);
+    ok(/Target Capacity for PI 1 · S5/.test(html), 'the card is titled for S5', html.slice(0, 200));
+    ok(html.includes('◴ Planned') && !html.includes('◐ In progress'), 'badged Planned, not In progress');
+    ok(html.includes('Actually committed'), 'and its 22 is compared with the suggestion');
+  });
+  /* Two saved ahead: the FIRST is the one being planned. */
+  const two = capacityFixture();
+  two.sprints.push(planned(5, 22), planned(6, 0));
+  withState(two, () => eq(w.targetSprintSlot('t1').sprintNumber, 5));
+  /* An OLD sprint hand-set to planned — the way to keep one out of the averages
+     before `excluded` existed — must not capture the card. */
+  const old = capacityFixture();
+  old.sprints[1].status = 'planned';
+  withState(old, () => {
+    const slot = w.targetSprintSlot('t1');
+    eq([slot.sprintNumber, !!slot.planned, slot.sprint], [5, false, null], 'still the next empty slot');
+  });
 });
 t('both together, and the answer names the scope it actually used', () => {
   withState(capacityFixture(), () => {

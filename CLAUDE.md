@@ -2764,3 +2764,17 @@ the figures.** One fix per commit, each with a test proven red against the commi
   that sprint's own start date) and lost them the day it ended: "about 4 weeks" with no "lands
   around…". `cadenceDates()` already refuses to project across the two tracks (`sameBand`), so
   the guard is simply gone. EXPECTED 527 → 528.
+- **A sprint saved ahead as Planned is the one being planned (2026-09-18, found by two reviewers
+  independently).** `targetSprintSlot()` aimed at the running sprint, else "the last record + 1" —
+  and a sprint recorded at planning, before its start date, IS the last record. On the weekend
+  before S5 the card was titled S6 (with the IP-sprint warning), `availabilityFor()` ignored 50%
+  leave recorded against S5, Adjust Capacity opened on S6, the forecast started a slot late — and
+  all of it flipped back by itself on Monday. It now aims at the first `planned` sprint AFTER the
+  last counted one, returned as `sprint` with `planned: true`; `nextSprintTarget()` keeps
+  `inFlight` for a running sprint only and adds `plannedAhead`, and the card badges *◴ Planned*.
+  The commitment comparison ("Actually committed 22 — N more than the suggestion") applies to it
+  as it does to a running sprint. **"After the last counted one" is load-bearing**: hand-setting
+  an old sprint to planned was the way to keep it out of the averages before `excluded`, and
+  those records must not capture the card. The `blankState()` comment about a placeholder planned
+  sprint moving the projection was written about the OLD rule; the projection now lands ON it.
+  EXPECTED 528 → 529.

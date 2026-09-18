@@ -1191,7 +1191,10 @@ how much **new work** that leaves to pull off the backlog, and — see
 [Two figures, not one](#two-figures-not-one) below — a second commitment for a sprint that
 has to hold. When the sprint it's aiming at is already
 running and has a commitment recorded, it swaps the new-work figure for a comparison
-against what the team actually signed up for — there's still time to descope. A running
+against what the team actually signed up for — there's still time to descope. **A sprint you
+saved ahead of its start date** (recorded at planning, so it reads *Planned*) is aimed at the
+same way, badged *◴ Planned*: it is the sprint being planned, so its leave, its Adjust Capacity
+entry and its commitment are the ones the card reads — not the slot after it. A running
 sprint whose commitment hasn't been entered yet keeps the forecast, since 0 committed is
 an unanswered question rather than a small commitment. Compare Teams' **Next sprint target**
 column and its total use the adjusted figures, and mark an adjusted team with a ⚑. It warns you when there are fewer than
