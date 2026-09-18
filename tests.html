@@ -9744,6 +9744,27 @@ t('a restored file cannot park text on the share-meta keys', () => {
   eq([link.v, link.allTeams, link.label], [4, true, 'Team One']);
   eq(w.sanitizeIds(w.coerceShape({ allTeams: false, teams: [], sprints: [] })).allTeams, false, 'a no is a value');
 });
+t('a share link’s label names whole teams and counts the rest, inside the boundary’s 120', () => {
+  const ten = Array.from({ length: 10 }, (_, i) => 'Payments Squad ' + (i + 1));
+  const label = w.shareLabel ? w.shareLabel(ten) : ten.join(', ');
+  ok(label.length <= 120, 'it fits the pin, so the far end never cuts it', label.length);
+  ok(/ and \d+ more$/.test(label), 'and says how many it left unnamed', label);
+  const named = label.replace(/ and \d+ more$/, '').split(', ');
+  ok(named.every((n) => ten.includes(n)), 'every name in it is a WHOLE name', label);
+  eq(named.length + Number(label.match(/(\d+) more$/)[1]), 10, 'named plus counted is all of them');
+  eq(w.shareLabel(['Team One', 'Team Two']), 'Team One, Team Two', 'a short list is just the list');
+  eq(w.shareLabel(['x'.repeat(120), 'y']), '2 teams', 'and a name too long to fit beside the count is not cut either');
+  /* Through the real payload and the real boundary: nothing is repaired. */
+  withState({ teams: ten.map((name, i) => ({ id: 't' + i, name })), pis: [], sprints:
+      ten.map((_, i) => ({ id: 's' + i, teamId: 't' + i, piId: null, sprintNumber: 1, committed: 1,
+        committedCompleted: 1, totalCompleted: 1, added: 0, removed: 0, carriedIn: 0, carriedOut: 0,
+        addedThenRemoved: 0 })) }, () => {
+    const p = w.buildSharePayload({ teamIds: ten.map((_, i) => 't' + i), includeAllTeams: false });
+    const sent = p.label;
+    const got = w.sanitizeIds(w.coerceShape(JSON.parse(JSON.stringify(p))));
+    eq(got.label, sent, 'the label arrives as it was sent');
+  });
+});
 t('“Skip to content” in a shared view stays in the shared view', async () => {
   /* It was a bare href="#maincontent": the share fragment was replaced, the
      hashchange handler read "no longer shared" and RELOADED — onto the reader's own

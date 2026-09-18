@@ -13914,7 +13914,7 @@ function buildSharePayload({ teamIds, includeAllTeams, scope }) {
   return {
     v: SHARE_PAYLOAD_V,
     sharedAt: Date.now(),
-    label: teams.map(t => t.name).join(', '),
+    label: shareLabel(teams.map(t => t.name)),
     allTeams: !!includeAllTeams && teams.length > 1,
     teams,
     arts: state.arts.filter(a => usedArts.has(a.id)),
@@ -14271,6 +14271,23 @@ function shareScopeNote(scope, auto) {
 }
 
 /* "A", "A and B", "A, B and C" — a list a person would say out loud. */
+/* The banner's label: the teams in the link, by name — for as many names as FIT.
+   The boundary pins `label` to 120 characters (a crafted link must not ride an
+   unbounded string in on it), and this used to hand it every name joined up, so a
+   link the app built ITSELF arrived cut mid-word from about seven teams on:
+   "…Payments Squad 6, Payments Squ", no ellipsis, and the cut counted as a repair
+   of the sender's own link (2026-09-18). Whole names, then how many more. */
+function shareLabel(names) {
+  const MAX = 120;
+  const all = names.join(', ');
+  if (all.length <= MAX) return all;
+  for (let k = names.length - 1; k >= 1; k--) {
+    const s = names.slice(0, k).join(', ') + ' and ' + (names.length - k) + ' more';
+    if (s.length <= MAX) return s;
+  }
+  return names.length + ' teams';
+}
+
 function andList(names) {
   if (names.length < 3) return names.join(' and ');
   return names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];

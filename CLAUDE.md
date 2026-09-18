@@ -2843,3 +2843,9 @@ Each bullet below is one commit.
   would have turned the ReferenceError into a blank board with every test green (the suite calls
   `adoptState` long after boot). The list lives inside the function. **Anything `load()` can
   reach must be a function declaration or sit above line ~4013.**
+- **A share link's label fits the pin it has to cross (2026-09-18).** `buildSharePayload()` sent
+  every team name joined with commas; the boundary pins `label` to 120 characters; so a link the
+  app built ITSELF arrived cut mid-word from about seven teams on ("…Payments Squad 6, Payments
+  Squ"), with the cut counted as a repair of the sender's own link. `shareLabel(names)` names
+  whole teams for as long as they fit beside "and N more", and falls back to "N teams". The pin
+  stays where it is — it is there for a crafted link, and this is the sender fitting inside it.
