@@ -1765,7 +1765,10 @@ what would happen to it — new sprint, overwrites what is there, or a sentence 
 can't be used. Rows that can't be used are **skipped and named, never guessed at**: a figure
 that is present and isn't a number stops its row, because "n/a" in a committed column almost
 always means the columns are one out, and reading it as 0 would import a plausible, wrong
-history. A date has to be **on the calendar**, not just written `YYYY-MM-DD`: `2026-02-30`
+history. **The whole cell has to be the number**: a date sitting in the Committed column, `12abc`
+or `3 points` stops its row rather than importing as 2026, 12 or 3; `1,234` is a thousand, and
+`2,5` — a European two and a half — is refused rather than read as 25. The Sprint column takes a
+whole number. An end date before its start date stops the row too. A date has to be **on the calendar**, not just written `YYYY-MM-DD`: `2026-02-30`
 and `2026-13-01` stop their row the same way. The same test guards a Restore file and a share
 link, where a date that isn't one is emptied rather than kept.
 

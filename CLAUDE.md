@@ -3191,3 +3191,15 @@ Each bullet below is one commit.
   `targetProblems()` would refuse in the window is dropped whole at the boundary too — a file
   or a link must not store what the window cannot. This is [[number-null-is-zero-trap]] from
   League Night's first audit, met again.
+- **The importer reads a WHOLE cell as a number (2026-09-18).** `parseFloat()` reads a prefix,
+  so the importer's own guard — "'n/a' in a committed column almost always means the columns are
+  one out" — did not hold for the case it names: a Committed cell holding `2026-01-05` imported
+  as 2026 points, `12abc` as 12, `3 points` as 3, each under "1 row ready — New sprint"; and
+  stripping EVERY comma made `2,5` (a European two and a half) into 25. `importNumber(v)` takes
+  the whole trimmed cell, with a comma allowed only where it groups three digits. The sprint
+  number is a whole number in a whole cell (`3` or `3.0`): `Math.round(parseFloat('2.5'))` filed
+  the row under sprint 3 and then refused a second row's `3.4` as a duplicate of a slot neither
+  had named. Same commit: **an end date before the start date is refused**, as the sprint form
+  refuses it (`datesBackwards`, this review) — `teamCadence()` gives up on such a sprint, which
+  costs the whole team its date prefill and forecast dates. Every message points at the column
+  and quotes nothing (Charles's 2026-09-15 rule), and the test checks that too.

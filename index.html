@@ -13987,6 +13987,12 @@ function splitImportLine(line, delim) {
    it would write, and if it would write nothing, why not. Nothing here touches
    `state`; applying is a separate pass over what this returned, so what the
    preview shows and what Import does cannot come apart. */
+/* A pasted cell as a number, or NaN when the cell is anything else as well. */
+function importNumber(v) {
+  const t = String(v).trim();
+  return /^[+-]?(\d{1,3}(,\d{3})+|\d+)(\.\d+)?$/.test(t) ? Number(t.replace(/,/g, '')) : NaN;
+}
+
 function parseImport(text, fallbackTeamId) {
   /* Blank lines are skipped, but a row keeps the number of the line it sits on in
      the PASTE (2026-09-15): an error row is the only pointer back into the
@@ -14066,7 +14072,10 @@ function parseImport(text, fallbackTeamId) {
       }
     }
 
-    const n = Math.round(parseFloat(raw.sprintNumber));
+    /* A WHOLE number, in a whole cell (2026-09-18). `Math.round(parseFloat(…))`
+       read "2.5" as sprint 3 — and then refused a second row's "3.4" as a duplicate
+       of a slot neither row had named — and read "3rd of 6" as 3. */
+    const n = /^\d+(\.0+)?$/.test(String(raw.sprintNumber || '').trim()) ? parseInt(raw.sprintNumber, 10) : NaN;
     if (!Number.isFinite(n) || n < 1 || n > MAX_SPRINT_NO) {
       row.problem = `${at}the ${COL.sprintNumber} column needs a sprint number from 1 to ${MAX_SPRINT_NO}.`;
       rows.push(row); continue;
@@ -14086,7 +14095,14 @@ function parseImport(text, fallbackTeamId) {
     for (const key of IMPORT_NUMS) {
       const v = raw[key];
       if (v === undefined || v === '') { nums[key] = 0; continue; }
-      const f = parseFloat(String(v).replace(/,/g, ''));
+      /* The WHOLE cell has to be the number (2026-09-18). parseFloat reads a
+         PREFIX, so the guard above did not hold for the case it was written
+         for: with the columns one out, a Committed cell holding "2026-01-05"
+         imported as 2026 points, "12abc" as 12 and "3 points" as 3 — each shown as
+         "1 row ready". And stripping every comma made "2,5" — a European two and
+         a half — into 25. A comma is a thousands separator only where it groups
+         three digits; anything else is not a number this column can take. */
+      const f = importNumber(v);
       if (!Number.isFinite(f)) { bad = `${at}the ${COL[key]} column needs a number.`; break; }
       nums[key] = Math.max(0, Math.round(f));
     }
@@ -14104,6 +14120,14 @@ function parseImport(text, fallbackTeamId) {
       }
     }
     if (bad) { row.problem = bad; rows.push(row); continue; }
+    /* The sprint form refuses this pair (datesBackwards), and for a reason that
+       reaches the whole team: teamCadence() gives up on a sprint that ends before
+       it starts, which switches off date prefill, the scheduled rows and every
+       forecast date. The importer must not be the way round it. */
+    if (raw.startDate && raw.endDate && raw.endDate < raw.startDate) {
+      row.problem = `${at}the ${COL.endDate} column’s date is before the ${COL.startDate} column’s.`;
+      rows.push(row); continue;
+    }
 
     const slot = `${team.id}|${pi ? pi.id : ''}|${n}`;
     if (seen.has(slot)) {

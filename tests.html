@@ -11061,6 +11061,34 @@ t('"no value" in a file is not a zero: null, "" and false never become 0% or a t
     settings: { targets: { completionGreen: 90, completionRed: 75 } } }));
   eq(fine.settings.targets, { completionGreen: 90, completionRed: 75 }, 'a coherent set crosses untouched');
 });
+t('the importer reads a WHOLE cell as a number, a whole sprint number, and dates the right way round', () => {
+  /* parseFloat reads a prefix, so the "columns are one out" guard did not hold for
+     the case it was written for: a Committed cell holding a date imported as 2026
+     points, under "1 row ready". */
+  withState(importFixture(), () => {
+    const one = (cells, head) => w.parseImport((head || HEAD) + '\n' + cells, 't1').rows[0];
+    const refused = (cells, col, head) => {
+      const r = one(cells, head);
+      ok(r && r.problem && r.problem.includes(col), cells.replace(/\t/g, ' | ') + ' is refused, pointing at ' + col,
+        r && (r.problem || 'imported as ' + JSON.stringify(r.record && [r.record.sprintNumber, r.record.committed])));
+      ok(!/2026-01-05|12abc|points|2,5/.test(r.problem || ''), 'and the message never quotes the cell');
+    };
+    refused('Team One\tPI 1\t1\t2026-01-05\t18', 'Committed');
+    refused('Team One\tPI 1\t1\t12abc\t18', 'Committed');
+    refused('Team One\tPI 1\t1\t3 points\t3', 'Committed');
+    refused('Team One\tPI 1\t1\t2,5\t2', 'Committed');          // a European 2.5 must not become 25
+    refused('Team One\tPI 1\t2.5\t20\t18', 'Sprint');
+    refused('Team One\tPI 1\t3rd\t20\t18', 'Sprint');
+    /* What a spreadsheet really writes still lands. */
+    eq(one('Team One\tPI 1\t1\t1,234\t18').record.committed, 1234, 'a grouped thousand');
+    eq(one('Team One\tPI 1\t1\t 20 \t18.4').record.committedCompleted, 18, 'a decimal, rounded as before');
+    eq(one('Team One\tPI 1\t3.0\t20\t18').record.sprintNumber, 3, 'a whole number written 3.0');
+    /* And an end date before the start date is refused here as the form refuses it. */
+    const dated = 'team\tpi\tsprint\tcommitted\tstart\tend';
+    refused('Team One\tPI 1\t1\t20\t2026-03-16\t2026-03-02', 'End', dated);
+    ok(!one('Team One\tPI 1\t1\t20\t2026-03-02\t2026-03-13', dated).problem, 'the right way round lands');
+  });
+});
 t('“Skip to content” in a shared view stays in the shared view', async () => {
   /* It was a bare href="#maincontent": the share fragment was replaced, the
      hashchange handler read "no longer shared" and RELOADED — onto the reader's own
