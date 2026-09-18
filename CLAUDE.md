@@ -2880,3 +2880,15 @@ Each bullet below is one commit.
   - `let storedRaw` is declared ABOVE `let state = load()`: `load()` assigns it during script
     evaluation (the TDZ trap, again). Flow Metrics, Money Map and Golf save the same way — this
     belongs in each of them; not ported here.
+- **A refused storage write is said WITH the next toast, never replaced by it (2026-09-18).**
+  There is one toast, and nearly every caller raises its own right after `save()`. So when
+  `setItem` threw (a full quota — shared with every app on this origin — or private mode),
+  `save()`'s warning was replaced in the same breath: Restore said "Data imported" and the paste
+  importer "1 sprint imported" over a board that had not been stored; the warning surfaced only
+  on a later save that raised no toast of its own, such as a tab click. `save()` now sets
+  `save.blocked` and defers its own toast to the end of the task; `toast()` claims the flag and
+  appends "— ⚠️ but this browser is blocking storage…" to whatever it was asked to say. Chosen
+  over `save()` returning false: there are dozens of callers and the next one written would
+  forget to check. `saveBlockedMsg()` is a FUNCTION for the boot-time dead-zone reason. The test
+  boots its own frame: `inFrame` replaces `save`, and a function declaration's global property
+  cannot be deleted to get the real one back (strict mode throws).

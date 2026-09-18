@@ -9844,6 +9844,47 @@ t('an idle copy listens for the other window, but never from inside a frame', ()
   ok(/dialog\[open\]'\)\) return;\s*let there/.test(src), 'that leaves an open window’s draft alone');
   ok(typeof w.adoptOtherCopy === 'function', 'and both halves go through adoptOtherCopy()');
 });
+t('a refused storage write is said WITH the toast that follows it, never replaced by it', async () => {
+  /* Restore into a full quota said "Data imported" over a board that had not been
+     stored: save() raised its warning, and the caller's own toast replaced it in
+     the same breath. A real frame and the real save(), with the frame's
+     Storage.setItem made to throw for `sv-data` only. */
+  const beforePin = localStorage.getItem('sv-pin');
+  const f = document.createElement('iframe');
+  f.setAttribute('data-sv-tests', '');
+  f.setAttribute('aria-hidden', 'true');
+  f.style.cssText = 'position:absolute;left:-9999px;width:1280px;height:900px;border:0';
+  await new Promise((resolve) => { f.onload = resolve; f.src = 'index.html?quota=' + Date.now(); document.body.appendChild(f); });
+  await wait(300);
+  try {
+    const W = f.contentWindow, D = W.document;
+    const proto = W.Storage.prototype, realSet = proto.setItem;
+    proto.setItem = function (k, v) {
+      if (k === 'sv-data') throw new W.DOMException('full', 'QuotaExceededError');
+      return realSet.call(this, k, v);
+    };
+    try {
+      W.save();
+      W.toast('Data imported');
+      await wait(50);
+      const said = D.getElementById('toastText').textContent;
+      ok(/^Data imported/.test(said), 'the caller’s own news is still there', said);
+      ok(/blocking storage/.test(said), 'and so is the fact that it was not stored', said);
+      /* With nobody else toasting, the warning stands alone — as it always did. */
+      W.save();
+      await wait(50);
+      ok(/^⚠️ This browser is blocking storage/.test(D.getElementById('toastText').textContent),
+        'alone, it is the warning it always was', D.getElementById('toastText').textContent);
+      /* And a save that works says nothing extra. */
+      proto.setItem = realSet;
+      W.toast('Copied');
+      eq(D.getElementById('toastText').textContent, 'Copied');
+    } finally { proto.setItem = realSet; }
+  } finally {
+    f.remove();
+    if (beforePin === null) localStorage.removeItem('sv-pin'); else localStorage.setItem('sv-pin', beforePin);
+  }
+});
 t('“Skip to content” in a shared view stays in the shared view', async () => {
   /* It was a bare href="#maincontent": the share fragment was replaced, the
      hashchange handler read "no longer shared" and RELOADED — onto the reader's own

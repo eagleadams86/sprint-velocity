@@ -4117,8 +4117,20 @@ function save() {
     storedRaw = localStorage.getItem(STORAGE_KEY);
   } catch (e) {
     console.warn('Could not write saved data', e);
-    toast('⚠️ This browser is blocking storage (full, or private mode?) — changes may be lost when the tab closes');
+    /* There is only ever ONE toast, and nearly every caller raises its own right
+       after save() — "Data imported", "1 sprint imported", "Put back" — which
+       REPLACED this warning in the same breath: a Restore into a full quota said
+       "Data imported" over a board that had not been stored (2026-09-18). So the
+       warning rides on whatever toast comes next (see toast()), and is raised
+       alone only if nothing claims it by the end of the task. */
+    save.blocked = true;
+    setTimeout(() => { if (save.blocked) { save.blocked = false; toast(saveBlockedMsg()); } }, 0);
   }
+}
+/* A function, not a const: toast() and save() can both run before a const down
+   here would exist (the boot-time dead zone that has bitten this file twice). */
+function saveBlockedMsg() {
+  return '⚠️ This browser is blocking storage (full, or private mode?) — changes may be lost when the tab closes';
 }
 
 /* Another window's board, taken in place of this one's. load() is boot's own
@@ -6429,6 +6441,12 @@ function toast(msg, action) {
      markup: the toast is one element the whole page shares, and the window's
      own list already shows the row gone. One toast, never a queue, held or
      shown: a later call replaces a held one too. */
+  /* A write that was refused is said WITH whatever this toast was going to say,
+     never replaced by it — see save(). */
+  if (save.blocked) {
+    save.blocked = false;
+    if (msg !== saveBlockedMsg()) msg = msg + ' — ' + saveBlockedMsg().replace('⚠️ This', '⚠️ but this');
+  }
   toast._held = null;
   if (action && document.querySelector('dialog[open]')) {
     toast._held = { msg, action };
