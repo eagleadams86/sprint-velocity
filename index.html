@@ -6575,6 +6575,16 @@ function fsPx(step) {
   return v.endsWith('rem') ? parseFloat(v) * root : parseFloat(v);
 }
 
+/* How far up the two predictability charts reach before the data asks for more
+   (2026-09-18). It was a literal 120 — the DEFAULT "red above" — so with targets of
+   87–140% and red above 190% the bands were drawn in the right places on an axis
+   that stopped at 120: the green band cut short and the upper amber never on the
+   chart at all. The churn chart already follows its setting, for this reason (see
+   its comment). Never BELOW 120, so the chart at the default targets is the one
+   it has always been — hence no margin on top, which would have moved it. A
+   function declaration, so the suite can reach it. */
+function predAxisMax() { return Math.max(120, tgt().predOverRed); }
+
 function makeChart(canvasId, config) {
   const el = document.getElementById(canvasId);
   if (!el) return;
@@ -9870,7 +9880,7 @@ function renderPiTrendView() {
       <h2>Predictability by PI</h2>
       <p class="sub">Each PI's predictability against the ${tgt().predLow}–${tgt().predHigh}% band,
         with a dashed trend line through them. <strong>Both edges of the band matter</strong> —
-        a train climbing past 100% is committing to less than it can deliver, which is a
+        a train climbing past ${tgt().predHigh}% is committing to less than it can deliver, which is a
         different problem from missing, not a better one.</p>
       <div class="chartbox"><canvas id="trendChart" role="img"
         aria-label="PI predictability for each PI from ${esc(rows[0].pi.name)} to ${esc(latest.pi.name)}, against the ${tgt().predLow} to ${tgt().predHigh} percent band. Figures in the table below."></canvas></div>
@@ -9959,7 +9969,7 @@ function renderPiTrendView() {
         ] }
       },
       scales: { x: gridOpts(),
-        y: Object.assign(pctAxis('Predictability'), { suggestedMax: 120 }) }
+        y: Object.assign(pctAxis('Predictability'), { suggestedMax: predAxisMax() }) }
     })
   });
 }
@@ -10438,7 +10448,7 @@ function renderArtPiView() {
         /* suggestedMax, never max: a train that lands well above the band is the
            finding this chart exists to show, and clipping it off the top hides it. */
         scales: { x: gridOpts(),
-          y: Object.assign(pctAxis('Predictability'), { suggestedMax: 120 }) }
+          y: Object.assign(pctAxis('Predictability'), { suggestedMax: predAxisMax() }) }
       })
     });
   }

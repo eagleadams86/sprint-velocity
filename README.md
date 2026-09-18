@@ -294,8 +294,9 @@ view](#predictability-and-the-pi-by-team-view).
 
 **⚙ Targets** in the header opens the eight numbers above. Change one and the whole app
 follows at once: every ✓ / ! / ✕, every colour, every tile caption, the shaded bands on the
-instability chart, the dashed target line on two others, and the plain-English definition
-behind each ⓘ. There is no copy of a target anywhere that can disagree with the setting —
+instability chart, the dashed target line on two others, how far up the two predictability
+charts reach (so a wider band is never drawn off the top of its own chart), and the
+plain-English definition behind each ⓘ. There is no copy of a target anywhere that can disagree with the setting —
 that is why the ⓘ text is written when you open it rather than when the page loads.
 
 85% is what Charles's ART works to, and an SM handed this URL by another one has no reason to

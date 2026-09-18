@@ -2838,6 +2838,18 @@ worded for a number other than the one beside them. Each bullet below is one com
   sprint in this span deliver nothing… Where they fall… so they are added flat… not one of
   these": every clause turns on `f.lostSprints === 1`. One test each, reading the rendered
   text, singular and plural.
+- **The two predictability charts reach as far as the targets that are set (2026-09-18).** PI
+  Trend's and PI by Team's y axis had `suggestedMax: 120` — a copy of the DEFAULT `predOverRed` —
+  so with targets of 87–140% and red above 190% the bands were drawn in the right places on an
+  axis that stopped at 120: green cut short, the upper amber never on the chart. It is
+  `predAxisMax()` = `Math.max(120, tgt().predOverRed)` now, the churn chart's rule ("it follows
+  the setting, or raising the target would push the band off the top of its own chart"). **Never
+  below 120, and no margin on top, on purpose**: either would move the chart at the default
+  targets, which a test pins at 120. The sentence over PI Trend's chart said "climbing past 100%"
+  and reads `${tgt().predHigh}%`. The other "above 100%" sentences (business value window,
+  `piPredictability` help, Team PI) are about the ARITHMETIC — stretch value lifts delivered over
+  committed — not the band ceiling, and stay literal. A chart's options are read in a test with
+  `w.Chart.getChart('<canvas id>').options`.
 
 ### The Sprint Form and the Windows Round It
 

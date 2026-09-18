@@ -9843,6 +9843,40 @@ t('wording: one lost sprint on the forecast card "delivers nothing", and is an "
   }
 });
 
+t('the predictability charts reach as far as the targets that are set, and the words follow', () => {
+  /* Band 87–140%, red above 190%. The bands were drawn right and the axis stopped
+     at 120: the green band cut short, the upper amber never on the chart. */
+  const custom = { predUnderRed: 60, predLow: 87, predHigh: 140, predOverRed: 190 };
+  const axisMax = (id) => {
+    const c = w.Chart.getChart(id);
+    return c ? c.options.scales.y.suggestedMax : '(no ' + id + ')';
+  };
+  const bandTop = (id) => {
+    const c = w.Chart.getChart(id);
+    const bands = c && c.options.plugins.thresholdBands && c.options.plugins.thresholdBands.bands;
+    return bands ? Math.max.apply(null, bands.map(b => b.to)) : null;
+  };
+  withTargets(custom, () => {
+    reviewView('trend', (st, d) => {
+      eq(bandTop('trendChart'), 190, 'PI Trend draws its amber band up to the 190 that is set');
+      ok(axisMax('trendChart') >= 190, 'and the axis reaches it', axisMax('trendChart'));
+      const sub = reviewText(reviewCard(d, 'Predictability by PI').querySelector('.sub'));
+      ok(/climbing past 140%/.test(sub) && !/past 100%/.test(sub), 'the sentence names the ceiling that is set', sub);
+    });
+    reviewView('art', (st, d) => {
+      ok(axisMax('artPredChart') >= 190, 'PI by Team reaches it too', axisMax('artPredChart'));
+    });
+  });
+  /* At the defaults the charts are the ones they have always been. */
+  withTargets(null, () => {
+    reviewView('trend', () => eq(axisMax('trendChart'), 120, 'PI Trend at the defaults'));
+    reviewView('art', () => eq(axisMax('artPredChart'), 120, 'PI by Team at the defaults'));
+    /* A "red above" set BELOW 120 hides nothing, so the axis stays where it was. */
+  });
+  withTargets({ predHigh: 100, predOverRed: 105 }, () => eq(w.predAxisMax ? w.predAxisMax() : null, 120,
+    'and a lower "red above" never shrinks the chart'));
+});
+
 /* ═══════════════════ 2026-09-18 review — block B ═══════════════════════════
    One fix per commit, each test proven red against the commit before it. Tests
    for this block go DIRECTLY under its group() line and above the next banner,
