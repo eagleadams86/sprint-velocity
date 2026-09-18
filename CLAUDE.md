@@ -2737,3 +2737,24 @@ proven red against the commit before it.
   profile with a planted `sv-tablesort` and `sv-data` left both byte-identical. Don't run the
   suite while editing the app in another tab of the same browser: the restore puts back what
   was there when the suite started.
+
+## Fixes From the 2026-09-18 Review
+
+Charles asked for a bug check three days after the 2026-09-15 review, with one commit landed
+since. Five reviewers drove HEAD (`227113f`) headless from angles that review had not taken —
+using the app end to end from empty, every figure against a hand calculation, the data
+boundaries, UI state after destructive actions, and dates in seven timezones. **Timezones, DST
+and "today" came back clean (118 cases); the bugs were in forward planning and at the edges of
+the figures.** One fix per commit, each with a test proven red against the commit before it.
+- **A lost sprint never lands on the IP sprint (2026-09-18).** `forecast()` walked only the
+  DELIVERING sprints through `calendarSlots()` and added `lost` afterwards, on the reasoning that
+  a lost sprint "is a calendar slot already". It is a slot the team spends on something else —
+  never the IP sprint, which the card says "is stepped over separately and is not one of these".
+  From S5, one delivering sprint plus one lost read "2 sprints — about 4 weeks … lands around 25
+  Sept": the last day of S6. It is `calendarSlots(deliver + lost)` now, in `endOf` and both weeks
+  figures — three slots, six weeks, 9 Oct. With sprint 6 counted, and on the PI-less track,
+  `calendarSlots(n)` is `n` and nothing moves. `fast`/`slow`/`missesPi`/`fitsPi` were already
+  right (they count non-IP slots on both sides). **The older "moves the DATES" test never tested
+  dates**: its fixture set `cadenceStart`/`cadenceLength`, fields this app has never had, so it
+  always took its no-cadence branch. `datedCapacityFixture()` (four fortnightly sprints, all in
+  the past, next slot S5 = 31 Aug 2026) is the dated fixture to reuse. EXPECTED 526 → 527.

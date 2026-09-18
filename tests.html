@@ -106,7 +106,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 526;
+const EXPECTED = 527;
 
 /* ── THE SUITE LEAVES STORAGE EXACTLY AS IT FOUND IT (2026-09-15 review) ──────
    The page header says "Read-only: nothing is saved", and it was not true: the
@@ -5313,9 +5313,9 @@ t('sprints nobody delivers in are added FLAT to both ends', () => {
     eq(f.fast, 6, '4 delivering plus 2 that do not');
     eq(f.slow, 7, '5 plus the same 2');
     eq(f.lostSprints, 2);
-    /* Where they land cannot change the finish — a sprint that delivers nothing
-       contributes nothing and shifts everything after it by exactly one — which
-       is why they are added rather than dealt into the walk. */
+    /* Where they land cannot change the COUNT — a sprint that delivers nothing
+       contributes nothing and shifts everything after it by exactly one. The
+       DATE is another matter: see the dated test two below (2026-09-18). */
     adjust(undefined, undefined, 1);
     eq(w.forecast('t1', 100, false).fast, 5, 'one is one');
     adjust(undefined, undefined, 999);
@@ -5326,9 +5326,8 @@ t('sprints nobody delivers in are added FLAT to both ends', () => {
 });
 t('a lost sprint moves the DATES by a whole slot, not just the count', () => {
   /* The half that would go wrong quietly: the count is easy to add and the
-     calendar is where it has to actually land. The slot walk converts DELIVERING
-     sprints into calendar slots by stepping over IP sprints, so the lost ones
-     are added after it — they are calendar slots already. */
+     calendar is where it has to actually land. This fixture carries no dated
+     sprint, so it pins the no-cadence shape; the dated half is the next test. */
   const fx = capacityFixture();
   fx.teams = [{ id: 't1', name: 'Team One', cadenceStart: '2026-01-05', cadenceLength: 14 }];
   withState(fx, () => {
@@ -5346,6 +5345,41 @@ t('a lost sprint moves the DATES by a whole slot, not just the count', () => {
       eq(b.fastEnd, null);
       eq(b.fast - a.fast, 2, 'the count still moves by exactly two');
     }
+  });
+  adjust();
+});
+/* Four fortnightly Mon–Fri sprints, all long finished, so the slot being planned
+   is S5 (31 Aug – 11 Sep 2026) whatever day the suite runs. Mean 25, floor 20. */
+function datedCapacityFixture(extra) {
+  const fx = capacityFixture(extra);
+  const starts = ['2026-07-06', '2026-07-20', '2026-08-03', '2026-08-17'];
+  const ends = ['2026-07-17', '2026-07-31', '2026-08-14', '2026-08-28'];
+  fx.sprints.forEach((s, i) => { s.startDate = starts[i]; s.endDate = ends[i]; });
+  return fx;
+}
+t('a lost sprint never lands on the IP sprint: the dates step over it too (2026-09-18 review)', () => {
+  /* One delivering sprint plus one that delivers nothing, planned from S5. Neither
+     can be S6 — the card says the IP sprint "is stepped over separately and is not
+     one of these" — so the span is S5, S6 stepped over, next S1: three slots,
+     six weeks, ending Fri 9 Oct. The lost sprint used to be added AFTER the walk,
+     as a calendar slot already, which finished the work on 25 Sept: the last day
+     of the IP sprint itself. */
+  withState(datedCapacityFixture(), () => {
+    typed(); adjust(undefined, undefined, 1);
+    const f = w.forecast('t1', 20, false);
+    eq([f.fast, f.slow], [2, 2], 'one delivering sprint and one lost, at either rate');
+    eq(f.fastEnd, '2026-10-09', 'S5, the IP sprint stepped over, then S1');
+    eq(f.slowEnd, '2026-10-09');
+    eq([f.fastWeeks, f.slowWeeks], [6, 6], 'three slots of a fortnight');
+    /* With sprint 6 counted there is no IP sprint to step over, and two is two. */
+    const six = w.forecast('t1', 20, true);
+    eq(six.fastEnd, '2026-09-25', 'S5 then S6, both ordinary sprints');
+    eq(six.fastWeeks, 4);
+    /* And with nothing lost the walk is what it always was. */
+    adjust();
+    const plain = w.forecast('t1', 50, false);
+    eq(plain.fastEnd, '2026-10-09', '2 delivering sprints from S5 cross the IP sprint once');
+    eq(w.forecast('t1', 20, false).fastEnd, '2026-09-11', '1 sprint ends with S5');
   });
   adjust();
 });

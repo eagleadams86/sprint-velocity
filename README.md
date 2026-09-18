@@ -1319,10 +1319,13 @@ typed velocity and the backlog total sit above it and are a different control, a
 scoped to exactly what the block it lives in holds, which is also what its summary counts.
 
 **Lost sprints are added flat.** A sprint that delivers nothing contributes nothing and shifts
-everything after it by exactly one, so where it falls can't change the finish. They're kept
-separate from the delivery count all the way down, because the slot walk converts *delivering*
-sprints into calendar slots by stepping over IP sprints — a lost sprint is a calendar slot
-already. The dates move with it: two lost sprints on a fortnightly cadence is four more weeks.
+everything after it by exactly one, so where it falls can't change the count. They're kept
+separate from the delivery count all the way down, but the calendar walks them **together**: a
+lost sprint is an ordinary sprint spent on something else, never the IP sprint, so the dates
+step over an IP sprint for a lost sprint exactly as they do for a delivering one. (Until
+2026-09-18 they were added after the walk, and one delivering sprint plus one lost one from S5
+"finished" on the last day of S6.) Two lost sprints on a fortnightly cadence is four more weeks,
+plus a fortnight for each IP sprint the longer span now crosses.
 
 At their defaults both are an **exact no-op** — the figures this app has always given are the
 same figures. When either is on, the answer names the scope it actually used (*"100 points — 125

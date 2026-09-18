@@ -4392,10 +4392,13 @@ function forecast(teamId, points, includeSix) {
   /* ── Sprints nobody is delivering in ─────────────────────────────────────
      Added flat rather than dropped in at a chosen point: a sprint that delivers
      nothing contributes nothing and shifts everything after it by exactly one,
-     so WHERE it lands cannot change the finish. Kept separate from the delivery
-     count all the way down, because the calendar walk below converts DELIVERY
-     sprints into calendar slots by stepping over IP sprints, and these are
-     already calendar slots. */
+     so WHERE it lands cannot change the COUNT. It can change the DATE: a lost
+     sprint is an ordinary sprint the team spends on something else, never the IP
+     sprint — the card says the IP sprint "is stepped over separately and is not
+     one of these" — so the calendar walk below has to step over IP sprints for
+     these too. Until 2026-09-18 they were added after the walk, as though they
+     were calendar slots already, and one delivering sprint plus one lost one
+     from S5 "finished" on the last day of S6, the IP sprint itself. */
   const lost = forecastLostSprints();
   const fast = fastDeliver + lost;
   const slow = slowDeliver + lost;
@@ -4450,10 +4453,10 @@ function forecast(teamId, points, includeSix) {
           ? c.anchor.startDate : null);
     if (iso) startDay = dayNum(iso);
   }
-  /* `deliver` is the delivering sprints, which is what the slot walk converts;
-     the lost ones are calendar slots already and are added after it. */
+  /* `deliver` is the delivering sprints; the lost ones are walked WITH them,
+     because neither kind can be the IP sprint (2026-09-18). */
   const endOf = (deliver) => (startDay === null || beyondHorizon ? null
-    : isoDay(startDay + (calendarSlots(deliver) + lost - 1) * c.stride + c.length));
+    : isoDay(startDay + (calendarSlots(deliver + lost) - 1) * c.stride + c.length));
 
   /* How much of the current PI is left to deliver in, so the card can answer the
      question this one always turns into: does it land before the PI ends? */
@@ -4480,9 +4483,9 @@ function forecast(teamId, points, includeSix) {
     reliableMet: t ? t.reliableMet : null,
     /* Whole weeks, from the team's own stride rather than an assumed fortnight. */
     fastWeeks: c && !beyondHorizon
-      ? Math.round((calendarSlots(fastDeliver) + lost) * c.stride / 7) : null,
+      ? Math.round(calendarSlots(fastDeliver + lost) * c.stride / 7) : null,
     slowWeeks: c && !beyondHorizon
-      ? Math.round((calendarSlots(slowDeliver) + lost) * c.stride / 7) : null,
+      ? Math.round(calendarSlots(slowDeliver + lost) * c.stride / 7) : null,
     fastEnd: endOf(fastDeliver),
     slowEnd: endOf(slowDeliver),
     slotsLeftInPi,
