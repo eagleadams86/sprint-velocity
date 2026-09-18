@@ -10762,6 +10762,64 @@ t('a date that cannot be parsed can never make the forecast throw (2026-09-18 re
   eq(box.value, '', 'and month 00');
   box.value = before;
 });
+t('the demo’s live sprint is 14 days long whenever it is loaded — near midnight, across a clock change (2026-09-18 review)', async () => {
+  /* loadSample() counted its dates in multiples of 86,400,000 ms from the current
+     instant, and a day across a clock change is 23 or 25 hours: at 00:30 on 27 Oct
+     2026 in New York the live sprint came out 22 Oct – 3 Nov, pace "6/13"; at 23:30
+     on 24 Mar in London, "6/15".
+
+     The suite runs in whatever timezone the machine has, so this finds THAT zone's
+     own clock changes in 2026 and loads the demo at 00:30 and 23:30 three days
+     before each, with the frame's `Date` stubbed to that instant — `new Date()` and
+     `Date.now()` only; a Date built from arguments is the real one. In a zone with
+     no clock changes the loop has nothing to find, which is why the source shape is
+     pinned underneath as well. */
+  const noon = (y, m, d) => new Date(y, m, d, 12, 0, 0, 0);
+  const changes = [];
+  for (let i = 0; i < 365; i++) {
+    if (noon(2026, 0, 1 + i).getTimezoneOffset() !== noon(2026, 0, 2 + i).getTimezoneOffset())
+      changes.push(i + 1);                       /* day-of-year index of the day the clocks change */
+  }
+  const moments = [new Date(2026, 5, 10, 12, 0, 0, 0)];
+  changes.forEach((i) => {
+    moments.push(new Date(2026, 0, 1 + i - 3, 0, 30, 0, 0), new Date(2026, 0, 1 + i - 3, 23, 30, 0, 0));
+  });
+  const dn = (iso) => Math.round(Date.parse(iso + 'T00:00:00Z') / 86400000);
+  const local = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-'
+    + String(d.getDate()).padStart(2, '0');
+  await inFrame('demodst', { sample: false, blank: true }, async (W) => {
+    const Real = W.Date;
+    for (const at of moments) {
+      const ms = at.getTime();
+      const st = W.svGet();
+      ['teams', 'arts', 'pis', 'sprints', 'plans', 'objectives'].forEach((k) => { st[k] = []; });
+      W.Date = class extends Real {
+        constructor(...a) { if (a.length) super(...a); else super(ms); }
+        static now() { return ms; }
+      };
+      let live, pace;
+      try {
+        W.loadSample();
+        const team = st.teams.find((x) => x.name === 'Team Live Sprint');
+        live = st.sprints.filter((x) => x.teamId === team.id && x.startDate)
+          .sort((a, b) => a.sprintNumber - b.sprintNumber);
+        pace = W.sprintPace(live[live.length - 1]);
+      } finally { W.Date = Real; }
+      const when = 'loaded at ' + local(at) + ' ' + String(at.getHours()).padStart(2, '0') + ':30 local';
+      eq(live.length, 4, 'four dated sprints');
+      eq(live.map((x) => dn(x.endDate) - dn(x.startDate)), [13, 13, 13, 13],
+        when + ': every dated sprint runs 14 days, first to last', live.map((x) => x.startDate + '..' + x.endDate).join(' '));
+      eq(live.slice(1).map((x, i) => dn(x.startDate) - dn(live[i].startDate)), [14, 14, 14],
+        when + ': and they start a fortnight apart');
+      eq(dn(local(at)) - dn(live[3].startDate), 5, when + ': the live one started five days before the day it was loaded');
+      eq(pace && [pace.dayOf, pace.totalDays], [6, 14], when + ': so the pace reads day 6 of 14');
+    }
+  });
+  /* The shape, for a machine whose zone never changes its clocks. */
+  ok(!/Date\.now\(\)\s*\+\s*offset\s*\*/.test(APP_SRC),
+    'the demo’s dates are not counted in milliseconds from now');
+  ok(/d\.setDate\(d\.getDate\(\) \+ offset\)/.test(APP_SRC), 'they are counted on the local calendar');
+});
 
 /* ═══════════════════ 2026-09-18 review — block D ═══════════════════════════
    One fix per commit, each test proven red against the commit before it. Tests

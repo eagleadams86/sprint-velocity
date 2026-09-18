@@ -815,7 +815,9 @@ the moment you reach it rather than an empty box — it holds no stored data, so
 costs nothing and it lands differently on each team.
 
 The running sprint's dates are counted from the day you load it, not baked in, so the
-demo is still live whenever it's opened rather than stale from the day it was written.
+demo is still live whenever it's opened rather than stale from the day it was written. They
+are counted in **calendar days**, so it is "day 6 of 14" whenever you load it — including
+half past midnight in a week the clocks change.
 Everything else is dateless on purpose — a sprint with no dates resolves as complete,
 which is what keeps the other five teams fully in the averages.
 

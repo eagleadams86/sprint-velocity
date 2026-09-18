@@ -15147,10 +15147,20 @@ function loadSample() {
      in-flight sprint is the one state you cannot fake without real dates, and
      they are counted from today so the demo is still live whenever it is opened,
      not stale from the day this was written. */
-  const day = 86400000;
+  /* Counted on the LOCAL CALENDAR, never in milliseconds (2026-09-18). This used
+     to add multiples of 86,400,000 ms to the current instant, and a day is not
+     always that long: across a clock change it is 23 or 25 hours. Loaded at 00:30
+     on 27 Oct 2026 in New York, "eight days from now" was 23:30 on 3 Nov, so the
+     live sprint ran 22 Oct – 3 Nov and its pace read "6/13"; at 23:30 on 24 Mar in
+     London it came out "6/15". `setDate()` moves by calendar days whatever the
+     clocks do, and noon keeps the arithmetic well away from both the midnight it
+     is counting and the small hours a clock change happens in. */
   const iso = (offset) => {
-    const d = new Date(Date.now() + offset * day);
-    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    const d = new Date();
+    d.setHours(12, 0, 0, 0);
+    d.setDate(d.getDate() + offset);
+    const two = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
   };
   const dated = (startsIn) => ({ startDate: iso(startsIn), endDate: iso(startsIn + 13) });
 

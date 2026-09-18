@@ -3076,6 +3076,23 @@ impossible. Each bullet below is one commit.
   the sprint FORM, and an `<input type="date">` sanitises its own value — setting `2026-02-30`
   into it reads back `''` (asserted, not assumed). `teamCadence`/`cadenceDates` still call
   `isoDay` on stored dates unguarded; the boundary is what keeps a NaN from them.
+- **The demo's dates are counted on the local calendar, never in milliseconds (2026-09-18).**
+  `loadSample()`'s `iso()` added multiples of 86,400,000 ms to the current instant and then
+  shifted by that moment's offset, and a day across a clock change is 23 or 25 hours. New York,
+  27 Oct 2026 00:30: "eight days on" was 23:30 on 3 Nov, so S4 ran 22 Oct – 3 Nov and the pace
+  read "6/13"; London, 24 Mar 23:30: "6/15". Invisible by day, and only in the weeks round a
+  change. It is `d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + offset)` now, formatted from the
+  local year/month/day — noon keeps clear of both the midnight being counted and the small
+  hours a change happens in. `todayISO()` was not reusable: it takes no Date. **The test stubs
+  `W.Date` in a frame it boots** (no-argument `new Date()` and `Date.now()` only) rather than
+  only pinning the source, because the defect is arithmetic and a source pin proves a spelling:
+  it finds the MACHINE's own 2026 clock changes by scanning noon offsets, loads the demo at 00:30
+  and 23:30 three days before each, and asserts 14-day sprints a fortnight apart, S4 starting
+  five days before the stubbed day, and `sprintPace` reading 6 of 14. Playwright's
+  `timezoneId`/`page.clock` are not reachable from inside tests.html, so in a zone with no clock
+  changes the loop finds nothing — the source shape is pinned underneath for that machine. Proven
+  red in America/New_York; the reviewer's `t6-probes.mjs` confirms New York, London and Lord
+  Howe against the real thing.
 
 
 ### Import, Boundaries and the Rest
