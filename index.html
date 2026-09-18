@@ -8642,7 +8642,8 @@ function renderRollingView() {
       <p class="sub">Click any sprint to edit it.${
         excludedNames(team.id, includeSix)
           ? ` These are the sprints in the window — <strong>${excludedNames(team.id, includeSix)}</strong>,
-             so it isn't listed here. The gap in the sprint numbers is that, not missing data.`
+             so ${excludedInRange(team.id, includeSix).length === 1 ? 'it isn’t' : 'they aren’t'}
+             listed here. The gap in the sprint numbers is that, not missing data.`
           : ''}</p>
       <div class="tablewrap">
       <table id="rollTable" aria-label="Figures for each sprint in the rolling window">
@@ -9042,11 +9043,13 @@ function forecastResultHtml(team, includeSix) {
       you have not counted yet is still work. The least growth pairs with the faster rate and
       the most with the slower, so each end is one coherent story rather than a mix of two.`);
   if (f.lostSprints > 0)
-    caveats.push(`<strong>${plural(f.lostSprints, 'sprint')}</strong> in this span deliver
+    caveats.push(`<strong>${plural(f.lostSprints, 'sprint')}</strong> in this span
+      deliver${f.lostSprints === 1 ? 's' : ''}
       nothing towards it, and ${f.lostSprints === 1 ? 'that sprint is' : 'those sprints are'}
-      counted in the answer above. Where they fall makes no difference to the finish, so they
-      are added flat.${includeSix ? '' : ` The IP sprint is stepped over separately and is not
-      one of these.`}`);
+      counted in the answer above. Where ${f.lostSprints === 1 ? 'it falls' : 'they fall'} makes
+      no difference to the finish, so ${f.lostSprints === 1 ? 'it is' : 'they are'}
+      added flat.${includeSix ? '' : ` The IP sprint is stepped over separately and is not
+      ${f.lostSprints === 1 ? 'that sprint' : 'one of these'}.`}`);
   caveats.push(`It assumes the whole commitment goes to this work. Anything else the team picks
     up — break-in, support, a second stream — comes out of the same sprints.`);
 
@@ -9624,7 +9627,8 @@ function renderHistoryView() {
             : `${change > 0 ? 'Up' : 'Down'} ${Math.round(Math.abs(change))}`,
           null, change === null
             ? `${MIN_TREND_POINTS} sprints are needed before there is a direction`
-            : 'percentage points of commitment completion, first sprint to last',
+            /* Off the figure AS SHOWN: "Up 1" over "percentage points" (2026-09-18). */
+            : `percentage point${Math.round(Math.abs(change)) === 1 ? '' : 's'} of commitment completion, first sprint to last`,
           false, 'histDirection')}
         ${tile('Best and worst', pcts.length
             ? `${fmtPct(Math.max.apply(null, pcts))} / ${fmtPct(Math.min.apply(null, pcts))}`
@@ -9800,7 +9804,10 @@ function renderPiTrendView() {
     if (d === null) return `no figure for ${esc(prev.pi.name)} to compare with`;
     const r = Math.round(Math.abs(d) * 10) / 10;
     if (r < 0.5) return `level with ${esc(prev.pi.name)}`;
-    return `${d > 0 ? 'up' : 'down'} ${fmtNum(r)}${unit} on ${esc(prev.pi.name)}`;
+    /* pointsOf() for the two percentage tiles: "up 1 points on PI 1" was the slip
+       the 2026-09-04 audit fixed in six other captions and missed here (2026-09-18).
+       Velocity passes no unit — its caption already opens "points in…". */
+    return `${d > 0 ? 'up' : 'down'} ${unit ? pointsOf(r) : fmtNum(r)} on ${esc(prev.pi.name)}`;
   };
 
   /* Whether the train was the same size across the window. A PI measured over two

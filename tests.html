@@ -9775,6 +9775,74 @@ t('a "so far" row sorts as a row with no percentage, because it shows none', () 
   }
 });
 
+/* Four sentences that did not agree with the number in them — the class the
+   2026-09-04 audit fixed, in four places it missed. One test each, so each is
+   proven red on its own. */
+t('wording: PI Trend says "up 1 point", not "up 1 points"', () => {
+  /* 80% then 81%. */
+  const twoPis = [80, 80, 80, 80, 80, 80, 81, 81, 81].map(v => [100, v]);
+  renderedFixture(historyFixture(twoPis), { view: 'trend' }, (st, d) => {
+    const tileEl = tileByLabel(d, 'Commitment completion');
+    const foot = tileEl ? reviewText(tileEl.querySelector('.foot')) : '(no PI Trend tile)';
+    ok(/up 1 point on PI 1/.test(foot), 'PI Trend: a rise of one is one point', foot);
+  });
+  /* And the plural is still there when it should be. */
+  renderedFixture(historyFixture(twoPis.map((r, i) => (i > 5 ? [100, 85] : r))), { view: 'trend' }, (st, d) => {
+    const tileEl = tileByLabel(d, 'Commitment completion');
+    ok(tileEl && /up 5 points on PI 1/.test(reviewText(tileEl.querySelector('.foot'))), 'five is five points');
+  });
+});
+t('wording: History’s "Up 1" sits over "percentage point", singular', () => {
+  /* 80,80,80,81,81,81 fits to a rise of 1.3, shown as "Up 1". */
+  renderedFixture(historyFixture([80, 80, 80, 81, 81, 81].map(v => [100, v])), { view: 'history' }, (st, d) => {
+    const dir = tileByLabel(d, 'Direction');
+    eq(dir ? reviewText(dir.querySelector('.value')) : null, 'Up 1', 'the fixture shows a rise of one');
+    const foot = dir ? reviewText(dir.querySelector('.foot')) : '';
+    ok(/^percentage point of commitment completion/.test(foot), 'so the caption under it is singular', foot);
+  });
+});
+t('wording: two sprints left out of Rolling 5 "aren’t listed here"', () => {
+  const rows = [80, 80, 80, 80, 80, 80, 80, 80].map(v => [100, v]);
+  rows[3][3] = { excluded: true, excludeReason: 'incident' };
+  rows[4][3] = { excluded: true, excludeReason: 'incident' };
+  renderedFixture(historyFixture(rows), { view: 'rolling' }, (st, d) => {
+    const card = reviewCard(d, 'The Numbers');
+    const sub = card ? reviewText(card.querySelector('.sub')) : '(no table card)';
+    ok(/S4, S5 left out/.test(sub), 'both are named over the table', sub);
+    ok(/so they aren.t listed here/.test(sub) && !/so it isn.t/.test(sub), 'and spoken of as two', sub);
+  });
+  rows[4][3] = {};
+  renderedFixture(historyFixture(rows), { view: 'rolling' }, (st, d) => {
+    const sub = reviewText(reviewCard(d, 'The Numbers').querySelector('.sub'));
+    ok(/S4 left out[^.]*so it isn.t listed here/.test(sub), 'one is still "it"', sub);
+  });
+});
+t('wording: one lost sprint on the forecast card "delivers nothing", and is an "it"', () => {
+  const st = w.svGet();
+  const keep = st.settings.forecastPoints;
+  try {
+    withState(capacityFixture(), () => {
+      typed(); st.settings.forecastPoints = 100;
+      const said = (lost) => {
+        adjust(undefined, undefined, lost);
+        const box = document.createElement('div');
+        box.innerHTML = w.forecastResultHtml(st.teams[0], false);
+        return (reviewText(box).match(/\d+ sprints? in this span[^]*?(?:one of these|that sprint)\./) || ['(caveat not found)'])[0];
+      };
+      const one = said(1);
+      ok(/1 sprint in this span delivers nothing/.test(one), 'one sprint delivers', one);
+      ok(/Where it falls makes no difference to the finish, so it is added flat/.test(one), 'and is an "it" throughout', one);
+      eq(/\bthey\b|\bthese\b/.test(one), false, 'with no plural left over', one);
+      const two = said(2);
+      ok(/2 sprints in this span deliver nothing/.test(two) && /Where they fall/.test(two) && /so they are added flat/.test(two),
+         'two are still plural', two);
+    });
+  } finally {
+    adjust();
+    if (keep === undefined) delete st.settings.forecastPoints; else st.settings.forecastPoints = keep;
+  }
+});
+
 /* ═══════════════════ 2026-09-18 review — block B ═══════════════════════════
    One fix per commit, each test proven red against the commit before it. Tests
    for this block go DIRECTLY under its group() line and above the next banner,

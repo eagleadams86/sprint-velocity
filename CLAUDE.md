@@ -2828,6 +2828,16 @@ worded for a number other than the one beside them. Each bullet below is one com
   counted the cell prints the 33% and sorts on it. The other percentage columns were checked:
   History's three churn columns print a running sprint's pill, so they rightly sort on it, and
   Rolling 5 lists counted sprints only.
+- **Four sentences agree with the number in them (2026-09-18).** The class the 2026-09-04 audit
+  fixed, in four places it missed. PI Trend's tiles read "PI 2 — up 1 points on PI 1":
+  `movement()` goes through `pointsOf()` now (velocity passes no unit, its caption already opens
+  "points in…"). History's Direction tile read "Up 1" over "percentage points of…": the caption
+  agrees with the ROUNDED figure, the one shown. Rolling 5's table caption with two exclusions
+  read "S3, S4 left out (…), so it isn't listed here": it/they off `excludedInRange().length`,
+  as `excludedLine()` beside it always did. And the forecast card with one lost sprint read "1
+  sprint in this span deliver nothing… Where they fall… so they are added flat… not one of
+  these": every clause turns on `f.lostSprints === 1`. One test each, reading the rendered
+  text, singular and plural.
 
 ### The Sprint Form and the Windows Round It
 
