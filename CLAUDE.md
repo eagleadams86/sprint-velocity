@@ -401,7 +401,9 @@ but Charles had ever actually signed in.)
 - **Sprint dates project from the team's cadence** (`teamCadence()` / `cadenceDates()`): a new
   sprint form fills its own dates by counting slots from the latest dated sprint, and empty
   rows on the PI table show where they'd fall. The stride is *measured* once two sprints have
-  dates, otherwise the anchor's length snapped to whole weeks — a Mon–Fri sprint is 12 days
+  dates — **since 2026-09-18 as the MEDIAN of the last `CADENCE_PAIRS` (5) consecutive dated
+  pairs, not the last pair alone** (see that review's notes) — otherwise the anchor's length
+  snapped to whole weeks — a Mon–Fri sprint is 12 days
   long and recurs every 14, so a raw length would drift onto the weekend. It fills only empty
   boxes on an **unsaved** sprint: dating an existing dateless sprint would flip it out of
   complete and silently pull history from the averages, which is the one thing the lifecycle
@@ -475,7 +477,8 @@ but Charles had ever actually signed in.)
   would put two sprints in one slot and make `findSprint` non-deterministic. Business value
   and capacity plans die either way (both are defined by the PI) and the dialog says so.
   It also **discloses the one place the ordering rule bites backwards**: kept sprints move
-  *before* any remaining PIs, because unassigned is the oldest track.
+  *before* any remaining PIs, because unassigned is the oldest track. And, since 2026-09-18,
+  the other thing that moves: a kept sprint 6 stops being an IP sprint (see that review).
 - **The demo's Team No PI exists to show the app working with no PI, and carries nothing
   else.** Sprints 12–16 — continuous, past six, and a 16th that could not exist in a
   six-slot PI. No ART, no scale, no exclusion, no dates, no goals, no business value: every
@@ -724,7 +727,9 @@ but Charles had ever actually signed in.)
   is bigger** — the card names each end ("the 20 they average", "the 17 they finished in 3 of
   the last 4"), those sentences are not interchangeable, and which is faster genuinely swaps
   for a left-skewed team (see `hasFloor`). `Math.ceil` on both ends: you do not finish in 4.4
-  sprints.
+  sprints. **Under a standing availability the sentence names the rate AND the history figure
+  it was scaled from** ("32 points a sprint (90% of the 35 they average)") — `meanBase` and
+  `floorBase`, 2026-09-18; see that review's bullet.
 - **A STANDING availability applies across the horizon; a ONE-OFF does not.** `team.availability`
   is a lasting change and holds for every sprint in the span; a `plans` entry is leave next
   fortnight, and stretching it over ten sprints would forecast a team as permanently
@@ -991,8 +996,9 @@ but Charles had ever actually signed in.)
   flattens them to one point per PI). It deliberately does **not** call `rollingSprints()`:
   the two rolling toggles narrow a window and this view has none, so every sprint is listed,
   with the in-flight and left-out ones drawn and marked rather than dropped. **A left-out
-  sprint is COUNTED here** (`pooled(counted)`), like the PI totals — only in-flight ones are
-  out of the figures. Its Direction
+  sprint is COUNTED here** (`pooled(counted)`), like the PI totals — only UNCOUNTED ones are
+  out of the figures (`!isCounted`, so a running sprint is in once "count sprints that are still
+  running" is on, and the caption says so — 2026-09-18). Its Direction
   tile is `trendChange()` over the whole run, and the demo is built so it disagrees with the
   five-sprint figure on both long-history teams — that disagreement IS the argument for the
   view, and a test pins it so tidying those numbers can't quietly remove it.
@@ -1297,10 +1303,13 @@ but Charles had ever actually signed in.)
   a comment/notes field back**. `sanitizeIds()` enforces this as a **whitelist, not a
   blocklist** (added 2026-08-13): `keepKnown()` rebuilds every team/ART/PI/sprint/settings
   object from only the keys the app knows, pins each value to its type (numbers must be
-  finite numbers, dates must match `YYYY-MM-DD` or become `''`, status must be one of the
+  finite numbers, dates must be REAL `YYYY-MM-DD` dates — `isRealDate()`, a round trip through
+  the calendar, 2026-09-18 — or become `''`, status must be one of the
   four, names capped at 120), and drops stray top-level keys too — except the share-meta
   keys (`v`/`sharedAt`/`label`/`allTeams`/`range`), which the shared-view banner needs and
-  which never persist because `save()` is a no-op there. `notes` is still counted separately
+  which never persist because `save()` is a no-op there. **That last clause was only true of the share path**: Restore crosses the same
+  boundary, and until 2026-09-18 `adoptState()` copied all five into the saved board — it strips
+  them now, and `v`/`allTeams` are typed like the other three. `notes` is still counted separately
   in `sanitizeIds.strippedNotes` (it gets the boot toast — a person's own writing went
   away); everything else lands in `sanitizeIds.pruned` (a silent boot `save()`, so the scrub
   reaches localStorage immediately — and ONLY when something was scrubbed: since 2026-09-01
@@ -2625,7 +2634,7 @@ proven red against the commit before it.
   it and the banner read "Shared on Invalid Date" — the exact thing the pin was written to stop.
   A JS `Date` holds ±8.64e15 ms; the boundary now drops anything outside that. `sharedAt` is the
   only millisecond date that crosses the boundary (every other date is a `YYYY-MM-DD` string
-  held to `DATE_RE`), so nothing else took the same change. Test: 1e300, one past the limit and
+  held to `DATE_RE` — `isRealDate()` since 2026-09-18), so nothing else took the same change. Test: 1e300, one past the limit and
   -1e300 dropped; ±8.64e15 kept.
 - **A record whose own id is missing or not a string gets a minted one (2026-09-15).**
   `cleanKey` only rewrote strings, and `keepKnown`'s `id` kind only kept them, so a restore
@@ -2737,3 +2746,523 @@ proven red against the commit before it.
   profile with a planted `sv-tablesort` and `sv-data` left both byte-identical. Don't run the
   suite while editing the app in another tab of the same browser: the restore puts back what
   was there when the suite started.
+
+## Fixes From the 2026-09-18 Review
+
+Charles asked for a bug check three days after the 2026-09-15 review, with one commit landed
+since. Five reviewers drove HEAD (`227113f`) headless from angles that review had not taken —
+using the app end to end from empty, every figure against a hand calculation, the data
+boundaries, UI state after destructive actions, and dates in seven timezones. **Timezones, DST
+and "today" came back clean (118 cases); the bugs were in forward planning and at the edges of
+the figures.** One fix per commit, each with a test proven red against the commit before it.
+
+**How it ran, for the next one:** five read-only reviewers (end-to-end use from empty; figures
+by hand; boundaries and security; UI state with real key presses; dates in seven timezones),
+then three fix agents in their own worktrees plus the supervisor on a fourth block, every
+commit through one `cycle.sh` (suite green on the fix, the named test RED on the commit
+before, a tests.html diff required). Parallel branches merged with ONE conflict because the
+test groups and these sub-headings were laid down empty first, and nobody bumped `EXPECTED`
+until the end: **526 → 576**. The security pass found **no XSS, no prototype pollution and no
+CSP violation**. A usage limit cut two agents off mid-run; their worktrees held everything, and
+one had re-made a commit the supervisor had already picked — **diff an agent's branch again
+before trusting an early cherry-pick.**
+
+**CI went red on a green suite:** the workflow waited 60 s for a summary the suite, fifty tests
+longer, no longer produced in time on a runner (48 s on a laptop). The wait is 300 s now, inside
+the job's ten-minute limit — Money Map's 2026-09-07 change. Golf, PAPTrack and Flow Metrics
+still carry 60 s.
+
+**Left alone on purpose — raise only if Charles asks:** PI Trend's "Teams counted" counts a team
+whose sprints in that PI are all still running (its help defines it as teams that HAD sprints
+there; a second basis on the same row would be worse); a semicolon-separated (European Excel)
+CSV is refused with a message about a missing Sprint column; a row of only commas is reported
+as an unusable row; Jira Cloud's newer "work items" section headings are unverified — if a
+paste from Charles's Jira ever fails with "Couldn't find any issue rows", that is the first
+thing to check; duplicate ids or two sprints on one slot in a HAND-EDITED file still cross the
+boundary (the first wins in most views), and `sprints.sprintNumber` is still `num`; a blank
+Adjust Capacity box saves 0% (the preview says "34 → 0"); a crafted 300,000-sprint link
+overflows `Math.max(...)` and falls back to the error card. The two-copies guard and the
+ART-menu focusout belong in Flow Metrics (and the first in Money Map and Golf) — not ported.
+- **A lost sprint never lands on the IP sprint (2026-09-18).** `forecast()` walked only the
+  DELIVERING sprints through `calendarSlots()` and added `lost` afterwards, on the reasoning that
+  a lost sprint "is a calendar slot already". It is a slot the team spends on something else —
+  never the IP sprint, which the card says "is stepped over separately and is not one of these".
+  From S5, one delivering sprint plus one lost read "2 sprints — about 4 weeks … lands around 25
+  Sept": the last day of S6. It is `calendarSlots(deliver + lost)` now, in `endOf` and both weeks
+  figures — three slots, six weeks, 9 Oct. With sprint 6 counted, and on the PI-less track,
+  `calendarSlots(n)` is `n` and nothing moves. `fast`/`slow`/`missesPi`/`fitsPi` were already
+  right (they count non-IP slots on both sides). **The older "moves the DATES" test never tested
+  dates**: its fixture set `cadenceStart`/`cadenceLength`, fields this app has never had, so it
+  always took its no-cadence branch. `datedCapacityFixture()` (four fortnightly sprints, all in
+  the past, next slot S5 = 31 Aug 2026) is the dated fixture to reuse. EXPECTED 526 → 527.
+- **A team that runs no PIs gets forecast dates between sprints (2026-09-18).** `forecast()`
+  projected the planned slot's start with `slot.piId ? cadenceDates(…) : null`, a guard older than
+  the optional PI (2026-08-20). A PI-less team got dates only while a sprint was RUNNING (through
+  that sprint's own start date) and lost them the day it ended: "about 4 weeks" with no "lands
+  around…". `cadenceDates()` already refuses to project across the two tracks (`sameBand`), so
+  the guard is simply gone. EXPECTED 527 → 528.
+- **A sprint saved ahead as Planned is the one being planned (2026-09-18, found by two reviewers
+  independently).** `targetSprintSlot()` aimed at the running sprint, else "the last record + 1" —
+  and a sprint recorded at planning, before its start date, IS the last record. On the weekend
+  before S5 the card was titled S6 (with the IP-sprint warning), `availabilityFor()` ignored 50%
+  leave recorded against S5, Adjust Capacity opened on S6, the forecast started a slot late — and
+  all of it flipped back by itself on Monday. It now aims at the first `planned` sprint AFTER the
+  last counted one, returned as `sprint` with `planned: true`; `nextSprintTarget()` keeps
+  `inFlight` for a running sprint only and adds `plannedAhead`, and the card badges *◴ Planned*.
+  The commitment comparison ("Actually committed 22 — N more than the suggestion") applies to it
+  as it does to a running sprint. **"After the last counted one" is load-bearing**: hand-setting
+  an old sprint to planned was the way to keep it out of the averages before `excluded`, and
+  those records must not capture the card. The `blankState()` comment about a placeholder planned
+  sprint moving the projection was written about the OLD rule; the projection now lands ON it.
+  EXPECTED 528 → 529.
+
+### History, Tables and Wording
+
+Figures a reviewer recomputed by hand and found moved by sprints that carry no figure, or
+worded for a number other than the one beside them. Each bullet below is one commit.
+- **A direction is measured across the sprints that HOLD a figure (2026-09-18).**
+  `trendChange()` returned `fit[last] - fit[0]` over every index, nulls included. History hands it
+  a null for each uncounted sprint, so six finished sprints at 50,60,70,80,90,100 followed by one
+  running and two planned read "Direction: Up 80" where the data moved 50 (the slope × 8 gaps,
+  not × 5), and one trailing running sprint turned "Down 8" into "Down 9". Compare Teams' Trend
+  had it from the other end: a window opening on a sprint that committed 0 (null %) read "up 40"
+  for 50,60,70,80. It is `fit[lastReal] - fit[firstReal]` now. `linearTrend()` and the chart's
+  dashed line are untouched — a line drawn on across the open sprints is what a projection looks
+  like; only the FIGURE stops there. A null in the MIDDLE still counts as a step. The demo's
+  pinned "up 11 / up 14" did not move: those teams have no open sprints.
+
+- **History counts what it says it counts when sprints are open (2026-09-18).** Three things in
+  `renderHistoryView()`. `open` was built from `sprintStatus(s) !== 'complete'`, so with "count
+  sprints that are still running" ON the caption read "1 sprint still in flight is drawn but left
+  out of the figures" beside "8 — every one of them counts" and a footer of "8 counted sprints";
+  it is `!isCounted(s)` now, and a running sprint that IS counted gets `countedRunningSentence()`
+  — the same words Compare Teams, PI Trend and PI by Team use ("every view that counts one SAYS
+  so" had missed this view). And `goalRecord(all)` put a running sprint's goal inside a footer row
+  labelled "N counted sprints", and reported every PLANNED sprint as "no goal recorded" — a
+  question nobody can have answered yet; it is `goalRecord(counted)`, as Rolling 5, Compare Teams
+  and PI Trend read it. The `histTotalRow` help said in-flight sprints are never in the row,
+  which was false with the setting on; it names the setting now. **A fixture for this needs an
+  explicit `status`** — a dateless sprint is `complete` — and `historyFixture()` /
+  `renderedFixture()` in block A are the pair to reuse.
+- **"N more than the suggestion" is the difference between the two figures beside it (2026-09-18,
+  visible on the DEMO).** Team Live Sprint's card read "Recommended commitment 23 · 90% of 25"
+  and "Actually committed 32 — 10 more than the suggestion": 22.5 shown as 23, and 32 − 22.5 =
+  9.5 shown as 10, each rounded on its own. `nextSprintTarget().overBy` is
+  `committedAlready - Math.round(recommended)` now — the recommendation AS SHOWN — and the card
+  no longer rounds it a second time, so `over`, `under`, the tile foot and the fold-out's "about
+  N more" all read one number: 9. A reader can only subtract what is on the card. The colour
+  follows the same figure: 22 against a shown 23 is "1 under" (amber), where −0.5 used to round
+  to "in line".
+- **A "so far" row sorts as a row with no percentage (2026-09-18).** Team PI's and History's
+  Complete % cell prints "so far" for a sprint that is not counted, and both getters returned
+  `metrics(s).commitCompletePct` regardless: S1 100%, S2 50%, S3 running at 10 of 30, S4 planned
+  sorted ascending with the two "so far" rows FIRST — on a 33% and a null-as-nothing the reader
+  could not see. Both return null when `!isCounted(s)`, so they sit at the foot either way, which
+  is the sorting rule as written ("`get` returns what the column SHOWS"). With running sprints
+  counted the cell prints the 33% and sorts on it. The other percentage columns were checked:
+  History's three churn columns print a running sprint's pill, so they rightly sort on it, and
+  Rolling 5 lists counted sprints only.
+- **Four sentences agree with the number in them (2026-09-18).** The class the 2026-09-04 audit
+  fixed, in four places it missed. PI Trend's tiles read "PI 2 — up 1 points on PI 1":
+  `movement()` goes through `pointsOf()` now (velocity passes no unit, its caption already opens
+  "points in…"). History's Direction tile read "Up 1" over "percentage points of…": the caption
+  agrees with the ROUNDED figure, the one shown. Rolling 5's table caption with two exclusions
+  read "S3, S4 left out (…), so it isn't listed here": it/they off `excludedInRange().length`,
+  as `excludedLine()` beside it always did. And the forecast card with one lost sprint read "1
+  sprint in this span deliver nothing… Where they fall… so they are added flat… not one of
+  these": every clause turns on `f.lostSprints === 1`. One test each, reading the rendered
+  text, singular and plural.
+- **The two predictability charts reach as far as the targets that are set (2026-09-18).** PI
+  Trend's and PI by Team's y axis had `suggestedMax: 120` — a copy of the DEFAULT `predOverRed` —
+  so with targets of 87–140% and red above 190% the bands were drawn in the right places on an
+  axis that stopped at 120: green cut short, the upper amber never on the chart. It is
+  `predAxisMax()` = `Math.max(120, tgt().predOverRed)` now, the churn chart's rule ("it follows
+  the setting, or raising the target would push the band off the top of its own chart"). **Never
+  below 120, and no margin on top, on purpose**: either would move the chart at the default
+  targets, which a test pins at 120. The sentence over PI Trend's chart said "climbing past 100%"
+  and reads `${tgt().predHigh}%`. The other "above 100%" sentences (business value window,
+  `piPredictability` help, Team PI) are about the ARITHMETIC — stretch value lifts delivered over
+  committed — not the band ceiling, and stay literal. A chart's options are read in a test with
+  `w.Chart.getChart('<canvas id>').options`.
+- **A name column sorts the way a reader files names (2026-09-18).** `sortRows()` compared with
+  `<`, which is a code-unit comparison: "Émile" sorted after "Zed" (É is U+00C9, past every
+  ASCII letter) and "Team 10" before "Team 2". The Team getters already lower-case, which is why
+  "beta" was never after "Zed" — case was handled, accents and digits were not. When BOTH values
+  are strings it is `localeCompare(y, undefined, { sensitivity: 'base', numeric: true }) * dir`
+  now, a tie falling through to `home` order like any other. Number columns never reach it, nulls
+  still go to the foot first, and History's ISO `dates` strings order the same under `numeric`.
+- **The ART menu closes when the keyboard leaves it (2026-09-18).** It closed on a mouse press
+  off it, and on Escape only while the focus was INSIDE `.art-pick` — so ArrowDown, two ticks
+  with Space, four Tabs left it hanging open over the table (`aria-expanded="true"`) with no key
+  that would shut it, and a ⌘K hit landed with the menu re-opened by `wireArtToolbar()`. Three
+  changes. A document-level `focusout` closes it when focus LANDS outside the picker — **and a
+  null `relatedTarget` is deliberately ignored, which is the guard the render-surviving state
+  depends on**: a tick's re-render destroys the focused box, a press on a label's text or the
+  menu's padding blurs towards nothing, and so does the window losing focus; none is the reader
+  leaving, all have no relatedTarget, and a Tab always has one. **Nor when it lands on an
+  ANCESTOR of the picker** (`to.contains(from)`): `<main>` is `tabindex="-1"` for the skip link,
+  so a mouse press on a label's TEXT focuses `<main>` on the mousedown — the first cut closed on
+  that, hid the menu before the click arrived, and the tick never happened. Only a real press in
+  a real browser showed it (the reviewer's `s12-artpick.mjs` plus a label click); no synthetic
+  event in the suite would have. Escape now returns only when a
+  `dialog[open]` owns it, and hands the keyboard to the button only if it was in the picker.
+  `goToSearchHit()` clears `artPickOpen`, the flag that survives a render. **Flow Metrics, the
+  reference implementation, has the same gap** and wants the same three changes. The tests send
+  the `focusout` by hand when `focus()` in an unwatched frame did not fire one (see
+  `spinFocusIn`) — real where the browser gives it, never silently skipped.
+
+### The Sprint Form and the Windows Round It
+
+Found by entering sprints the long way round, from an empty app, with real key presses.
+Each bullet below is one commit.
+- **A prefilled Carried In follows the form to another slot (2026-09-18).**
+  `maybePrefillCarriedIn()` "only ever fills an empty box" — and returned early on the number it
+  had put there ITSELF, so the re-projection the `f_num`/`f_pi` listeners call it for never
+  happened. Add Sprint on S3 where S2 carried out 18: the box says 18, with the note. Move the
+  form to S5 (S4 has no record): the dates re-project, the note disappears, the box still says
+  18, and Save stored `carriedIn: 18` on a sprint nothing carried into. Same answer as the dates:
+  `f_carriedIn.dataset.auto = '1'` marks our guess, the box's `input` listener clears the mark,
+  `openSprint()` resets it, and while it is set the box counts as empty — cleared, then re-guessed
+  from the new slot's predecessor or left empty. An existing figure or a typed one still always
+  wins. **The `openSprint()` reset is load-bearing**: without it a mark left by the last form
+  makes the next saved sprint's own figure disposable (the test's last step).
+- **The status hint names the date that is missing, and backwards dates cannot be saved
+  (2026-09-18).** A new sprint with start = today and the end date not yet filled in read "Auto:
+  complete — no dates set, so treated as finished. Counted in your averages." A date IS set, and
+  the sprint joins the rolling window with zeros on its first day. **`sprintStatus()` is
+  untouched** — no end date → complete once started is the rule that keeps dateless history
+  counted. The WORDS changed: "started 5 Jan with no end date set, so treated as finished — add
+  an end date to keep it out of your averages while it runs", and the README's status table has
+  the row it was missing. Same commit: nothing checked for an end date BEFORE the start date, and
+  one such sprint as the team's latest dated one makes `teamCadence()` return null (`length < 0`)
+  — date prefill, the "scheduled" rows and every forecast date go off for the whole team, in
+  silence. `datesBackwards(record)` is the form's SECOND HARD REFUSAL, beside `slotClash`: Save
+  Sprint toasts and stays open, the Jira auto-save returns false (boxes filled, unsaved), and
+  `checkSprintForm()` — now also run on the date boxes' `change` — puts it first in `#sprintWarn`
+  WITHOUT the "Saving anyway is fine" sentence, which is only true of the advisory warnings. It
+  is a function declaration on purpose (checkSprintForm must never meet a `const` in its dead
+  zone). The import boundary was not touched here: a backwards pair arriving in a file still
+  loads, and the form then refuses to re-save it until it is fixed.
+- **The carried-out note claims no more break-in than the Added figure holds (2026-09-18).**
+  Under *Where the Points Went*, everything carried out beyond the commitment's share was said
+  to have "broke[n] in after the sprint started" — a cause, asserted from a subtraction.
+  Hand-entered: committed 30, completed 24, removed 4, Added blank → the form offered carried
+  out 6 (`committed − completed`, ignoring removed) and the view read "Break-in 0 points added
+  after start" above "the other 4 of the 6 … broke in"; the 4 were the REMOVED points. Pasted:
+  a report with a finished 3 → 5 and an unfinished 8 → 13 read "the other 10 of the 21 … broke
+  in" beside a Break-in tile of 8, 5 of which had finished. Three changes. (a)
+  `autofillSprintForm()` subtracts `removed` (never below 0), and the Removed box re-runs it,
+  since Removed is typed after the two it depends on. (b) The note splits `beyondCommit =
+  carriedOut − carriedFromCommit` into `brokeInLeft = min(beyondCommit, added − addedDone)` —
+  break-in still unfinished cannot exceed what was added less the added work that finished,
+  which is exactly `addedUnfinished` on a paste — and `unaccounted`, worded as "more than the
+  commitment, as it was sized at the start, accounts for — work re-sized during the sprint, or
+  removed points still counted in carried out". With no unfinished added work there is no
+  break-in claim at all; a sprint that balances keeps its old sentence word for word. (c) The
+  comment "Jira-pasted sprints always balance" was FALSE and is corrected: `committed` is held
+  at sprint-start sizes and everything else at current ones (the Paste from Jira bullet above),
+  so one re-estimate unbalances it in either direction.
+- **A sprint made by "Use These Numbers" is still new when Save Sprint is pressed
+  (2026-09-18).** Empty slot → paste → Use These Numbers (auto-saves) → Sprint goal: Met → Save
+  Sprint raised `confirm()`: "… already has data… Sprint goal: Not recorded → Met". The
+  overwrite guard "deliberately stays silent for … new sprints", and the "data" was the
+  auto-save from the same dialog session. Save Sprint now skips `confirmOverwrite()` when
+  `pendingJiraSave.before === null` for this record id — the snapshot's own statement that
+  nothing was there when the form opened. **Narrow on purpose**: a re-paste over a sprint that
+  was saved before carries its old record in `before`, still asks at Use These Numbers, and
+  still asks at Save Sprint if something else changes after it (the documented
+  compares-against-stored behaviour; not revisited here).
+- **"Keep the Sprints" no longer promises untouched figures over a kept sprint 6
+  (2026-09-18).** Deleting a PI and keeping its sprints moves them to the unassigned track,
+  where the IP-sprint rule does not exist (`isIpSlot` needs a `piId`), so every kept S6 becomes
+  a counted delivery sprint: Rolling 5 completion 79% → 77%, velocity 24 → 19.6, recommendation
+  21 → 17 in the reviewer's run — under "You can keep them — the figures are untouched". **The
+  rule stays; the words changed.** When `sprints.filter(isIpSlot).length` is non-zero
+  `openDeletePi()` drops the promise and adds: "Sprint 6 is only an IP sprint inside a PI, so
+  the sprint 6 kept here stops being one: the Rolling 5 and the capacity target will start
+  counting it like any other sprint, which moves those figures." A PI with no sprint 6 reads as
+  before. Same commit: the JS overwrote the markup's Title Case "Delete the Sprints Too" with
+  "Delete the sprints too", beside "Keep the Sprints".
+- **Save Sprint, Delete Sprint, Save Adjustment and Remove Adjustment land the keyboard
+  (2026-09-18).** All four ran `dialog.close(); render();` — the close returns the focus to
+  `#editSprintBtn`, a `.rowbtn` or `#adjustBtn`, and the render destroys that node: the
+  2026-09-07 Targets/BV fault, in the windows that did not get its fix. `openAdjust()` takes
+  `focusOrigin()` and lands with `landFocus(from, 'adjustBtn')`. The sprint form can be opened
+  from a table ROW, whose button has no id, so `rowFocusOrigin()` adds `{table, num, id, index}`
+  (the row identifies its sprint by `data-num` on `#piTable` and `data-id` on `#rollTable` /
+  `#histTable`) and `landRowFocus(from, 'editSprintBtn')` re-finds the row for the same sprint,
+  else the row now at that position (the last, if it was last) — which is where Delete Sprint
+  lands — else it IS `landFocus()`. Delete's landing sits AFTER `undoableToast()`, because that
+  is what closes and renders. Cancel & Undo Save lands too (the auto-save and its undo both
+  render under the open form), and a best-effort `close` listener covers Escape/backdrop after
+  an auto-save — best-effort because that event does not reliably arrive (the Paste from Jira
+  bullets), which is why the buttons land for themselves; it carries the `bvDialog` open check.
+  **A mouse click on a row's cells (not its button) has no origin row** and falls through to
+  the fallback id, which only the Sprint view has — a pointer user loses nothing by it.
+- **A view's own toggles and pickers keep the keyboard (2026-09-18).** Same cause, no window:
+  `#incSix`, `#incProgress`, `#piSel`, `#numSel`, `#piSel2` and `#piSel3` live inside `#views`,
+  so the `render()` their `change` causes replaces the control that caused it. After a toggle,
+  Space scrolled the page instead of toggling back; after a picker the next Tab started from
+  the top. `renderKeeping(el)` is `render()` plus a re-focus of the CURRENT element with that
+  id, `preventScroll`, **only when the old one had the focus** — a change made with the focus
+  elsewhere (Safari does not focus a checkbox on a click) steals nothing, and a control the
+  render dropped stays dropped. The six handlers call it in place of `render()`. `#teamSel`
+  and the tabs were already fine (they are chrome, outside `#views`); the forecast card's boxes
+  never render at all. **The reviewer's ArrowDown probe read clean by accident**: on macOS a
+  select's arrow key opens the popup and fires no `change`, so only `selectOption`/a committed
+  pick shows the fault — the test dispatches `change` on a focused control.
+- **Inside Teams, ARTs & PIs, a delete or an ART-picker change keeps the keyboard in the list
+  (2026-09-18).** `renderManage()` / `renderManageTeamRows()` rebuild every row, so the × that
+  was pressed (or the team's ART picker that was changed) no longer exists and the focus fell
+  to `<body>` behind an open modal. `landManageDelete(kind, index, addBtnId)` focuses the × now
+  at the same position — the next row's, or the previous if it was last — or the section's
+  `+ Add` button once the list is empty; the team and ART deletes call it after
+  `undoableToast()`, and `finishDeletePi()` after its own, because `delPiDialog.close()` returns
+  the focus to the PI row's × and `renderManage()` then rebuilds it. It does nothing unless the
+  window is open (the suite drives `finishDeletePi()` with it shut). The ART picker re-focuses
+  `#art-of-<id>` when the old node had the focus. Plain `focus()`, as `moveInList` uses in this
+  window — a row scrolled out of the dialog should come into view. **And the window's own
+  opener can be the thing that is destroyed**: the welcome card's Start Fresh and Forecast
+  Ahead's Start a Team call `openManage(); addTeam();`, the first team replaces the card they
+  sit on, and Done/Esc dropped the keyboard on `<body>`. `openManage()` takes `manageFrom =
+  focusOrigin()` and Done plus a best-effort `close` listener run `landFocus(manageFrom,
+  'manageBtn')` — a no-op whenever the opener was the header's button, which survives renders.
+
+
+### The Forecast Card, Dates and the Demo
+
+Forward planning by hand against the card, and dates that are the right shape and
+impossible. Each bullet below is one commit.
+
+- **Under a standing availability the forecast card names the history figure AND the adjustment
+  (2026-09-18).** The capacity card's old fault ("finished an average of 19.2" when the sprints
+  said 24), on the forecast card. A team on a standing 90% finishing 30, 35, 38, 40, 33 with 120
+  points typed read "4 at the 32 points a sprint they average, 5 at the 30 they finished in 4 of
+  the last 5". They average 35.2, not 32; they cleared 30 in FIVE of five — `reliableMet` counts
+  the sprints that cleared the unadjusted `reliableBase`, 33; and 120 / 30 is 4, not 5, because
+  the rate was 29.7. It reads "4 at 32 points a sprint (90% of the 35 they average), 5 at 29.7
+  (90% of the 33 they finished in 4 of the last 5)" now. `forecast()` hands over `meanBase` and
+  `floorBase` (null under a typed rate) rather than the card dividing a rounded rate back, plus
+  `fastPoints`/`slowPoints`, the work each end was divided into. **`showRate()` prints a rate
+  whole unless the whole number would give the reader a different sprint count by their own
+  division, and then to one decimal** — on every history rate, adjusted or not (29, 30, 30, 30,
+  30 averages 29.8 and is 5 sprints for 120 where "30" divides to 4). The adjusted phrases are
+  in BRACKETS so one phrase reads right at either end of the range and inside "At …, and at …,
+  it comes to the same number". An unadjusted team's sentence is word for word what it was, and
+  a typed rate's wording is untouched — it takes no availability.
+- **The swings caveat explains a range only where the card shows one (2026-09-18).** It fired on
+  `!f.steady` alone. 22, 12, 25, 20, 26 with 120 points is 6 sprints at the 21 they average and
+  6 at the 20 floor, so the card said "it comes to the same number" and then "This team's
+  delivery swings a fair bit, which is why the two ends are far apart. The range is the honest
+  answer". With `f.fast !== f.slow` the sentence is unchanged; with one figure the swings are
+  still said — they are real, and `steady` is a fact about the history — but as a reason to hold
+  the single figure loosely: the two rates "happen to round to the same whole number of sprints
+  for this much work". **Not dropped**, because 125 points on the same team IS 6 to 7, and a
+  reader who saw no caveat at 120 would be surprised by one at 125.
+- **A standing 0% availability is named as the reason there is no rate (2026-09-18).** Four
+  sprints finishing 20 each under a team set to 0% read "T has finished none of its committed
+  points across the last 4 sprints … Record a sprint with some committed work finished and this
+  will answer" — false, and advice that cannot work, since every sprint they record is
+  multiplied by the same nought. `forecast()`'s `impossible` return now carries
+  `zeroedByAvailability` (history rate above 0, standing exactly 0, no typed rate), asked through
+  `forecastZeroedByAvailability()` because TWO sentences needed it: the refusal, and the line
+  shown before any points are typed, which told the same team it "has no finished sprints to
+  take a rate from" (the tick defaults ON there — `forecastHasRate()` is false). The refusal
+  names the 0% and points at Adjust Capacity, except in a shared view, which has no such button.
+  A team that really finished nothing keeps the old message, 0% or not.
+- **`setActiveTeam(id)` is the ONE way the active team changes (2026-09-18).** The typed velocity
+  and the "Adjust for what you know" settings are cleared on a team switch — README, and the
+  comment above `forecastClearTypedRate()` — but only `teamSel.onchange` did it, and there were
+  seven other assignments: the Compare Teams row, the PI by Team row, `goToSearchHit` twice (the
+  hit's team, and the team a PI hit falls back to), deleting the active team, a CSV import
+  landing on a team it touched, and `loadSample`. Team New Start's typed 5–10 points, 20% growth
+  and 2 lost sprints read "26 to 50 sprints … you typed" on Team Headroom's card after a row
+  click. The helper clears both **only when the id actually changes** — a Find hit on the team
+  already on screen is not a switch — and `forecastPoints` still travels, on purpose. **Two plain
+  assignments remain and a test counts them**: the helper's own, and `addTeam()`'s FIRST team,
+  which keeps a velocity typed on the planning screen for the team now being created (with teams
+  already there and no stored id, `addTeam()` moves off `state.teams[0]` and goes through the
+  helper). An import or the demo arriving over a planning-screen rate DOES clear it: those land
+  on a team the rate was not typed for. The share payload carries none of these settings, and
+  Restore/Delete All replace the settings whole, so neither is a switch.
+- **A date has to be on the calendar, not merely shaped like one (2026-09-18).** `DATE_RE` in
+  `keepKnown()`'s `'date'` kind and `DATE_ONLY` in the importer were both
+  `/^\d{4}-\d{2}-\d{2}$/`, and `2026-00-10`, `2026-02-30` and `2026-13-01` all pass it — so a CSV
+  row, a Restore file and a SHARE LINK could each carry one in. `2026-00-10` does not parse:
+  `dayNum()` gave NaN, `forecast()`'s `startDay === null` guard let it by, `isoDay(NaN)` threw
+  "Invalid time value", and a running sprint starting on it plus a typed backlog took the whole
+  Rolling 5 view down. `2026-02-30` parses — V8 reads it as 2 March — so every sum on it is
+  quietly about another day. Fixed at BOTH ends. **The boundary**: `isRealDate(v)`, the round
+  trip (`new Date(Date.parse(v + 'T00:00:00Z')).toISOString().slice(0, 10) === v`); both regexes
+  are gone, an impossible date becomes `''` like any other bad one, and the importer refuses the
+  row with its existing POINTING message, never quoting the cell. **The guard**: `forecast()`
+  takes `startDay` only when `Number.isFinite`. **`isRealDate` is a `function` declaration using
+  only built-ins, on purpose**: `sanitizeIds()` runs from `let state = load()`, where `dayNum`,
+  `isoDay` and `DAY_MS` are consts still in their temporal dead zone — `isoDay(dayNum(v)) === v`
+  would have thrown at BOOT and handed back a blank board, invisibly to every test that calls
+  `sanitizeIds()` after boot. A `bootWithSavedCopy` test pins it. The readers were already safe
+  and are pinned as such: `fmtDate` → `''`, `fmtDateRange` → the other end, `sprintPace` → null,
+  `sprintStatus` compares strings. `updateStatusHint()` would print "Invalid Date", but it reads
+  the sprint FORM, and an `<input type="date">` sanitises its own value — setting `2026-02-30`
+  into it reads back `''` (asserted, not assumed). `teamCadence`/`cadenceDates` still call
+  `isoDay` on stored dates unguarded; the boundary is what keeps a NaN from them.
+- **The demo's dates are counted on the local calendar, never in milliseconds (2026-09-18).**
+  `loadSample()`'s `iso()` added multiples of 86,400,000 ms to the current instant and then
+  shifted by that moment's offset, and a day across a clock change is 23 or 25 hours. New York,
+  27 Oct 2026 00:30: "eight days on" was 23:30 on 3 Nov, so S4 ran 22 Oct – 3 Nov and the pace
+  read "6/13"; London, 24 Mar 23:30: "6/15". Invisible by day, and only in the weeks round a
+  change. It is `d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + offset)` now, formatted from the
+  local year/month/day — noon keeps clear of both the midnight being counted and the small
+  hours a change happens in. `todayISO()` was not reusable: it takes no Date. **The test stubs
+  `W.Date` in a frame it boots** (no-argument `new Date()` and `Date.now()` only) rather than
+  only pinning the source, because the defect is arithmetic and a source pin proves a spelling:
+  it finds the MACHINE's own 2026 clock changes by scanning noon offsets, loads the demo at 00:30
+  and 23:30 three days before each, and asserts 14-day sprints a fortnight apart, S4 starting
+  five days before the stubbed day, and `sprintPace` reading 6 of 14. Playwright's
+  `timezoneId`/`page.clock` are not reachable from inside tests.html, so in a zone with no clock
+  changes the loop finds nothing — the source shape is pinned underneath for that machine. Proven
+  red in America/New_York; the reviewer's `t6-probes.mjs` confirms New York, London and Lord
+  Howe against the real thing.
+
+
+- **One holiday gap does not become the team's rhythm (2026-09-18; agent C's code, finished by
+  the supervisor after a usage limit cut the agent off).** `teamCadence()` measured the stride
+  from the LAST TWO dated sprints only. Fortnightly sprints 9–20 Nov, 23 Nov–4 Dec, 7–18 Dec, a
+  two-week Christmas break, S4 4–15 Jan: stride 28 — S5 prefilled 1–12 Feb instead of 18–29 Jan,
+  and a 100-point forecast read "5 sprints — about 24 weeks" for twelve. One three-week sprint
+  among two-week ones gave 21 the same way. The stride is now the MEDIAN per-slot gap over the
+  last `CADENCE_PAIRS` (5) consecutive dated pairs in the anchor's own track. An even count has
+  two middles: the one equal to the anchor's week-snapped LENGTH wins (the newest sprint's
+  length is evidence too), else the more recent. One pair is the single measurement it always
+  was; cross-track pairs are still never measured. **Convergence, stated:** a team that really
+  moves from two- to four-week sprints reads 28 after TWO sprints at it when the sprints
+  themselves now run four weeks (14, 14, 28, 28 is a tie the length settles), and after three
+  regardless. **Not fixed, same as before:** when the ANCHOR is the one long sprint, the next
+  sprint is still projected one ordinary stride after its START, which can overlap its end —
+  the form's hint says which rhythm was used and the dates are editable.
+
+### Import, Boundaries and the Rest
+
+What the boundary and UI-state reviewers found, and the small things.
+Each bullet below is one commit.
+- **"Skip to content" no longer throws a reader out of a shared view (2026-09-18).** The link
+  was a bare `href="#maincontent"`. A shared view LIVES in the fragment, so pressing it replaced
+  `#share=…`, the `hashchange` handler read "no longer shared" and called `location.reload()` —
+  and the keyboard reader who had asked to skip the header landed on their OWN board, editable,
+  with the banner gone. The link now has a click handler that focuses `<main>` and never touches
+  the address; and `hashchange` treats a fragment naming an element on this page as movement
+  within it (no reload, and the share fragment is put back with `replaceState` so the address
+  still says what is on screen). `inSharedFrame(tag, payload, fn)` + `SHARED_BOARD` in tests.html
+  boot a frame on a real share link (marker 0 is plain JSON, so no compression is needed) — the
+  suite had no shared-view frame before this. A reload gives a frame a new window, so the test
+  marks the old one and looks for the mark.
+- **Undo puts back what the delete took, and nothing done since (2026-09-18).** `undoable()`
+  wrote its whole `before` snapshot — six collections AND `settings` — over the state. That is
+  an undo only if nothing has happened since, and fix 6 of the 2026-09-03 audit HOLDS the toast
+  while a dialog is open: delete a team in Teams, ARTs & PIs, rename another, add an ART and a
+  PI, Done, Undo — the rename, the ART and the PI were gone under "Put back". Outside the window
+  it dragged the reader back to the old team and tab and reset the forecast boxes. It is a
+  three-way merge by record id now (before / what the delete left / now): a record the delete
+  REMOVED comes back at its old index; one it CHANGED (Delete ART clearing `artId`, Keep the
+  Sprints renumbering) goes back unless it has been changed again since; anything added or
+  edited since is untouched; a setting goes back only if the delete moved it and nothing has
+  since. **Considered and not done: refusing the undo when anything changed** — honest, but it
+  makes the offer worthless in exactly the window where the toast is held longest. Still one
+  step and not a stack, and the snapshots are still stringified rather than a hand-written
+  inverse per delete — the older comment's reasoning holds; only what is done with them changed.
+- **The share-meta keys are typed, and never reach the reader's own board (2026-09-18).** `TOP`
+  admits `v`, `sharedAt`, `label`, `allTeams` and `range` for the share link's sake; three were
+  pinned and `v`/`allTeams` were not, and the claim that they "never persist because `save()` is a
+  no-op there" held only on the SHARE path. Restore crosses the same boundary with `save()` live:
+  a backup holding `"v": "<11,611 characters>"`, `"allTeams": {"notes": "…"}` and a `label` was
+  restored with all of it, written to `sv-data`, kept across reboots and handed back in every
+  later backup — free text at rest in the app whose rule is that there is none. `v` must be a
+  finite number and `allTeams` a boolean (a `1` is read as yes) or they are dropped and counted;
+  and `adoptState()` — boot and Restore, never the share path — deletes all five.
+  **Trap met while fixing:** the key list was first a top-level `const` beside `adoptState()`,
+  which sits BELOW `let state = load()`. `load()` → `adoptState()` runs while the script is
+  still evaluating, so the const was in its temporal dead zone at boot, and `load()`'s catch
+  would have turned the ReferenceError into a blank board with every test green (the suite calls
+  `adoptState` long after boot). The list lives inside the function. **Anything `load()` can
+  reach must be a function declaration or sit above line ~4013.**
+- **A share link's label fits the pin it has to cross (2026-09-18).** `buildSharePayload()` sent
+  every team name joined with commas; the boundary pins `label` to 120 characters; so a link the
+  app built ITSELF arrived cut mid-word from about seven teams on ("…Payments Squad 6, Payments
+  Squ"), with the cut counted as a repair of the sender's own link. `shareLabel(names)` names
+  whole teams for as long as they fit beside "and N more", and falls back to "N teams". The pin
+  stays where it is — it is there for a crafted link, and this is the sender fitting inside it.
+- **A team, ART or PI name is never saved blank (2026-09-18).** The three in-place boxes write on
+  every keystroke, and select-all + Backspace is a keystroke: `""` (or three spaces) was stored
+  and survived a reload — an empty option in the header picker, "— Last 5 Sprints" as a heading,
+  and on Compare Teams a row button measuring 0×0 px named "Switch to ", which nobody can press.
+  An emptied box is a pause now (nothing is written, the record keeps its name), and one
+  delegated `focusout` on `manageDialog` puts the name back in a box left empty
+  (`restoreBlankName`). The boundary is unchanged: a nameless record in a hand-edited file still
+  arrives nameless — it renders without throwing and its box in this window is where it is
+  fixed. The test deep-copies `MANAGE_FIXTURE`, because these handlers write to the records.
+- **Two open copies of the app no longer overwrite each other (2026-09-18, found by two
+  reviewers).** `save()` writes the WHOLE in-memory board and nearly everything saves — a tab
+  press, a picker, a toggle — and there was no `storage` listener. With the app open twice (two
+  tabs, or the installed window and a tab) the copy that had not been reloaded wrote its stale
+  board over the other's the next time anything in it was pressed: import a sprint in A, click a
+  tab in B, reload A, sprint gone, not a word from either. Two halves, one function:
+  - **`save()` holds storage up against `storedRaw`** — the `sv-data` string this copy last read
+    (`load()`) or wrote — and if they differ, calls `adoptOtherCopy(true)` INSTEAD of writing:
+    `state = load()` (so a copy from a newer build halts exactly as at boot), every open dialog
+    closed (its boxes were filled from the board just replaced), `render()`, and a toast that
+    says the last change here did not land. One press lost, announced, against a sprint lost in
+    silence. `storedRaw` is read BACK after `setItem` rather than remembered, so a browser that
+    accepts a write and keeps nothing never looks like another window having emptied it.
+  - **A `storage` listener adopts an IDLE copy at once** (`adoptOtherCopy(false)`, "Updated — …"),
+    so the screen is never older than storage. Not while a dialog is open (a draft; `save()`
+    settles it), not in a shared view, and **only in a top-level window** — the suite's frames
+    share this origin's storage with frames that plant fixtures in it, the rule the
+    service-worker block already uses. That is also why the listener is pinned as SOURCE and
+    the `save()` half is what the suite drives, in a real frame with the real `save()`.
+  - `let storedRaw` is declared ABOVE `let state = load()`: `load()` assigns it during script
+    evaluation (the TDZ trap, again). Flow Metrics, Money Map and Golf save the same way — this
+    belongs in each of them; not ported here.
+- **A refused storage write is said WITH the next toast, never replaced by it (2026-09-18).**
+  There is one toast, and nearly every caller raises its own right after `save()`. So when
+  `setItem` threw (a full quota — shared with every app on this origin — or private mode),
+  `save()`'s warning was replaced in the same breath: Restore said "Data imported" and the paste
+  importer "1 sprint imported" over a board that had not been stored; the warning surfaced only
+  on a later save that raised no toast of its own, such as a tab click. `save()` now sets
+  `save.blocked` and defers its own toast to the end of the task; `toast()` claims the flag and
+  appends "— ⚠️ but this browser is blocking storage…" to whatever it was asked to say. Chosen
+  over `save()` returning false: there are dozens of callers and the next one written would
+  forget to check. `saveBlockedMsg()` is a FUNCTION for the boot-time dead-zone reason. The test
+  boots its own frame: `inFrame` replaces `save`, and a function declaration's global property
+  cannot be deleted to get the real one back (strict mode throws).
+- **A truncated share link no longer leaves an uncaught error in the console (2026-09-18).**
+  `squeeze()` fired `w.write(bytes); w.close();` without handling either promise. A cut-off link
+  fails both sides of the stream: the read's rejection reaches `openSharedView()`'s catch and
+  draws the right card, and the two write-side rejections surfaced as an uncaught "Compressed
+  input was truncated". They take a no-op `catch` — NOT an `await`, which on a large input waits
+  on backpressure only the read relieves. Cosmetic, but an uncaught error on the one page a
+  stranger is sent to is the wrong thing to find in a console.
+- **"No value" in a file is not a zero (2026-09-18).** `Number(null)`, `Number('')` and
+  `Number(false)` are 0 — finite — so the boundary's CLAMPED kinds (`pct`, `bv`, `sprintNum`,
+  and `targets` one level down) read "nothing here", written as `null` or `""` in a hand-edited
+  backup or a link, as a stated zero. For every one of those fields absent means the default
+  and zero is destructive: `availability: null` → 0% (Team Baseline's recommended commitment
+  36 → 0), `capacityScale: null` → a sprint wiped out of the planning base, a plan's
+  `sprintNumber: null` → filed against S1, `targets.completionGreen: null` → 1, under its own
+  red line. `stated(v)` answers a number only for a number or a non-blank numeric string; the
+  key is otherwise dropped and counted. **The sprint FIGURES stay on plain `Number()`** —
+  "Blank means 0" is the documented rule there. Same commit: a `targets` set that
+  `targetProblems()` would refuse in the window is dropped whole at the boundary too — a file
+  or a link must not store what the window cannot. This is [[number-null-is-zero-trap]] from
+  League Night's first audit, met again.
+- **The importer reads a WHOLE cell as a number (2026-09-18).** `parseFloat()` reads a prefix,
+  so the importer's own guard — "'n/a' in a committed column almost always means the columns are
+  one out" — did not hold for the case it names: a Committed cell holding `2026-01-05` imported
+  as 2026 points, `12abc` as 12, `3 points` as 3, each under "1 row ready — New sprint"; and
+  stripping EVERY comma made `2,5` (a European two and a half) into 25. `importNumber(v)` takes
+  the whole trimmed cell, with a comma allowed only where it groups three digits. The sprint
+  number is a whole number in a whole cell (`3` or `3.0`): `Math.round(parseFloat('2.5'))` filed
+  the row under sprint 3 and then refused a second row's `3.4` as a duplicate of a slot neither
+  had named. Same commit: **an end date before the start date is refused**, as the sprint form
+  refuses it (`datesBackwards`, this review) — `teamCadence()` gives up on such a sprint, which
+  costs the whole team its date prefill and forecast dates. Every message points at the column
+  and quotes nothing (Charles's 2026-09-15 rule), and the test checks that too.

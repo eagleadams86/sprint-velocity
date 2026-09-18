@@ -106,7 +106,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 526;
+const EXPECTED = 576;
 
 /* ── THE SUITE LEAVES STORAGE EXACTLY AS IT FOUND IT (2026-09-15 review) ──────
    The page header says "Read-only: nothing is saved", and it was not true: the
@@ -5313,9 +5313,9 @@ t('sprints nobody delivers in are added FLAT to both ends', () => {
     eq(f.fast, 6, '4 delivering plus 2 that do not');
     eq(f.slow, 7, '5 plus the same 2');
     eq(f.lostSprints, 2);
-    /* Where they land cannot change the finish — a sprint that delivers nothing
-       contributes nothing and shifts everything after it by exactly one — which
-       is why they are added rather than dealt into the walk. */
+    /* Where they land cannot change the COUNT — a sprint that delivers nothing
+       contributes nothing and shifts everything after it by exactly one. The
+       DATE is another matter: see the dated test two below (2026-09-18). */
     adjust(undefined, undefined, 1);
     eq(w.forecast('t1', 100, false).fast, 5, 'one is one');
     adjust(undefined, undefined, 999);
@@ -5326,9 +5326,8 @@ t('sprints nobody delivers in are added FLAT to both ends', () => {
 });
 t('a lost sprint moves the DATES by a whole slot, not just the count', () => {
   /* The half that would go wrong quietly: the count is easy to add and the
-     calendar is where it has to actually land. The slot walk converts DELIVERING
-     sprints into calendar slots by stepping over IP sprints, so the lost ones
-     are added after it — they are calendar slots already. */
+     calendar is where it has to actually land. This fixture carries no dated
+     sprint, so it pins the no-cadence shape; the dated half is the next test. */
   const fx = capacityFixture();
   fx.teams = [{ id: 't1', name: 'Team One', cadenceStart: '2026-01-05', cadenceLength: 14 }];
   withState(fx, () => {
@@ -5348,6 +5347,95 @@ t('a lost sprint moves the DATES by a whole slot, not just the count', () => {
     }
   });
   adjust();
+});
+/* Four fortnightly Mon–Fri sprints, all long finished, so the slot being planned
+   is S5 (31 Aug – 11 Sep 2026) whatever day the suite runs. Mean 25, floor 20. */
+function datedCapacityFixture(extra) {
+  const fx = capacityFixture(extra);
+  const starts = ['2026-07-06', '2026-07-20', '2026-08-03', '2026-08-17'];
+  const ends = ['2026-07-17', '2026-07-31', '2026-08-14', '2026-08-28'];
+  fx.sprints.forEach((s, i) => { s.startDate = starts[i]; s.endDate = ends[i]; });
+  return fx;
+}
+t('a lost sprint never lands on the IP sprint: the dates step over it too (2026-09-18 review)', () => {
+  /* One delivering sprint plus one that delivers nothing, planned from S5. Neither
+     can be S6 — the card says the IP sprint "is stepped over separately and is not
+     one of these" — so the span is S5, S6 stepped over, next S1: three slots,
+     six weeks, ending Fri 9 Oct. The lost sprint used to be added AFTER the walk,
+     as a calendar slot already, which finished the work on 25 Sept: the last day
+     of the IP sprint itself. */
+  withState(datedCapacityFixture(), () => {
+    typed(); adjust(undefined, undefined, 1);
+    const f = w.forecast('t1', 20, false);
+    eq([f.fast, f.slow], [2, 2], 'one delivering sprint and one lost, at either rate');
+    eq(f.fastEnd, '2026-10-09', 'S5, the IP sprint stepped over, then S1');
+    eq(f.slowEnd, '2026-10-09');
+    eq([f.fastWeeks, f.slowWeeks], [6, 6], 'three slots of a fortnight');
+    /* With sprint 6 counted there is no IP sprint to step over, and two is two. */
+    const six = w.forecast('t1', 20, true);
+    eq(six.fastEnd, '2026-09-25', 'S5 then S6, both ordinary sprints');
+    eq(six.fastWeeks, 4);
+    /* And with nothing lost the walk is what it always was. */
+    adjust();
+    const plain = w.forecast('t1', 50, false);
+    eq(plain.fastEnd, '2026-10-09', '2 delivering sprints from S5 cross the IP sprint once');
+    eq(w.forecast('t1', 20, false).fastEnd, '2026-09-11', '1 sprint ends with S5');
+  });
+  adjust();
+});
+t('a team that runs no PIs gets forecast dates between sprints too (2026-09-18 review)', () => {
+  /* The same four dated sprints on the unassigned track, numbered 12–15. The
+     cadence projects S16 to 31 Aug perfectly well; forecast() never asked it,
+     because of a `slot.piId ?` guard older than the optional PI — so the card said
+     "about 4 weeks" with no "lands around", and only while nothing was running. */
+  const fx = datedCapacityFixture({ pis: [] });
+  fx.sprints.forEach((s, i) => { s.piId = null; s.sprintNumber = 12 + i; });
+  withState(fx, () => {
+    typed(); adjust();
+    eq(w.cadenceDates('t1', null, 16).startDate, '2026-08-31', 'the cadence knows where S16 falls');
+    const f = w.forecast('t1', 50, false);
+    eq([f.fast, f.fastWeeks], [2, 4]);
+    eq(f.fastEnd, '2026-09-25', 'two slots from 31 Aug, and no IP sprint out here to step over');
+    eq(f.slowEnd, '2026-10-09', 'three at the floor rate');
+    eq(f.piId, null, 'still no PI to fit inside');
+  });
+  adjust();
+});
+t('a sprint saved ahead as Planned is the one the capacity card plans, not the slot after it (2026-09-18 review)', () => {
+  /* S1–S4 finished; S5 saved at planning with 22 committed and 50% leave recorded
+     against it. The target used to be "the last record + 1" = S6: titled for the IP
+     sprint, the leave ignored, and Adjust Capacity aimed at the wrong slot — until
+     S5's start date arrived and it flipped back by itself. */
+  const planned = (n, committed) => ({ id: 's' + n, teamId: 't1', piId: 'p1', sprintNumber: n,
+    status: 'planned', committed, committedCompleted: 0, totalCompleted: 0, added: 0,
+    removed: 0, carriedIn: 0, carriedOut: 0, addedThenRemoved: 0 });
+  const fx = capacityFixture({ plans: [{ id: 'pl1', teamId: 't1', piId: 'p1', sprintNumber: 5,
+    availability: 50, reason: 'leave' }] });
+  fx.sprints.push(planned(5, 22));
+  withState(fx, () => {
+    const slot = w.targetSprintSlot('t1');
+    eq([slot.piId, slot.sprintNumber, !!slot.planned], ['p1', 5, true], 'aimed at the planned S5');
+    eq(slot.last.sprintNumber, 4, 'and the carryover still comes from the last FINISHED sprint');
+    const tg = w.nextSprintTarget('t1', false);
+    eq([tg.availability, tg.recommended], [50, 12.5], 'S5’s own leave is the one in force');
+    eq([tg.committedAlready, tg.inFlight, tg.plannedAhead], [22, false, true]);
+    const html = w.targetCapacityCard(w.svGet().teams[0], false);
+    ok(/Target Capacity for PI 1 · S5/.test(html), 'the card is titled for S5', html.slice(0, 200));
+    ok(html.includes('◴ Planned') && !html.includes('◐ In progress'), 'badged Planned, not In progress');
+    ok(html.includes('Actually committed'), 'and its 22 is compared with the suggestion');
+  });
+  /* Two saved ahead: the FIRST is the one being planned. */
+  const two = capacityFixture();
+  two.sprints.push(planned(5, 22), planned(6, 0));
+  withState(two, () => eq(w.targetSprintSlot('t1').sprintNumber, 5));
+  /* An OLD sprint hand-set to planned — the way to keep one out of the averages
+     before `excluded` existed — must not capture the card. */
+  const old = capacityFixture();
+  old.sprints[1].status = 'planned';
+  withState(old, () => {
+    const slot = w.targetSprintSlot('t1');
+    eq([slot.sprintNumber, !!slot.planned, slot.sprint], [5, false, null], 'still the next empty slot');
+  });
 });
 t('both together, and the answer names the scope it actually used', () => {
   withState(capacityFixture(), () => {
@@ -9515,6 +9603,1619 @@ t('a control reached from the keyboard lands whole inside its table on a phone',
     D.getElementById('manageDialog').close();
   });
 });
+
+/* ═══════════════════ 2026-09-18 review — block A ═══════════════════════════
+   One fix per commit, each test proven red against the commit before it. Tests
+   for this block go DIRECTLY under its group() line and above the next banner,
+   so parallel branches never edit the same lines.
+   EXPECTED is bumped once, when the branches are brought together — adding a
+   test never fails the floor, so a fix commit leaves it alone.
+   ═════════════════════════════════════════════════════════════════════════ */
+group('History, tables and wording (2026-09-18 review)');
+
+/* A team described by one row per sprint, RENDERED on one view. `rows` are
+   [committed, committedCompleted, status, extra]; six slots to a PI, so the ninth
+   row is PI 2 · S3. Status is always EXPLICIT — a dateless sprint reads as
+   complete, and these tests are about the ones that are not. withState puts the
+   collections back; the settings object is restored whole, as withRenderedSample
+   does and for the reason it gives. */
+function historyFixture(rows, extra) {
+  return Object.assign({
+    teams: [{ id: 't1', name: 'Team One' }],
+    arts: [],
+    pis: [{ id: 'p1', name: 'PI 1' }, { id: 'p2', name: 'PI 2' }],
+    sprints: rows.map((r, i) => Object.assign({
+      id: 'h' + (i + 1), teamId: 't1', piId: i < 6 ? 'p1' : 'p2', sprintNumber: (i % 6) + 1,
+      committed: r[0], committedCompleted: r[1], totalCompleted: r[1], status: r[2] || 'complete',
+      added: 0, removed: 0, carriedIn: 0, carriedOut: 0, addedThenRemoved: 0
+    }, r[3] || {})),
+    plans: []
+  }, extra || {});
+}
+function renderedFixture(data, settings, fn) {
+  const st = w.svGet();
+  const kept = Object.assign({}, st.settings);
+  try {
+    return withState(data, () => {
+      Object.assign(st.settings, { activeTeamId: 't1', activePiId: null, artFilter: [],
+        includeSprint6InRolling: false }, settings);
+      w.render();
+      return fn(st, w.document);
+    });
+  } finally {
+    Object.keys(st.settings).forEach(k => { if (!(k in kept)) delete st.settings[k]; });
+    Object.assign(st.settings, kept);
+    w.render();
+  }
+}
+const tileByLabel = (d, label) => [...d.querySelectorAll('#views .tile')]
+  .find(el => el.querySelector('.label').textContent.trim().startsWith(label)) || null;
+
+t('a direction is measured across the sprints that have a figure, not the empty ones after them', () => {
+  /* 50 → 100 over six finished sprints is a fit of exactly 10 a sprint: up 50. The
+     running and planned sprints after them hold no percentage, and the figure was
+     read off the fitted line at THEIR end of the chart — 10 × 8 gaps. */
+  eq(Math.round(w.trendChange([50, 60, 70, 80, 90, 100, null, null, null])), 50,
+     'three empty sprints at the end add nothing to how far the team moved');
+  eq(Math.round(w.trendChange([null, 50, 60, 70, 80])), 30,
+     'nor does one at the start — Compare Teams, when the window opens on a sprint that committed 0');
+  eq(Math.round(w.trendChange([50, 60, 70, 80, 90, 100])), 50, 'and with no gaps nothing moves');
+  /* A gap in the MIDDLE is still a step the team took: 80 → 88 over three gaps. */
+  eq(Math.round(w.trendChange([80, null, 84, 88])), 8, 'a gap in the middle still counts as time passing');
+  eq(w.trendChange([null, null, 50, 60, null]), null, 'two real figures are still too few');
+  /* And on the page, which is where it was found. */
+  const rows = [50, 60, 70, 80, 90, 100].map(v => [100, v]);
+  rows.push([100, 20, 'active'], [0, 0, 'planned'], [0, 0, 'planned']);
+  renderedFixture(historyFixture(rows), { view: 'history' }, (st, d) => {
+    const dir = tileByLabel(d, 'Direction');
+    ok(dir, 'History has its Direction tile');
+    eq(dir ? reviewText(dir.querySelector('.value')) : null, 'Up 50',
+       'six sprints from 50% to 100%, then one running and two planned');
+  });
+});
+
+t('History counts what it says it counts when sprints are open, goals included', () => {
+  /* Six finished (goals: met, met, met, missed, and two never answered), one
+     RUNNING whose goal is already ticked, two planned ahead. */
+  const g = [true, true, true, false, undefined, undefined];
+  const rows = g.map(v => [100, 80, 'complete', v === undefined ? {} : { goalMet: v }]);
+  rows.push([100, 20, 'active', { goalMet: true }], [0, 0, 'planned'], [0, 0, 'planned']);
+  const read = (d) => ({
+    sub: reviewText(d.querySelector('#views .card .sub')),
+    count: reviewText(tileByLabel(d, 'Sprints recorded')),
+    goals: reviewText(tileByLabel(d, 'Sprint goals met')),
+    foot: [...d.querySelectorAll('#histTable tfoot th, #histTable tfoot td')].map(reviewText)
+  });
+  renderedFixture(historyFixture(rows), { view: 'history' }, (st, d) => {
+    const off = read(d);
+    ok(/3 sprints still in flight are drawn but left out/.test(off.sub), 'off: three sprints are out of the figures', off.sub);
+    ok(/6 counted sprints/.test(off.foot[1]), 'and the footer row counts six', off.foot.join(' | '));
+    /* The running sprint's tick is not a result yet, and a planned sprint has not
+       been ASKED the question — neither is "no goal recorded". */
+    ok(/3 of 4/.test(off.goals), 'the goal tile reads the six counted sprints: 3 of the 4 answered', off.goals);
+    ok(/2 sprints with no goal recorded/.test(off.goals), 'and only the two finished sprints nobody answered are missing', off.goals);
+    eq(off.foot[off.foot.length - 1], '3 of 4', 'the footer cell sits in a row labelled "6 counted sprints" and agrees with it');
+  });
+  renderedFixture(historyFixture(rows, { includeInProgress: true }), { view: 'history' }, (st, d) => {
+    const on = read(d);
+    ok(/7 count towards/.test(on.count) && /7 counted sprints/.test(on.foot[1]),
+       'on: the running sprint is counted', on.count + ' | ' + on.foot[1]);
+    ok(/2 sprints still in flight are drawn but left out/.test(on.sub),
+       'so the caption leaves out the two planned sprints and not the one it just counted', on.sub);
+    ok(/PI 2 · S1 is still running and counted, because/.test(on.sub),
+       'and says the running sprint is in the figures, in the words the other views use', on.sub);
+    ok(/4 of 5/.test(on.goals), 'its goal counts once the sprint does', on.goals);
+  });
+});
+
+t('"N more than the suggestion" is the difference between the two figures beside it', () => {
+  /* The demo's own card: 90% of 25 is 22.5, shown as 23; 32 committed. 32 − 22.5
+     is 9.5, which rounds to 10 — beside a 23 and a 32. */
+  reviewView('rolling', (st, d) => {
+    const rec = tileByLabel(d, 'Recommended commitment');
+    const act = tileByLabel(d, 'Actually committed');
+    ok(rec && act, 'Team Live Sprint’s card has both tiles');
+    if (!rec || !act) return;
+    const num = (el) => Number(reviewText(el.querySelector('.value')).replace(/[^0-9.]/g, ''));
+    eq([num(rec), num(act)], [23, 32], 'the two figures a reader can subtract');
+    const foot = reviewText(act.querySelector('.foot'));
+    eq(foot, (num(act) - num(rec)) + ' more than the suggestion', 'and the caption is their difference');
+    const prose = reviewText(reviewCard(d, 'Target Capacity'));
+    ok(/committed to 32, about 9 more than/.test(prose), 'the fold-out says the same number',
+       (prose.match(/committed to 32[^.]*/) || [prose.slice(0, 120)])[0]);
+  }, (st) => { st.settings.activeTeamId = st.teams.find(t => t.name === 'Team Live Sprint').id; });
+  /* And the colour is judged on the same figure: 20 against a shown 23 is 3 under. */
+  const fx = capacityFixture({ plans: [{ id: 'pl1', teamId: 't1', piId: 'p1', sprintNumber: 5, availability: 90, reason: 'leave' }] });
+  fx.sprints.push({ id: 's5', teamId: 't1', piId: 'p1', sprintNumber: 5, status: 'active',
+    committed: 20, committedCompleted: 0, totalCompleted: 0, added: 0, removed: 0,
+    carriedIn: 0, carriedOut: 0, addedThenRemoved: 0 });
+  withState(fx, () => {
+    const tg = w.nextSprintTarget('t1', false);
+    eq(tg.recommended, 22.5, 'the fixture really does land on a half');
+    eq(tg.overBy, -3, 'measured from the 23 on the card, not the 22.5 behind it');
+    ok(w.targetCapacityCard(w.svGet().teams[0], false).includes('3 under the suggestion'), 'and said so');
+  });
+});
+
+t('a "so far" row sorts as a row with no percentage, because it shows none', () => {
+  /* S1 100%, S2 50%, S3 running at 10 of 30, S4 planned. Ascending by Complete %
+     put the two "so far" rows FIRST — on a 33% and a nothing the cells never print. */
+  const order = (d, id) => [...d.querySelectorAll('#' + id + ' tbody tr')].map(tr =>
+    reviewText(tr.querySelector('.rowbtn')).replace(/^.*·\s*/, '').replace(/^Sprint /, 'S')
+    + ' ' + (reviewText(tr.children[id === 'piTable' ? 3 : 4]).match(/so far|[\d.]+%|—/) || ['?'])[0]);
+  const hook = w.__svTestHooks;
+  try {
+    const four = [[100, 100], [100, 50], [30, 10, 'active'], [0, 0, 'planned']];
+    renderedFixture(historyFixture(four), { view: 'pi', activePiId: 'p1' }, (st, d) => {
+      ok(d.getElementById('piTable'), 'Team PI is on screen');
+      hook.setSort('piTable', 'commitPct', 'asc'); w.render();
+      eq(order(d, 'piTable').slice(0, 4), ['S2 50%', 'S1 100%', 'S3 so far', 'S4 so far'],
+         'Team PI, lowest first: the figures in order, then the rows that have none');
+      hook.setSort('piTable', 'commitPct', 'desc'); w.render();
+      eq(order(d, 'piTable').slice(0, 4), ['S1 100%', 'S2 50%', 'S3 so far', 'S4 so far'],
+         'and highest first leaves them at the foot too');
+    });
+    const eight = [[100, 100], [100, 50], [100, 80], [100, 70], [100, 90], [100, 60],
+                   [30, 10, 'active'], [0, 0, 'planned']];
+    renderedFixture(historyFixture(eight), { view: 'history' }, (st, d) => {
+      ok(d.getElementById('histTable'), 'History is on screen');
+      hook.setSort('histTable', 'commitPct', 'asc'); w.render();
+      const got = order(d, 'histTable');
+      eq(got.slice(0, 2).concat(got.slice(-2)), ['S2 50%', 'S6 60%', 'S1 so far', 'S2 so far'],
+         'History, lowest first: 50% leads and both "so far" rows close the table');
+    });
+    /* Counted, a running sprint DOES show its percentage — and then it sorts on it. */
+    renderedFixture(historyFixture(four, { includeInProgress: true }), { view: 'pi', activePiId: 'p1' }, (st, d) => {
+      hook.setSort('piTable', 'commitPct', 'asc'); w.render();
+      eq(order(d, 'piTable')[0], 'S3 33%', 'a running sprint that counts prints 33% and sorts first on it');
+    });
+  } finally {
+    hook.setSort('piTable', null, 'desc');
+    hook.setSort('histTable', null, 'desc');
+  }
+});
+
+/* Four sentences that did not agree with the number in them — the class the
+   2026-09-04 audit fixed, in four places it missed. One test each, so each is
+   proven red on its own. */
+t('wording: PI Trend says "up 1 point", not "up 1 points"', () => {
+  /* 80% then 81%. */
+  const twoPis = [80, 80, 80, 80, 80, 80, 81, 81, 81].map(v => [100, v]);
+  renderedFixture(historyFixture(twoPis), { view: 'trend' }, (st, d) => {
+    const tileEl = tileByLabel(d, 'Commitment completion');
+    const foot = tileEl ? reviewText(tileEl.querySelector('.foot')) : '(no PI Trend tile)';
+    ok(/up 1 point on PI 1/.test(foot), 'PI Trend: a rise of one is one point', foot);
+  });
+  /* And the plural is still there when it should be. */
+  renderedFixture(historyFixture(twoPis.map((r, i) => (i > 5 ? [100, 85] : r))), { view: 'trend' }, (st, d) => {
+    const tileEl = tileByLabel(d, 'Commitment completion');
+    ok(tileEl && /up 5 points on PI 1/.test(reviewText(tileEl.querySelector('.foot'))), 'five is five points');
+  });
+});
+t('wording: History’s "Up 1" sits over "percentage point", singular', () => {
+  /* 80,80,80,81,81,81 fits to a rise of 1.3, shown as "Up 1". */
+  renderedFixture(historyFixture([80, 80, 80, 81, 81, 81].map(v => [100, v])), { view: 'history' }, (st, d) => {
+    const dir = tileByLabel(d, 'Direction');
+    eq(dir ? reviewText(dir.querySelector('.value')) : null, 'Up 1', 'the fixture shows a rise of one');
+    const foot = dir ? reviewText(dir.querySelector('.foot')) : '';
+    ok(/^percentage point of commitment completion/.test(foot), 'so the caption under it is singular', foot);
+  });
+});
+t('wording: two sprints left out of Rolling 5 "aren’t listed here"', () => {
+  const rows = [80, 80, 80, 80, 80, 80, 80, 80].map(v => [100, v]);
+  rows[3][3] = { excluded: true, excludeReason: 'incident' };
+  rows[4][3] = { excluded: true, excludeReason: 'incident' };
+  renderedFixture(historyFixture(rows), { view: 'rolling' }, (st, d) => {
+    const card = reviewCard(d, 'The Numbers');
+    const sub = card ? reviewText(card.querySelector('.sub')) : '(no table card)';
+    ok(/S4, S5 left out/.test(sub), 'both are named over the table', sub);
+    ok(/so they aren.t listed here/.test(sub) && !/so it isn.t/.test(sub), 'and spoken of as two', sub);
+  });
+  rows[4][3] = {};
+  renderedFixture(historyFixture(rows), { view: 'rolling' }, (st, d) => {
+    const sub = reviewText(reviewCard(d, 'The Numbers').querySelector('.sub'));
+    ok(/S4 left out[^.]*so it isn.t listed here/.test(sub), 'one is still "it"', sub);
+  });
+});
+t('wording: one lost sprint on the forecast card "delivers nothing", and is an "it"', () => {
+  const st = w.svGet();
+  const keep = st.settings.forecastPoints;
+  try {
+    withState(capacityFixture(), () => {
+      typed(); st.settings.forecastPoints = 100;
+      const said = (lost) => {
+        adjust(undefined, undefined, lost);
+        const box = document.createElement('div');
+        box.innerHTML = w.forecastResultHtml(st.teams[0], false);
+        return (reviewText(box).match(/\d+ sprints? in this span[^]*?(?:one of these|that sprint)\./) || ['(caveat not found)'])[0];
+      };
+      const one = said(1);
+      ok(/1 sprint in this span delivers nothing/.test(one), 'one sprint delivers', one);
+      ok(/Where it falls makes no difference to the finish, so it is added flat/.test(one), 'and is an "it" throughout', one);
+      eq(/\bthey\b|\bthese\b/.test(one), false, 'with no plural left over', one);
+      const two = said(2);
+      ok(/2 sprints in this span deliver nothing/.test(two) && /Where they fall/.test(two) && /so they are added flat/.test(two),
+         'two are still plural', two);
+    });
+  } finally {
+    adjust();
+    if (keep === undefined) delete st.settings.forecastPoints; else st.settings.forecastPoints = keep;
+  }
+});
+
+t('the predictability charts reach as far as the targets that are set, and the words follow', () => {
+  /* Band 87–140%, red above 190%. The bands were drawn right and the axis stopped
+     at 120: the green band cut short, the upper amber never on the chart. */
+  const custom = { predUnderRed: 60, predLow: 87, predHigh: 140, predOverRed: 190 };
+  const axisMax = (id) => {
+    const c = w.Chart.getChart(id);
+    return c ? c.options.scales.y.suggestedMax : '(no ' + id + ')';
+  };
+  const bandTop = (id) => {
+    const c = w.Chart.getChart(id);
+    const bands = c && c.options.plugins.thresholdBands && c.options.plugins.thresholdBands.bands;
+    return bands ? Math.max.apply(null, bands.map(b => b.to)) : null;
+  };
+  withTargets(custom, () => {
+    reviewView('trend', (st, d) => {
+      eq(bandTop('trendChart'), 190, 'PI Trend draws its amber band up to the 190 that is set');
+      ok(axisMax('trendChart') >= 190, 'and the axis reaches it', axisMax('trendChart'));
+      const sub = reviewText(reviewCard(d, 'Predictability by PI').querySelector('.sub'));
+      ok(/climbing past 140%/.test(sub) && !/past 100%/.test(sub), 'the sentence names the ceiling that is set', sub);
+    });
+    reviewView('art', (st, d) => {
+      ok(axisMax('artPredChart') >= 190, 'PI by Team reaches it too', axisMax('artPredChart'));
+    });
+  });
+  /* At the defaults the charts are the ones they have always been. */
+  withTargets(null, () => {
+    reviewView('trend', () => eq(axisMax('trendChart'), 120, 'PI Trend at the defaults'));
+    reviewView('art', () => eq(axisMax('artPredChart'), 120, 'PI by Team at the defaults'));
+  });
+  /* A "red above" set BELOW 120 hides nothing, so the axis stays where it was. */
+  withTargets({ predHigh: 100, predOverRed: 105 }, () => eq(w.predAxisMax ? w.predAxisMax() : null, 120,
+    'and a lower "red above" never shrinks the chart'));
+});
+
+t('teams sort by name the way a reader files them: É with E, Team 2 before Team 10', () => {
+  const names = ['Zed', 'Émile', 'Team 10', 'alpha', 'Team 2', 'Beta'];
+  const pct = { Zed: 90, 'Émile': 70, alpha: 80 };          // the other three have no sprints
+  const fx = {
+    teams: names.map((n, i) => ({ id: 'n' + i, name: n })), arts: [],
+    pis: [{ id: 'p1', name: 'PI 1' }], plans: [],
+    sprints: names.flatMap((n, i) => (pct[n] ? [1, 2, 3].map(k => ({
+      id: 'n' + i + 's' + k, teamId: 'n' + i, piId: 'p1', sprintNumber: k, status: 'complete',
+      committed: 100, committedCompleted: pct[n], totalCompleted: pct[n],
+      added: 0, removed: 0, carriedIn: 0, carriedOut: 0, addedThenRemoved: 0 })) : []))
+  };
+  const hook = w.__svTestHooks;
+  try {
+    renderedFixture(fx, { view: 'teams', activeTeamId: 'n0' }, () => {
+      ok(w.document.getElementById('teamsTable'), 'Compare Teams is on screen');
+      hook.setSort('teamsTable', 'name', 'asc'); w.render();
+      eq(sortedTeams(), ['alpha', 'Beta', 'Émile', 'Team 2', 'Team 10', 'Zed'], 'A to Z');
+      hook.setSort('teamsTable', 'name', 'desc'); w.render();
+      eq(sortedTeams(), ['Zed', 'Team 10', 'Team 2', 'Émile', 'Beta', 'alpha'], 'and Z to A is its mirror');
+      /* Figure columns are untouched, and a team with no figure is still at the
+         foot either way, in the order the page had them. */
+      hook.setSort('teamsTable', 'commit', 'asc'); w.render();
+      const asc = sortedTeams();
+      eq(asc.slice(0, 3), ['Émile', 'alpha', 'Zed'], 'numbers still sort as numbers: 70, 80, 90');
+      hook.setSort('teamsTable', 'commit', 'desc'); w.render();
+      eq(sortedTeams().slice(0, 3), ['Zed', 'alpha', 'Émile'], '90, 80, 70');
+      eq(sortedTeams().slice(3), asc.slice(3), 'and the three with no figure close the table both ways');
+    });
+  } finally { hook.setSort('teamsTable', null, 'desc'); }
+});
+
+/* The ART picker and a reader who is not using a mouse. Three tests rather than
+   one so each is proven red on its own; one helper so they share a way in. */
+async function artPickFrame(tag, fn) {
+  await inFrame(tag, {}, async (W, D) => {
+    D.querySelector('.tab[data-view="teams"]').click();
+    await wait(350);
+    const btn = () => D.getElementById('artFilterBtn');
+    await fn(W, D, {
+      btn,
+      says: () => ({ open: !D.getElementById('artFilterMenu').hidden,
+                     expanded: btn().getAttribute('aria-expanded') }),
+      boxes: () => [...D.querySelectorAll('input[data-art-pick]')],
+      outside: () => D.querySelector('#teamsTable thead button[data-sortcol]'),
+      escape: () => D.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })),
+      /* A REAL focus move — and, because focus() inside a frame nobody is looking
+         at can set activeElement without firing the events (see spinFocusIn), the
+         focusout the browser owes is sent by hand when it did not arrive by itself. */
+      moveFocus: (from, to) => {
+        let fired = false;
+        const seen = () => { fired = true; };
+        D.addEventListener('focusout', seen, true);
+        to.focus({ preventScroll: true });
+        D.removeEventListener('focusout', seen, true);
+        if (!fired) from.dispatchEvent(new W.FocusEvent('focusout', { bubbles: true, relatedTarget: to }));
+      }
+    });
+  });
+}
+t('the ART menu closes when the keyboard leaves it — and only then', async () => {
+  await artPickFrame('artpickleave', async (W, D, p) => {
+    const st = W.svGet();
+    const tick = (box) => { box.focus(); box.checked = true; box.dispatchEvent(new W.Event('change', { bubbles: true })); };
+    p.btn().focus();
+    p.btn().dispatchEvent(new W.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+    eq(p.says(), { open: true, expanded: 'true' }, 'ArrowDown opens it');
+    ok(p.boxes().length >= 2, 'the demo has two ARTs to tick', p.boxes().length);
+    tick(p.boxes()[0]);
+    tick(p.boxes()[1]);
+    eq(st.settings.artFilter.length, 2, 'two ARTs ticked from the keyboard');
+    eq(p.says().open, true, 'and the menu rode out both re-renders — the guard the new close must not break');
+    /* Focus going NOWHERE is not the reader leaving: a tick's re-render, a press on
+       a label's text, the window losing focus. All have no relatedTarget. */
+    p.boxes()[1].dispatchEvent(new W.FocusEvent('focusout', { bubbles: true, relatedTarget: null }));
+    eq(p.says().open, true, 'a blur towards nothing leaves it open');
+    /* A mouse press on a label's TEXT sends the focus to <main> — focusable, for the
+       skip link, and the nearest focusable thing round the picker. Closing on that
+       hides the menu before the click lands, and the tick never happens. */
+    const main = D.getElementById('maincontent');
+    ok(main && main.contains(p.boxes()[1]), 'the picker sits inside the focusable <main>');
+    p.boxes()[1].dispatchEvent(new W.FocusEvent('focusout', { bubbles: true, relatedTarget: main }));
+    eq(p.says().open, true, 'a blur towards a container the picker is INSIDE leaves it open too');
+    p.boxes()[1].focus();
+    p.moveFocus(p.boxes()[1], p.boxes()[0]);
+    eq(p.says().open, true, 'and so does a move INSIDE the picker');
+    /* Tab on, out of the picker, onto the table under it. */
+    ok(p.outside(), 'there is a control past the picker to land on');
+    p.moveFocus(p.boxes()[0], p.outside());
+    eq(p.says(), { open: false, expanded: 'false' }, 'focus landing outside the picker closes the menu');
+    eq(st.settings.artFilter.length, 2, 'and the scope the reader ticked is kept');
+  });
+});
+t('Escape shuts the ART menu with the keyboard anywhere, but never under an open window', async () => {
+  await artPickFrame('artpickesc', async (W, D, p) => {
+    /* click() does not move focus, so the menu is open and the focus is still on
+       the table heading — where a reader is who tabbed out to the browser and back. */
+    p.outside().focus({ preventScroll: true });
+    p.btn().click();
+    eq(p.says().open, true, 'opened, focus outside it');
+    p.escape();
+    eq(p.says(), { open: false, expanded: 'false' }, 'Escape closes it although the focus is outside');
+    ok(!(D.activeElement && D.activeElement.id === 'artFilterBtn'), 'without pulling the keyboard back to the button');
+    /* From INSIDE it still hands the keyboard back, as it always did. */
+    p.btn().click();
+    p.boxes()[0].focus();
+    p.escape();
+    eq([p.says().open, D.activeElement && D.activeElement.id], [false, 'artFilterBtn'], 'from inside, the button gets the keyboard');
+    /* A dialog's Escape is still the dialog's. Focus is put outside the picker
+       first: from INSIDE it, the window opening is the keyboard leaving, and the
+       menu would (rightly) already be shut. */
+    p.outside().focus({ preventScroll: true });
+    p.btn().click();
+    openFind(W, D, 'zzzz');
+    eq(p.says().open, true, 'the menu is still up under the window');
+    p.escape();
+    eq(p.says().open, true, 'Escape under an open window is not taken by the picker');
+    D.getElementById('searchDialog').close();
+  });
+});
+t('a Find hit does not bring the open ART menu with it', async () => {
+  await artPickFrame('artpickfind', async (W, D, p) => {
+    p.btn().click();
+    eq(p.says().open, true, 'the menu is up when Find is opened');
+    openFind(W, D, 'Platform');
+    const hit = [...D.querySelectorAll('#searchResults .hit')]
+      .find(h => /— ART$/.test(reviewText(h.querySelector('.hitwhere'))));
+    ok(hit, 'Find has a hit for the ART');
+    if (!hit) return;
+    hit.click();
+    await wait(350);
+    ok(!D.getElementById('searchDialog').open, 'the hit closed the window');
+    eq(W.svGet().settings.view, 'teams', 'and landed on Compare Teams, where the picker is');
+    eq(p.says(), { open: false, expanded: 'false' }, 'with the menu shut, not re-opened over the hit');
+  });
+});
+
+/* ═══════════════════ 2026-09-18 review — block B ═══════════════════════════
+   One fix per commit, each test proven red against the commit before it. Tests
+   for this block go DIRECTLY under its group() line and above the next banner,
+   so parallel branches never edit the same lines.
+   EXPECTED is bumped once, when the branches are brought together — adding a
+   test never fails the floor, so a fix commit leaves it alone.
+   ═════════════════════════════════════════════════════════════════════════ */
+group('the sprint form and the windows round it (2026-09-18 review)');
+/* Found by entering sprints the long way round. Each test drives the real form or
+   the real window; the fixtures are dateless unless the finding is about dates. */
+const formFixture = (rows) => ({
+  teams: [{ id: 't1', name: 'Team One' }], arts: [], plans: [],
+  pis: [{ id: 'p1', name: 'PI 1' }],
+  sprints: rows.map((r) => Object.assign({ id: 's' + r.sprintNumber, teamId: 't1', piId: 'p1',
+    committed: 30, committedCompleted: 30, totalCompleted: 30, added: 0, removed: 0,
+    carriedIn: 0, carriedOut: 0, addedThenRemoved: 0 }, r))
+});
+const fire = (W, el, type) => el.dispatchEvent(new W.Event(type, { bubbles: true }));
+
+t('a prefilled Carried In follows the form to another slot instead of going stale', () => {
+  withState(formFixture([{ sprintNumber: 1 }, { sprintNumber: 2, carriedIn: 4, carriedOut: 18 }]), () => {
+    const d = w.document;
+    const cin = d.getElementById('f_carriedIn'), numSel = d.getElementById('f_num');
+    const hint = d.getElementById('carryHint');
+    const move = (n) => { numSel.value = String(n); fire(w, numSel, 'change'); };
+    try {
+      w.openSprint('t1', 'p1', 3);
+      eq(cin.value, '18', 'Add Sprint on S3 offers what S2 carried out');
+      ok(!hint.hidden, 'with the note saying where it came from');
+      move(5);
+      eq(numSel.value, '5', 'the form moved to S5, whose S4 has no record');
+      eq(cin.value, '', 'so the guess made for S3 is withdrawn — it stayed 18, with no note, and saved on S5');
+      ok(hint.hidden, 'and no note claims a source');
+      move(3);
+      eq(cin.value, '18', 'moving back re-makes the guess');
+      ok(!hint.hidden, 'and its note');
+      /* A typed figure is the user’s, wherever the form goes next. */
+      cin.value = '7'; fire(w, cin, 'input');
+      move(5);
+      eq(cin.value, '7', 'a figure typed by hand is never cleared');
+      move(3);
+      eq(cin.value, '7', 'nor replaced by a fresh guess');
+      d.getElementById('sprintDialog').close();
+      /* And a saved sprint’s own figure is a fact, not a guess. */
+      w.openSprint('t1', 'p1', 2);
+      eq(cin.value, '4', 'a saved sprint opens on its own carried in');
+      move(4);
+      eq(cin.value, '4', 'and keeps it when the form is moved');
+      d.getElementById('sprintDialog').close();
+      /* The mark does not outlive the form it was made on. */
+      w.openSprint('t1', 'p1', 3);
+      d.getElementById('sprintDialog').close();
+      w.openSprint('t1', 'p1', 2);
+      move(4);
+      eq(cin.value, '4', 'a guess marked on the last form does not make this one’s figure disposable');
+    } finally {
+      d.getElementById('sprintDialog').close();
+    }
+  });
+});
+
+/* A real-size frame holding a fixture instead of the sample: its own state, save and
+   confirm stubbed by inFrame, so Save Sprint can be pressed for real. */
+async function formFrame(tag, fixture, fn) {
+  await inFrame(tag, { sample: false, blank: true }, async (W, D) => {
+    const st = W.svGet();
+    ['teams', 'arts', 'pis', 'sprints', 'plans', 'objectives'].forEach((k) => {
+      st[k] = JSON.parse(JSON.stringify(fixture[k] || []));
+    });
+    st.settings.activeTeamId = fixture.teams[0].id;
+    st.settings.activePiId = fixture.pis.length ? fixture.pis[0].id : null;
+    st.settings.artFilter = [];
+    W.render();
+    await wait(100);
+    await fn(W, D, st);
+  });
+}
+
+t('a sprint with a start date and no end date is not told "no dates set"', () => {
+  withState(formFixture([{ sprintNumber: 1 }]), () => {
+    const d = w.document;
+    const hint = () => d.getElementById('statusHint').textContent;
+    const start = d.getElementById('f_start');
+    try {
+      w.openSprint('t1', 'p1', 2);
+      ok(/no dates set, so treated as finished/.test(hint()), 'with neither date the old sentence is true', hint());
+      start.value = '2026-01-05'; fire(w, start, 'change');     // long past, so "started" on any day the suite runs
+      ok(/^Auto: complete/.test(hint()), 'a started sprint with no end date still resolves complete — the lifecycle is unchanged', hint());
+      ok(!/no dates set/.test(hint()), 'but a date IS set, so the form does not say none is', hint());
+      ok(/no end date/.test(hint()), 'it names the date that is missing', hint());
+      ok(/add an end date/.test(hint()), 'and says what adding it does', hint());
+      ok(/Counted in your averages\.$/.test(hint()), 'and still says it is being counted', hint());
+    } finally {
+      d.getElementById('sprintDialog').close();
+    }
+  });
+});
+
+t('an end date before the start date is warned about and cannot be saved', async () => {
+  const fx = formFixture([{ sprintNumber: 1, startDate: '2026-01-05', endDate: '2026-01-16' }]);
+  await formFrame('b2dates', fx, async (W, D, st) => {
+    const toasts = [];
+    W.toast = (m) => { toasts.push(String(m)); };
+    W.openSprint('t1', 'p1', 2);
+    const start = D.getElementById('f_start'), end = D.getElementById('f_end');
+    const warn = () => D.getElementById('sprintWarn').textContent;
+    start.value = '2026-02-10'; fire(W, start, 'input'); fire(W, start, 'change');
+    end.value = '2026-02-01';   fire(W, end, 'input');   fire(W, end, 'change');
+    ok(/end date is before the start date/i.test(warn()), 'the form says so as soon as the dates cross', warn());
+    ok(!/Saving anyway is fine/.test(warn()), 'and does not call it fine to save', warn());
+    D.getElementById('sprintSaveBtn').click();
+    await wait(30);
+    eq(st.sprints.length, 1, 'Save Sprint refuses: one such sprint switches off every projected date for the team');
+    ok(D.getElementById('sprintDialog').open, 'and the form stays open to be fixed');
+    ok(toasts.some(m => /end date is before the start date/i.test(m)), 'saying why', JSON.stringify(toasts));
+    ok(W.teamCadence('t1') !== null, 'so the team keeps its cadence');
+    end.value = '2026-02-20'; fire(W, end, 'input'); fire(W, end, 'change');
+    eq(/end date is before/i.test(warn()), false, 'fixing the date withdraws the warning');
+    D.getElementById('sprintSaveBtn').click();
+    await wait(30);
+    eq(st.sprints.length, 2, 'and the sprint saves');
+  });
+});
+
+t('carried out is offered as what is left of the commitment — removed points are not left', () => {
+  withState(formFixture([{ sprintNumber: 1 }]), () => {
+    const d = w.document;
+    const box = (id) => d.getElementById(id);
+    const type = (id, v) => { box(id).value = String(v); fire(w, box(id), 'input'); };
+    try {
+      w.openSprint('t1', 'p1', 2);
+      type('f_committed', 30); type('f_committedCompleted', 24);
+      eq(box('f_carriedOut').value, '6', 'with nothing removed it is committed − completed, as before');
+      type('f_removed', 4);
+      eq(box('f_carriedOut').value, '2', 'typing Removed re-works it: 30 − 24 − 4 (it stayed 6, counting the 4 twice)');
+      type('f_removed', 40);
+      eq(box('f_carriedOut').value, '0', 'never below nought');
+      type('f_carriedOut', 9);
+      type('f_removed', 1);
+      eq(box('f_carriedOut').value, '9', 'and a figure typed by hand is left alone');
+    } finally {
+      d.getElementById('sprintDialog').close();
+    }
+  });
+});
+
+t('the carried-out note never calls points break-in that the Added figure cannot hold', async () => {
+  const fx = formFixture([{ sprintNumber: 1 }]);
+  await formFrame('b3note', fx, async (W, D, st) => {
+    const show = (figures) => {
+      st.sprints = [Object.assign({ id: 's1', teamId: 't1', piId: 'p1', sprintNumber: 1,
+        carriedIn: 0, addedThenRemoved: 0 }, figures)];
+      st.settings.view = 'sprint'; st.settings.activePiId = 'p1'; st.settings.activeSprintNum = 1;
+      W.render();
+      const card = reviewCard(D, 'Where the Points Went');
+      const note = card && [...card.querySelectorAll('p')].map(reviewText).find(x => /carried-out point/.test(x));
+      return note || '';
+    };
+    /* Hand-entered the old way: carried out 6 = committed − completed, removed 4, nothing added. */
+    let note = show({ committed: 30, committedCompleted: 24, totalCompleted: 24, added: 0, removed: 4, carriedOut: 6 });
+    ok(/The bar shows the 2 carried-out points/.test(note), 'the note is still there: the bar shows 2 of the 6', note);
+    ok(!/broke in/.test(note), 'with 0 points added nothing is said to have broken in — it said the other 4 had', note);
+    ok(/other 4 of the 6/.test(note) && /removed points still counted/.test(note), 'the 4 are named for what they can be', note);
+
+    /* The reviewer’s paste: two re-sized stories, 8 added of which 5 finished. */
+    note = show({ committed: 34, committedCompleted: 18, totalCompleted: 23, added: 8, removed: 5, carriedOut: 21 });
+    ok(/Of the other 10 of the 21/.test(note), 'ten of the 21 are beyond the commitment’s share', note);
+    ok(/ 3 broke in after the sprint started/.test(note), 'three of them can be break-in: 8 added less the 5 that finished', note);
+    ok(/remaining 7 is not break-in/.test(note) && /re-sized/.test(note), 'and the other 7 are not called break-in', note);
+
+    /* A sprint that balances keeps the sentence it always had. */
+    note = show({ committed: 30, committedCompleted: 24, totalCompleted: 24, added: 5, removed: 0, carriedOut: 11 });
+    ok(/The other 5 of the 11 going to the next sprint broke in after the sprint started/.test(note),
+       'unfinished break-in is still called break-in', note);
+    ok(!/re-sized/.test(note), 'with no remainder to explain', note);
+  });
+});
+
+t('Save Sprint after Use These Numbers on a brand-new sprint asks nothing; a re-paste over a saved one still asks', async () => {
+  await formFrame('b4new', formFixture([{ sprintNumber: 1 }]), async (W, D, st) => {
+    const asked = [];
+    W.confirm = (m) => { asked.push(String(m)); return true; };
+    W.toast = () => {};
+    const paste = (text) => {
+      D.getElementById('jiraText').value = text;
+      D.getElementById('jiraParseBtn').click();
+      const use = D.getElementById('jiraApplyBtn');
+      ok(use, 'the paste was read and offers Use These Numbers');
+      if (use) use.click();
+    };
+    W.openSprint('t1', 'p1', 2);
+    paste(TABBED);
+    eq(st.sprints.length, 2, 'Use These Numbers saved the new sprint there and then');
+    eq(asked.length, 0, 'without a question — nothing was there to overwrite');
+    const goal = D.getElementById('f_goalMet');
+    goal.value = 'met'; fire(W, goal, 'change');
+    D.getElementById('sprintSaveBtn').click();
+    await wait(30);
+    eq(asked.length, 0, 'and Save Sprint does not call the sprint it has just made "data" to be overwritten',
+       asked.join(' | '));
+    const s2 = st.sprints.find(x => x.sprintNumber === 2);
+    eq(s2 && s2.goalMet, true, 'the goal is saved');
+    ok(!D.getElementById('sprintDialog').open, 'and the form closes');
+
+    /* The guard itself is untouched: the same sprint, saved and finished, pasted over. */
+    W.openSprint('t1', 'p1', 2);
+    paste(RESIZED);
+    eq(asked.length, 1, 'a different report over a sprint saved earlier still asks first');
+    ok(/already has data/.test(asked[0] || ''), 'in the usual words', asked[0]);
+    D.getElementById('sprintDialog').close();
+  });
+});
+
+t('Keep the Sprints does not promise untouched figures when a sprint 6 would stop being an IP sprint', () => {
+  const six = formFixture([1, 2, 3, 4, 5, 6].map((n) => ({ sprintNumber: n })));
+  const five = formFixture([1, 2, 3, 4, 5].map((n) => ({ sprintNumber: n })));
+  const body = () => reviewText(w.document.getElementById('delPiBody'));
+  withState(six, () => {
+    try {
+      w.openDeletePi(w.svGet().pis[0]);
+      ok(/6 sprints across 1 team/.test(body()), 'the dialog is up for the six-sprint PI', body());
+      ok(!/figures are untouched/.test(body()),
+         'it does not say the figures are untouched: the kept S6 starts counting in Rolling 5 and the target', body());
+      ok(/Sprint 6 is only an IP sprint inside a PI/.test(body()), 'it says why', body());
+      ok(/Rolling 5 and the capacity target will start counting it/.test(body()), 'and what will move', body());
+      eq(w.document.getElementById('delPiDropBtn').textContent, 'Delete the Sprints Too',
+         'and the button beside Keep the Sprints is Title Case, as its markup is');
+      ok(!w.document.getElementById('delPiKeepBtn').hidden, 'with Keep the Sprints on offer');
+    } finally {
+      w.document.getElementById('delPiCancelBtn').click();
+    }
+  });
+  withState(five, () => {
+    try {
+      w.openDeletePi(w.svGet().pis[0]);
+      ok(/figures are untouched/.test(body()), 'with no sprint 6 in the PI the promise is true, and still made', body());
+      ok(!/IP sprint/.test(body()), 'and nothing is said about an IP sprint', body());
+    } finally {
+      w.document.getElementById('delPiCancelBtn').click();
+    }
+  });
+});
+
+/* `close(); render();` — the close hands the focus to the button that opened the
+   window and the render destroys that button. Four buttons, two windows, and a row
+   button has no id to be re-found by. */
+const tick = () => new Promise((r) => setTimeout(r, 0));
+const focusName = (a) => (a ? (a.id || a.className || a.tagName) : 'nothing');
+async function sixFrame(tag, fn) {
+  /* Six dated-free finished sprints: enough for a rolling window and a PI table. */
+  await formFrame(tag, formFixture([1, 2, 3, 4, 5, 6].map((n) => ({ sprintNumber: n }))), async (W, D, st) => {
+    W.toast = () => {};
+    const show = async (view, num) => {
+      st.settings.view = view;
+      if (num) st.settings.activeSprintNum = num;
+      W.render();
+      await wait(60);
+    };
+    await fn(W, D, st, show);
+  });
+}
+
+t('Save Sprint and Delete Sprint leave the keyboard on the control that opened the form', async () => {
+  await sixFrame('b6sprint', async (W, D, st, show) => {
+    const save = async () => { D.getElementById('sprintSaveBtn').click(); await tick(); await wait(30); };
+
+    await show('sprint', 3);
+    let btn = D.getElementById('editSprintBtn');
+    ok(btn, 'the Sprint view has its Edit Sprint button');
+    btn.focus(); btn.click(); await wait(30);
+    ok(D.getElementById('sprintDialog').open, 'the form opened from it');
+    await save();
+    ok(D.getElementById('editSprintBtn') !== btn, 'the save re-rendered the view, so that button is a new node');
+    ok(D.activeElement === D.getElementById('editSprintBtn'),
+       'and the keyboard is on the CURRENT Edit Sprint button, not <body>', focusName(D.activeElement));
+
+    await show('pi');
+    const rowBtn = (n) => D.querySelector(`#piTable tr[data-num="${n}"] .rowbtn`);
+    ok(rowBtn(2), 'the Team PI table has a row button for sprint 2');
+    rowBtn(2).focus(); rowBtn(2).click(); await wait(30);
+    eq(D.getElementById('f_num').value, '2', 'the form opened on sprint 2 from its row');
+    await save();
+    ok(D.activeElement === rowBtn(2),
+       'from a row — which has no id — the keyboard is back on the same sprint’s row button', focusName(D.activeElement));
+
+    /* Delete: the row goes with the sprint, so the row now in its place takes it. */
+    rowBtn(2).focus(); rowBtn(2).click(); await wait(30);
+    D.getElementById('sprintDeleteBtn').click();
+    await tick(); await wait(30);
+    eq(st.sprints.some(x => x.sprintNumber === 2), false, 'sprint 2 is deleted');
+    ok(D.activeElement === rowBtn(2),
+       'and the keyboard is on the row in its place (the empty slot’s Add button)', focusName(D.activeElement));
+
+    await show('rolling');
+    const rolls = () => [...D.querySelectorAll('#rollTable tbody .rowbtn')];
+    ok(rolls().length > 1, 'the Rolling 5 table has row buttons');
+    const last = rolls().length - 1;
+    const label = rolls()[last].textContent;
+    rolls()[last].focus(); rolls()[last].click(); await wait(30);
+    D.getElementById('sprintDeleteBtn').click();
+    await tick(); await wait(30);
+    const a = D.activeElement;
+    ok(a && a.classList.contains('rowbtn') && D.getElementById('rollTable').contains(a),
+       'deleting from the last Rolling 5 row lands on a row of that table', focusName(a));
+    ok(a && a.textContent !== label, 'a different sprint’s — the deleted one has no row', a && a.textContent);
+  });
+});
+
+t('Save Adjustment and Remove Adjustment leave the keyboard on Adjust Capacity', async () => {
+  await sixFrame('b6adjust', async (W, D, st, show) => {
+    await show('rolling');
+    const open = async () => {
+      const b = D.getElementById('adjustBtn');
+      ok(b, 'the capacity card has its Adjust Capacity button');
+      b.focus(); b.click(); await wait(30);
+      ok(D.getElementById('adjustDialog').open, 'the window opened from it');
+      return b;
+    };
+    let was = await open();
+    const pct = D.getElementById('a_pct');
+    pct.value = '80'; fire(W, pct, 'input');
+    D.getElementById('adjustSaveBtn').click();
+    await tick(); await wait(30);
+    ok(D.getElementById('adjustBtn') !== was, 'Save Adjustment re-rendered the card');
+    ok(D.activeElement === D.getElementById('adjustBtn'),
+       'and the keyboard is on the current Adjust Capacity button, not <body>', focusName(D.activeElement));
+    await open();
+    D.getElementById('adjustRemoveBtn').click();
+    await tick(); await wait(30);
+    ok(D.activeElement === D.getElementById('adjustBtn'),
+       'Remove Adjustment too', focusName(D.activeElement));
+  });
+});
+
+/* The same fault without a window: a control inside #views whose `change` renders
+   the view it sits in. On the sample, which has three PIs, ARTs and an IP sprint. */
+t('a view’s own toggles and pickers keep the keyboard after the render they cause', async () => {
+  await inFrame('b7view', {}, async (W, D) => {
+    const st = W.svGet();
+    const show = async (view) => { st.settings.view = view; W.render(); await wait(80); };
+    const toggle = async (id) => {
+      const el = D.getElementById(id);
+      ok(el, '#' + id + ' is on the page');
+      if (!el) return;
+      el.focus();
+      el.checked = !el.checked; fire(W, el, 'change');
+      await tick();
+      ok(D.getElementById(id) !== el, '#' + id + ': the change re-rendered the view, so the control is a new node');
+      ok(D.activeElement === D.getElementById(id),
+         '#' + id + ' still has the keyboard — Space toggles it back instead of scrolling the page', focusName(D.activeElement));
+    };
+    const pick = async (id) => {
+      const el = D.getElementById(id);
+      ok(el && el.options.length > 1, '#' + id + ' is on the page with a choice to make');
+      if (!el) return;
+      el.focus();
+      el.selectedIndex = [...el.options].findIndex(o => !o.selected); fire(W, el, 'change');
+      await tick();
+      ok(D.activeElement === D.getElementById(id),
+         '#' + id + ' still has the keyboard after the pick', focusName(D.activeElement));
+    };
+    await show('rolling'); await toggle('incSix'); await toggle('incProgress');
+    await show('sprint');  await pick('numSel');   await pick('piSel');
+    await show('pi');      await pick('piSel2');
+    await show('art');     await pick('piSel3');
+
+    /* Only when it HAD the focus: a change made with the focus elsewhere steals nothing. */
+    await show('rolling');
+    const six = D.getElementById('incSix');
+    const other = D.getElementById('manageBtn');
+    other.focus();
+    six.checked = !six.checked; fire(W, six, 'change');
+    await tick();
+    ok(D.activeElement === other, 'a toggle changed while something else held the focus leaves it there',
+       focusName(D.activeElement));
+  });
+});
+
+t('deleting a row in Teams, ARTs & PIs — or changing a team’s ART — keeps the keyboard in the list', async () => {
+  await inFrame('b7manage', {}, async (W, D) => {
+    const st = W.svGet();
+    W.toast = () => {};
+    const dlg = D.getElementById('manageDialog');
+    D.getElementById('manageBtn').focus();
+    D.getElementById('manageBtn').click();
+    await wait(60);
+    ok(dlg.open, 'Teams, ARTs & PIs is open');
+    const dels = (kind) => [...dlg.querySelectorAll(`[data-del-${kind}]`)];
+    const press = async (el) => { el.focus(); el.click(); await tick(); await wait(30); };
+
+    /* The ART picker on a team row: renderManage() rebuilds it under the press. */
+    const sel = dlg.querySelector('#teamRows select[data-art-of]');
+    ok(sel && sel.id, 'a team row has its ART picker');
+    if (sel) {
+      sel.focus();
+      sel.selectedIndex = [...sel.options].findIndex(o => !o.selected); fire(W, sel, 'change');
+      await tick();
+      ok(D.getElementById(sel.id) !== sel, 'the change rebuilt the row');
+      ok(D.activeElement === D.getElementById(sel.id),
+         'and the same team’s picker still has the keyboard', focusName(D.activeElement));
+    }
+
+    /* A team, from the middle of the list: the next row moves up into its place. */
+    ok(dels('team').length >= 3, 'the sample has teams to delete');
+    const nextTeam = dels('team')[2].dataset.delTeam;
+    await press(dels('team')[1]);
+    ok(D.activeElement === dels('team')[1] && dels('team')[1].dataset.delTeam === nextTeam,
+       'after deleting the second team the keyboard is on the × of the row now in its place', focusName(D.activeElement));
+    /* The last row: there is no next one, so the previous. */
+    await press(dels('team')[dels('team').length - 1]);
+    ok(D.activeElement === dels('team')[dels('team').length - 1],
+       'after deleting the last team it is on the new last row’s ×', focusName(D.activeElement));
+
+    /* A PI goes through its own window first. */
+    ok(dels('pi').length >= 2, 'the sample has PIs to delete');
+    await press(dels('pi')[0]);
+    ok(D.getElementById('delPiDialog').open, 'Delete PI asks what to do with the sprints');
+    D.getElementById('delPiKeepBtn').click();
+    await tick(); await wait(30);
+    ok(!D.getElementById('delPiDialog').open && dlg.open, 'and closes back onto Teams, ARTs & PIs');
+    ok(D.activeElement === dels('pi')[0], 'with the keyboard on the first PI row’s ×', focusName(D.activeElement));
+
+    /* ARTs, down to none: the list is empty, so the section’s Add button. */
+    ok(dels('art').length >= 1, 'the sample has an ART to delete');
+    let guard = 0;
+    while (dels('art').length > 1 && guard++ < 10) await press(dels('art')[0]);
+    ok(D.activeElement === dels('art')[0], 'deleting ARTs one by one keeps the keyboard on the first row’s ×',
+       focusName(D.activeElement));
+    await press(dels('art')[0]);
+    eq(st.arts.length, 0, 'the last ART is gone');
+    ok(D.activeElement === D.getElementById('addArtBtn'),
+       'and with no rows left the keyboard is on + Add ART', focusName(D.activeElement));
+    dlg.close();
+  });
+});
+
+t('closing Teams, ARTs & PIs after Start Fresh replaced the welcome card lands on the header’s button', async () => {
+  await inFrame('b7welcome', { sample: false, blank: true }, async (W, D) => {
+    W.toast = () => {};
+    const start = D.getElementById('welcomeAddBtn');
+    ok(start, 'an empty app shows the welcome card');
+    start.focus(); start.click();
+    await wait(80);
+    ok(D.getElementById('manageDialog').open, 'Start Fresh opens Teams, ARTs & PIs');
+    ok(!D.getElementById('welcomeAddBtn'), 'and adds the first team, which replaces the card it was pressed on');
+    D.getElementById('manageCloseBtn').click();
+    await tick(); await wait(30);
+    ok(D.activeElement === D.getElementById('manageBtn'),
+       'Done lands on the header’s Teams & PIs button, not <body>', focusName(D.activeElement));
+  });
+});
+
+/* ═══════════════════ 2026-09-18 review — block C ═══════════════════════════
+   One fix per commit, each test proven red against the commit before it. Tests
+   for this block go DIRECTLY under its group() line and above the next banner,
+   so parallel branches never edit the same lines.
+   EXPECTED is bumped once, when the branches are brought together — adding a
+   test never fails the floor, so a fix commit leaves it alone.
+   ═════════════════════════════════════════════════════════════════════════ */
+group('the forecast card, dates and the demo (2026-09-18 review)');
+
+/* The forecast card's words, read as text. `forecastPoints` is a setting and
+   withState() does not swap settings, so it is put back by hand. */
+function forecastCardText(fx, points, includeSix) {
+  const st = w.svGet(), before = st.settings.forecastPoints;
+  st.settings.forecastPoints = String(points);
+  try {
+    return withState(fx, () => {
+      typed(); adjust();
+      const el = document.createElement('div');
+      el.innerHTML = w.forecastResultHtml(w.svGet().teams[0], !!includeSix);
+      return el.textContent.replace(/\s+/g, ' ').trim();
+    });
+  } finally { st.settings.forecastPoints = before; typed(); adjust(); }
+}
+/* One team, five finished dateless sprints on the unassigned track (no PI, so no
+   IP sprint and no "fits in the PI" sentence riding along). */
+function forecastWordsFixture(done, availability) {
+  const team = { id: 't1', name: 'Team One' };
+  if (availability !== undefined) team.availability = availability;
+  return { teams: [team], arts: [], pis: [], plans: [],
+    sprints: done.map((v, i) => ({ id: 's' + (i + 1), teamId: 't1', piId: null, sprintNumber: i + 1,
+      committed: v, committedCompleted: v, totalCompleted: v,
+      added: 0, removed: 0, carriedIn: 0, carriedOut: 0, addedThenRemoved: 0 })) };
+}
+t('under a standing availability the forecast card names the history figure AND the adjustment (2026-09-18 review)', () => {
+  /* 30, 35, 38, 40, 33 at a standing 90%: the mean is 35.2 and the second-lowest
+     33, cleared in 4 of 5. The rates are 31.68 and 29.7. The card used to say
+     "4 at the 32 points a sprint they average, 5 at the 30 they finished in 4 of
+     the last 5" — they average 35, they cleared 30 in FIVE of five, and 120 / 30
+     is 4, not 5. */
+  const fx = forecastWordsFixture([30, 35, 38, 40, 33], 90);
+  withState(fx, () => {
+    typed(); adjust();
+    const f = w.forecast('t1', 120, false);
+    eq([f.fast, f.slow], [4, 5], 'ceil(120 / 31.68) and ceil(120 / 29.7)');
+    approx(f.meanBase, 35.2, 'the unadjusted mean is handed over, not divided back out');
+    eq(f.floorBase, 33, 'and the unadjusted floor');
+    eq(f.reliableMet, 4, '4 of 5 cleared the 33 — that is what the count is a count OF');
+  });
+  const text = forecastCardText(fx, 120);
+  ok(!/32 points a sprint they average/.test(text),
+    'the adjusted 32 is never called what they average', text);
+  ok(/4 at 32 points a sprint \(90% of the 35 they average\)/.test(text),
+    'the faster end names the rate, the adjustment and the history figure', text);
+  ok(/5 at 29\.7 \(90% of the 33 they finished in 4 of the last 5\)/.test(text),
+    'the slower end is shown to a decimal, because 120 / 30 is 4 and the answer is 5 — and the '
+    + '"4 of the last 5" sits beside the 33 it is true of', text);
+});
+t('a rate is shown to one decimal only where the whole number would not divide to the same answer (2026-09-18 review)', () => {
+  /* No availability at all: 29, 30, 30, 30, 30 averages 29.8, and 120 / 29.8 is
+     5 sprints where the reader's own 120 / 30 is 4. */
+  const close = forecastCardText(forecastWordsFixture([29, 30, 30, 30, 30]), 120);
+  ok(/29\.8 points a sprint they average/.test(close),
+    'the mean is shown as 29.8, not as a 30 that divides to a different answer', close);
+  /* And where the whole number divides to the same count it stays whole: mean 25,
+     floor 20, 100 points → 4 and 5. */
+  const plain = forecastCardText(capacityFixture({ pis: [], sprints: capacityFixture().sprints
+    .map(s => Object.assign({}, s, { piId: null })) }), 100);
+  ok(/4 at the 25 points a sprint they average, 5 at the 20 they finished in 3 of the last 4\./.test(plain),
+    'the unadjusted sentence is word for word what it was', plain);
+  /* Same number at both ends, adjusted: the brackets read inside that sentence too. */
+  const same = forecastCardText(forecastWordsFixture([30, 35, 38, 40, 33], 90), 20);
+  ok(/At 32 points a sprint \(90% of the 35 they average\), and at 30 \(90% of the 33 they finished in 4 of the last 5\), it comes to the same number\./.test(same),
+    'and 20 points is one sprint either way, so both rates stay whole', same);
+});
+t('the swings caveat explains a range only where the card shows one (2026-09-18 review)', () => {
+  /* 22, 12, 25, 20, 26: mean 21, floor 20, and a spread wide enough to be unsteady.
+     120 points is 6 sprints at either rate, so the card says "it comes to the same
+     number" — and used to go straight on to explain why "the two ends are far
+     apart" and that "the range is the honest answer". */
+  const fx = forecastWordsFixture([22, 12, 25, 20, 26]);
+  withState(fx, () => {
+    typed(); adjust();
+    const f = w.forecast('t1', 120, false);
+    eq([f.fast, f.slow, f.steady], [6, 6, false], 'one figure, from an unsteady team');
+  });
+  const one = forecastCardText(fx, 120);
+  ok(/would take 6 sprints/.test(one) && /it comes to the same number/.test(one), 'a single figure', one);
+  ok(!/two ends are far apart/.test(one) && !/range is the honest answer/.test(one),
+    'so nothing explains a range that is not there', one);
+  ok(/delivery swings a fair bit/.test(one) && /happen to round to the same whole number/.test(one),
+    'the swings are still said, and said truthfully', one);
+  /* 125 points is 6 at the 21 and 7 at the 20: a real range, and the old wording
+     is right for it. */
+  const two = forecastCardText(fx, 125);
+  ok(/would take 6 to 7 sprints/.test(two) && /two ends are far apart/.test(two),
+    'a real range keeps the sentence that explains it', two);
+});
+t('a standing availability of 0% is named as the reason there is no rate, not the team’s history (2026-09-18 review)', () => {
+  /* Four sprints finishing 20 each, and a team set to a standing 0%. The rate is
+     20 × 0, and the card said the team "has finished none of its committed points
+     … Record a sprint with some committed work finished and this will answer" —
+     false, and advice that cannot work. */
+  const fx = forecastWordsFixture([20, 20, 20, 20], 0);
+  withState(fx, () => {
+    typed(); adjust();
+    const f = w.forecast('t1', 100, false);
+    eq(f.impossible, true, 'still no forecast — nothing times 0% is a rate');
+    eq(f.zeroedByAvailability, true, 'but the object says WHY');
+  });
+  const text = forecastCardText(fx, 100);
+  ok(!/finished none of its committed points/.test(text), 'the history is not blamed', text);
+  ok(/standing availability of 0%/.test(text) && /Adjust Capacity/.test(text),
+    'the 0% is named, and so is where to change it', text);
+  /* Before any points are typed the card says where the rate will come from, and
+     that sentence blamed the history too. */
+  const empty = forecastCardText(fx, 0);
+  ok(!/has no finished sprints/.test(empty) && /standing availability of 0%/.test(empty),
+    'the line shown before any points are typed names the 0% too', empty);
+  /* A team that really has finished none of its commitment keeps its own message —
+     with or without a 0% on top, because there the history IS the reason. */
+  const none = forecastWordsFixture([20, 20, 20, 20], 0);
+  none.sprints.forEach(sp => { sp.committedCompleted = 0; });
+  withState(none, () => {
+    typed(); adjust();
+    eq(w.forecast('t1', 100, false).zeroedByAvailability, false, 'nothing finished: not the 0%’s doing');
+  });
+  ok(/finished none of its committed points/.test(forecastCardText(none, 100)),
+    'and the card still says so');
+  /* A typed rate takes no availability, so a 0% team with one typed still answers. */
+  withState(fx, () => {
+    typed(10, 20, true);
+    eq(w.forecast('t1', 100, false).fast, 5, 'a typed rate is untouched by the standing 0%');
+  });
+  typed();
+});
+t('a typed velocity and the forecast adjustments stay with their team by EVERY way of changing team (2026-09-18 review)', async () => {
+  /* Only the header picker cleared them. Team New Start's typed 5–10 points, 20%
+     growth and 2 lost sprints followed a Compare Teams row click onto Team
+     Headroom's card — nine sprints of history — as "… at the velocity you typed". */
+  await inFrame('teamswitch', {}, async (W, D) => {
+    const st = W.svGet();
+    const id = (name) => st.teams.find(x => x.name === name).id;
+    const typeItFor = async (name) => {
+      const sel = D.getElementById('teamSel');
+      sel.value = id(name);
+      sel.dispatchEvent(new W.Event('change', { bubbles: true }));
+      W.__svTestHooks.svTypedRate(5, 10, true);
+      W.__svTestHooks.svAdjust(20, 20, 2);
+      st.settings.forecastPoints = '200';
+      await wait(50);
+    };
+    const held = () => [st.settings.forecastRateLo, st.settings.forecastRateHi, st.settings.forecastTypedOn,
+      st.settings.forecastGrowthLo, st.settings.forecastGrowthHi, st.settings.forecastLostSprints];
+    const CLEAR = ['', '', null, '', '', ''];
+    const card = () => {
+      const el = D.getElementById('forecastResult');
+      return el ? el.textContent.replace(/\s+/g, ' ').trim() : '(no forecast card)';
+    };
+
+    /* 1 — the Compare Teams row. It lands on Rolling 5, the card's own view. */
+    await typeItFor('Team New Start');
+    D.querySelector('.tab[data-view="teams"]').click();
+    await wait(300);
+    const row = [...D.querySelectorAll('#teamsTable tbody tr.clickable')]
+      .find(tr => tr.dataset.id === id('Team Headroom'));
+    ok(row && row.querySelector('.rowbtn'), 'Compare Teams has a row for Team Headroom to press');
+    row.querySelector('.rowbtn').click();
+    await wait(300);
+    eq([st.settings.activeTeamId, st.settings.view], [id('Team Headroom'), 'rolling'], 'the row landed on its team');
+    eq(held(), CLEAR, 'and the rate, the press and the adjustments stayed behind with Team New Start');
+    ok(!/you typed/.test(card()), 'so Team Headroom’s card answers from Team Headroom’s sprints', card());
+    eq(st.settings.forecastPoints, '200', 'the backlog total DOES travel — it is about the work, not the team');
+
+    /* 2 — a Find hit on another team. */
+    await typeItFor('Team New Start');
+    openFind(W, D, 'Team Overcommitted');
+    D.querySelector('#searchResults .hit').click();
+    await wait(300);
+    eq(st.settings.activeTeamId, id('Team Overcommitted'), 'the hit landed on its team');
+    eq(held(), CLEAR, 'and nothing typed for the last team came with it');
+
+    /* 3 — and a hit on the team ALREADY on screen is not a switch: looking something
+       up must not wipe a rate somebody reasoned about. */
+    await typeItFor('Team New Start');
+    openFind(W, D, 'Team New Start');
+    D.querySelector('#searchResults .hit').click();
+    await wait(300);
+    eq(st.settings.activeTeamId, id('Team New Start'));
+    eq(held(), ['5', '10', true, '20', '20', '2'], 'same team, nothing cleared');
+
+    /* 4 — deleting the active team moves to another one, and that is a switch too. */
+    const gone = id('Team New Start');
+    D.getElementById('manageBtn').click();
+    await wait(200);
+    const del = D.querySelector('[data-del-team="' + gone + '"]');
+    ok(del, 'Teams & PIs offers Team New Start’s delete button');
+    if (del) del.click();
+    await wait(300);
+    ok(!st.teams.some(x => x.id === gone) && st.settings.activeTeamId !== gone,
+      'the team is gone and the app has moved to another');
+    eq(held(), CLEAR, 'and its typed velocity and adjustments went with it');
+    D.getElementById('manageDialog').close();
+  });
+  /* Every way in, surveyed by ASSIGNMENT rather than by helper name: the header
+     picker, both row clicks, both Find paths, the delete, the import and the demo
+     all go through setActiveTeam(). Two plain assignments are left on purpose —
+     the helper's own, and addTeam()'s first-ever team, which keeps a velocity
+     typed on the planning screen for the team now being created. */
+  const plain = APP_SRC.match(/state\.settings\.activeTeamId\s*=(?!=)/g) || [];
+  eq(plain.length, 2, 'no way of changing team assigns activeTeamId behind the helper’s back');
+});
+/* `2026-00-10`, `2026-02-30` and `2026-13-01` are the right SHAPE, and the shape
+   was the whole test — so a CSV row, a Restore file and a share link could each
+   carry one in, and `2026-00-10` on a running sprint made render() throw. */
+const IMPOSSIBLE_DATES = ['2026-00-10', '2026-02-30', '2026-13-01', '2026-04-31', '2027-02-29'];
+t('a date that is the right shape and not on the calendar is emptied at the boundary (2026-09-18 review)', () => {
+  IMPOSSIBLE_DATES.forEach((bad) => {
+    const out = w.sanitizeIds(w.coerceShape({
+      teams: [{ id: 't1', name: 'Team One' }], arts: [], pis: [{ id: 'p1', name: 'PI 1' }],
+      sprints: [{ id: 's1', teamId: 't1', piId: 'p1', sprintNumber: 1, committed: 10,
+        startDate: bad, endDate: '2026-03-13' }],
+      settings: {},
+    }));
+    eq(out.sprints[0].startDate, '', bad + ' is not a date, so it is emptied like any other bad one');
+    eq(out.sprints[0].endDate, '2026-03-13', 'and the real date beside it is untouched');
+  });
+  ['2026-01-01', '2026-12-31', '2028-02-29', '2026-03-29', '2026-10-25'].forEach((good) => {
+    const out = w.sanitizeIds(w.coerceShape({
+      teams: [{ id: 't1', name: 'Team One' }], arts: [], pis: [],
+      sprints: [{ id: 's1', teamId: 't1', piId: null, sprintNumber: 1, startDate: good, endDate: good }],
+      settings: {},
+    }));
+    eq(out.sprints[0].startDate, good, good + ' is a real date (a leap day and both DST days among them) and survives');
+  });
+});
+t('the importer refuses a row whose date is not on the calendar, pointing at the column without quoting the cell (2026-09-18 review)', () => {
+  withState(capacityFixture(), () => {
+    IMPOSSIBLE_DATES.forEach((bad) => {
+      const r = w.parseImport('team\tpi\tsprint\tstart\tend\tcommitted\nTeam One\tPI 1\t5\t' + bad
+        + '\t2026-09-11\t20', 't1').rows[0];
+      eq(r.record, null, bad + ': the row is refused rather than imported');
+      ok(/^Row 2: the Start column needs a date written YYYY-MM-DD/.test(r.problem || ''),
+        'with the message that points at the row and the column', r.problem);
+      ok(!(r.problem || '').includes(bad), 'and never quotes the cell', r.problem);
+    });
+    const fine = w.parseImport('team\tpi\tsprint\tstart\tend\tcommitted\nTeam One\tPI 1\t5\t2026-08-31'
+      + '\t2026-09-11\t20', 't1').rows[0];
+    eq([fine.action, fine.record && fine.record.startDate], ['new', '2026-08-31'], 'a real date still imports');
+  });
+});
+t('a saved copy holding an impossible date still BOOTS, with the date emptied (2026-09-18 review)', async () => {
+  /* The validator is called from sanitizeIds(), which runs from `let state =
+     load()` — above `dayNum`/`isoDay`, which are consts and still in their
+     temporal dead zone there. Only a real boot can see that, so this is one. */
+  const got = await bootWithSavedCopy(savedCopy({
+    sprints: [{ id: 's1', teamId: 't1', piId: 'p1', sprintNumber: 1, committed: 30,
+      committedCompleted: 28, totalCompleted: 31, startDate: '2026-00-10', endDate: '2026-02-30' }],
+  }));
+  eq(got.teams.length, 1, 'the board is still there — the boundary did not throw at boot');
+  eq(got.sprints.length, 1);
+  eq([got.sprints[0].startDate, got.sprints[0].endDate], ['', ''], 'and neither impossible date was kept');
+  eq(got.sprints[0].committed, 30, 'the figures beside them came back as saved');
+});
+t('a date that cannot be parsed can never make the forecast throw (2026-09-18 review)', () => {
+  /* The other end of the same fault. withState() swaps the collections in behind
+     the boundary's back, which is the point: a running S5 whose start is
+     `2026-00-10`, and a later sprint with real dates for the cadence to anchor
+     on. `dayNum()` gave NaN, the `startDay === null` guard let it by, and
+     `isoDay(NaN)` threw "Invalid time value" — out of forecast(), and so out of
+     render(). */
+  const fx = datedCapacityFixture();
+  const extra = (n, start, end) => ({ id: 's' + n, teamId: 't1', piId: 'p1', sprintNumber: n,
+    startDate: start, endDate: end, committed: 20, committedCompleted: 5, totalCompleted: 5,
+    added: 0, removed: 0, carriedIn: 0, carriedOut: 0, addedThenRemoved: 0 });
+  fx.sprints.push(extra(5, '2026-00-10', '2099-12-31'), extra(6, '2099-01-05', '2099-01-16'));
+  withState(fx, () => {
+    typed(); adjust();
+    eq(w.targetSprintSlot('t1').sprintNumber, 5, 'the running S5 is the slot being planned');
+    let f = null, threw = null;
+    try { f = w.forecast('t1', 100, false); } catch (e) { threw = e.message; }
+    eq(threw, null, 'forecast() does not throw on a start date that is not a date');
+    eq(f && [f.fast, f.fastEnd, f.slowEnd], [4, null, null], 'it answers in sprints and offers no date it cannot work out');
+    /* The things that READ a date already refuse one like this rather than throw
+       or print "Invalid Date". */
+    eq(w.__svTestHooks.fmtDate('2026-00-10'), '', 'fmtDate prints nothing');
+    eq(w.fmtDateRange('2026-00-10', '2026-09-11'), 'to ' + w.__svTestHooks.fmtDate('2026-09-11'), 'fmtDateRange reads it as a missing end');
+    eq(w.sprintPace(fx.sprints[4]), null, 'and sprintPace has no pace to give');
+  });
+  /* And the sprint FORM cannot produce one: a date input sanitises its own value,
+     so an impossible date set into it reads back empty. Stated rather than assumed. */
+  const box = w.document.getElementById('f_start'), before = box.value;
+  box.value = '2026-02-30';
+  eq(box.value, '', 'a date input refuses 30 February by itself');
+  box.value = '2026-00-10';
+  eq(box.value, '', 'and month 00');
+  box.value = before;
+});
+t('the demo’s live sprint is 14 days long whenever it is loaded — near midnight, across a clock change (2026-09-18 review)', async () => {
+  /* loadSample() counted its dates in multiples of 86,400,000 ms from the current
+     instant, and a day across a clock change is 23 or 25 hours: at 00:30 on 27 Oct
+     2026 in New York the live sprint came out 22 Oct – 3 Nov, pace "6/13"; at 23:30
+     on 24 Mar in London, "6/15".
+
+     The suite runs in whatever timezone the machine has, so this finds THAT zone's
+     own clock changes in 2026 and loads the demo at 00:30 and 23:30 three days
+     before each, with the frame's `Date` stubbed to that instant — `new Date()` and
+     `Date.now()` only; a Date built from arguments is the real one. In a zone with
+     no clock changes the loop has nothing to find, which is why the source shape is
+     pinned underneath as well. */
+  const noon = (y, m, d) => new Date(y, m, d, 12, 0, 0, 0);
+  const changes = [];
+  for (let i = 0; i < 365; i++) {
+    if (noon(2026, 0, 1 + i).getTimezoneOffset() !== noon(2026, 0, 2 + i).getTimezoneOffset())
+      changes.push(i + 1);                       /* day-of-year index of the day the clocks change */
+  }
+  const moments = [new Date(2026, 5, 10, 12, 0, 0, 0)];
+  changes.forEach((i) => {
+    moments.push(new Date(2026, 0, 1 + i - 3, 0, 30, 0, 0), new Date(2026, 0, 1 + i - 3, 23, 30, 0, 0));
+  });
+  const dn = (iso) => Math.round(Date.parse(iso + 'T00:00:00Z') / 86400000);
+  const local = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-'
+    + String(d.getDate()).padStart(2, '0');
+  await inFrame('demodst', { sample: false, blank: true }, async (W) => {
+    const Real = W.Date;
+    for (const at of moments) {
+      const ms = at.getTime();
+      const st = W.svGet();
+      ['teams', 'arts', 'pis', 'sprints', 'plans', 'objectives'].forEach((k) => { st[k] = []; });
+      W.Date = class extends Real {
+        constructor(...a) { if (a.length) super(...a); else super(ms); }
+        static now() { return ms; }
+      };
+      let live, pace;
+      try {
+        W.loadSample();
+        const team = st.teams.find((x) => x.name === 'Team Live Sprint');
+        live = st.sprints.filter((x) => x.teamId === team.id && x.startDate)
+          .sort((a, b) => a.sprintNumber - b.sprintNumber);
+        pace = W.sprintPace(live[live.length - 1]);
+      } finally { W.Date = Real; }
+      const when = 'loaded at ' + local(at) + ' ' + String(at.getHours()).padStart(2, '0') + ':30 local';
+      eq(live.length, 4, 'four dated sprints');
+      eq(live.map((x) => dn(x.endDate) - dn(x.startDate)), [13, 13, 13, 13],
+        when + ': every dated sprint runs 14 days, first to last', live.map((x) => x.startDate + '..' + x.endDate).join(' '));
+      eq(live.slice(1).map((x, i) => dn(x.startDate) - dn(live[i].startDate)), [14, 14, 14],
+        when + ': and they start a fortnight apart');
+      eq(dn(local(at)) - dn(live[3].startDate), 5, when + ': the live one started five days before the day it was loaded');
+      eq(pace && [pace.dayOf, pace.totalDays], [6, 14], when + ': so the pace reads day 6 of 14');
+    }
+  });
+  /* The shape, for a machine whose zone never changes its clocks. */
+  ok(!/Date\.now\(\)\s*\+\s*offset\s*\*/.test(APP_SRC),
+    'the demo’s dates are not counted in milliseconds from now');
+  ok(/d\.setDate\(d\.getDate\(\) \+ offset\)/.test(APP_SRC), 'they are counted on the local calendar');
+});
+
+t('one holiday gap, or one long sprint, does not become the team’s rhythm (2026-09-18 review)', () => {
+  /* teamCadence() read the last two dated sprints and nothing else. Fortnightly
+     sprints, a two-week Christmas break, then S4: stride 28 — S5 prefilled a
+     fortnight late and every forecast duration doubled. */
+  const team = (rows, piless) => ({
+    teams: [{ id: 't1', name: 'Team One' }], arts: [], pis: piless ? [] : [{ id: 'p1', name: 'PI 1' }, { id: 'p2', name: 'PI 2' }],
+    sprints: rows.map(([start, end, pi, n], i) => ({ id: 's' + i, teamId: 't1',
+      piId: piless ? null : (pi || 'p1'), sprintNumber: n || i + 1,
+      startDate: start, endDate: end, status: 'complete', committed: 20, committedCompleted: 20, totalCompleted: 20,
+      added: 0, removed: 0, carriedIn: 0, carriedOut: 0, addedThenRemoved: 0 })), plans: [] });
+  const F14 = [['2026-11-09', '2026-11-20'], ['2026-11-23', '2026-12-04'], ['2026-12-07', '2026-12-18']];
+  /* The holiday gap, with history behind it… */
+  withState(team(F14.concat([['2027-01-04', '2027-01-15']])), () => {
+    eq(w.teamCadence('t1').stride, 14, 'three gaps of 14, 14 and 28: the rhythm is 14');
+    eq(w.cadenceDates('t1', 'p1', 5).startDate, '2027-01-18', 'and S5 follows S4 by a fortnight');
+  });
+  /* …and with only one ordinary gap behind it: two values, and the one that
+     agrees with the newest sprint’s own length wins. */
+  withState(team([F14[1], F14[2], ['2027-01-04', '2027-01-15']]), () =>
+    eq(w.teamCadence('t1').stride, 14, 'gaps of 14 and 28, and a 12-day sprint says fortnightly'));
+  /* One three-week sprint among two-week ones. */
+  withState(team([F14[0], F14[1], ['2026-12-07', '2026-12-25'], ['2026-12-28', '2027-01-08']]), () =>
+    eq(w.teamCadence('t1').stride, 14, 'gaps of 14, 14 and 21'));
+  /* A team that really does move to four-week sprints converges: not at the first
+     long gap, but once three of the last five are long. */
+  const four = (k) => F14.concat(Array.from({ length: k }, (_, i) => {
+    const d = (n) => new Date(Date.UTC(2026, 11, 7) + n * 86400000).toISOString().slice(0, 10);
+    return [d(28 * (i + 1)), d(28 * (i + 1) + 25), 'p1', 4 + i];
+  }));
+  withState(team(four(1)), () => eq(w.teamCadence('t1').stride, 14, 'one long gap is not yet a rhythm'));
+  withState(team(four(2)), () => eq(w.teamCadence('t1').stride, 28,
+    'two are, when the sprints themselves now run four weeks — 14, 14, 28, 28 is a tie their length settles'));
+  withState(team(four(3)), () => eq(w.teamCadence('t1').stride, 28, 'and three are outright'));
+  /* With exactly one pair it is the single measurement it always was. */
+  withState(team([F14[0], ['2026-11-30', '2026-12-11']]), () =>
+    eq(w.teamCadence('t1').stride, 21, 'two sprints three weeks apart: 21, as before'));
+  /* And a pair that spans the two tracks is still never measured. */
+  const mixed = team(F14);
+  mixed.sprints[0].piId = null; mixed.sprints[0].sprintNumber = 40;
+  withState(mixed, () => eq(w.teamCadence('t1').stride, 14, 'only the pair inside the anchor’s own track counts'));
+});
+
+/* ═══════════════════ 2026-09-18 review — block D ═══════════════════════════
+   One fix per commit, each test proven red against the commit before it. Tests
+   for this block go DIRECTLY under its group() line and above the next banner,
+   so parallel branches never edit the same lines.
+   EXPECTED is bumped once, when the branches are brought together — adding a
+   test never fails the floor, so a fix commit leaves it alone.
+   ═════════════════════════════════════════════════════════════════════════ */
+group('import, boundaries and the rest (2026-09-18 review)');
+/* A frame booted on a share link: marker 0 is plain JSON, so the token needs no
+   compression to build. Puts `sv-pin` back like inFrame, because a boot stores it. */
+async function inSharedFrame(tag, payload, fn) {
+  const keepPin = localStorage.getItem('sv-pin');
+  const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(payload))))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const f = document.createElement('iframe');
+  f.setAttribute('data-sv-tests', '');
+  f.setAttribute('aria-hidden', 'true');
+  f.style.cssText = 'position:absolute;left:-9999px;width:1280px;height:900px;border:0';
+  await new Promise((resolve) => {
+    f.onload = resolve;
+    f.src = 'index.html?' + tag + '=' + Date.now() + '#share=0.' + b64;
+    document.body.appendChild(f);
+  });
+  try {
+    await wait(500);
+    await fn(f);
+  } finally {
+    f.remove();
+    if (keepPin === null) localStorage.removeItem('sv-pin');
+    else localStorage.setItem('sv-pin', keepPin);
+  }
+}
+const SHARED_BOARD = {
+  v: 4, teams: [{ id: 'shT', name: 'Shared Team' }], arts: [], pis: [{ id: 'shP', name: 'PI 1' }],
+  sprints: [{ id: 'shS', teamId: 'shT', piId: 'shP', sprintNumber: 1, committed: 10,
+    committedCompleted: 8, totalCompleted: 8, added: 0, removed: 0, carriedIn: 0, carriedOut: 2,
+    addedThenRemoved: 0 }], plans: [], objectives: [], settings: {}
+};
+t('Undo puts back what the delete took, and leaves everything done since alone', () => {
+  /* The reviewer's run: delete a team inside Teams, ARTs & PIs (the toast is held
+     while the window is open), rename another, add an ART and a PI, Done, Undo —
+     and the rename, the ART and the PI all went, under "Put back". */
+  withNoSave(() => withState(importFixture(), () => {
+    const st = w.svGet();
+    const keep = { view: st.settings.view, activeTeamId: st.settings.activeTeamId };
+    try {
+      st.arts = [{ id: 'a1', name: 'ART One' }];
+      st.teams.forEach((x) => { x.artId = 'a1'; });
+      st.settings.activeTeamId = 't1';
+      st.settings.view = 'sprint';
+      const names = st.teams.map((x) => x.name);
+      /* Delete team t1 the way the app does: the team, its sprints, and the active
+         team moved off it. */
+      const step = w.undoable(() => {
+        st.teams = st.teams.filter((x) => x.id !== 't1');
+        st.sprints = st.sprints.filter((x) => x.teamId !== 't1');
+        st.settings.activeTeamId = 't2';
+      }, 'gone');
+      /* …then carry on working. */
+      st.teams[0].name = 'Renamed After Delete';
+      st.arts.push({ id: 'a2', name: 'Brand New ART' });
+      st.pis.push({ id: 'pNew', name: 'PI 2026.4' });
+      st.settings.view = 'rolling';
+      step.restore();
+      eq(st.teams.map((x) => x.id), ['t1', 't2'], 'the deleted team is back, in its old place');
+      eq(st.teams[0].name, names[0], 'as it was');
+      eq(st.teams[1].name, 'Renamed After Delete', 'the rename made since is KEPT');
+      ok(st.arts.some((x) => x.id === 'a2'), 'so is the ART added since');
+      ok(st.pis.some((x) => x.id === 'pNew'), 'and the PI');
+      eq(st.sprints.length, 1, 'its sprint came back with it');
+      eq(st.settings.activeTeamId, 't1', 'the setting the delete moved goes back');
+      eq(st.settings.view, 'rolling', 'a setting the reader moved since does not');
+
+      /* A record the delete CHANGED goes back — unless it has been changed again. */
+      const step2 = w.undoable(() => {
+        st.arts = st.arts.filter((x) => x.id !== 'a1');
+        st.teams.forEach((x) => { if (x.artId === 'a1') delete x.artId; });
+      }, 'ART gone');
+      st.teams[1].artId = 'a2';
+      step2.restore();
+      ok(st.arts.some((x) => x.id === 'a1'), 'the ART is back');
+      eq(st.teams[0].artId, 'a1', 'an untouched team is back on it');
+      eq(st.teams[1].artId, 'a2', 'a team moved since stays where it was put');
+    } finally {
+      st.settings.view = keep.view;
+      st.settings.activeTeamId = keep.activeTeamId;
+    }
+  }));
+  w.render();
+});
+t('a restored file cannot park text on the share-meta keys', () => {
+  /* `v` and `allTeams` were allowed through the boundary and never typed, and
+     adoptState() copied all five share-meta keys into the saved board — so a
+     hand-edited backup kept 11,000 characters of anything in storage for good. */
+  const essay = 'Customer ACME SSO bypass, because Bob was on leave. '.repeat(200);
+  const file = { version: 5, teams: [{ id: 't1', name: 'Team One' }], arts: [], pis: [], sprints: [],
+    plans: [], objectives: [], settings: {},
+    v: essay, allTeams: { notes: essay, nested: [{ why: essay }] }, label: essay,
+    sharedAt: 1750000000000, range: { kind: 'pi', n: 2 } };
+  const clean = w.sanitizeIds(w.coerceShape(JSON.parse(JSON.stringify(file))));
+  ok(!('v' in clean), 'a version that is not a number is dropped', typeof clean.v);
+  ok(!('allTeams' in clean), 'a permission that is not a yes or a no is dropped', typeof clean.allTeams);
+  ok(w.sanitizeIds.pruned >= 2, 'and both are counted as repairs', w.sanitizeIds.pruned);
+  const adopted = w.adoptState(clean);
+  ['v', 'sharedAt', 'label', 'allTeams', 'range'].forEach((k) =>
+    ok(!(k in adopted), 'the reader’s own board never holds `' + k + '`'));
+  ok(!JSON.stringify(adopted).includes('ACME'), 'none of the text reached the board');
+  /* A real link's own values still cross: the banner and the tab rules read them. */
+  const link = w.sanitizeIds(w.coerceShape({ v: 4, allTeams: true, label: 'Team One', sharedAt: 1750000000000,
+    teams: [{ id: 't1', name: 'Team One' }], sprints: [] }));
+  eq([link.v, link.allTeams, link.label], [4, true, 'Team One']);
+  eq(w.sanitizeIds(w.coerceShape({ allTeams: false, teams: [], sprints: [] })).allTeams, false, 'a no is a value');
+});
+t('a share link’s label names whole teams and counts the rest, inside the boundary’s 120', () => {
+  const ten = Array.from({ length: 10 }, (_, i) => 'Payments Squad ' + (i + 1));
+  const label = w.shareLabel ? w.shareLabel(ten) : ten.join(', ');
+  ok(label.length <= 120, 'it fits the pin, so the far end never cuts it', label.length);
+  ok(/ and \d+ more$/.test(label), 'and says how many it left unnamed', label);
+  const named = label.replace(/ and \d+ more$/, '').split(', ');
+  ok(named.every((n) => ten.includes(n)), 'every name in it is a WHOLE name', label);
+  eq(named.length + Number(label.match(/(\d+) more$/)[1]), 10, 'named plus counted is all of them');
+  eq(w.shareLabel(['Team One', 'Team Two']), 'Team One, Team Two', 'a short list is just the list');
+  eq(w.shareLabel(['x'.repeat(120), 'y']), '2 teams', 'and a name too long to fit beside the count is not cut either');
+  /* Through the real payload and the real boundary: nothing is repaired. */
+  withState({ teams: ten.map((name, i) => ({ id: 't' + i, name })), pis: [], sprints:
+      ten.map((_, i) => ({ id: 's' + i, teamId: 't' + i, piId: null, sprintNumber: 1, committed: 1,
+        committedCompleted: 1, totalCompleted: 1, added: 0, removed: 0, carriedIn: 0, carriedOut: 0,
+        addedThenRemoved: 0 })) }, () => {
+    const p = w.buildSharePayload({ teamIds: ten.map((_, i) => 't' + i), includeAllTeams: false });
+    const sent = p.label;
+    const got = w.sanitizeIds(w.coerceShape(JSON.parse(JSON.stringify(p))));
+    eq(got.label, sent, 'the label arrives as it was sent');
+  });
+});
+t('a team, ART or PI name cannot be saved blank', () => {
+  /* Select-all + Backspace wrote "" on the keystroke, and a nameless team is an
+     empty picker option and a 0×0 row button on Compare Teams. A deep copy of the
+     fixture: these handlers write to the records, and MANAGE_FIXTURE is shared. */
+  withState(JSON.parse(JSON.stringify(MANAGE_FIXTURE)), () => {
+    w.renderManage();
+    const st = w.svGet(), D = w.document;
+    const type = (el, v) => { el.value = v; el.dispatchEvent(new w.Event('input', { bubbles: true })); };
+    const leave = (el) => el.dispatchEvent(new w.FocusEvent('focusout', { bubbles: true }));
+    [['#teamRows [data-name-team]', () => st.teams[0]],
+     ['#artRows [data-name-art]', () => st.arts[0]],
+     ['#piRows [data-name-pi]', () => st.pis[0]]].forEach(([sel, rec]) => {
+      const was = rec().name;
+      ok(was && was.trim(), sel + ': the fixture row has a name to lose');
+      type(D.querySelector(sel), '');
+      eq(rec().name, was, sel + ': an emptied box writes nothing');
+      type(D.querySelector(sel), '   ');
+      eq(rec().name, was, sel + ': nor do spaces');
+      const box = D.querySelector(sel);
+      type(box, '');
+      leave(box);
+      eq(box.value, was, sel + ': left empty, the box shows the name the record still has');
+      type(D.querySelector(sel), 'Renamed');
+      eq(rec().name, 'Renamed', sel + ': and a real name is written as typed, as before');
+    });
+  });
+  w.renderManage();
+  w.render();
+});
+t('a copy of the app that is out of date adopts the other window’s board instead of writing over it', async () => {
+  /* Two windows, one storage. B records a sprint; A — never reloaded — is pressed
+     anywhere at all, and its save() wrote A's whole stale board over B's sprint.
+     A REAL frame with the REAL save(), so the reader's own `sv-data` and `sv-pin`
+     are put back afterwards, whatever happens. */
+  const beforeData = localStorage.getItem('sv-data'), beforePin = localStorage.getItem('sv-pin');
+  const f = document.createElement('iframe');
+  try {
+    localStorage.setItem('sv-data', JSON.stringify(savedCopy()));
+    f.setAttribute('data-sv-tests', '');
+    f.setAttribute('aria-hidden', 'true');
+    f.style.cssText = 'position:absolute;left:-9999px;width:1280px;height:900px;border:0';
+    await new Promise((resolve) => { f.onload = resolve; f.src = 'index.html?twocopies=' + Date.now(); document.body.appendChild(f); });
+    await wait(300);
+    const W = f.contentWindow;
+    eq(W.svGet().sprints.length, 1, 'window A booted on the one-sprint board');
+    /* Window B records a second sprint. */
+    const other = savedCopy();
+    other.sprints.push(Object.assign({}, other.sprints[0], { id: 's2', sprintNumber: 2 }));
+    const otherRaw = JSON.stringify(other);
+    localStorage.setItem('sv-data', otherRaw);
+    /* A is pressed: a tab click is `settings.view = …; save(); render()`. */
+    W.svGet().settings.view = 'rolling';
+    W.save();
+    await wait(100);
+    eq(JSON.parse(localStorage.getItem('sv-data')).sprints.length, 2, 'B’s sprint is still in storage');
+    eq(localStorage.getItem('sv-data'), otherRaw, 'byte for byte — A wrote nothing');
+    eq(W.svGet().sprints.length, 2, 'and A is showing B’s board now');
+    const said = W.document.getElementById('toast').textContent;
+    ok(/another tab or window/.test(said) && /not saved/.test(said), 'A says what happened, and what did not land', said);
+    /* From here A is current, and saves as it always did. */
+    W.svGet().settings.view = 'history';
+    W.save();
+    eq(JSON.parse(localStorage.getItem('sv-data')).settings.view, 'history', 'the next press is saved');
+    eq(JSON.parse(localStorage.getItem('sv-data')).sprints.length, 2, 'on top of B’s board');
+  } finally {
+    f.remove();
+    if (beforeData === null) localStorage.removeItem('sv-data'); else localStorage.setItem('sv-data', beforeData);
+    if (beforePin === null) localStorage.removeItem('sv-pin'); else localStorage.setItem('sv-pin', beforePin);
+  }
+});
+t('an idle copy listens for the other window, but never from inside a frame', () => {
+  /* The listener cannot be driven here: the suite's frames share this origin's
+     storage with frames that plant fixtures in it, which is exactly why it is
+     top-level only. Pinned as source, with the rule beside it. */
+  const src = appCode();
+  ok(/if \(window\.top === window\.self\) addEventListener\('storage'/.test(src), 'a storage listener, top-level windows only');
+  ok(/dialog\[open\]'\)\) return;\s*let there/.test(src), 'that leaves an open window’s draft alone');
+  ok(typeof w.adoptOtherCopy === 'function', 'and both halves go through adoptOtherCopy()');
+});
+t('a refused storage write is said WITH the toast that follows it, never replaced by it', async () => {
+  /* Restore into a full quota said "Data imported" over a board that had not been
+     stored: save() raised its warning, and the caller's own toast replaced it in
+     the same breath. A real frame and the real save(), with the frame's
+     Storage.setItem made to throw for `sv-data` only. */
+  const beforePin = localStorage.getItem('sv-pin');
+  const f = document.createElement('iframe');
+  f.setAttribute('data-sv-tests', '');
+  f.setAttribute('aria-hidden', 'true');
+  f.style.cssText = 'position:absolute;left:-9999px;width:1280px;height:900px;border:0';
+  await new Promise((resolve) => { f.onload = resolve; f.src = 'index.html?quota=' + Date.now(); document.body.appendChild(f); });
+  await wait(300);
+  try {
+    const W = f.contentWindow, D = W.document;
+    const proto = W.Storage.prototype, realSet = proto.setItem;
+    proto.setItem = function (k, v) {
+      if (k === 'sv-data') throw new W.DOMException('full', 'QuotaExceededError');
+      return realSet.call(this, k, v);
+    };
+    try {
+      W.save();
+      W.toast('Data imported');
+      await wait(50);
+      const said = D.getElementById('toastText').textContent;
+      ok(/^Data imported/.test(said), 'the caller’s own news is still there', said);
+      ok(/blocking storage/.test(said), 'and so is the fact that it was not stored', said);
+      /* With nobody else toasting, the warning stands alone — as it always did. */
+      W.save();
+      await wait(50);
+      ok(/^⚠️ This browser is blocking storage/.test(D.getElementById('toastText').textContent),
+        'alone, it is the warning it always was', D.getElementById('toastText').textContent);
+      /* And a save that works says nothing extra. */
+      proto.setItem = realSet;
+      W.toast('Copied');
+      eq(D.getElementById('toastText').textContent, 'Copied');
+    } finally { proto.setItem = realSet; }
+  } finally {
+    f.remove();
+    if (beforePin === null) localStorage.removeItem('sv-pin'); else localStorage.setItem('sv-pin', beforePin);
+  }
+});
+t('a truncated share link is refused without an uncaught error beside it', async () => {
+  if (typeof w.CompressionStream !== 'function') return;   // marker-0 links never reach squeeze()
+  const token = await w.encodeShare(SHARED_BOARD);
+  const cut = token.slice(0, Math.floor(token.length * 0.6));
+  const loose = [];
+  const note = (e) => { loose.push(String(e.reason)); e.preventDefault(); };
+  w.addEventListener('unhandledrejection', note);
+  try {
+    let refused = false;
+    try { await w.decodeShare(cut); } catch (e) { refused = true; }
+    ok(refused, 'the link is refused, as it always was');
+    await wait(150);
+    eq(loose, [], 'and nothing rejects into thin air while it is');
+  } finally { w.removeEventListener('unhandledrejection', note); }
+});
+t('"no value" in a file is not a zero: null, "" and false never become 0% or a target of 1', () => {
+  /* Number(null) === 0. For these fields absent means the default, and a zero is
+     destructive: availability 0% took a recommended commitment from 36 to 0. */
+  const file = { version: 5,
+    teams: [{ id: 't1', name: 'One', availability: null }, { id: 't2', name: 'Two', availability: '' },
+            { id: 't3', name: 'Three', availability: '80' }, { id: 't4', name: 'Four', availability: 0 }],
+    arts: [], pis: [{ id: 'p1', name: 'PI 1' }],
+    sprints: [{ id: 's1', teamId: 't1', piId: 'p1', sprintNumber: 1, committed: '', capacityScale: null }],
+    plans: [{ id: 'pl1', teamId: 't1', piId: 'p1', sprintNumber: null, availability: 50, reason: 'leave' }],
+    objectives: [{ id: 'o1', teamId: 't1', piId: 'p1', plannedBv: null, actualBv: false, stretchBv: 3 }],
+    settings: { targets: { completionGreen: null, churnGreen: '', predLow: false, completionRed: 70 } } };
+  const out = w.sanitizeIds(w.coerceShape(JSON.parse(JSON.stringify(file))));
+  eq(out.teams.map((x) => x.availability), [undefined, undefined, 80, 0],
+    'null and "" are absent (100%); a stated "80" and a stated 0 are what they say');
+  ok(!('availability' in out.teams[0]), 'absent, not a key holding undefined');
+  ok(!('capacityScale' in out.sprints[0]), 'a null scale is no scale, not 0%');
+  eq(out.sprints[0].committed, 0, 'a sprint FIGURE keeps “blank means zero”');
+  ok(!out.plans.length || out.plans[0].sprintNumber !== 1, 'a plan with no sprint number is not filed against S1',
+    JSON.stringify(out.plans));
+  eq([out.objectives[0].plannedBv, out.objectives[0].actualBv, out.objectives[0].stretchBv], [undefined, undefined, 3]);
+  eq(out.settings.targets, { completionRed: 70 }, 'a null target is no target — the default stands');
+  /* And a set that contradicts itself is refused whole, as the Targets window refuses it. */
+  const bad = w.sanitizeIds(w.coerceShape({ teams: [], sprints: [],
+    settings: { targets: { completionGreen: 60, completionRed: 75 } } }));
+  ok(!('targets' in bad.settings), 'green under its own red never reaches rag()', JSON.stringify(bad.settings.targets));
+  const fine = w.sanitizeIds(w.coerceShape({ teams: [], sprints: [],
+    settings: { targets: { completionGreen: 90, completionRed: 75 } } }));
+  eq(fine.settings.targets, { completionGreen: 90, completionRed: 75 }, 'a coherent set crosses untouched');
+});
+t('the importer reads a WHOLE cell as a number, a whole sprint number, and dates the right way round', () => {
+  /* parseFloat reads a prefix, so the "columns are one out" guard did not hold for
+     the case it was written for: a Committed cell holding a date imported as 2026
+     points, under "1 row ready". */
+  withState(importFixture(), () => {
+    const one = (cells, head) => w.parseImport((head || HEAD) + '\n' + cells, 't1').rows[0];
+    const refused = (cells, col, head) => {
+      const r = one(cells, head);
+      ok(r && r.problem && r.problem.includes(col), cells.replace(/\t/g, ' | ') + ' is refused, pointing at ' + col,
+        r && (r.problem || 'imported as ' + JSON.stringify(r.record && [r.record.sprintNumber, r.record.committed])));
+      ok(!/2026-01-05|12abc|points|2,5/.test(r.problem || ''), 'and the message never quotes the cell');
+    };
+    refused('Team One\tPI 1\t1\t2026-01-05\t18', 'Committed');
+    refused('Team One\tPI 1\t1\t12abc\t18', 'Committed');
+    refused('Team One\tPI 1\t1\t3 points\t3', 'Committed');
+    refused('Team One\tPI 1\t1\t2,5\t2', 'Committed');          // a European 2.5 must not become 25
+    refused('Team One\tPI 1\t2.5\t20\t18', 'Sprint');
+    refused('Team One\tPI 1\t3rd\t20\t18', 'Sprint');
+    /* What a spreadsheet really writes still lands. */
+    eq(one('Team One\tPI 1\t1\t1,234\t18').record.committed, 1234, 'a grouped thousand');
+    eq(one('Team One\tPI 1\t1\t 20 \t18.4').record.committedCompleted, 18, 'a decimal, rounded as before');
+    eq(one('Team One\tPI 1\t3.0\t20\t18').record.sprintNumber, 3, 'a whole number written 3.0');
+    /* And an end date before the start date is refused here as the form refuses it. */
+    const dated = 'team\tpi\tsprint\tcommitted\tstart\tend';
+    refused('Team One\tPI 1\t1\t20\t2026-03-16\t2026-03-02', 'End', dated);
+    ok(!one('Team One\tPI 1\t1\t20\t2026-03-02\t2026-03-13', dated).problem, 'the right way round lands');
+  });
+});
+t('“Skip to content” in a shared view stays in the shared view', async () => {
+  /* It was a bare href="#maincontent": the share fragment was replaced, the
+     hashchange handler read "no longer shared" and RELOADED — onto the reader's own
+     board, editable. A reload gives the frame a new window, so a mark left on the
+     old one is how the test sees it. */
+  await inSharedFrame('skipshare', SHARED_BOARD, async (f) => {
+    let W = f.contentWindow, D = W.document;
+    ok(W.svViewOnly === true, 'the frame booted as a shared view');
+    eq(W.svGet().teams.map((x) => x.name), ['Shared Team']);
+    W.__stayed = 1;
+    D.querySelector('a.skip').click();
+    await wait(600);
+    W = f.contentWindow; D = W.document;
+    ok(W.__stayed === 1, 'the page did not reload');
+    ok(W.location.hash.startsWith('#share='), 'the address still holds the link', W.location.hash.slice(0, 20));
+    eq(W.svGet().teams.map((x) => x.name), ['Shared Team'], 'and the board is still the one that was sent');
+    ok(D.activeElement === D.getElementById('maincontent'), 'focus went to the content', D.activeElement && D.activeElement.tagName);
+    /* …and a fragment naming something on the page, arriving any other way, is
+       moving about rather than opening another link. */
+    W.location.hash = '#maincontent';
+    await wait(600);
+    W = f.contentWindow;
+    ok(W.__stayed === 1, 'an in-page fragment does not reload a shared view either');
+    ok(W.location.hash.startsWith('#share='), 'and the share fragment is put back', W.location.hash.slice(0, 20));
+  });
+});
+
 
 group('the suite leaves storage exactly as it found it (2026-09-15 review)');
 /* LAST, on purpose: every test above has run, every frame has been removed. */

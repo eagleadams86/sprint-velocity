@@ -202,8 +202,14 @@ are untouched, they simply stop being in a PI…
 Either way, this PI's 4 business value records and 1 capacity adjustment
 are deleted — both are defined by the PI and have nowhere to go without it.
 
-[ Cancel ]              [ Delete the sprints too ]  [ Keep the sprints ]
+[ Cancel ]              [ Delete the Sprints Too ]  [ Keep the Sprints ]
 ```
+
+**One thing does move when you keep them, and the dialog says so when it applies.** Sprint 6
+is only an IP sprint *inside a PI*. A kept sprint 6 has no PI, so it becomes an ordinary
+sprint and the Rolling 5 and the capacity target start counting it. When the PI holds a
+sprint 6 the dialog drops "the figures are untouched" and says that instead (until 2026-09-18
+it made the promise regardless, and a team's Rolling 5 velocity went from 24 to 19.6 under it).
 
 Kept sprints are renumbered onto the end of the team's unassigned run, so no two sprints
 end up sharing a slot. Business value and capacity adjustments go either way — both are
@@ -294,8 +300,9 @@ view](#predictability-and-the-pi-by-team-view).
 
 **⚙ Targets** in the header opens the eight numbers above. Change one and the whole app
 follows at once: every ✓ / ! / ✕, every colour, every tile caption, the shaded bands on the
-instability chart, the dashed target line on two others, and the plain-English definition
-behind each ⓘ. There is no copy of a target anywhere that can disagree with the setting —
+instability chart, the dashed target line on two others, how far up the two predictability
+charts reach (so a wider band is never drawn off the top of its own chart), and the
+plain-English definition behind each ⓘ. There is no copy of a target anywhere that can disagree with the setting —
 that is why the ⓘ text is written when you open it rather than when the page loads.
 
 85% is what Charles's ART works to, and an SM handed this URL by another one has no reason to
@@ -445,7 +452,12 @@ means carryover can be larger than the shortfall against the commitment.
 
 Because of that, the *Where the points went* Committed bar shows only the carried-out points
 that came **from the commitment**, and the card says so whenever that's less than the full
-carryover figure on the tile. Its dropped slice is the removed points, capped at the
+carryover figure on the tile. It calls the difference break-in only as far as the figures allow:
+no more than the points added after the start less the added work that finished. Anything
+beyond that is described as what it is — more than the commitment, as sized at the start,
+accounts for, which means work re-sized during the sprint or removed points still counted in
+carried out (until 2026-09-18 all of it was said to have "broken in", including on a sprint
+with nothing added). Its dropped slice is the removed points, capped at the
 shortfall. Stacking the whole carryover figure into that bar used to overstate carryover and
 leave "dropped" as a residual, which under-reported removed work — a sprint that dropped six
 points read as one.
@@ -469,7 +481,10 @@ to press.
 If you're pasting over a sprint that has already finished and has real figures in it, the
 usual "saving will change…" confirmation appears at **Use these numbers** rather than at Save
 sprint, listing each figure that would change. Say no and the boxes are still filled in for
-you to look at — nothing is saved until you press Save sprint yourself.
+you to look at — nothing is saved until you press Save sprint yourself. A sprint that did not
+exist before you pasted is never asked about: it is new until the form closes, so adding a
+sprint goal and pressing Save sprint goes straight through (until 2026-09-18 it was told the
+sprint "already has data").
 
 Both common paste shapes work — tab-separated rows and one-cell-per-line — since browsers
 differ in how they copy tables. Which shape you've pasted is decided on a count of the
@@ -492,10 +507,14 @@ Status comes from the dates and looks after itself:
 | Start date hasn't arrived | **Planned** |
 | Today is on or before the end date | **In progress** |
 | End date has passed | **Complete** |
+| Start date has arrived, no end date | **Complete** — the form says so, and that adding an end date keeps it out of the averages while it runs |
 | No dates at all | **Complete** |
 
 A sprint with no dates counts as complete, so everything recorded before this existed keeps
-working exactly as it did. The **Status** field on the sprint form overrides the dates
+working exactly as it did. The same rule is why a sprint with a start date and **no end date**
+counts as finished from its first day: give a sprint you are recording ahead of time both dates.
+The form refuses an end date that falls before the start date — one sprint saved that way used
+to switch off the projected dates for the whole team, without a word. The **Status** field on the sprint form overrides the dates
 either way — useful if your team doesn't record dates, or closes a sprint late. An
 overridden sprint stops looking after itself, and the form says so.
 
@@ -519,7 +538,7 @@ capacity target. It's off by default, because the numbers genuinely aren't final
 It's for the last day or two of a sprint, when you're planning the next one and today's
 provisional numbers beat last sprint's stale ones. When it's on, every view says so — the
 cross-team views too: Compare Teams, PI Trend and PI by Team name the team and the running
-sprint they are counting under their headings — and the
+sprint they are counting under their headings, and History does the same — and the
 capacity target stops aiming at the running sprint and points at the one after it — once a
 sprint is being counted as data, it isn't the sprint you're planning any more.
 
@@ -563,7 +582,12 @@ The cadence is worked out from your dates, not assumed. With one dated sprint to
 length is rounded to whole weeks — a Monday-to-Friday sprint is twelve days long but comes
 round every fourteen, and a fortnightly team stays fortnightly. Once two sprints have dates,
 the real gap between them is measured instead, so a team with a break between sprints, or a
-three-week cadence, self-corrects.
+three-week cadence, self-corrects. **It is the usual gap, not the latest one**: the middle value
+of the last five sprint-to-sprint gaps, so a two-week Christmas break — or one three-week sprint
+— doesn't become the team's rhythm. (Until 2026-09-18 only the last two dated sprints were read,
+and one holiday gap doubled the stride: the next sprint was dated a fortnight late and a forecast
+read "about 24 weeks" for twelve.) A team that really does change cadence has the new one within two
+or three sprints.
 
 The empty rows on the **Team PI** table show where each remaining sprint falls
 (`No data — click to add · scheduled 17 Aug – 28 Aug`), so the whole PI is laid out before
@@ -583,7 +607,16 @@ real history out of your averages.
 Whenever you open a sprint that has no carried-in figure yet, it's filled with what the
 previous sprint carried out — crossing a PI boundary if you're on sprint 1. A note under the
 fields says which sprint it came from, and it never overwrites a number you've already
-entered or typed.
+entered or typed. The guess belongs to the slot it was made for: change the Sprint or PI picker
+on the form and it is worked out again for the new slot — or taken away, if the sprint before
+that one has no record — rather than riding along (until 2026-09-18 it rode along, without its
+note, and saved).
+
+**Carried out** and **Total completed** are offered too when you type a sprint in by hand:
+carried out as what is left of the commitment — committed, less what was completed, less what
+was **removed** (removed points are gone, not rolling over; until 2026-09-18 they were counted
+in both) — and total completed as the committed points completed. Both stop following along the
+moment you type your own figure.
 
 ### Blank Means Zero
 
@@ -787,7 +820,9 @@ the moment you reach it rather than an empty box — it holds no stored data, so
 costs nothing and it lands differently on each team.
 
 The running sprint's dates are counted from the day you load it, not baked in, so the
-demo is still live whenever it's opened rather than stale from the day it was written.
+demo is still live whenever it's opened rather than stale from the day it was written. They
+are counted in **calendar days**, so it is "day 6 of 14" whenever you load it — including
+half past midnight in a week the clocks change.
 Everything else is dateless on purpose — a sprint with no dates resolves as complete,
 which is what keeps the other five teams fully in the averages.
 
@@ -811,7 +846,9 @@ history stops being visible and starts being summarised.
 
 **History** has no window, and that is its whole definition. Every sprint on record, oldest
 first, with the in-flight and left-out ones drawn and marked rather than dropped. A sprint in
-flight is left out of the figures; a sprint you've left out of the *rolling average* is **still
+flight is left out of the figures — the goals count too, and a planned sprint is never "no goal
+recorded" — unless you've asked for [running sprints to count](#counting-a-sprint-thats-still-running),
+in which case the running one is in and the caption names it; a sprint you've left out of the *rolling average* is **still
 counted** here — that choice narrows the rolling window and the capacity target, not a team's
 history, the same as it leaves the PI totals alone.
 
@@ -828,7 +865,9 @@ Sprints recorded   Commitment completion   Direction   Best and worst
 *up 11* across nine sprints and *level* across the last five; Team Headroom reads *up 14*
 across its history and *down 1* over the window. Those aren't contradictions — a team can be
 climbing over three PIs and flat over a fortnight-and-a-half of them — but only one of the two
-answers was previously available, and it was the short one.
+answers was previously available, and it was the short one. The figure is measured between the
+first and last sprint that *have* a percentage: a sprint still running, or planned ahead, is
+drawn on the chart but adds nothing to how far the team has moved.
 
 **Best and worst** is the other thing an average hides. Two teams both averaging 85% — one
 running 84, 85, 86 and one running 40, 100, 115 — need completely different conversations.
@@ -913,8 +952,12 @@ ART grouping on Compare Teams. Three presses rather than a *Clear* button nobody
   order.
 - A row with **no figure** in the column you pressed stays at the foot whichever way the
   column runs — a team with no finished sprint has not got the best carryover on the page, a
-  sprint nobody recorded a goal for has not missed it, and an empty slot on Team PI is a place
-  in the calendar rather than a zero.
+  sprint nobody recorded a goal for has not missed it, an empty slot on Team PI is a place
+  in the calendar rather than a zero, and a running sprint whose Complete % reads *so far* has
+  no percentage to sort on yet.
+- A **name** column sorts the way you would file the names: an accent or a capital is not a
+  difference (*Émile* sits with the Es, not after *Zed*), and a number inside a name counts as
+  a number (*Team 2* before *Team 10*).
 - Rows that tie keep the order they were already in, so a table never reshuffles between two
   redraws of the same figures.
 - Each column sorts on the figure it *shows*: **Trend** on the direction it prints rather than
@@ -943,7 +986,9 @@ apart: a sparkline of the same window, and the change in words.
 "up 12" means twelve percentage points from one end of the window to the other, read off a
 **least-squares fit** through the sprints — the same one the Rolling 5 chart draws its dashed
 line from — so one bad sprint at either end can't decide the direction on its own. It needs
-**three** sprints before it will say anything: two points make a slope, not a trend.
+**three** sprints before it will say anything: two points make a slope, not a trend. The "ends"
+are the first and last sprint with a percentage — a window that opens on a sprint with nothing
+committed doesn't stretch the figure.
 
 The sparkline is deliberately **colourless**, one neutral stroke. The level beside it already
 carries the RAG colour, and two colour languages in adjacent cells teaches a reader to trust
@@ -1074,7 +1119,9 @@ All three lists are managed in one window, and all three rows work the same way.
 
 **A name is edited in place.** Type in the box; there is no *Rename* button and no prompt.
 A prompt was a box on top of a box to change one word, and it could not show you the other
-names while you picked one that fits beside them.
+names while you picked one that fits beside them. **A name is never blank**: emptying the box
+is how you start retyping, so nothing is written until there is something to write, and a box
+left empty shows the name again.
 
 **× deletes**, in the same red the app's other destructive buttons use. What a delete takes
 with it differs by row and the confirmation says so: a team takes its sprints, a PI takes
@@ -1135,7 +1182,9 @@ at:
   there is no "select all" to remember to press. Put the last un-grouped team on an ART and
   the *No ART* option goes with it, so a filter left sitting on it drops that tick rather than
   filtering to nothing behind a picker that no longer offers the option. **PI by Team** and
-  **PI Trend** share the same picker, so the scope follows you between all three.
+  **PI Trend** share the same picker, so the scope follows you between all three. The menu
+  stays open while you tick and closes when you leave it — a press anywhere else, **Tab**bing
+  on past it, **Esc** from wherever the keyboard is, or a **Find** hit.
   (Before September 2026 it was a single-choice dropdown, so wanting two ARTs out of five
   meant taking every team you support and reading past the ones you hadn't asked about.)
 - Everything below it follows: the table, its footer row, the
@@ -1191,7 +1240,10 @@ how much **new work** that leaves to pull off the backlog, and — see
 [Two figures, not one](#two-figures-not-one) below — a second commitment for a sprint that
 has to hold. When the sprint it's aiming at is already
 running and has a commitment recorded, it swaps the new-work figure for a comparison
-against what the team actually signed up for — there's still time to descope. A running
+against what the team actually signed up for — there's still time to descope. **A sprint you
+saved ahead of its start date** (recorded at planning, so it reads *Planned*) is aimed at the
+same way, badged *◴ Planned*: it is the sprint being planned, so its leave, its Adjust Capacity
+entry and its commitment are the ones the card reads — not the slot after it. A running
 sprint whose commitment hasn't been entered yet keeps the forecast, since 0 committed is
 an unanswered question rather than a small commitment. Compare Teams' **Next sprint target**
 column and its total use the adjusted figures, and mark an adjusted team with a ⚑. It warns you when there are fewer than
@@ -1260,7 +1312,7 @@ that would take.
 PI 2026.3 has no delivery sprints left — the next slot is the IP sprint —
 so all of this falls into the PI after it.
 
-7 at the 20 points a sprint they average, 8 at the 17 they finished in 3 of the last 4.
+7 at the 19.8 points a sprint they average, 8 at the 17 they finished in 3 of the last 4.
 ```
 
 **The rate is committed points finished, never velocity** — the same stance as the capacity
@@ -1271,7 +1323,18 @@ confident date slips a sprint at a time.
 
 It's always a **range**, from the same two rates the [capacity card](#two-figures-not-one)
 shows, and each end names what it assumes. A single number would be a guess wearing a
-forecast's clothes.
+forecast's clothes. When both rates round to the same whole sprint the card gives one figure
+and says so; a team whose delivery swings is still told that, but as a reason to hold the
+single figure loosely — not as the explanation of a range the card isn't showing.
+
+**Each rate is one you can check by dividing.** It is shown as a whole number unless the whole
+number would give you a different sprint count than the card's — 120 ÷ 20 is 6, and the answer
+above is 7 because the team averages 19.8 — and then it is shown to one decimal. Under a
+[standing availability](#adjusting-for-a-sprint-that-isnt-normal) the card names the rate
+*and* where it came from: *"4 at 32 points a sprint (90% of the 35 they average), 5 at 29.7
+(90% of the 33 they finished in 4 of the last 5)"*. The "4 of the last 5" is a count of sprints that cleared
+the 33, so it sits beside the 33 — not beside the adjusted figure, which the team may well
+have cleared every time.
 
 Where the team's dates are known it adds calendar weeks and a landing date. **Delivery
 sprints and calendar sprints aren't the same thing**: unless you've opted the IP sprint into
@@ -1319,10 +1382,13 @@ typed velocity and the backlog total sit above it and are a different control, a
 scoped to exactly what the block it lives in holds, which is also what its summary counts.
 
 **Lost sprints are added flat.** A sprint that delivers nothing contributes nothing and shifts
-everything after it by exactly one, so where it falls can't change the finish. They're kept
-separate from the delivery count all the way down, because the slot walk converts *delivering*
-sprints into calendar slots by stepping over IP sprints — a lost sprint is a calendar slot
-already. The dates move with it: two lost sprints on a fortnightly cadence is four more weeks.
+everything after it by exactly one, so where it falls can't change the count. They're kept
+separate from the delivery count all the way down, but the calendar walks them **together**: a
+lost sprint is an ordinary sprint spent on something else, never the IP sprint, so the dates
+step over an IP sprint for a lost sprint exactly as they do for a delivering one. (Until
+2026-09-18 they were added after the walk, and one delivering sprint plus one lost one from S5
+"finished" on the last day of S6.) Two lost sprints on a fortnightly cadence is four more weeks,
+plus a fortnight for each IP sprint the longer span now crosses.
 
 At their defaults both are an **exact no-op** — the figures this app has always given are the
 same figures. When either is on, the answer names the scope it actually used (*"100 points — 125
@@ -1380,6 +1446,12 @@ default, not a rule: the setting is three-state, so the first press wins for goo
 direction. Tick it over a team with a year of history and it stays ticked; untick it over a
 brand-new team and it stays unticked.
 
+**A team set to a standing 0% availability is told that is the reason.** Nothing times 0% is a
+rate, so the forecast can't answer from the history — but it says so, names the 0% and points
+at **Adjust Capacity**, rather than telling a team with four good sprints that it has finished
+none of its committed points. A typed velocity still answers, since availability isn't applied
+to one.
+
 **The card says which of the two it drew from, every time.** A typed rate names both ends as
 *yours* rather than as something the team averaged, carries a caveat saying it's your estimate
 with the arithmetic done, and offers to go back to the history when there is some. The two
@@ -1396,7 +1468,9 @@ stopped being true of this one: the rest of the view steps aside as it always di
 forecast card is what's left. Hidden, the control built for a team with no history could only
 ever have been reached by a team that had some.
 
-**It belongs to one team.** Switching teams clears both the rate and the press, because "5 to
+**It belongs to one team.** Switching teams — by the header picker, a row in Compare Teams or
+PI by Team, a Find hit, an import that lands on another team, or deleting the team you were on
+— clears both the rate and the press, and the two adjustments in the fold with them, because "5 to
 10 points a sprint" is a statement about one team and so is the decision to type it — without
 that, a tick pressed for a team with no history followed you to a team with plenty and sat
 there checked over a card that had just said it had sprints to draw from. The backlog total in
@@ -1698,7 +1772,12 @@ what would happen to it — new sprint, overwrites what is there, or a sentence 
 can't be used. Rows that can't be used are **skipped and named, never guessed at**: a figure
 that is present and isn't a number stops its row, because "n/a" in a committed column almost
 always means the columns are one out, and reading it as 0 would import a plausible, wrong
-history.
+history. **The whole cell has to be the number**: a date sitting in the Committed column, `12abc`
+or `3 points` stops its row rather than importing as 2026, 12 or 3; `1,234` is a thousand, and
+`2,5` — a European two and a half — is refused rather than read as 25. The Sprint column takes a
+whole number. An end date before its start date stops the row too. A date has to be **on the calendar**, not just written `YYYY-MM-DD`: `2026-02-30`
+and `2026-13-01` stop their row the same way. The same test guards a Restore file and a share
+link, where a date that isn't one is emptied rather than kept.
 
 **An error names the row and the column, and never repeats what was in the cell** —
 *Row 7: no team by that name in the Team column*. The row is the line in your paste, blank
@@ -1730,6 +1809,13 @@ you'd rather change a number than start from nothing.
 **No account is needed and no data leaves your machine** — the page's CSP names no external
 origin at all, so the browser itself refuses to let it try.
 
+**Open twice, it stays one board.** With the app open in two tabs — or an installed window
+and a tab — a window that is sitting idle picks up the other's changes as they are saved, and a
+window that was about to save over a newer board loads that board instead and says so: *"This
+board was changed in another tab or window… Your last change here was not saved — make it
+again."* (Until 2026-09-18 the window that had not been reloaded silently wrote its old board
+over the other's work the next time anything in it was pressed.)
+
 What's saved per sprint is the seven figures, its dates, its status, and — if you've set
 one — whether it's left out of the rolling average and which of the fixed reasons applies.
 A capacity adjustment saves as a percentage and a reason code against a team and a sprint
@@ -1750,7 +1836,11 @@ backup, for moving between browsers, or for handing a colleague a starting point
 that follows, for ten seconds. It puts back everything that delete reached: a team comes back
 with its sprints, its capacity adjustments and its business value, field for field, and a PI
 deleted with *Keep the sprints* comes back with the grouping restored rather than nineteen
-sprints to re-file by hand.
+sprints to re-file by hand. **It puts back what the delete took and nothing else**: a team
+renamed, an ART added or a sprint edited *after* the delete stays exactly as you left it, and
+Undo does not move you back to the tab or team you were on. (Until 2026-09-18 it rolled the
+whole board back to the moment before the delete — and because the offer waits for the
+*Teams, ARTs & PIs* window to close, that could silently discard everything done in it since.)
 
 The countdown pauses while the toast has keyboard focus, so tabbing to the button doesn't
 race it. A delete made *inside* the **Teams, ARTs & PIs** window — a team, an ART or a PI —
@@ -2300,3 +2390,17 @@ best-practice rules, in all four themes, with data loaded, on every tab and in e
 (last run 2026-09-05). The things axe cannot see are checked by hand the same day: a Tab
 through every view reading the focus ring, every window opened from the keyboard and closed
 with Esc, hover colours, a 320px-wide window, widened text spacing and reduced motion.
+
+**A window that saves puts the keyboard back where it was.** Saving redraws the page, which
+throws away the button the window was opened from — so after Save Sprint, Delete Sprint, Save
+Adjustment and Remove Adjustment the focus lands on the redrawn copy of that button (from a
+table row: the row for the same sprint, or the row that took a deleted sprint's place) rather
+than falling off the page. Until 2026-09-18 only the Business Value and Targets windows did.
+The same goes for the controls that redraw the page they sit on — the two Rolling 5 tick
+boxes and the PI and Sprint pickers: the keyboard stays on the control, so Space toggles a
+tick box back and Tab carries on from the picker rather than from the top.
+Inside **Teams, ARTs & PIs**, deleting a team, an ART or a PI leaves the keyboard on the ×
+of the row that took its place (or on the section's Add button once the list is empty), and
+changing a team's ART leaves it on that picker. Closing the window after **Start Fresh** or
+**Start a Team** — which replace the card they were pressed on — lands on the header's
+Teams & PIs button.

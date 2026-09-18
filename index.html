@@ -3386,6 +3386,28 @@ function coerceShape(data) {
   return d;
 }
 
+/* ── A date that is on the calendar, not merely shaped like one (2026-09-18) ──
+   `2026-00-10`, `2026-02-30` and `2026-13-01` all match /^\d{4}-\d{2}-\d{2}$/,
+   and that shape test was the whole boundary — so a CSV row, a Restore file and
+   a SHARE LINK (attacker-controlled) could each carry one in. `2026-00-10` does
+   not parse at all: `dayNum()` gave NaN, `isoDay(NaN)` threw "Invalid time
+   value", and a running sprint starting on it plus a typed backlog took the whole
+   Rolling 5 view down. `2026-02-30` is worse in its way — V8 reads it as 2 March,
+   so every sum done on it is quietly about a different day from the one on screen.
+   The test is the round trip: a real date comes back from the calendar as itself.
+
+   A `function` DECLARATION, using nothing but built-ins, ON PURPOSE. It is called
+   from sanitizeIds(), which runs from `let state = load()` while every top-level
+   `const` below that line — `dayNum`, `isoDay`, `DAY_MS` among them — is still in
+   its temporal dead zone. Written as `isoDay(dayNum(v)) === v` this would throw
+   at BOOT, load()'s catch would turn that into a blank board over a good saved
+   copy, and no test that calls sanitizeIds() after boot could see it. */
+function isRealDate(v) {
+  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const ms = Date.parse(v + 'T00:00:00Z');
+  return Number.isFinite(ms) && new Date(ms).toISOString().slice(0, 10) === v;
+}
+
 /* ⚠️ THIS RUNS BEFORE THE REST OF THE FILE EXISTS. load() calls it from `let state
    = load()`, which sits several hundred lines above the domain helpers — so every
    `const` below that line (piKey, teamById, isIpSlot, todayISO …) is still in its
@@ -3510,9 +3532,20 @@ function sanitizeIds(data) {
      valid, so no key is ever created holding undefined — see cleanKey above
      for why that matters. Every drop or repair is counted in
      sanitizeIds.pruned so boot can persist the scrub. */
-  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
   const STATUSES = ['auto', 'planned', 'active', 'complete'];
   const VIEWS = ['sprint', 'pi', 'rolling', 'history', 'trend', 'art', 'teams'];   // renderTabs() owns this list
+  /* ── A number somebody STATED, or NaN (2026-09-18) ──────────────────────────
+     `Number(null)`, `Number('')`, `Number(false)` and `Number([])` are all 0 — a
+     perfectly finite number — so "no value", written into a file or a link as
+     null or "", crossed every clamped kind below as a REAL ZERO. For these fields
+     absent means the default and zero is destructive: `availability: null` became
+     0% and the team's recommended commitment went from 36 to 0; `capacityScale:
+     null` wiped a sprint out of the planning base; a `null` target became its
+     field's minimum, under its own red line. Only an actual number, or a string
+     with a number in it, is a statement. (The sprint FIGURES stay on plain
+     Number(): there, blank really does mean zero — see "Blank means 0".) */
+  const stated = (v) => (typeof v === 'number' ? v
+    : (typeof v === 'string' && v.trim() !== '') ? Number(v) : NaN);
   const keepKnown = (src, spec) => {
     const out = {};
     for (const k of Object.keys(src)) {
@@ -3555,7 +3588,9 @@ function sanitizeIds(data) {
         if (v === '') out[k] = '';
         else { const n = Number(v); if (Number.isFinite(n)) out[k] = n; }
       } else if (kind === 'date') {
-        out[k] = (typeof v === 'string' && DATE_RE.test(v)) ? v : '';
+        /* On the calendar, not just the right shape — see isRealDate(). An
+           impossible date becomes '' like any other bad one (2026-09-18). */
+        out[k] = isRealDate(v) ? v : '';
       } else if (kind === 'bool') {
         out[k] = !!v;
       } else if (kind === 'status') {
@@ -3574,14 +3609,14 @@ function sanitizeIds(data) {
            'num'); this widening is what lets `plans.sprintNumber` and
            `settings.activeSprintNum` follow a PI-less sprint, while still bounding
            all three against a crafted payload. */
-        const n = Number(v);
+        const n = stated(v);
         if (Number.isFinite(n)) out[k] = Math.min(MAX_SPRINT_NO, Math.max(1, Math.round(n)));
       } else if (kind === 'pct') {
         /* Team availability, as a percentage of a normal sprint. Clamped to the
            same range the form offers rather than merely checked for finiteness:
            it MULTIPLIES the recommended commitment, so a payload carrying 1e9
            would otherwise put a nonsense figure on the planning card. */
-        const n = Number(v);
+        const n = stated(v);
         if (Number.isFinite(n)) out[k] = Math.min(200, Math.max(0, Math.round(n)));
       } else if (kind === 'tribool') {
         /* A field with THREE states: true, false, and not recorded at all. Unlike
@@ -3599,7 +3634,7 @@ function sanitizeIds(data) {
            the denominator of the predictability measure, so a payload carrying
            1e9 would put a nonsense figure on an RTE's card. Whole numbers only —
            nobody scores an objective 7.5. */
-        const n = Number(v);
+        const n = stated(v);
         if (Number.isFinite(n)) out[k] = Math.min(BV_MAX, Math.max(0, Math.round(n)));
       } else if (kind === 'targets') {
         /* The one NESTED object that crosses this boundary, and it gets the same
@@ -3617,7 +3652,7 @@ function sanitizeIds(data) {
           const clean = {};
           for (const f of TARGET_FIELDS) {
             if (!Object.prototype.hasOwnProperty.call(v, f.key)) continue;
-            const n = Number(v[f.key]);
+            const n = stated(v[f.key]);
             if (!Number.isFinite(n)) { sanitizeIds.pruned++; continue; }
             const fixed = Math.min(f.max, Math.max(f.min, Math.round(n)));
             if (fixed !== v[f.key]) sanitizeIds.pruned++;
@@ -3627,8 +3662,16 @@ function sanitizeIds(data) {
             if (!TARGET_FIELDS.some(f => f.key === k2)) sanitizeIds.pruned++;
           }
           /* Dropped entirely when nothing survived, rather than stored as `{}`:
-             an empty object is a key the format claims to hold a setting in. */
-          if (Object.keys(clean).length) out[k] = clean;
+             an empty object is a key the format claims to hold a setting in. And
+             dropped WHOLE when the set contradicts itself (2026-09-18) — green
+             under its own red, a ceiling under its floor. The Targets window
+             refuses to store such a set because rag() would have a branch nothing
+             can reach; a file or a link must not be able to store what the window
+             cannot. targetProblems() is pure, so it is safe this early in boot. */
+          if (Object.keys(clean).length) {
+            if (targetProblems(Object.assign({}, TARGET_DEFAULTS, clean)).length) sanitizeIds.pruned++;
+            else out[k] = clean;
+          }
         }
       } else if (kind === 'reason') {
         /* One of the fixed codes — see REASONS. An unknown one becomes 'other'
@@ -3717,6 +3760,21 @@ function sanitizeIds(data) {
      and a `sharedAt` that is not a date puts "Invalid Date" in the banner.
      Not a date means non-numeric OR past the calendar: a Date holds ±8.64e15 ms,
      so 1e300 is finite and still Invalid Date (2026-09-15 review). */
+  /* `v` and `allTeams` crossed un-pinned until 2026-09-18 — allowed through, and
+     then nothing asked what they were. Only their truthiness and size are ever
+     read, so no script could ride in; what could was TEXT: a backup file holding
+     `"v": "<11,000 characters>"` or `"allTeams": {"notes": "…"}` was restored
+     with both intact, and adoptState() wrote them into the saved board, where
+     they stayed and left again in every backup after it. A version is a number
+     and a permission is a yes or a no; anything else is dropped. */
+  if ('v' in data && !(typeof data.v === 'number' && Number.isFinite(data.v))) {
+    delete data.v; sanitizeIds.pruned++;
+  }
+  if ('allTeams' in data && typeof data.allTeams !== 'boolean') {
+    const yes = data.allTeams === 1;      // the one other spelling a link has ever carried
+    if (yes) data.allTeams = true; else delete data.allTeams;
+    sanitizeIds.pruned++;
+  }
   if ('label' in data) {
     const l = String(data.label).slice(0, 120);
     if (l !== data.label) { data.label = l; sanitizeIds.pruned++; }
@@ -3893,11 +3951,12 @@ function sanitizeIds(data) {
    of every figure a re-save would change. This is the other half of that care: the
    confirm asks, and the toast that follows can put it back.
 
-   A whole-state snapshot rather than a list of what was removed, deliberately. The
-   deletes here reach four collections and two settings between them, and a
-   hand-written inverse for each is a list somebody has to remember to extend the
-   next time a delete learns to tidy up after itself. Stringify beats that, and at
-   this size costs nothing worth measuring.
+   Snapshots rather than a hand-written inverse per delete, deliberately. The
+   deletes here reach four collections and two settings between them, and an
+   inverse for each is a list somebody has to remember to extend the next time a
+   delete learns to tidy up after itself. Stringify beats that, and at this size
+   costs nothing worth measuring. (What is DONE with the snapshots changed on
+   2026-09-18 — see undoable() below.)
 
    Deliberately NOT a stack: one step back, offered for as long as the toast is up
    and then gone. An undo history is a feature with its own rules — what survives a
@@ -3905,15 +3964,54 @@ function sanitizeIds(data) {
    answer here. Delete all data keeps its own dialog and its export-first prompt
    instead: that one is meant to be hard, and a 10-second Undo would quietly make it
    the easiest destructive thing in the app. */
-const UNDO_KEYS = ['teams', 'arts', 'pis', 'sprints', 'plans', 'objectives', 'settings'];
+const UNDO_LISTS = ['teams', 'arts', 'pis', 'sprints', 'plans', 'objectives'];
 
+/* ── Undo puts back what the DELETE took, and nothing else (2026-09-18) ────────
+   It used to write the whole `before` snapshot over the state, settings included.
+   That is only an undo if nothing has happened since — and the toast is HELD while
+   a dialog is open, so inside Teams, ARTs & PIs the offer outlives any amount of
+   further work: delete a team, rename another, add an ART and a PI, press Done,
+   press Undo — and the rename, the ART and the PI were all gone, under a toast
+   reading "Put back". A delete made on one tab and undone on another also dragged
+   the reader back to the old team, tab and forecast figures.
+
+   So three copies, record by record: what was there BEFORE, what the delete left
+   (AFTER), and what is there NOW.
+   - A record the delete REMOVED comes back, at its old place in the list.
+   - A record the delete CHANGED (Delete ART clears its teams' `artId`; Keep the
+     Sprints renumbers them) goes back to how it was — unless it has been changed
+     again since, and then the later change stands.
+   - Anything added or edited since is not this undo's business.
+   - A setting is put back only if the delete moved it and nothing has since.
+   Every record in these six lists has an id — the boundary mints one for any
+   that arrives without (`ownId`) — which is what makes this a lookup. */
 function undoable(fn, message) {
-  const before = JSON.stringify(UNDO_KEYS.reduce((a, k) => { a[k] = state[k]; return a; }, {}));
+  const snap = () => JSON.stringify({
+    lists: UNDO_LISTS.reduce((a, k) => { a[k] = state[k]; return a; }, {}),
+    settings: state.settings
+  });
+  const before = snap();
   fn();
   save();
+  const after = snap();
   return { message, restore: () => {
-    const back = JSON.parse(before);
-    UNDO_KEYS.forEach(k => { state[k] = back[k]; });
+    const b = JSON.parse(before), a = JSON.parse(after);
+    const same = (x, y) => JSON.stringify(x) === JSON.stringify(y);
+    UNDO_LISTS.forEach(k => {
+      const was = b.lists[k] || [], left = new Map((a.lists[k] || []).map(r => [r.id, r]));
+      const now = state[k].slice();
+      const at = (id) => now.findIndex(r => r.id === id);
+      was.forEach((rec, i) => {
+        const l = left.get(rec.id), j = at(rec.id);
+        if (!l) { if (j < 0) now.splice(Math.min(i, now.length), 0, rec); }
+        else if (!same(l, rec) && j >= 0 && same(now[j], l)) now[j] = rec;
+      });
+      state[k] = now;
+    });
+    Object.keys(b.settings).forEach(key => {
+      if (!same(b.settings[key], a.settings[key]) && same(state.settings[key], a.settings[key]))
+        state.settings[key] = b.settings[key];
+    });
     save();
     render();
   } };
@@ -3965,6 +4063,11 @@ let bootUnassigned = 0;   // sprints the boundary un-grouped rather than dropped
 let bootStrippedNotes = 0;   // legacy free-text notes found in the saved copy
 let bootPruned = 0;          // stray keys or wrong-typed values found in it
 
+/* The `sv-data` string this copy last READ or WROTE — what save() holds storage up
+   against before writing over it (see save()). Declared above load(), which sets
+   it while the script is still being evaluated. */
+let storedRaw = null;
+
 let state = load();
 
 /* ── Adopting a copy from outside ───────────────────────────────────────────
@@ -3981,8 +4084,20 @@ let state = load();
    holds new fields — and the next older build to see it sails past
    haltForNewerData() and strips them, which is the exact loss the stamp exists
    to prevent. It went unnoticed while SCHEMA had never moved off 1. */
+/* What a SHARE LINK carries beside the board: read once by openSharedView() into
+   `shareMeta`, never part of anybody's saved data. adoptState() is the reader's
+   OWN board arriving — boot and Restore — so they are taken off here (2026-09-18):
+   sanitizeIds() lets them through for the link's sake, and a restored file holding
+   a `label` (120 characters of anything) used to keep it in storage for good.
+
+   The list lives INSIDE the function on purpose: `let state = load()` runs above
+   this line while the script is still being evaluated, so a `const` declared out
+   here would not exist yet at boot — and load()'s catch would turn that
+   ReferenceError into a blank board, silently. */
 function adoptState(parsed) {
-  return Object.assign(blankState(), parsed, {
+  const own = Object.assign({}, parsed);
+  ['v', 'sharedAt', 'label', 'allTeams', 'range'].forEach(k => { delete own[k]; });
+  return Object.assign(blankState(), own, {
     settings: Object.assign(blankState().settings, (parsed && parsed.settings) || {}),
     version: SCHEMA
   });
@@ -4005,6 +4120,7 @@ function load() {
 
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
+    storedRaw = raw;
     if (!raw) return blankState();
     const parsed = sanitizeIds(coerceShape(JSON.parse(raw)));
     bootOrphans = sanitizeIds.dropped;
@@ -4027,11 +4143,53 @@ function save() {
      sync was removed there is no second copy anywhere to fall back on, so
      saying so is all the more the honest thing to do. */
   try {
+    /* ── Two copies of the app open at once (2026-09-18) ─────────────────────
+       save() writes the WHOLE in-memory board, and nearly everything saves — a
+       tab press, a picker, a toggle. So with the app open twice (two tabs, or the
+       installed window and a tab), the copy that had NOT been reloaded wrote its
+       stale board over the other's work the next time anything in it was
+       pressed: a sprint imported in one window was gone after a tab click in the
+       other, and neither said a word. Storage is held up against what THIS copy
+       last read or wrote; if somebody else has written since, their board is
+       adopted instead of overwritten, and the one change that did not land is
+       said out loud. Losing one press, announced, beats losing a sprint in silence. */
+    if (localStorage.getItem(STORAGE_KEY) !== storedRaw) { adoptOtherCopy(true); return; }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    /* Read BACK rather than remembered: a browser that accepts the write and keeps
+       nothing must not look, next time, like another window having emptied it. */
+    storedRaw = localStorage.getItem(STORAGE_KEY);
   } catch (e) {
     console.warn('Could not write saved data', e);
-    toast('⚠️ This browser is blocking storage (full, or private mode?) — changes may be lost when the tab closes');
+    /* There is only ever ONE toast, and nearly every caller raises its own right
+       after save() — "Data imported", "1 sprint imported", "Put back" — which
+       REPLACED this warning in the same breath: a Restore into a full quota said
+       "Data imported" over a board that had not been stored (2026-09-18). So the
+       warning rides on whatever toast comes next (see toast()), and is raised
+       alone only if nothing claims it by the end of the task. */
+    save.blocked = true;
+    setTimeout(() => { if (save.blocked) { save.blocked = false; toast(saveBlockedMsg()); } }, 0);
   }
+}
+/* A function, not a const: toast() and save() can both run before a const down
+   here would exist (the boot-time dead zone that has bitten this file twice). */
+function saveBlockedMsg() {
+  return '⚠️ This browser is blocking storage (full, or private mode?) — changes may be lost when the tab closes';
+}
+
+/* Another window's board, taken in place of this one's. load() is boot's own
+   reader, so a copy written by a NEWER build halts here exactly as it would at
+   boot. Any open window is closed first: its boxes were filled from the board that
+   has just been replaced. `lostChange` is save()'s case — this copy was about to
+   write and did not — and gets the sentence that says so; the idle case (the
+   `storage` listener at the foot of the file) is only news. */
+function adoptOtherCopy(lostChange) {
+  state = load();
+  document.querySelectorAll('dialog[open]').forEach(d => d.close());
+  render();
+  toast(lostChange
+    ? 'This board was changed in another tab or window, so that copy is loaded here now. '
+      + 'Your last change here was not saved — make it again.'
+    : 'Updated — this board was changed in another tab or window.');
 }
 
 /* Sync was removed on 2026-08-20, and its two keys are actively DELETED rather
@@ -4372,7 +4530,14 @@ function forecast(teamId, points, includeSix) {
   /* A team that has finished none of its commitment has no rate to divide by.
      Zero sprints would be a lie and Infinity is not a forecast, so the card says
      it can't answer rather than printing something. */
-  if (!(slowRate > 0)) return { points, impossible: true, sprints: t ? t.sprints : 0 };
+  /* `zeroedByAvailability` (2026-09-18): the history HAS a rate and a standing 0%
+     is the only thing that made it nothing. Four sprints finishing 20 each under
+     a 0% team were told the team "has finished none of its committed points …
+     Record a sprint with some committed work finished" — false, and advice that
+     cannot work: every sprint they record is multiplied by the same nought. The
+     card names the 0% and points at the control that holds it instead. */
+  if (!(slowRate > 0)) return { points, impossible: true, sprints: t ? t.sprints : 0,
+    zeroedByAvailability: !typed && forecastZeroedByAvailability(teamId, includeSix) };
 
   /* ── Scope growth ────────────────────────────────────────────────────────
      Applied to the WORK, not to the rate, and each end of the growth range pairs
@@ -4392,10 +4557,13 @@ function forecast(teamId, points, includeSix) {
   /* ── Sprints nobody is delivering in ─────────────────────────────────────
      Added flat rather than dropped in at a chosen point: a sprint that delivers
      nothing contributes nothing and shifts everything after it by exactly one,
-     so WHERE it lands cannot change the finish. Kept separate from the delivery
-     count all the way down, because the calendar walk below converts DELIVERY
-     sprints into calendar slots by stepping over IP sprints, and these are
-     already calendar slots. */
+     so WHERE it lands cannot change the COUNT. It can change the DATE: a lost
+     sprint is an ordinary sprint the team spends on something else, never the IP
+     sprint — the card says the IP sprint "is stepped over separately and is not
+     one of these" — so the calendar walk below has to step over IP sprints for
+     these too. Until 2026-09-18 they were added after the walk, as though they
+     were calendar slots already, and one delivering sprint plus one lost one
+     from S5 "finished" on the last day of S6, the IP sprint itself. */
   const lost = forecastLostSprints();
   const fast = fastDeliver + lost;
   const slow = slowDeliver + lost;
@@ -4442,18 +4610,26 @@ function forecast(teamId, points, includeSix) {
   let startDay = null;
   if (c && slot) {
     const own = slot.sprint && slot.sprint.startDate ? slot.sprint.startDate : null;
-    const projected = slot.piId ? cadenceDates(teamId, slot.piId, slot.sprintNumber) : null;
+    /* No `slot.piId ?` guard (2026-09-18): it predated the optional PI and left a
+       team that runs no PIs with "about 4 weeks" and no date whenever nothing was
+       running. cadenceDates() refuses a projection across the two tracks itself. */
+    const projected = cadenceDates(teamId, slot.piId, slot.sprintNumber);
     const iso = own || (projected && projected.startDate)
       /* cadenceDates() returns null for the anchor sprint itself — which is
          exactly the case where the slot already has its own dates to use. */
       || (c.anchor.piId === (slot.piId || null) && c.anchor.sprintNumber === slot.sprintNumber
           ? c.anchor.startDate : null);
-    if (iso) startDay = dayNum(iso);
+    /* `isFinite`, because `startDay === null` is the only "no date" the code
+       below knows, and a NaN walked straight past it into isoDay(), which throws
+       "Invalid time value" and takes render() with it (2026-09-18). The boundary
+       refuses an impossible date now; this is the other end, so that nothing
+       which ever gets past it can do that again. */
+    if (iso) { const dn = dayNum(iso); if (Number.isFinite(dn)) startDay = dn; }
   }
-  /* `deliver` is the delivering sprints, which is what the slot walk converts;
-     the lost ones are calendar slots already and are added after it. */
+  /* `deliver` is the delivering sprints; the lost ones are walked WITH them,
+     because neither kind can be the IP sprint (2026-09-18). */
   const endOf = (deliver) => (startDay === null || beyondHorizon ? null
-    : isoDay(startDay + (calendarSlots(deliver) + lost - 1) * c.stride + c.length));
+    : isoDay(startDay + (calendarSlots(deliver + lost) - 1) * c.stride + c.length));
 
   /* How much of the current PI is left to deliver in, so the card can answer the
      question this one always turns into: does it land before the PI ends? */
@@ -4478,11 +4654,23 @@ function forecast(teamId, points, includeSix) {
     growthLo: growth.lo, growthHi: growth.hi, lostSprints: lost,
     grownPoints: growth.hi > 0 || growth.lo > 0 ? [fastPoints, slowPoints] : null,
     reliableMet: t ? t.reliableMet : null,
+    /* The two HISTORY figures the rates were scaled from, handed over rather than
+       left for the card to divide back out of a rounded rate (2026-09-18). Under a
+       standing availability the rate is not what the team averages and
+       `reliableMet` is not a count of sprints that cleared it — it counts the
+       sprints that cleared `reliableBase` — so the card needs both the figure it
+       divided by and the one its history sentence is true of. Null under a typed
+       rate, which has no history behind it. */
+    meanBase: (!typed && t) ? t.planningBase : null,
+    floorBase: (!typed && t) ? t.reliableBase : null,
+    /* The work each end was divided INTO, so the card can check its own rounding
+       against the division the reader will do. */
+    fastPoints, slowPoints,
     /* Whole weeks, from the team's own stride rather than an assumed fortnight. */
     fastWeeks: c && !beyondHorizon
-      ? Math.round((calendarSlots(fastDeliver) + lost) * c.stride / 7) : null,
+      ? Math.round(calendarSlots(fastDeliver + lost) * c.stride / 7) : null,
     slowWeeks: c && !beyondHorizon
-      ? Math.round((calendarSlots(slowDeliver) + lost) * c.stride / 7) : null,
+      ? Math.round(calendarSlots(slowDeliver + lost) * c.stride / 7) : null,
     fastEnd: endOf(fastDeliver),
     slowEnd: endOf(slowDeliver),
     slotsLeftInPi,
@@ -5362,10 +5550,13 @@ const METRIC_HELP = {
       averaging 85% — one running 84, 85, 86 and one running 40, 100, 115 — need different
       conversations.` },
   histTotalRow: { title: 'Whole History', target: null,
-    body: `Every counted sprint pooled into one total and divided once, the same method the
-      Team PI total uses. In-flight sprints sit in the table above but not in this row. A sprint
-      left out of the rolling average is still in it — that choice narrows the rolling window
-      and the capacity target, not a team's history, and the PI totals count it too.` },
+    body: `<p><strong>Every counted sprint</strong> pooled into one total and divided once, the
+      same method the Team PI total uses. A sprint that is not counted — planned, or still
+      running unless you have asked for running sprints to count — sits in the table above but
+      not in this row.</p>
+      <p>A sprint left out of the rolling average is still in it — that choice narrows the
+      rolling window and the capacity target, not a team's history, and the PI totals count it
+      too.</p>` },
 
   /* Compare Teams. Its one table is the AVERAGE-OF-SPRINTS method, and `teamsMean`
      has to say so outright and say where the pooled figures live — the standing
@@ -5507,6 +5698,19 @@ function targetSprintSlot(teamId) {
   const active = all.find(x => sprintStatus(x) === 'active' && !isCounted(x));
   if (active)
     return { piId: active.piId, sprintNumber: active.sprintNumber, last: lastComplete, sprint: active };
+
+  /* A sprint recorded AHEAD of its start — saved at planning, status planned — is
+     the sprint being planned, not one to step past (2026-09-18). This used to fall
+     through to "the last record + 1", so on the weekend before S5 the card was
+     titled S6, ignored leave recorded against S5, and flipped back to S5 by itself
+     on Monday when S5 turned active. Only a planned sprint AFTER the last counted
+     one qualifies: before `excluded` existed, hand-setting an old sprint to planned
+     was the way to keep it out of the averages, and those must not capture the card. */
+  const after = lastComplete ? all.indexOf(lastComplete) + 1 : 0;
+  const ahead = all.slice(after).find(x => sprintStatus(x) === 'planned');
+  if (ahead)
+    return { piId: ahead.piId, sprintNumber: ahead.sprintNumber, last: lastComplete,
+             sprint: ahead, planned: true };
 
   const last = all[all.length - 1];
   const base = { last: lastComplete, sprint: null };
@@ -5722,15 +5926,25 @@ function nextSprintTarget(teamId, includeSix) {
     steady: spread <= 30,
     thin: rs.length < 3,
     slot,
-    inFlight: !!(slot && slot.sprint),
+    /* `sprint` is the record already on the slot: running, or saved ahead at
+       planning. The card badges the two differently. */
+    inFlight: !!(slot && slot.sprint && !slot.planned),
+    plannedAhead: !!(slot && slot.planned),
     committedAlready,
     /* A running sprint whose commitment hasn't been keyed in yet has nothing to
        compare against — 0 isn't a small commitment, it's an unanswered question.
        One flag for both, so the card can't show "actually committed 0" alongside
        a tick and "in line with the suggestion", which is what it used to do. */
     hasCommitment: committedAlready !== null && committedAlready > 0,
+    /* Against the recommendation AS SHOWN, which is a whole number (2026-09-18).
+       Against the raw figure the demo's own card read "Recommended commitment 23",
+       "Actually committed 32 — 10 more than the suggestion": 22.5 shown as 23, and
+       32 − 22.5 = 9.5 shown as 10, each rounded on its own beside the other. The
+       reader can only subtract the two figures on the card, so the difference is
+       taken between those — and `over`/`under` are judged on it, so the colour can
+       never disagree with the arithmetic either. */
     overBy: (committedAlready !== null && committedAlready > 0)
-      ? committedAlready - recommended : null,
+      ? committedAlready - Math.round(recommended) : null,
     /* Through isIpSlot, never `sprintNumber === IP_SPRINT` on its own. Sprint 6
        of a team that isn't running PIs is an ordinary delivery sprint —
        rollingSprints() already counts it as one — and this said otherwise, so the
@@ -6101,8 +6315,22 @@ function trendChange(values) {
   const real = values.filter(v => v !== null && v !== undefined && isFinite(v));
   if (real.length < MIN_TREND_POINTS) return null;
   const fit = linearTrend(values);
-  if (fit[0] === null || fit[fit.length - 1] === null) return null;
-  return fit[fit.length - 1] - fit[0];
+  /* Between the first and last sprint that HOLD a figure, not the first and last
+     index (2026-09-18). History hands this a null for every running and planned
+     sprint, and the fit was read across them too: 50,60,70,80,90,100 followed by
+     one running and two planned sprints read "Up 80" where the data moved 50 —
+     the slope (10 a sprint) multiplied by eight gaps rather than five. Compare
+     Teams had it from the other end: a window whose first sprint committed 0 has
+     no percentage there, and 50,60,70,80 after it read "up 40" for 30. The LINE
+     is still drawn across the whole chart, which is what a projection looks
+     like; the FIGURE is how far the team moved across what it has actually run.
+     A null in the MIDDLE still counts as a step — time passed there. */
+  const has = (v) => v !== null && v !== undefined && isFinite(v);
+  let first = 0, last = values.length - 1;
+  while (first < last && !has(values[first])) first++;
+  while (last > first && !has(values[last])) last--;
+  if (fit[first] === null || fit[last] === null) return null;
+  return fit[last] - fit[first];
 }
 
 /* What goes in the cell: the shape, then the direction in words. "up 12" rather
@@ -6304,6 +6532,12 @@ function toast(msg, action) {
      markup: the toast is one element the whole page shares, and the window's
      own list already shows the row gone. One toast, never a queue, held or
      shown: a later call replaces a held one too. */
+  /* A write that was refused is said WITH whatever this toast was going to say,
+     never replaced by it — see save(). */
+  if (save.blocked) {
+    save.blocked = false;
+    if (msg !== saveBlockedMsg()) msg = msg + ' — ' + saveBlockedMsg().replace('⚠️ This', '⚠️ but this');
+  }
   toast._held = null;
   if (action && document.querySelector('dialog[open]')) {
     toast._held = { msg, action };
@@ -6407,6 +6641,16 @@ function fsPx(step) {
   const root = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
   return v.endsWith('rem') ? parseFloat(v) * root : parseFloat(v);
 }
+
+/* How far up the two predictability charts reach before the data asks for more
+   (2026-09-18). It was a literal 120 — the DEFAULT "red above" — so with targets of
+   87–140% and red above 190% the bands were drawn in the right places on an axis
+   that stopped at 120: the green band cut short and the upper amber never on the
+   chart at all. The churn chart already follows its setting, for this reason (see
+   its comment). Never BELOW 120, so the chart at the default targets is the one
+   it has always been — hence no margin on top, which would have moved it. A
+   function declaration, so the suite can reach it. */
+function predAxisMax() { return Math.max(120, tgt().predOverRed); }
 
 function makeChart(canvasId, config) {
   const el = document.getElementById(canvasId);
@@ -7861,11 +8105,29 @@ function renderSprintView() {
      residual, so on hand-entered figures that don't balance the unexplained points
      land there rather than in "dropped". That's the safer place for them: "dropped"
      names a specific thing that happened, "carried out" is the shortfall by
-     default. Jira-pasted sprints always balance. */
+     default. A Jira-pasted sprint balances ONLY while nothing was re-sized: this
+     said "always" until 2026-09-18, and it is false the moment an estimate moves,
+     because `committed` is held at sprint-START sizes and every other figure at
+     CURRENT ones. An unfinished 8 → 13 carries out 13 against a commitment that
+     knows about 8; a finished 3 → 5 closes 5 of a commitment that held 3. */
   const shortfall = Math.max(0, m.committed - num(m.committedCompleted));
   const dropped = Math.min(num(m.removed), shortfall);
   const carriedFromCommit = shortfall - dropped;
   const addedDone = Math.max(0, num(m.velocity) - num(m.committedCompleted));
+  /* What is carried out BEYOND the commitment's share, split by what the figures can
+     support (2026-09-18 review). The note under the bars called all of it work that
+     "broke in after the sprint started" — a cause — on the strength of a subtraction.
+     Hand-entered, committed 30 / completed 24 / removed 4 with nothing added read
+     "Break-in 0 points added after start" two cards above "the other 4 of the 6 …
+     broke in": those 4 were the REMOVED points. Pasted, a report with two re-sized
+     stories read "the other 10 of the 21 … broke in" beside a Break-in tile of 8, of
+     which 5 had finished. Break-in still unfinished can be no more than what was
+     added less the added work that finished, so that is the most the note may call
+     break-in; the remainder is named as what it is, and with no unfinished added
+     work the note makes no break-in claim at all. */
+  const beyondCommit = Math.max(0, num(m.carriedOut) - carriedFromCommit);
+  const brokeInLeft = Math.min(beyondCommit, Math.max(0, num(m.added) - addedDone));
+  const unaccounted = beyondCommit - brokeInLeft;
 
   const st = sprintStatus(s);
   const inFlight = st !== 'complete';
@@ -7957,12 +8219,22 @@ function renderSprintView() {
           <strong>${fmtNum(m.added)}</strong> added ·
           <strong>${fmtNum(m.removed)}</strong> removed</span>
       </div>
-      ${num(m.carriedOut) > carriedFromCommit ? `<p class="muted" style="font-size:var(--fs-xs);margin:8px 0 0">→
+      ${beyondCommit > 0 ? `<p class="muted" style="font-size:var(--fs-xs);margin:8px 0 0">→
         The bar shows the <strong>${fmtNum(carriedFromCommit)}</strong> carried-out
-        point${carriedFromCommit === 1 ? '' : 's'} that came from the commitment. The other
-        <strong>${fmtNum(num(m.carriedOut) - carriedFromCommit)}</strong> of the
+        point${carriedFromCommit === 1 ? '' : 's'} that came from the commitment. ${
+        !unaccounted
+          ? `The other <strong>${fmtNum(beyondCommit)}</strong> of the
         <strong>${fmtNum(m.carriedOut)}</strong> going to the next sprint broke in after the
-        sprint started, so it was never part of the commitment this bar breaks apart.</p>` : ''}
+        sprint started, so it was never part of the commitment this bar breaks apart.`
+          : `${brokeInLeft
+              ? `Of the other <strong>${fmtNum(beyondCommit)}</strong> of the
+        <strong>${fmtNum(m.carriedOut)}</strong> going to the next sprint,
+        <strong>${fmtNum(brokeInLeft)}</strong> broke in after the sprint started. The remaining
+        <strong>${fmtNum(unaccounted)}</strong> is not break-in: it is`
+              : `The other <strong>${fmtNum(beyondCommit)}</strong> of the
+        <strong>${fmtNum(m.carriedOut)}</strong> going to the next sprint is`}
+        more than the commitment, as it was sized at the start, accounts for — work re-sized
+        during the sprint, or removed points still counted in carried out.`}</p>` : ''}
       ${m.addedThenRemoved ? `<p class="muted" style="font-size:var(--fs-xs);margin:8px 0 0">↩
         <strong>${fmtNum(m.addedThenRemoved)}</strong> point${m.addedThenRemoved === 1 ? '' : 's'}
         came into the sprint after it started and then went back out again. That work is
@@ -8005,9 +8277,9 @@ function wireSprintSelectors(piId, numSel) {
   /* Through piKey, so the stored value is a real null and not the `''` the
      none-option hands back — `activePiId` is typed `idOrNull` at the boundary,
      and one way of saying "no PI" is the whole point of that helper. */
-  if (piEl) piEl.onchange = () => { state.settings.activePiId = piKey(piEl.value); save(); render(); };
+  if (piEl) piEl.onchange = () => { state.settings.activePiId = piKey(piEl.value); save(); renderKeeping(piEl); };
   if (numEl) numEl.onchange = () => {
-    state.settings.activeSprintNum = Number(numEl.value); save(); render();
+    state.settings.activeSprintNum = Number(numEl.value); save(); renderKeeping(numEl);
   };
   const edit = document.getElementById('editSprintBtn');
   if (edit) edit.onclick = () => openSprint(activeTeam().id, piId, numSel);
@@ -8188,8 +8460,12 @@ function renderPiView() {
           { key: 'sprint', label: 'Sprint', text: true, get: (r) => r.n },
           { key: 'committed', label: 'Committed', get: (r) => (r.s ? metrics(r.s).committed : null) },
           { key: 'done', label: 'Cmt. done', get: (r) => (r.s ? metrics(r.s).committedCompleted : null) },
+          /* Null for a sprint that is not counted, because its CELL says "so far"
+             and shows no percentage (2026-09-18): S1 100%, S2 50%, S3 running at 10
+             of 30 sorted the "so far" row FIRST ascending, on a 33% nobody could
+             see. `get` returns what the column shows; no figure sits at the foot. */
           { key: 'commitPct', label: 'Complete %', cls: 'metric',
-            get: (r) => (r.s ? metrics(r.s).commitCompletePct : null) },
+            get: (r) => (r.s && isCounted(r.s) ? metrics(r.s).commitCompletePct : null) },
           { key: 'added', label: 'Added', get: (r) => (r.s ? metrics(r.s).added : null) },
           { key: 'removed', label: 'Removed', get: (r) => (r.s ? metrics(r.s).removed : null) },
           { key: 'carriedIn', label: 'Carried in', get: (r) => (r.s ? metrics(r.s).carriedIn : null) },
@@ -8240,7 +8516,7 @@ function renderPiView() {
     </div>`;
 
   document.getElementById('piSel2').onchange = (e) => {
-    state.settings.activePiId = e.target.value; save(); render();
+    state.settings.activePiId = e.target.value; save(); renderKeeping(e.target);
   };
   const bvBtn = document.getElementById('bvBtn');
   if (bvBtn) bvBtn.onclick = () => openBv(team.id, piId);
@@ -8471,7 +8747,8 @@ function renderRollingView() {
       <p class="sub">Click any sprint to edit it.${
         excludedNames(team.id, includeSix)
           ? ` These are the sprints in the window — <strong>${excludedNames(team.id, includeSix)}</strong>,
-             so it isn't listed here. The gap in the sprint numbers is that, not missing data.`
+             so ${excludedInRange(team.id, includeSix).length === 1 ? 'it isn’t' : 'they aren’t'}
+             listed here. The gap in the sprint numbers is that, not missing data.`
           : ''}</p>
       <div class="tablewrap">
       <table id="rollTable" aria-label="Figures for each sprint in the rolling window">
@@ -8671,6 +8948,32 @@ function forecastClearAdjustments() {
   fcs().forecastLostSprints = '';
 }
 
+/* ── The ONE way the active team changes (2026-09-18) ────────────────────────
+   Both clears above used to be called from the header picker's `onchange` and
+   nowhere else, and there are SEVEN other assignments to `activeTeamId`: the
+   Compare Teams row, the PI by Team row, a Find hit (twice — the hit's own team,
+   and the team a PI hit falls back to), deleting the active team, a CSV import
+   landing on a team it touched, and loading the demo. So Team New Start's typed
+   "5 to 10 points", 20% growth and 2 lost sprints arrived on Team Headroom's card
+   by a row click as "26 to 50 sprints … at the velocity you typed" — over a team
+   with nine sprints of history, which is the exact report of 2026-08-26 again by
+   a different door. A rule kept at one call site is a rule the next site forgets;
+   the helper is the fix, and a plain assignment to `activeTeamId` anywhere else
+   is now the thing to be suspicious of (tests.html counts them).
+
+   Only when the id actually CHANGES: a Find hit on the team already on screen,
+   or its own row pressed in Compare Teams, is not a switch, and wiping a rate
+   somebody reasoned about because they looked something up would be its own bug.
+   `forecastPoints` stays, by the rule in the comment above `forecastClearTypedRate`
+   — the scope is about the work, not about who is doing it. */
+function setActiveTeam(id) {
+  const next = id || null;
+  if ((state.settings.activeTeamId || null) === next) return;
+  state.settings.activeTeamId = next;
+  forecastClearTypedRate();
+  forecastClearAdjustments();
+}
+
 /* Whether this team has a rate to forecast FROM — the same two conditions
    `forecast()` refuses on, asked in one place so the tick's default and the
    card's own refusal cannot disagree about what "no history" means. */
@@ -8680,6 +8983,17 @@ function forecastHasRate(teamId, includeSix) {
   const standing = standingAvailability(teamId);
   const lasting = standing === null ? 1 : standing / 100;
   return Math.min(t.planningBase, t.reliableBase) * lasting > 0;
+}
+
+/* The other way to have no rate (2026-09-18): the history has one and a standing
+   0% availability multiplied it away. Asked in one place because two sentences
+   need it — the card's refusal, and the line shown before any points are typed,
+   which otherwise tells a team with four finished sprints it "has no finished
+   sprints to take a rate from". */
+function forecastZeroedByAvailability(teamId, includeSix) {
+  const t = nextSprintTarget(teamId, includeSix);
+  return !!t && standingAvailability(teamId) === 0
+    && Math.min(t.planningBase, t.reliableBase) > 0;
 }
 
 const forecastTypedTicked = (teamId, includeSix) =>
@@ -8746,7 +9060,10 @@ function forecastResultHtml(team, includeSix) {
       team ? 'it would take ' + who : 'that would take'} ${typedRate
       ? 'at the velocity typed below.'
       : ticked
-      ? `at a velocity you type below. ${team
+      ? `at a velocity you type below. ${team && forecastZeroedByAvailability(teamId, includeSix)
+          ? who + ' has a standing availability of 0%, which leaves no rate to take from its '
+            + 'sprints, so the two boxes are where it comes from.'
+          : team
           ? who + ' has no finished sprints to take a rate from, so the two boxes are where it '
             + 'comes from.'
           : 'There is nothing recorded to take a rate from, so the two boxes are where it '
@@ -8759,6 +9076,12 @@ function forecastResultHtml(team, includeSix) {
   if (!f) return `<p class="sub" style="margin:0">${ticked
     ? 'Type a velocity below — points a sprint, or a range — and this will answer.'
     : ''}</p>`;
+  if (f.impossible && f.zeroedByAvailability) return `<p class="warn" style="margin:0">${who}
+    has a standing availability of <strong>0%</strong>, and that holds for every sprint a forecast
+    looks across — so there is no rate to forecast from, whatever the team has finished.
+    ${viewOnly ? 'It is set on the team, not on any one sprint.'
+      : `Change it with <strong>Adjust Capacity</strong> on the card above, where it is the
+         team's standing figure — or forecast from a velocity you type, with the tick above.`}</p>`;
   if (f.impossible) return `<p class="warn" style="margin:0">${who} has finished none
     of its committed points across the last ${plural(f.sprints, 'sprint')}, so there is no rate
     to forecast from. Record a sprint with some committed work finished and this will answer.</p>`;
@@ -8779,13 +9102,44 @@ function forecastResultHtml(team, includeSix) {
   /* Under a typed rate both ends are the reader's own numbers, so they are named
      as such: "the 20 they average" over a team that has averaged nothing is the
      card inventing a history to justify an answer. */
+  /* ── A rate the reader can check (2026-09-18) ────────────────────────────
+     Two faults, one sentence. A team on a standing 90% finishing 30, 35, 38, 40,
+     33 was told "4 at the 32 points a sprint they average, 5 at the 30 they
+     finished in 4 of the last 5". They average 35, not 32; they finished at least
+     30 in FIVE of five — the "4 of 5" is a count of sprints that cleared the
+     unadjusted 33; and 120 / 30 is 4, not 5, because the real rate was 29.7. It
+     is the capacity card's old fault ("finished an average of 19.2" when the
+     sprints said 24) on this card: a sentence about the PAST has to quote the
+     history figure, and the adjustment is named beside it rather than folded in.
+
+     The rate is shown whole UNLESS the whole number would give the reader a
+     different sprint count by their own division, and then to one decimal —
+     `fmtNum` rounds to one already. `pts` is the work that end was divided into
+     (they differ once scope growth is on). */
+  const showRate = (rate, pts) => {
+    const whole = Math.round(rate);
+    return whole > 0 && Math.ceil(pts / whole) === Math.ceil(pts / rate)
+      ? fmtNum(whole) : fmtNum(rate);
+  };
+  const meanIsFast = f.meanRate >= f.floorRate;
+  const meanShown = showRate(f.meanRate, meanIsFast ? f.fastPoints : f.slowPoints);
+  const floorShown = showRate(f.floorRate, meanIsFast ? f.slowPoints : f.fastPoints);
+  /* In brackets so the phrase reads the same wherever it is dealt — either end
+     of the range, or both inside "At …, and at …, it comes to the same number". */
+  const adjusted = !f.typed && f.lastingAdjustment !== null;
   const meanPhrase = f.typed
     ? `the <strong>${fmtNum(Math.round(f.meanRate))}</strong> points a sprint you typed as the
        optimistic end`
-    : `the <strong>${fmtNum(Math.round(f.meanRate))}</strong> points a sprint they average`;
+    : adjusted
+    ? `<strong>${meanShown}</strong> points a sprint (${f.lastingAdjustment}% of the
+       ${fmtNum(Math.round(f.meanBase))} they average)`
+    : `the <strong>${meanShown}</strong> points a sprint they average`;
   const floorPhrase = f.typed
     ? `the <strong>${fmtNum(Math.round(f.floorRate))}</strong> you typed as the cautious end`
-    : `the <strong>${fmtNum(Math.round(f.floorRate))}</strong> they finished in
+    : adjusted
+    ? `<strong>${floorShown}</strong> (${f.lastingAdjustment}% of the
+       ${fmtNum(Math.round(f.floorBase))} they finished in ${f.reliableMet} of the last ${f.sprints})`
+    : `the <strong>${floorShown}</strong> they finished in
        ${f.reliableMet} of the last ${f.sprints}`;
   const fastPhrase = f.meanRate >= f.floorRate ? meanPhrase : floorPhrase;
   const slowPhrase = f.meanRate >= f.floorRate ? floorPhrase : meanPhrase;
@@ -8850,9 +9204,19 @@ function forecastResultHtml(team, includeSix) {
   if (f.thin)
     caveats.push(`Only ${plural(f.sprints, 'sprint')} of history behind the rate, so this is a
       rough shape rather than a forecast.`);
+  /* The range is only explained where there IS one (2026-09-18). 22, 12, 25, 20, 26
+     with 120 points is 6 sprints at either rate — "it comes to the same number" —
+     and the card went on to say the swings were "why the two ends are far apart.
+     The range is the honest answer". The swings are still real and still worth
+     saying; what they did NOT do here is separate the two ends, which only
+     happened to round to the same whole sprint. */
   if (!f.steady)
-    caveats.push(`This team's delivery swings a fair bit, which is why the two ends are far
-      apart. The range is the honest answer — quoting either end on its own isn't.`);
+    caveats.push(f.fast !== f.slow
+      ? `This team's delivery swings a fair bit, which is why the two ends are far
+         apart. The range is the honest answer — quoting either end on its own isn't.`
+      : `This team's delivery swings a fair bit. The two rates happen to round to the same whole
+         number of sprints for this much work — a different amount could pull them apart, so
+         treat the single figure as less firm than it looks.`);
   if (f.lastingAdjustment !== null)
     caveats.push(`Worked out at the team's standing <strong>${f.lastingAdjustment}%</strong>
       availability, because that is a lasting change and holds for every sprint here.`);
@@ -8871,11 +9235,13 @@ function forecastResultHtml(team, includeSix) {
       you have not counted yet is still work. The least growth pairs with the faster rate and
       the most with the slower, so each end is one coherent story rather than a mix of two.`);
   if (f.lostSprints > 0)
-    caveats.push(`<strong>${plural(f.lostSprints, 'sprint')}</strong> in this span deliver
+    caveats.push(`<strong>${plural(f.lostSprints, 'sprint')}</strong> in this span
+      deliver${f.lostSprints === 1 ? 's' : ''}
       nothing towards it, and ${f.lostSprints === 1 ? 'that sprint is' : 'those sprints are'}
-      counted in the answer above. Where they fall makes no difference to the finish, so they
-      are added flat.${includeSix ? '' : ` The IP sprint is stepped over separately and is not
-      one of these.`}`);
+      counted in the answer above. Where ${f.lostSprints === 1 ? 'it falls' : 'they fall'} makes
+      no difference to the finish, so ${f.lostSprints === 1 ? 'it is' : 'they are'}
+      added flat.${includeSix ? '' : ` The IP sprint is stepped over separately and is not
+      ${f.lostSprints === 1 ? 'that sprint' : 'one of these'}.`}`);
   caveats.push(`It assumes the whole commitment goes to this work. Anything else the team picks
     up — break-in, support, a second stream — comes out of the same sprints.`);
 
@@ -9175,8 +9541,10 @@ function targetCapacityCard(team, includeSix) {
 
   /* An over-commitment on a sprint already running is the one finding here that's
      still actionable — there's time to descope rather than carry it over. */
-  const over = t.overBy !== null && Math.round(t.overBy) >= 1;
-  const under = t.overBy !== null && Math.round(t.overBy) <= -1;
+  /* No second rounding here: overBy is already the difference between the two
+     figures the card shows, and rounding it again is how 32 − 23 became 10. */
+  const over = t.overBy !== null && t.overBy >= 1;
+  const under = t.overBy !== null && t.overBy <= -1;
 
   /* Not a caveat, so not in the ⚠ list: nothing here is wrong with the data or
      shaky about the figure. It's a finding ABOUT the team, and the one thing this
@@ -9204,7 +9572,8 @@ function targetCapacityCard(team, includeSix) {
   return `<div class="card">
     <div class="row spread cardhead">
       <h2>Target Capacity for ${slotName}${
-        t.inFlight ? ' <span class="badge">◐ In progress</span>' : ''}${adjustBadge}${scaleBadge}</h2>
+        t.inFlight ? ' <span class="badge">◐ In progress</span>'
+          : t.plannedAhead ? ' <span class="badge">◴ Planned</span>' : ''}${adjustBadge}${scaleBadge}</h2>
       ${/* No longer requires a PI. It used to, because a plan is keyed to a slot and
              a slot outside a PI was unreachable — but a whole team can live out there
              now, and a button that silently disappears for them is the invisible
@@ -9233,8 +9602,8 @@ function targetCapacityCard(team, includeSix) {
                    : 'story points', true)}
       ${t.hasCommitment ? tile('Actually committed', fmtNum(t.committedAlready),
         over ? 'red' : under ? 'yellow' : 'green',
-        over ? `${fmtNum(Math.round(t.overBy))} more than the suggestion`
-             : under ? `${fmtNum(Math.abs(Math.round(t.overBy)))} under the suggestion`
+        over ? `${fmtNum(t.overBy)} more than the suggestion`
+             : under ? `${fmtNum(Math.abs(t.overBy))} under the suggestion`
                      : 'in line with the suggestion') : ''}
       ${tile('Already carried over', fmtNum(t.carriedIn), null,
         t.slot && t.slot.last ? `from ${esc(sprintLabel(t.slot.last))}` : 'from the last finished sprint')}
@@ -9310,7 +9679,7 @@ function targetCapacityCard(team, includeSix) {
              <strong>${fmtNum(Math.round(t.newWork))}</strong> points of new work to pull off the backlog.`
           : 'Nothing was carried over from the last sprint, so the whole commitment is new work.'}</p>
         ${over ? `<p><strong>This sprint they committed to
-          ${fmtNum(t.committedAlready)}</strong>, about ${fmtNum(Math.round(t.overBy))} more than ${
+          ${fmtNum(t.committedAlready)}</strong>, about ${fmtNum(t.overBy)} more than ${
           t.adjusted ? 'this sprint\u2019s adjusted target' :
           `the last ${t.sprints} sprint${t.sprints === 1 ? '' : 's'} suggest they finish`}. There is still time
           to pull something out deliberately, which is a better outcome than carrying it over
@@ -9364,11 +9733,11 @@ function rollingToolbar(includeSix, ipApplies) {
 function wireRollingToolbar() {
   const el = document.getElementById('incSix');
   if (el) el.onchange = () => {
-    state.settings.includeSprint6InRolling = el.checked; save(); render();
+    state.settings.includeSprint6InRolling = el.checked; save(); renderKeeping(el);
   };
   const ip = document.getElementById('incProgress');
   if (ip) ip.onchange = () => {
-    state.settings.includeInProgress = ip.checked; save(); render();
+    state.settings.includeInProgress = ip.checked; save(); renderKeeping(ip);
   };
 }
 
@@ -9392,11 +9761,22 @@ function renderHistoryView() {
      marked, so nothing is silently present either. */
   const counted = all.filter(isCounted);
   const excluded = all.filter(s => s.excluded);
-  const open = all.filter(s => sprintStatus(s) !== 'complete');
+  /* `open` is what the FIGURES leave out, so it is built from isCounted() and not
+     from the status (2026-09-18). Built from the status, "count sprints that are
+     still running" on gave "1 sprint still in flight is drawn but left out of the
+     figures" beside "8 — every one of them counts" and a footer of "8 counted
+     sprints": the sentence said the opposite of what the page did. A running
+     sprint that IS counted gets the sentence every other view gives it. */
+  const open = all.filter(s => !isCounted(s));
+  const runningNote = countedRunningSentence(counted, true);
 
   const labels = all.map(sprintLabel);
   const commits = all.map(s => isCounted(s) ? metrics(s).commitCompletePct : null);
-  const goals = goalRecord(all);
+  /* Over the COUNTED sprints, as Rolling 5, Compare Teams and PI Trend do
+     (2026-09-18). Over `all`, a running sprint's goal was inside a footer cell
+     whose row is labelled "N counted sprints", and every PLANNED sprint was
+     reported as "no goal recorded" — a question nobody can have answered yet. */
+  const goals = goalRecord(counted);
   /* Read over every sprint rather than the last five, which is the one number on
      this page that cannot be got anywhere else in the app: a direction fitted to
      the whole history rather than to a window that moves under it. */
@@ -9422,6 +9802,7 @@ function renderHistoryView() {
         <strong>PI Trend</strong> shows one point per PI, and neither can show where a
         team turned.${open.length ? ` ${plural(open.length, 'sprint')} still in flight
         ${open.length === 1 ? 'is' : 'are'} drawn but left out of the figures.` : ''}${
+        runningNote ? ` ${runningNote}.` : ''}${
         excluded.length ? ` ${andList(excluded.map(s => esc(sprintLabel(s))))} ${
           excluded.length === 1 ? 'is' : 'are'} held out of the rolling average and marked ⚑
           here — this view still counts ${excluded.length === 1 ? 'it' : 'them'}, as the PI
@@ -9438,7 +9819,8 @@ function renderHistoryView() {
             : `${change > 0 ? 'Up' : 'Down'} ${Math.round(Math.abs(change))}`,
           null, change === null
             ? `${MIN_TREND_POINTS} sprints are needed before there is a direction`
-            : 'percentage points of commitment completion, first sprint to last',
+            /* Off the figure AS SHOWN: "Up 1" over "percentage points" (2026-09-18). */
+            : `percentage point${Math.round(Math.abs(change)) === 1 ? '' : 's'} of commitment completion, first sprint to last`,
           false, 'histDirection')}
         ${tile('Best and worst', pcts.length
             ? `${fmtPct(Math.max.apply(null, pcts))} / ${fmtPct(Math.min.apply(null, pcts))}`
@@ -9614,7 +9996,10 @@ function renderPiTrendView() {
     if (d === null) return `no figure for ${esc(prev.pi.name)} to compare with`;
     const r = Math.round(Math.abs(d) * 10) / 10;
     if (r < 0.5) return `level with ${esc(prev.pi.name)}`;
-    return `${d > 0 ? 'up' : 'down'} ${fmtNum(r)}${unit} on ${esc(prev.pi.name)}`;
+    /* pointsOf() for the two percentage tiles: "up 1 points on PI 1" was the slip
+       the 2026-09-04 audit fixed in six other captions and missed here (2026-09-18).
+       Velocity passes no unit — its caption already opens "points in…". */
+    return `${d > 0 ? 'up' : 'down'} ${unit ? pointsOf(r) : fmtNum(r)} on ${esc(prev.pi.name)}`;
   };
 
   /* Whether the train was the same size across the window. A PI measured over two
@@ -9677,7 +10062,7 @@ function renderPiTrendView() {
       <h2>Predictability by PI</h2>
       <p class="sub">Each PI's predictability against the ${tgt().predLow}–${tgt().predHigh}% band,
         with a dashed trend line through them. <strong>Both edges of the band matter</strong> —
-        a train climbing past 100% is committing to less than it can deliver, which is a
+        a train climbing past ${tgt().predHigh}% is committing to less than it can deliver, which is a
         different problem from missing, not a better one.</p>
       <div class="chartbox"><canvas id="trendChart" role="img"
         aria-label="PI predictability for each PI from ${esc(rows[0].pi.name)} to ${esc(latest.pi.name)}, against the ${tgt().predLow} to ${tgt().predHigh} percent band. Figures in the table below."></canvas></div>
@@ -9766,7 +10151,7 @@ function renderPiTrendView() {
         ] }
       },
       scales: { x: gridOpts(),
-        y: Object.assign(pctAxis('Predictability'), { suggestedMax: 120 }) }
+        y: Object.assign(pctAxis('Predictability'), { suggestedMax: predAxisMax() }) }
     })
   });
 }
@@ -10205,7 +10590,7 @@ function renderArtPiView() {
     /* render() rebuilds #views, so the name that was pressed no longer exists when this
        returns — focus has to be put somewhere deliberate or it falls to <body>. */
     const go = (fromKeyboard) => {
-      state.settings.activeTeamId = tr.dataset.id;
+      setActiveTeam(tr.dataset.id);
       state.settings.view = 'pi';
       save(); render();
       focusView(fromKeyboard);
@@ -10245,7 +10630,7 @@ function renderArtPiView() {
         /* suggestedMax, never max: a train that lands well above the band is the
            finding this chart exists to show, and clipping it off the top hides it. */
         scales: { x: gridOpts(),
-          y: Object.assign(pctAxis('Predictability'), { suggestedMax: 120 }) }
+          y: Object.assign(pctAxis('Predictability'), { suggestedMax: predAxisMax() }) }
       })
     });
   }
@@ -10439,7 +10824,7 @@ function wireArtToolbar() {
   const piSel = document.getElementById('piSel3');
   if (piSel) piSel.onchange = () => {
     state.settings.activePiId = piSel.value;
-    save(); render();
+    save(); renderKeeping(piSel);
   };
 }
 
@@ -10478,9 +10863,46 @@ document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape' || !artPickOpen) return;
   const inside = document.activeElement
     && document.activeElement.closest && document.activeElement.closest('.art-pick');
-  if (!inside) return;              /* a dialog's own Escape is not ours to take */
+  /* A dialog's own Escape is not ours to take — but that is the ONLY Escape that
+     isn't (2026-09-18). This used to return whenever the focus was outside the
+     picker, so a menu left open behind a reader who had tabbed on could not be
+     shut from the keyboard at all. The keyboard goes back to the button only
+     when it was in the picker to begin with: from anywhere else the reader is
+     somewhere, and being pulled back here would undo it. */
+  if (!inside && document.querySelector('dialog[open]')) return;
   e.stopPropagation();
-  closeArtMenu(true);
+  closeArtMenu(!!inside);
+}, true);
+/* THE KEYBOARD'S "PRESS OUTSIDE" (2026-09-18). The menu closed on a mouse press
+   off it and on nothing else, so a reader who opened it with ArrowDown, ticked two
+   ARTs with Space and tabbed on left it hanging open over the table
+   (`aria-expanded="true"`) with no key that would shut it. Focus LANDING outside
+   the picker is the same event as a press outside it.
+
+   ONLY WHEN IT LANDS SOMEWHERE — a null `relatedTarget` is deliberately ignored,
+   and that is the guard the three variables above depend on. A tick re-renders
+   and destroys the box that had the keyboard, which leaves the focus nowhere for
+   a moment before wireArtToolbar() puts it back; a press on a label's text, or on
+   the menu's own padding, blurs the box towards nothing as well; so does the
+   window losing focus. None of those is the reader leaving, and all of them have
+   no relatedTarget. A Tab always has one.
+
+   NOR WHEN IT LANDS ON SOMETHING THE PICKER IS INSIDE. `<main>` is focusable
+   (tabindex="-1", for the skip link), so a mouse press on a label's TEXT — not
+   the box — moves the focus to <main>, the nearest focusable thing round it, on
+   the mousedown. Closing on that hid the menu before the click arrived and the
+   tick never happened: found by pressing a label in a real browser, which no
+   synthetic event in the suite would have shown. A Tab cannot land on an
+   ancestor of the picker, and a press genuinely outside it is the mousedown
+   handler's business. Bound once, out here, like the two handlers above and for
+   the same reason. Flow Metrics' picker has the same gap. */
+document.addEventListener('focusout', (e) => {
+  if (!artPickOpen) return;
+  const from = e.target && e.target.closest && e.target.closest('.art-pick');
+  const to = e.relatedTarget;
+  if (!from || !to || (to.closest && to.closest('.art-pick'))) return;
+  if (to.contains && to.contains(from)) return;
+  closeArtMenu();
 }, true);
 document.addEventListener('mousedown', (e) => {
   if (!artPickOpen) return;
@@ -10595,6 +11017,16 @@ function sortRows(id, rows) {
     if (xn && yn) return home.get(a) - home.get(b);
     if (xn) return 1;
     if (yn) return -1;
+    /* Two NAMES are compared as a reader would file them, not by code unit
+       (2026-09-18): `<` put "Émile" after "Zed" (É is U+00C9, past every ASCII
+       letter) and "Team 10" before "Team 2". Base sensitivity, so an accent or a
+       capital is not a difference, and numeric, so a number inside a name counts
+       as one. A tie falls through to `home` like any other. Only when BOTH are
+       strings — every figure column is numbers and takes the two lines below. */
+    if (typeof x === 'string' && typeof y === 'string') {
+      const c = x.localeCompare(y, undefined, { sensitivity: 'base', numeric: true });
+      return c ? c * dir : home.get(a) - home.get(b);
+    }
     if (x < y) return -1 * dir;
     if (x > y) return 1 * dir;
     return home.get(a) - home.get(b);
@@ -10617,7 +11049,12 @@ const SPRINT_COLS = (long) => [
   ...(long ? [{ key: 'dates', label: 'Dates', text: true, get: (s) => s.startDate || s.endDate || null }] : []),
   { key: 'committed', label: 'Committed', get: (s) => metrics(s).committed },
   { key: 'done', label: 'Cmt. done', get: (s) => metrics(s).committedCompleted },
-  { key: 'commitPct', label: 'Complete %', cls: 'metric', get: (s) => metrics(s).commitCompletePct },
+  /* Null when the sprint is not counted: History prints "so far" in that cell, not
+     a percentage, and a row must not sort by a figure it does not show (2026-09-18).
+     Rolling 5 lists counted sprints only, so nothing changes there. The three churn
+     columns DO print a running sprint's figure, so they sort on it. */
+  { key: 'commitPct', label: 'Complete %', cls: 'metric',
+    get: (s) => (isCounted(s) ? metrics(s).commitCompletePct : null) },
   { key: 'breakIn', label: 'Break-in %', cls: 'metric', get: (s) => metrics(s).breakInPct },
   { key: 'removed', label: 'Removed %', cls: 'metric', get: (s) => metrics(s).removedPct },
   { key: 'carry', label: 'Carryover %', cls: 'metric', get: (s) => metrics(s).carryoverPct },
@@ -10923,7 +11360,7 @@ function renderTeamsView() {
   viewsEl.querySelectorAll('tr.clickable').forEach(tr => {
     /* Same as Compare Teams above: render() destroys the button that was pressed. */
     const go = (fromKeyboard) => {
-      state.settings.activeTeamId = tr.dataset.id;
+      setActiveTeam(tr.dataset.id);
       state.settings.view = 'rolling';
       if (viewOnly) focusLatestSprint(tr.dataset.id);
       save(); render();
@@ -11089,6 +11526,62 @@ function landFocus(from, fallbackId) {
   }
   if (!el) el = document.getElementById(fallbackId);
   if (el && el.isConnected) el.focus({ preventScroll: true });
+}
+
+/* ── The same landing, for a window opened from a table ROW (2026-09-18 review) ──
+   Save Sprint, Delete Sprint, Save Adjustment and Remove Adjustment all run
+   `dialog.close(); render();` — close() hands the focus back to the button that
+   opened the window and render() then destroys that button, so the keyboard fell
+   to <body>: the 2026-09-07 fault above, in the windows that did not get its fix.
+   `#editSprintBtn` and `#adjustBtn` have ids and land through landFocus(). A row
+   button has none — the row identifies its sprint instead (`data-num` on the Team
+   PI table, `data-id` on Rolling 5 and History) — so the origin also remembers the
+   table, the row's key and its position, and the landing re-finds the row for the
+   same sprint, or, when that row is gone (the sprint was deleted, or left the
+   window), the row now in its place, the last one if it was last. With no row to
+   find it is landFocus() exactly. */
+function rowFocusOrigin() {
+  const from = focusOrigin();
+  const a = document.activeElement;
+  const tr = a && a.closest ? a.closest('tr') : null;
+  const table = tr && viewsEl.contains(tr) ? tr.closest('table') : null;
+  if (table && table.id && table.tBodies[0]) {
+    from.row = { table: table.id, num: tr.dataset.num || '', id: tr.dataset.id || '',
+      index: [...table.tBodies[0].rows].indexOf(tr) };
+  }
+  return from;
+}
+function landRowFocus(from, fallbackId) {
+  const r = from && from.row;
+  const table = r ? document.getElementById(r.table) : null;
+  let btn = null;
+  if (table && viewsEl.contains(table) && table.tBodies[0]) {
+    const rows = [...table.tBodies[0].rows];
+    const tr = rows.find(x => (r.id && x.dataset.id === r.id) || (r.num && x.dataset.num === r.num))
+      || rows[Math.max(0, Math.min(r.index, rows.length - 1))];
+    btn = tr ? tr.querySelector('.rowbtn') : null;
+  }
+  if (!btn) { landFocus(from, fallbackId); return; }
+  /* The same "survived" test as landFocus, for the same reason. */
+  const a = document.activeElement;
+  if (a && a !== document.body && a.isConnected && a.getClientRects().length) return;
+  btn.focus({ preventScroll: true });
+}
+
+/* ── render(), from a control that lives in the view it re-renders ───────────
+   The Rolling 5 toggles and the PI and Sprint pickers sit inside #views, so the
+   render their `change` causes replaces the control that caused it, and the
+   keyboard fell to <body> (2026-09-18 review): after a toggle, Space scrolled the
+   page instead of toggling back; after a picker, the next Tab started from the
+   top. The CURRENT control with the same id gets the focus back — only when the
+   old one HAD it, so a change that left the focus elsewhere (Safari does not focus
+   a checkbox on a click) steals nothing, and a control the render dropped is left
+   dropped. `preventScroll`, like every focus() here. */
+function renderKeeping(el) {
+  const id = el && el.id && document.activeElement === el ? el.id : '';
+  render();
+  const now = id ? document.getElementById(id) : null;
+  if (now && now !== document.activeElement) now.focus({ preventScroll: true });
 }
 
 function openModal(dlg) {
@@ -11337,7 +11830,12 @@ function renderSearchResults() {
    rather than needing a second copy of those rules here. */
 function goToSearchHit(h) {
   F('searchDialog').close();
-  if (h.teamId && teamById(h.teamId)) state.settings.activeTeamId = h.teamId;
+  /* A hit is the reader going somewhere else, so the ART menu does not follow
+     them (2026-09-18): opened by a press and left up when ⌘K was pressed, it was
+     re-opened by wireArtToolbar() over the view the hit landed on — `artPickOpen`
+     is what survives a render, so it is what has to be cleared. */
+  artPickOpen = false;
+  if (h.teamId && teamById(h.teamId)) setActiveTeam(h.teamId);
   /* A hit on an ART REPLACES the scope rather than joining it: Find was asked
      for one ART, and landing on a view still showing the two that were ticked
      before would answer a question nobody asked. */
@@ -11350,7 +11848,7 @@ function goToSearchHit(h) {
   if (h.kind === 'PI' && !(state.sprints || []).some(
       x => x.piId === h.piId && x.teamId === state.settings.activeTeamId)) {
     const other = (state.sprints || []).find(x => x.piId === h.piId);
-    if (other) state.settings.activeTeamId = other.teamId;
+    if (other) setActiveTeam(other.teamId);
   }
   state.settings.view = h.view;
   save();
@@ -11442,7 +11940,8 @@ function fillSprintNumbers(teamId, piId, chosen) {
 function openSprint(teamId, piId, sprintNumber) {
   piId = piKey(piId);
   const existing = findSprint(teamId, piId, sprintNumber);
-  editing = { teamId, piId, sprintNumber, id: existing ? existing.id : null };
+  /* `from`: what had the keyboard when the form opened — see landRowFocus. */
+  editing = { teamId, piId, sprintNumber, id: existing ? existing.id : null, from: rowFocusOrigin() };
 
   const pi = piId ? piById(piId) : null;
   F('sprintDialogTitle').textContent =
@@ -11458,6 +11957,7 @@ function openSprint(teamId, piId, sprintNumber) {
   F('f_start').value = s.startDate || '';
   F('f_end').value = s.endDate || '';
   F('f_start').dataset.auto = '';    // nothing projected yet — these are the sprint's own
+  F('f_carriedIn').dataset.auto = '';   // same for carried in: maybePrefillCarriedIn marks its own guess
   ['committed', 'committedCompleted', 'totalCompleted', 'added', 'removed', 'carriedIn',
    'carriedOut', 'addedThenRemoved']
     .forEach(k => { F('f_' + k).value = (s[k] === 0 || s[k]) ? s[k] : ''; });
@@ -11511,7 +12011,17 @@ function updateStatusHint() {
     let why;
     if (st === 'planned') why = `hasn't started yet — begins ${when(draft.startDate)}`;
     else if (st === 'active') why = `still running — ends ${when(draft.endDate)}`;
-    else why = draft.endDate ? `finished ${when(draft.endDate)}` : 'no dates set, so treated as finished';
+    /* THREE ways to be complete, not two (2026-09-18 review). A new sprint with a
+       start date of today and the end date not filled in yet was told "no dates set,
+       so treated as finished" — a date IS set, and the sentence gave no hint that the
+       missing END date is what put a sprint on its first day into the averages with
+       zeros. The lifecycle itself is deliberate (sprintStatus: no end date → complete
+       once started, which is what keeps dateless history counted); the words now say
+       which date is missing and what adding it does. */
+    else if (draft.endDate) why = `finished ${when(draft.endDate)}`;
+    else if (draft.startDate) why = `started ${when(draft.startDate)} with no end date set, so treated `
+      + `as finished — add an end date to keep it out of your averages while it runs`;
+    else why = 'no dates set, so treated as finished';
     el.textContent = `Auto: ${STATUS_TEXT[st].toLowerCase()} — ${why}.`
       + (st === 'complete' ? ' Counted in your averages.' : ' Not counted in your averages yet.');
   } else {
@@ -11528,6 +12038,9 @@ function updateStatusHint() {
 
 ['f_status', 'f_start', 'f_end'].forEach(id =>
   F(id).addEventListener('change', updateStatusHint));
+/* The dates can be wrong as well as the figures — see datesBackwards. */
+['f_start', 'f_end'].forEach(id =>
+  F(id).addEventListener('change', () => checkSprintForm()));
 
 /* Moving the form to a different sprint changes which sprint precedes it — and
    which dates the cadence lands on. */
@@ -11558,8 +12071,13 @@ F('f_pi').addEventListener('change', () => {
   checkSprintForm();
 });
 
-/* Once the user types their own carried-in, the note explaining the guess is stale. */
-F('f_carriedIn').addEventListener('input', () => { F('carryHint').hidden = true; });
+/* Once the user types their own carried-in, the note explaining the guess is stale —
+   and the figure is theirs from here on, not a guess to be re-worked when the form
+   moves to another slot (2026-09-18: see maybePrefillCarriedIn). */
+F('f_carriedIn').addEventListener('input', () => {
+  F('carryHint').hidden = true;
+  F('f_carriedIn').dataset.auto = '';
+});
 
 /* Same for the dates: once they've been touched by hand they're the user's, not a
    projection to be re-worked when the sprint number changes. */
@@ -11569,14 +12087,33 @@ F('f_carriedIn').addEventListener('input', () => { F('carryHint').hidden = true;
     F('f_start').dataset.auto = '';
   }));
 
+/* Carried out defaults to what is LEFT of the commitment — and removed points are
+   not left, they are gone (2026-09-18 review). It was `committed − completed`, so
+   committed 30, completed 24, removed 4 offered 6 carried out: the 4 removed points
+   counted a second time, as work rolling into the next sprint, and the Sprint view
+   then had 4 carried-out points the commitment could not account for. Removed is
+   subtracted now, never below 0 (a team can remove work it had already finished),
+   and the Removed box re-runs this, since it is usually typed AFTER the two above. */
 function autofillSprintForm() {
   const committed = parseFloat(F('f_committed').value);
   const done = parseFloat(F('f_committedCompleted').value);
+  const removed = Math.max(0, parseFloat(F('f_removed').value) || 0);
   if (isFinite(committed) && isFinite(done)) {
-    if (!F('f_carriedOut').dataset.touched) F('f_carriedOut').value = Math.max(0, committed - done);
+    if (!F('f_carriedOut').dataset.touched) F('f_carriedOut').value = Math.max(0, committed - done - removed);
     if (!F('f_totalCompleted').dataset.touched) F('f_totalCompleted').value = done;
   }
 }
+
+/* An end date before the start date (2026-09-18 review). Both are well-formed dates,
+   so nothing refused them — and one such sprint, once it is the team's latest dated
+   one, makes teamCadence() return null (`length < 0` on the anchor), which silently
+   switches off date prefill, the "scheduled" rows and every forecast date for the
+   WHOLE TEAM. Unlike the figure warnings below this cannot be "right", so it is one of
+   the form's two hard refusals (slotClash is the other): Save Sprint says why and
+   stays open, and the Jira auto-save leaves the boxes filled and unsaved. ISO dates
+   compare correctly as strings. A function declaration, not a const: checkSprintForm
+   is reachable from boot paths and must never meet this in its dead zone. */
+function datesBackwards(r) { return !!(r.startDate && r.endDate && r.endDate < r.startDate); }
 
 function checkSprintForm() {
   /* null for a blank box, so a half-filled sprint doesn't trip warnings about
@@ -11601,16 +12138,22 @@ function checkSprintForm() {
   /* Emptied rather than `hidden`: this is a live region, and an element toggled out
      of the accessibility tree announces nothing when it comes back. CSS collapses it
      while it holds no text. */
-  F('sprintWarn').textContent = msgs.length
-    ? '⚠ ' + msgs.join(' ') + ' Saving anyway is fine if that’s right.' : '';
+  /* The one warning that is not advisory goes first and never sits under "saving
+     anyway is fine" — that sentence is only true of the ones after it. */
+  const hard = datesBackwards({ startDate: F('f_start').value, endDate: F('f_end').value })
+    ? 'The end date is before the start date. Fix the dates — the sprint can’t be saved like this.' : '';
+  const soft = msgs.length ? msgs.join(' ') + ' Saving anyway is fine if that’s right.' : '';
+  F('sprintWarn').textContent = (hard || soft)
+    ? '⚠ ' + [hard, hard && soft ? 'Also: ' + soft : soft].filter(Boolean).join(' ') : '';
 }
 
 ['f_committed', 'f_committedCompleted'].forEach(id =>
   F(id).addEventListener('input', () => { autofillSprintForm(); checkSprintForm(); }));
 ['f_carriedOut', 'f_totalCompleted'].forEach(id =>
   F(id).addEventListener('input', (e) => { e.target.dataset.touched = '1'; checkSprintForm(); }));
-['f_added', 'f_removed', 'f_carriedIn'].forEach(id =>
+['f_added', 'f_carriedIn'].forEach(id =>
   F(id).addEventListener('input', checkSprintForm));
+F('f_removed').addEventListener('input', () => { autofillSprintForm(); checkSprintForm(); });
 
 /* ── Paste from Jira ────────────────────────────────────────────────────────
    The preview deliberately shows its working — the row counts, Jira's own section
@@ -11703,15 +12246,29 @@ F('jiraParseBtn').onclick = () => {
    sprint form is opened rather than only when a Jira report is pasted — that was
    the one path that offered it, which made it look broken everywhere else.
 
-   Only ever fills an empty box: an existing figure, or one already typed, wins. */
+   Only ever fills an empty box: an existing figure, or one already typed, wins.
+
+   ITS OWN GUESS IS NOT A FIGURE (2026-09-18 review). The Sprint and PI pickers call
+   this again because moving the form changes which sprint precedes it — and until
+   this date the early return below fired on the number this function had put there
+   itself, so the re-projection never happened. Add Sprint on S3 (S2 carried out 18)
+   showed 18 with the note; moving the form to S5, whose S4 has no record, re-worked
+   the dates, hid the note and left 18 in the box, and Save stored `carriedIn: 18`
+   on a sprint nothing had carried into. The dates solved this with
+   `f_start.dataset.auto`; this is the same mark on this box. While the mark is set
+   the box counts as empty: it is cleared, then filled again from the new slot's
+   predecessor or left empty. Typing clears the mark (the `input` listener above),
+   and so does openSprint(). */
 function maybePrefillCarriedIn() {
   const el = F('f_carriedIn');
   const hint = F('carryHint');
   hint.hidden = true;
+  if (el.dataset.auto === '1') { el.value = ''; el.dataset.auto = ''; }
   if (el.value.trim() !== '') return;
   const prev = previousCarriedOut();
   if (prev === null) return;
   el.value = prev;
+  el.dataset.auto = '1';
   const from = previousSprint();
   hint.textContent = `Carried in was filled in as ${fmtNum(prev)} — what `
     + `${from ? sprintLabel(from) : 'the previous sprint'} carried out. Change it if that's not right.`;
@@ -11778,7 +12335,28 @@ const sameBand = (a, b) => (!a.piId) === (!b.piId);
    With two dated sprints to go on the gap is measured — that's the team's real
    rhythm, weekend break and all. With only one, its length is snapped to whole
    weeks: a Monday-to-Friday sprint is 12 days long but comes round every 14, and
-   sprint cadences are always whole weeks. */
+   sprint cadences are always whole weeks.
+
+   MEASURED FROM MORE THAN ONE PAIR (2026-09-18). It used to read the last two
+   dated sprints and nothing else, so ONE irregular gap became the team's rhythm:
+   fortnightly sprints, a two-week Christmas break, and the first sprint of January
+   gave a stride of 28 — the next sprint prefilled a fortnight late, and a
+   100-point forecast read "5 sprints — about 24 weeks" where the answer was 12.
+   One three-week sprint among two-week ones gave 21 by the same cause. The stride
+   is now the MEDIAN of the per-slot gaps across the most recent `CADENCE_PAIRS`
+   consecutive dated pairs, which one odd gap cannot move.
+
+   Capped, so a rhythm the team left behind cannot outvote the new one for ever: a
+   team that really does move from two-week to four-week sprints has the new stride
+   once THREE gaps at it are on record (three of the five), sooner with a shorter
+   history. Until then the sprint form's hint still says which rhythm it used and
+   to change the dates if that is wrong.
+
+   With an even count there are two middle values. If they differ, the one that
+   matches the anchor's own week-snapped length wins — the newest sprint's length
+   is evidence about the rhythm too — and otherwise the more recent of the two.
+   With exactly one pair all of this is the single measurement it always was. */
+const CADENCE_PAIRS = 5;
 function teamCadence(teamId) {
   const dated = teamSprints(teamId).filter(s => s.startDate && s.endDate);
   if (!dated.length) return null;
@@ -11786,19 +12364,34 @@ function teamCadence(teamId) {
   const length = dayNum(anchor.endDate) - dayNum(anchor.startDate);
   if (!isFinite(length) || length < 0) return null;
 
-  let stride = Math.max(7, Math.round((length + 1) / 7) * 7);
-  if (dated.length > 1) {
-    const prev = dated[dated.length - 2];
-    /* Only when both sprints are in the same band — both in PIs, or both in
-       none. `slotIndex` puts PI-less sprints a hundred thousand slots below the
-       first PI, so a difference that spans the two is not a big number of
-       sprints, it is a meaningless one, and dividing the date gap by it would
-       hand back a stride of zero days. Falling through leaves the week-snapped
+  const snapped = Math.max(7, Math.round((length + 1) / 7) * 7);
+  /* Newest pair first, so an entry's index is its age. */
+  const strides = [];
+  for (let i = dated.length - 1; i > 0 && dated.length - 1 - i < CADENCE_PAIRS; i--) {
+    const later = dated[i], prev = dated[i - 1];
+    /* Only pairs in the ANCHOR's band — both in PIs, or both in none. `slotIndex`
+       puts PI-less sprints a hundred thousand slots below the first PI, so a
+       difference that spans the two is not a big number of sprints, it is a
+       meaningless one, and dividing the date gap by it would hand back a stride
+       of zero days. With no usable pair this falls through to the week-snapped
        length, which is the same answer a team with one dated sprint gets. */
-    if (sameBand(anchor, prev)) {
-      const slots = slotIndex(anchor.piId, anchor.sprintNumber) - slotIndex(prev.piId, prev.sprintNumber);
-      const gap = dayNum(anchor.startDate) - dayNum(prev.startDate);
-      if (slots > 0 && gap > 0) stride = Math.round(gap / slots);
+    if (!sameBand(anchor, later) || !sameBand(later, prev)) continue;
+    const slots = slotIndex(later.piId, later.sprintNumber) - slotIndex(prev.piId, prev.sprintNumber);
+    const gap = dayNum(later.startDate) - dayNum(prev.startDate);
+    if (slots > 0 && gap > 0) strides.push({ v: Math.round(gap / slots), age: strides.length });
+  }
+  let stride = snapped;
+  if (strides.length) {
+    const sorted = strides.slice().sort((a, b) => a.v - b.v || a.age - b.age);
+    const mid = sorted.length >> 1;
+    if (sorted.length % 2) stride = sorted[mid].v;
+    else {
+      const lo = sorted[mid - 1], hi = sorted[mid];
+      const newest = (v) => Math.min(...strides.filter(x => x.v === v).map(x => x.age));
+      stride = lo.v === hi.v ? lo.v
+        : hi.v === snapped ? hi.v
+        : lo.v === snapped ? lo.v
+        : (newest(lo.v) < newest(hi.v) ? lo.v : hi.v);
     }
   }
   return { anchor, length, stride };
@@ -12048,6 +12641,7 @@ function autoSaveJiraNumbers() {
   if (viewOnly) return false;              // someone else's data — nothing here saves
   const record = buildSprintRecord();
   if (slotClash(record)) return false;
+  if (datesBackwards(record)) return false;   // boxes stay filled; the form already says why
   const i = state.sprints.findIndex(s => s.id === record.id);
   const before = i >= 0 ? state.sprints[i] : null;
 
@@ -12090,7 +12684,18 @@ function autoSaveJiraNumbers() {
 F('sprintCancelBtn').onclick = () => {
   if (pendingJiraSave) revertJiraSave();
   sprintDialog.close();
+  /* Both the auto-save and its undo render while the form is up, so the button the
+     close returns to may be a detached node here too. A no-op when it is not. */
+  landRowFocus(editing && editing.from, 'editSprintBtn');
 };
+/* Escape and a backdrop click keep an auto-save, which also rendered under the open
+   form. Best effort only — this event is a queued task that does not always arrive
+   (see above), which is why the three buttons land for themselves; and the open
+   check is the bvDialog one: a late event must not act for the NEXT form. */
+sprintDialog.addEventListener('close', () => {
+  if (sprintDialog.open) return;
+  landRowFocus(editing && editing.from, 'editSprintBtn');
+});
 
 F('f_excluded').onchange = syncExcludeReason;
 
@@ -12107,7 +12712,7 @@ function openAdjust(teamId, includeSix) {
   const { piId, sprintNumber } = t.slot;
   /* The window is snapshotted so the live preview can recompute the mean from the
      scale boxes without re-reading state — the boxes ARE the draft state until Save. */
-  adjusting = { teamId, piId, sprintNumber,
+  adjusting = { teamId, piId, sprintNumber, from: focusOrigin(),   // see landFocus
     window: rollingSprints(teamId, includeSix).map(sp => ({
       id: sp.id, label: sprintLabel(sp), done: metrics(sp).committedCompleted,
       scale: typeof sp.capacityScale === 'number' ? sp.capacityScale : 100 })) };
@@ -12258,6 +12863,7 @@ F('adjustSaveBtn').onclick = () => {
   save();
   adjustDialog.close();
   render();
+  landFocus(adjusting.from, 'adjustBtn');   // the render rebuilt the button the close returned to (2026-09-18)
   toast(untouched ? 'Adjustment removed' : 'Capacity adjusted');
 };
 
@@ -12280,6 +12886,7 @@ F('adjustRemoveBtn').onclick = () => {
   save();
   adjustDialog.close();
   render();
+  landFocus(adjusting.from, 'adjustBtn');   // as Save Adjustment
   toast('Adjustment removed');
 };
 
@@ -12439,13 +13046,31 @@ F('sprintSaveBtn').onclick = () => {
     toast('That sprint already has data — edit it instead');
     return;
   }
+  if (datesBackwards(record)) {
+    checkSprintForm();                     // the standing explanation, in case a date was typed and never blurred
+    toast('The end date is before the start date — fix the dates first');
+    return;
+  }
   const i = state.sprints.findIndex(s => s.id === record.id);
-  if (!confirmOverwrite(i >= 0 ? state.sprints[i] : null, record)) return;
+  /* A NEW sprint is still new after "Use These Numbers" (2026-09-18 review). The guard
+     is silent for a new sprint on purpose — but the Jira auto-save writes the record
+     the moment the numbers are used, so by the time Save Sprint is pressed the slot
+     "already has data", and setting the goal to Met raised "… already has data…
+     Sprint goal: Not recorded → Met" about a sprint that did not exist when this form
+     opened. The snapshot knows: `before: null` means nothing was there before this
+     dialog session, so there is nothing to overwrite. A re-paste over a sprint that
+     WAS saved before carries its old record in `before`, and still asks. */
+  const bornHere = !!pendingJiraSave && pendingJiraSave.before === null
+    && pendingJiraSave.recordId === record.id;
+  if (!bornHere && !confirmOverwrite(i >= 0 ? state.sprints[i] : null, record)) return;
   if (!commitSprint(record)) return;
 
   clearPendingJiraSave();
   sprintDialog.close();
   render();
+  /* The close handed the focus to the button that opened the form and the render
+     threw that button away (2026-09-18) — see landRowFocus. */
+  landRowFocus(editing && editing.from, 'editSprintBtn');
   toast('Sprint saved');
 };
 
@@ -12460,13 +13085,36 @@ F('sprintDeleteBtn').onclick = () => {
   clearPendingJiraSave();                  // deleting is the intent; nothing to put back
   undoableToast(() => { state.sprints = state.sprints.filter(s => s.id !== editing.id); },
     `${name} deleted`, () => sprintDialog.close());
+  /* undoableToast() has closed the form and rendered by now. The row is gone with
+     the sprint, so from a table this lands on the row that took its place. */
+  landRowFocus(editing && editing.from, 'editSprintBtn');
 };
 
 /* ═════════════════════════ Teams & PIs management ═════════════════════════ */
 
 const manageDialog = F('manageDialog');
 
-function openManage() { renderManage(); openModal(manageDialog); }
+/* `manageFrom`: what had the keyboard when the window opened. The header's own
+   button survives every render, but the welcome card's Start Fresh and the Forecast
+   Ahead screen's Start a Team open this window AND add the first team — which
+   replaces the card they sit on — so closing it dropped the keyboard on <body>
+   (2026-09-18 review). landFocus() falls back to the header button. */
+let manageFrom = null;
+function openManage() { manageFrom = focusOrigin(); renderManage(); openModal(manageDialog); }
+
+/* Where the keyboard goes after a delete INSIDE this window (2026-09-18 review).
+   renderManage() rebuilds every row, so the × that was pressed no longer exists and
+   the focus fell to <body> behind an open modal. It goes to the × now at the same
+   position — the next row's, or the previous one's if that was the last — or, with
+   the list empty, to the section's Add button. moveInList above is the same idea
+   for the arrows. Nothing to do when the window is not up (the suite, and Undo
+   from a toast after it has closed). */
+function landManageDelete(kind, index, addBtnId) {
+  if (!manageDialog.open) return;
+  const dels = [...manageDialog.querySelectorAll(`[data-del-${kind}]`)];
+  const el = dels.length ? dels[Math.max(0, Math.min(index, dels.length - 1))] : F(addBtnId);
+  if (el) el.focus();
+}
 
 /* ── The buttons at the end of a manage row ──────────────────────────────────
    Move up, move down, delete — the same three on a team, an ART and a PI, so
@@ -12522,6 +13170,32 @@ function moveInList(list, kind, id, dir) {
    prompt(). Mirrored from Team Dashboard, whose Teams window this one is now laid
    out like: a prompt is a modal on top of a modal to change one word, and it
    cannot show you the other names while you pick one that fits beside them. */
+/* ── A name is never blank (2026-09-18) ─────────────────────────────────────
+   The three boxes write on every keystroke, and select-all + Backspace is a
+   keystroke: `""` (or three spaces) was saved as the name and survived a reload.
+   A team with no name is an empty option in the header picker, a Rolling 5
+   heading reading "— Last 5 Sprints", and on Compare Teams a row button measuring
+   0×0 px called "Switch to " — a team nobody can reach by pointer or keyboard.
+
+   Emptying the box is how anybody starts retyping, so it is a PAUSE: nothing is
+   written while the box holds no visible character, and the name stays what it
+   was. Leaving the box still empty puts that name back in it, so the window never
+   shows a blank over a team that has one. One delegated listener, because the
+   rows are rebuilt under it. */
+function restoreBlankName(el) {
+  if (el.value.trim()) return;
+  const d = el.dataset;
+  const thing = d.nameTeam !== undefined ? teamById(d.nameTeam)
+    : d.nameArt !== undefined ? artById(d.nameArt)
+    : d.namePi !== undefined ? piById(d.namePi) : null;
+  if (thing && typeof thing.name === 'string' && thing.name.trim()) el.value = thing.name;
+}
+manageDialog.addEventListener('focusout', (e) => {
+  const el = e.target;
+  if (el && el.matches && el.matches('[data-name-team], [data-name-art], [data-name-pi]'))
+    restoreBlankName(el);
+});
+
 function nameCell(kind, thing, i) {
   return `<td><input type="text" data-name-${kind}="${esc(thing.id)}" maxlength="120"
     value="${esc(thing.name)}" aria-label="Name of ${kind}, row ${i + 1}"></td>`;
@@ -12567,6 +13241,7 @@ function renderManageTeamRows() {
     if (!t) return;
     /* The same 120-char cap keepKnown enforces at the boundary: maxlength stops
        typing past it but not a paste, and save() pushes the object as-is. */
+    if (!el.value.trim()) return;        // an emptied box is a pause, not a name — see nameCell
     t.name = el.value.slice(0, 120);
     /* Deliberately NOT renderManage() — that would replace the box being typed
        in. render() redraws the pickers in the chrome, which is everywhere else a
@@ -12582,22 +13257,29 @@ function renderManageTeamRows() {
     fixArtFilter();   // that may have been the last team in the "No ART" group
     /* The whole dialog: the ARTs table below counts the teams on each one, and it
        has just changed. A picker keeps its value across a render where a text box
-       being typed in would not, so this one is safe to rebuild. */
+       being typed in would not, so this one is safe to rebuild — its VALUE, that
+       is; the focus went with the old node until 2026-09-18, so it is handed to
+       the new picker for the same team, when the old one had it. */
+    const had = document.activeElement === sel;
     save(); renderManage(); render();
+    const now = had ? document.getElementById(sel.id) : null;
+    if (now) now.focus();
   });
   F('teamRows').querySelectorAll('[data-del-team]').forEach(b => b.onclick = () => {
     const t = teamById(b.dataset.delTeam);
     const n = state.sprints.filter(s => s.teamId === t.id).length;
     if (!confirm(`Delete ${t.name}${n ? ` and its ${n} sprint${n === 1 ? '' : 's'} of data` : ''}?`)) return;
+    const at = state.teams.findIndex(x => x.id === t.id);
     undoableToast(() => {
       state.teams = state.teams.filter(x => x.id !== t.id);
       state.sprints = state.sprints.filter(s => s.teamId !== t.id);
       state.plans = state.plans.filter(p => p.teamId !== t.id);
       state.objectives = state.objectives.filter(o => o.teamId !== t.id);
       if (state.settings.activeTeamId === t.id)
-        state.settings.activeTeamId = state.teams[0] ? state.teams[0].id : null;
+        setActiveTeam(state.teams[0] ? state.teams[0].id : null);
       fixArtFilter();   // and it may have been the last team in the "No ART" group
     }, `${t.name} deleted${n ? ` with ${plural(n, 'sprint')} of data` : ''}`, renderManage);
+    landManageDelete('team', at, 'addTeamBtn');
   });
 }
 
@@ -12643,6 +13325,7 @@ function renderManage() {
   manageDialog.querySelectorAll('[data-name-art]').forEach(el => el.oninput = () => {
     const a = artById(el.dataset.nameArt);
     if (!a) return;
+    if (!el.value.trim()) return;
     a.name = el.value.slice(0, 120);
     save(); render();
     /* Only the rows that print this name — not the row it is being typed in. */
@@ -12651,6 +13334,7 @@ function renderManage() {
   manageDialog.querySelectorAll('[data-name-pi]').forEach(el => el.oninput = () => {
     const p = piById(el.dataset.namePi);
     if (!p) return;
+    if (!el.value.trim()) return;
     p.name = el.value.slice(0, 120);
     save(); render();
   });
@@ -12664,6 +13348,7 @@ function renderManage() {
      Delete PI, which destroy data. */
   manageDialog.querySelectorAll('[data-del-art]').forEach(b => b.onclick = () => {
     const a = artById(b.dataset.delArt);
+    const at = state.arts.findIndex(x => x.id === a.id);
     /* Still no confirm — an ART owns no data and its teams keep everything — but it
        gets the Undo anyway, because what it does destroy is the grouping, and
        re-assigning eight teams by hand is a worse afternoon than the delete looked
@@ -12677,6 +13362,7 @@ function renderManage() {
       if (Array.isArray(state.settings.artFilter))
         state.settings.artFilter = state.settings.artFilter.filter(id => id !== a.id);
     }, `${a.name} removed — its teams and their sprints are untouched`, renderManage);
+    landManageDelete('art', at, 'addArtBtn');
   });
   manageDialog.querySelectorAll('[data-del-pi]').forEach(b => b.onclick = () => {
     const p = piById(b.dataset.delPi);
@@ -12720,12 +13406,26 @@ function openDeletePi(pi) {
      (The rule itself stays: the common case by far is a team recording history
      before it ever creates a PI, and there it is exactly right.) */
   const othersRemain = state.pis.length > 1;
+  /* "THE FIGURES ARE UNTOUCHED" IS NOT TRUE OF A KEPT SPRINT 6 (2026-09-18 review).
+     The IP sprint is sprint 6 OF A PI (isIpSlot) — the rule does not exist on the
+     unassigned track — so a kept S6 stops being one and becomes an ordinary counted
+     delivery sprint: Rolling 5 completion 79% → 77%, velocity 24 → 19.6 and the
+     recommendation 21 → 17 in the reviewer's run, under a dialog that had just
+     promised nothing would move. The rule stays (a PI-less team's sprint 6 is an
+     ordinary sprint, and that is right); the WORDS change. When an IP sprint would
+     be kept, the promise is dropped and the consequence is said instead. */
+  const ipKept = sprints.filter(isIpSlot).length;
   F('delPiBody').innerHTML = sprints.length
     ? `<strong>${plural(sprints.length, 'sprint')}</strong> across
        ${plural(teamsHit, 'team')} ${sprints.length === 1 ? 'is' : 'are'} in this PI.
-       You can keep ${sprints.length === 1 ? 'it' : 'them'} — the figures are untouched,
+       You can keep ${sprints.length === 1 ? 'it' : 'them'} — ${ipKept ? '' : 'the figures are untouched, '}
        ${sprints.length === 1 ? 'it simply stops' : 'they simply stop'} being in a PI, and you can
        put ${sprints.length === 1 ? 'it' : 'them'} in another one later.${
+       ipKept ? ` <strong>Sprint ${IP_SPRINT} is only an IP sprint inside a PI</strong>, so
+       ${ipKept === 1 ? `the sprint ${IP_SPRINT} kept here stops being one` : `the ${ipKept} sprint
+       ${IP_SPRINT}s kept here stop being IP sprints`}: the Rolling ${ROLLING_WINDOW} and the
+       capacity target will start counting ${ipKept === 1 ? 'it' : 'them'} like any other sprint,
+       which moves those figures.` : ''}${
        othersRemain ? ` One thing to know: sprints with no PI count as the oldest history a
        team has, so ${sprints.length === 1 ? 'it would move' : 'they would move'} <em>before</em>
        your remaining ${plural(state.pis.length - 1, 'PI')} rather than after.` : ''}`
@@ -12740,7 +13440,8 @@ function openDeletePi(pi) {
        to go without it.`
     : '';
   F('delPiKeepBtn').hidden = !sprints.length;
-  F('delPiDropBtn').textContent = sprints.length ? 'Delete the sprints too' : 'Delete the PI';
+  /* Title Case, like the markup it overwrites and "Keep the Sprints" beside it. */
+  F('delPiDropBtn').textContent = sprints.length ? 'Delete the Sprints Too' : 'Delete the PI';
   openModal(delPiDialog);
 }
 
@@ -12780,6 +13481,7 @@ function finishDeletePi(keepSprints) {
      sprints kept, or dropped, so one count read before anything moves serves
      both sentences. */
   const inPi = state.sprints.filter(s => s.piId === p.id).length;
+  const at = state.pis.findIndex(x => x.id === p.id);
   /* Both branches get the Undo, and the sprint-keeping one needs it as much: it
      un-assigns every sprint in the PI, and putting the grouping back by hand is one
      edit per sprint. */
@@ -12798,6 +13500,9 @@ function finishDeletePi(keepSprints) {
     deletingPi = null;
     renderManage();
   });
+  /* The close above returned the focus to the PI row's × and renderManage() then
+     rebuilt the row — see landManageDelete. */
+  landManageDelete('pi', at, 'addPiBtn');
 }
 
 /* ── Adding one of the three ─────────────────────────────────────────────────
@@ -12819,8 +13524,17 @@ function focusNewRow(kind, id) {
 }
 
 function addTeam() {
+  /* The one assignment that does NOT go through setActiveTeam() when it is the
+     FIRST team: a velocity typed on the planning screen, before any team existed,
+     was typed for the team now being created, and clearing it at the moment that
+     team arrives would throw away the reason the screen exists. With teams already
+     there and no stored id, the team on screen is `state.teams[0]` and this DOES
+     move off it, so that case is a switch like any other (2026-09-18). */
+  const first = state.teams.length === 0;
   const t = addNamed(state.teams, 'team', `Team ${state.teams.length + 1}`);
-  if (!state.settings.activeTeamId) state.settings.activeTeamId = t.id;
+  if (!state.settings.activeTeamId) {
+    if (first) state.settings.activeTeamId = t.id; else setActiveTeam(t.id);
+  }
   save(); renderManage(); render();
   focusNewRow('team', t.id);
 }
@@ -12845,7 +13559,14 @@ F('addPiBtn').onclick = addPi;
 F('addTeamBtnFoot').onclick = addTeam;
 F('addArtBtnFoot').onclick = addArt;
 F('addPiBtnFoot').onclick = addPi;
-F('manageCloseBtn').onclick = () => manageDialog.close();
+F('manageCloseBtn').onclick = () => { manageDialog.close(); landFocus(manageFrom, 'manageBtn'); };
+/* Escape and the backdrop. Best effort — this event does not always arrive — and a
+   no-op whenever the opener is still there, which is every time it was the header's
+   button. See `manageFrom`. */
+manageDialog.addEventListener('close', () => {
+  if (manageDialog.open) return;
+  landFocus(manageFrom, 'manageBtn');
+});
 F('manageBtn').onclick = openManage;
 
 
@@ -13297,12 +14018,17 @@ function splitImportLine(line, delim) {
   return out;
 }
 
-const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 /* Reads the box into a plan: one entry per data row, each already decided — what
    it would write, and if it would write nothing, why not. Nothing here touches
    `state`; applying is a separate pass over what this returned, so what the
    preview shows and what Import does cannot come apart. */
+/* A pasted cell as a number, or NaN when the cell is anything else as well. */
+function importNumber(v) {
+  const t = String(v).trim();
+  return /^[+-]?(\d{1,3}(,\d{3})+|\d+)(\.\d+)?$/.test(t) ? Number(t.replace(/,/g, '')) : NaN;
+}
+
 function parseImport(text, fallbackTeamId) {
   /* Blank lines are skipped, but a row keeps the number of the line it sits on in
      the PASTE (2026-09-15): an error row is the only pointer back into the
@@ -13382,7 +14108,10 @@ function parseImport(text, fallbackTeamId) {
       }
     }
 
-    const n = Math.round(parseFloat(raw.sprintNumber));
+    /* A WHOLE number, in a whole cell (2026-09-18). `Math.round(parseFloat(…))`
+       read "2.5" as sprint 3 — and then refused a second row's "3.4" as a duplicate
+       of a slot neither row had named — and read "3rd of 6" as 3. */
+    const n = /^\d+(\.0+)?$/.test(String(raw.sprintNumber || '').trim()) ? parseInt(raw.sprintNumber, 10) : NaN;
     if (!Number.isFinite(n) || n < 1 || n > MAX_SPRINT_NO) {
       row.problem = `${at}the ${COL.sprintNumber} column needs a sprint number from 1 to ${MAX_SPRINT_NO}.`;
       rows.push(row); continue;
@@ -13402,7 +14131,14 @@ function parseImport(text, fallbackTeamId) {
     for (const key of IMPORT_NUMS) {
       const v = raw[key];
       if (v === undefined || v === '') { nums[key] = 0; continue; }
-      const f = parseFloat(String(v).replace(/,/g, ''));
+      /* The WHOLE cell has to be the number (2026-09-18). parseFloat reads a
+         PREFIX, so the guard above did not hold for the case it was written
+         for: with the columns one out, a Committed cell holding "2026-01-05"
+         imported as 2026 points, "12abc" as 12 and "3 points" as 3 — each shown as
+         "1 row ready". And stripping every comma made "2,5" — a European two and
+         a half — into 25. A comma is a thousands separator only where it groups
+         three digits; anything else is not a number this column can take. */
+      const f = importNumber(v);
       if (!Number.isFinite(f)) { bad = `${at}the ${COL[key]} column needs a number.`; break; }
       nums[key] = Math.max(0, Math.round(f));
     }
@@ -13410,13 +14146,24 @@ function parseImport(text, fallbackTeamId) {
 
     for (const key of ['startDate', 'endDate']) {
       const v = raw[key];
-      if (v && !DATE_ONLY.test(v)) {
+      /* isRealDate(), not a shape test: 2026-02-30 is the right shape and still
+         not a date. The message is the same pointing one — it names the column
+         and never quotes the cell (2026-09-18). */
+      if (v && !isRealDate(v)) {
         bad = `${at}the ${COL[key]} column needs a date written YYYY-MM-DD — a spreadsheet will do it `
           + 'with Format cells.';
         break;
       }
     }
     if (bad) { row.problem = bad; rows.push(row); continue; }
+    /* The sprint form refuses this pair (datesBackwards), and for a reason that
+       reaches the whole team: teamCadence() gives up on a sprint that ends before
+       it starts, which switches off date prefill, the scheduled rows and every
+       forecast date. The importer must not be the way round it. */
+    if (raw.startDate && raw.endDate && raw.endDate < raw.startDate) {
+      row.problem = `${at}the ${COL.endDate} column’s date is before the ${COL.startDate} column’s.`;
+      rows.push(row); continue;
+    }
 
     const slot = `${team.id}|${pi ? pi.id : ''}|${n}`;
     if (seen.has(slot)) {
@@ -13616,7 +14363,7 @@ F('importApplyBtn').onclick = () => {
   /* Land on a team the import actually touched, so the page behind the dialog is
      showing what just arrived rather than whatever was open before. */
   const first = good[0];
-  state.settings.activeTeamId = first.team.id;
+  setActiveTeam(first.team.id);
   state.settings.activePiId = piKey(first.record.piId);
   save();
   importDialog.close();
@@ -13722,7 +14469,14 @@ const canCompress = () => typeof CompressionStream === 'function';
 async function squeeze(bytes, Stream, format) {
   const s = new Stream(format);
   const w = s.writable.getWriter();
-  w.write(bytes); w.close();
+  /* Not awaited — a large input would wait on backpressure that only the read
+     below relieves — but never left to reject into thin air either: a truncated
+     link fails BOTH sides of the stream, the read's rejection is the one the
+     caller catches, and these two used to surface as an uncaught "Compressed
+     input was truncated" in the console beside a perfectly good error card
+     (2026-09-18). */
+  w.write(bytes).catch(() => {});
+  w.close().catch(() => {});
   return new Uint8Array(await new Response(s.readable).arrayBuffer());
 }
 
@@ -13824,7 +14578,7 @@ function buildSharePayload({ teamIds, includeAllTeams, scope }) {
   return {
     v: SHARE_PAYLOAD_V,
     sharedAt: Date.now(),
-    label: teams.map(t => t.name).join(', '),
+    label: shareLabel(teams.map(t => t.name)),
     allTeams: !!includeAllTeams && teams.length > 1,
     teams,
     arts: state.arts.filter(a => usedArts.has(a.id)),
@@ -14181,6 +14935,23 @@ function shareScopeNote(scope, auto) {
 }
 
 /* "A", "A and B", "A, B and C" — a list a person would say out loud. */
+/* The banner's label: the teams in the link, by name — for as many names as FIT.
+   The boundary pins `label` to 120 characters (a crafted link must not ride an
+   unbounded string in on it), and this used to hand it every name joined up, so a
+   link the app built ITSELF arrived cut mid-word from about seven teams on:
+   "…Payments Squad 6, Payments Squ", no ellipsis, and the cut counted as a repair
+   of the sender's own link (2026-09-18). Whole names, then how many more. */
+function shareLabel(names) {
+  const MAX = 120;
+  const all = names.join(', ');
+  if (all.length <= MAX) return all;
+  for (let k = names.length - 1; k >= 1; k--) {
+    const s = names.slice(0, k).join(', ') + ' and ' + (names.length - k) + ' more';
+    if (s.length <= MAX) return s;
+  }
+  return names.length + ' teams';
+}
+
 function andList(names) {
   if (names.length < 3) return names.join(' and ');
   return names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
@@ -14412,10 +15183,20 @@ function loadSample() {
      in-flight sprint is the one state you cannot fake without real dates, and
      they are counted from today so the demo is still live whenever it is opened,
      not stale from the day this was written. */
-  const day = 86400000;
+  /* Counted on the LOCAL CALENDAR, never in milliseconds (2026-09-18). This used
+     to add multiples of 86,400,000 ms to the current instant, and a day is not
+     always that long: across a clock change it is 23 or 25 hours. Loaded at 00:30
+     on 27 Oct 2026 in New York, "eight days from now" was 23:30 on 3 Nov, so the
+     live sprint ran 22 Oct – 3 Nov and its pace read "6/13"; at 23:30 on 24 Mar in
+     London it came out "6/15". `setDate()` moves by calendar days whatever the
+     clocks do, and noon keeps the arithmetic well away from both the midnight it
+     is counting and the small hours a clock change happens in. */
   const iso = (offset) => {
-    const d = new Date(Date.now() + offset * day);
-    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+    const d = new Date();
+    d.setHours(12, 0, 0, 0);
+    d.setDate(d.getDate() + offset);
+    const two = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
   };
   const dated = (startsIn) => ({ startDate: iso(startsIn), endDate: iso(startsIn + 13) });
 
@@ -14614,7 +15395,7 @@ function loadSample() {
      7 to 8 for Team Overcommitted with its swings pulling the two ends apart. */
   state.settings.forecastPoints = '120';
 
-  state.settings.activeTeamId = t2.id;
+  setActiveTeam(t2.id);
   state.settings.activePiId = piB.id;
   state.settings.activeSprintNum = 4;
   state.settings.view = 'sprint';
@@ -14702,9 +15483,9 @@ F('themeSel').onchange = (e) => {
 }
 
 document.getElementById('teamSel').onchange = (e) => {
-  state.settings.activeTeamId = e.target.value;
-  forecastClearTypedRate();
-  forecastClearAdjustments();
+  /* setActiveTeam() takes the typed velocity and the adjustments with the old
+     team — here and at every other way of changing team (2026-09-18). */
+  setActiveTeam(e.target.value);
   /* In a shared view, follow the new team to its latest data. Your own copy keeps
      the sprint you were last looking at — that's a working position you chose,
      not a starting point someone handed you. */
@@ -14851,8 +15632,48 @@ window.svGet = () => state;
    there looking broken. Reload instead, and let the normal boot path run. */
 addEventListener('hashchange', () => {
   const nowShared = location.hash.startsWith(SHARE_PREFIX);
+  /* A fragment that names an element ON THIS PAGE is somebody moving about in it,
+     not a different link being opened (2026-09-18). "Skip to content" was
+     `href="#maincontent"` and nothing else, so in a shared view it swapped the
+     share fragment for that one, this handler read "no longer shared", reloaded —
+     and the keyboard reader who had asked to skip the header was sitting on their
+     OWN board, editable, under the URL of the page they had been sent. The share
+     fragment goes back so the address still says what is on screen. */
+  if (!nowShared && location.hash.length > 1) {
+    let target = null;
+    try { target = document.getElementById(decodeURIComponent(location.hash.slice(1))); }
+    catch (e) { /* a malformed escape names nothing */ }
+    if (target) {
+      if (shareToken) history.replaceState(null, '', SHARE_PREFIX + shareToken);
+      return;
+    }
+  }
   if (nowShared !== viewOnly || (nowShared && location.hash.slice(SHARE_PREFIX.length) !== shareToken))
     location.reload();
+});
+
+/* The other half of save()'s two-copies guard: an IDLE copy takes the other
+   window's board as soon as it lands, so what is on screen is never older than
+   what is stored. Not while a window is open here — its boxes are a draft, and
+   save() settles it on the next write — and only in a top-level window: a frame
+   (the suite's) shares this origin's storage with frames that plant fixtures in
+   it, the same rule the service-worker block uses. */
+if (window.top === window.self) addEventListener('storage', (e) => {
+  if (viewOnly || e.storageArea !== localStorage) return;
+  if (e.key !== null && e.key !== STORAGE_KEY) return;      // null is clear()
+  if (document.querySelector('dialog[open]')) return;
+  let there = null;
+  try { there = localStorage.getItem(STORAGE_KEY); } catch (err) { return; }
+  if (there !== storedRaw) adoptOtherCopy(false);
+});
+
+/* The skip link does its job without touching the address at all — the fragment
+   is where a shared view LIVES, so a control that rewrites it is a control that
+   can throw the reader out of what they were sent. <main> carries tabindex="-1"
+   for exactly this focus. */
+document.querySelector('a.skip').addEventListener('click', (e) => {
+  e.preventDefault();
+  F('maincontent').focus();
 });
 
 applyTheme();
