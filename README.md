@@ -921,6 +921,9 @@ ART grouping on Compare Teams. Three presses rather than a *Clear* button nobody
   sprint nobody recorded a goal for has not missed it, an empty slot on Team PI is a place
   in the calendar rather than a zero, and a running sprint whose Complete % reads *so far* has
   no percentage to sort on yet.
+- A **name** column sorts the way you would file the names: an accent or a capital is not a
+  difference (*Émile* sits with the Es, not after *Zed*), and a number inside a name counts as
+  a number (*Team 2* before *Team 10*).
 - Rows that tie keep the order they were already in, so a table never reshuffles between two
   redraws of the same figures.
 - Each column sorts on the figure it *shows*: **Trend** on the direction it prints rather than

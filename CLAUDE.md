@@ -2850,6 +2850,13 @@ worded for a number other than the one beside them. Each bullet below is one com
   `piPredictability` help, Team PI) are about the ARITHMETIC — stretch value lifts delivered over
   committed — not the band ceiling, and stay literal. A chart's options are read in a test with
   `w.Chart.getChart('<canvas id>').options`.
+- **A name column sorts the way a reader files names (2026-09-18).** `sortRows()` compared with
+  `<`, which is a code-unit comparison: "Émile" sorted after "Zed" (É is U+00C9, past every
+  ASCII letter) and "Team 10" before "Team 2". The Team getters already lower-case, which is why
+  "beta" was never after "Zed" — case was handled, accents and digits were not. When BOTH values
+  are strings it is `localeCompare(y, undefined, { sensitivity: 'base', numeric: true }) * dir`
+  now, a tie falling through to `home` order like any other. Number columns never reach it, nulls
+  still go to the foot first, and History's ISO `dates` strings order the same under `numeric`.
 
 ### The Sprint Form and the Windows Round It
 

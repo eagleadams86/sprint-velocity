@@ -9871,10 +9871,41 @@ t('the predictability charts reach as far as the targets that are set, and the w
   withTargets(null, () => {
     reviewView('trend', () => eq(axisMax('trendChart'), 120, 'PI Trend at the defaults'));
     reviewView('art', () => eq(axisMax('artPredChart'), 120, 'PI by Team at the defaults'));
-    /* A "red above" set BELOW 120 hides nothing, so the axis stays where it was. */
   });
+  /* A "red above" set BELOW 120 hides nothing, so the axis stays where it was. */
   withTargets({ predHigh: 100, predOverRed: 105 }, () => eq(w.predAxisMax ? w.predAxisMax() : null, 120,
     'and a lower "red above" never shrinks the chart'));
+});
+
+t('teams sort by name the way a reader files them: É with E, Team 2 before Team 10', () => {
+  const names = ['Zed', 'Émile', 'Team 10', 'alpha', 'Team 2', 'Beta'];
+  const pct = { Zed: 90, 'Émile': 70, alpha: 80 };          // the other three have no sprints
+  const fx = {
+    teams: names.map((n, i) => ({ id: 'n' + i, name: n })), arts: [],
+    pis: [{ id: 'p1', name: 'PI 1' }], plans: [],
+    sprints: names.flatMap((n, i) => (pct[n] ? [1, 2, 3].map(k => ({
+      id: 'n' + i + 's' + k, teamId: 'n' + i, piId: 'p1', sprintNumber: k, status: 'complete',
+      committed: 100, committedCompleted: pct[n], totalCompleted: pct[n],
+      added: 0, removed: 0, carriedIn: 0, carriedOut: 0, addedThenRemoved: 0 })) : []))
+  };
+  const hook = w.__svTestHooks;
+  try {
+    renderedFixture(fx, { view: 'teams', activeTeamId: 'n0' }, () => {
+      ok(w.document.getElementById('teamsTable'), 'Compare Teams is on screen');
+      hook.setSort('teamsTable', 'name', 'asc'); w.render();
+      eq(sortedTeams(), ['alpha', 'Beta', 'Émile', 'Team 2', 'Team 10', 'Zed'], 'A to Z');
+      hook.setSort('teamsTable', 'name', 'desc'); w.render();
+      eq(sortedTeams(), ['Zed', 'Team 10', 'Team 2', 'Émile', 'Beta', 'alpha'], 'and Z to A is its mirror');
+      /* Figure columns are untouched, and a team with no figure is still at the
+         foot either way, in the order the page had them. */
+      hook.setSort('teamsTable', 'commit', 'asc'); w.render();
+      const asc = sortedTeams();
+      eq(asc.slice(0, 3), ['Émile', 'alpha', 'Zed'], 'numbers still sort as numbers: 70, 80, 90');
+      hook.setSort('teamsTable', 'commit', 'desc'); w.render();
+      eq(sortedTeams().slice(0, 3), ['Zed', 'alpha', 'Émile'], '90, 80, 70');
+      eq(sortedTeams().slice(3), asc.slice(3), 'and the three with no figure close the table both ways');
+    });
+  } finally { hook.setSort('teamsTable', null, 'desc'); }
 });
 
 /* ═══════════════════ 2026-09-18 review — block B ═══════════════════════════

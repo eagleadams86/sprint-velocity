@@ -10798,6 +10798,16 @@ function sortRows(id, rows) {
     if (xn && yn) return home.get(a) - home.get(b);
     if (xn) return 1;
     if (yn) return -1;
+    /* Two NAMES are compared as a reader would file them, not by code unit
+       (2026-09-18): `<` put "Émile" after "Zed" (É is U+00C9, past every ASCII
+       letter) and "Team 10" before "Team 2". Base sensitivity, so an accent or a
+       capital is not a difference, and numeric, so a number inside a name counts
+       as one. A tie falls through to `home` like any other. Only when BOTH are
+       strings — every figure column is numbers and takes the two lines below. */
+    if (typeof x === 'string' && typeof y === 'string') {
+      const c = x.localeCompare(y, undefined, { sensitivity: 'base', numeric: true });
+      return c ? c * dir : home.get(a) - home.get(b);
+    }
     if (x < y) return -1 * dir;
     if (x > y) return 1 * dir;
     return home.get(a) - home.get(b);
