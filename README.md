@@ -2368,3 +2368,8 @@ than falling off the page. Until 2026-09-18 only the Business Value and Targets 
 The same goes for the controls that redraw the page they sit on — the two Rolling 5 tick
 boxes and the PI and Sprint pickers: the keyboard stays on the control, so Space toggles a
 tick box back and Tab carries on from the picker rather than from the top.
+Inside **Teams, ARTs & PIs**, deleting a team, an ART or a PI leaves the keyboard on the ×
+of the row that took its place (or on the section's Add button once the list is empty), and
+changing a team's ART leaves it on that picker. Closing the window after **Start Fresh** or
+**Start a Team** — which replace the card they were pressed on — lands on the header's
+Teams & PIs button.

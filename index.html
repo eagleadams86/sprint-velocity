@@ -12914,7 +12914,27 @@ F('sprintDeleteBtn').onclick = () => {
 
 const manageDialog = F('manageDialog');
 
-function openManage() { renderManage(); openModal(manageDialog); }
+/* `manageFrom`: what had the keyboard when the window opened. The header's own
+   button survives every render, but the welcome card's Start Fresh and the Forecast
+   Ahead screen's Start a Team open this window AND add the first team — which
+   replaces the card they sit on — so closing it dropped the keyboard on <body>
+   (2026-09-18 review). landFocus() falls back to the header button. */
+let manageFrom = null;
+function openManage() { manageFrom = focusOrigin(); renderManage(); openModal(manageDialog); }
+
+/* Where the keyboard goes after a delete INSIDE this window (2026-09-18 review).
+   renderManage() rebuilds every row, so the × that was pressed no longer exists and
+   the focus fell to <body> behind an open modal. It goes to the × now at the same
+   position — the next row's, or the previous one's if that was the last — or, with
+   the list empty, to the section's Add button. moveInList above is the same idea
+   for the arrows. Nothing to do when the window is not up (the suite, and Undo
+   from a toast after it has closed). */
+function landManageDelete(kind, index, addBtnId) {
+  if (!manageDialog.open) return;
+  const dels = [...manageDialog.querySelectorAll(`[data-del-${kind}]`)];
+  const el = dels.length ? dels[Math.max(0, Math.min(index, dels.length - 1))] : F(addBtnId);
+  if (el) el.focus();
+}
 
 /* ── The buttons at the end of a manage row ──────────────────────────────────
    Move up, move down, delete — the same three on a team, an ART and a PI, so
@@ -13057,13 +13077,19 @@ function renderManageTeamRows() {
     fixArtFilter();   // that may have been the last team in the "No ART" group
     /* The whole dialog: the ARTs table below counts the teams on each one, and it
        has just changed. A picker keeps its value across a render where a text box
-       being typed in would not, so this one is safe to rebuild. */
+       being typed in would not, so this one is safe to rebuild — its VALUE, that
+       is; the focus went with the old node until 2026-09-18, so it is handed to
+       the new picker for the same team, when the old one had it. */
+    const had = document.activeElement === sel;
     save(); renderManage(); render();
+    const now = had ? document.getElementById(sel.id) : null;
+    if (now) now.focus();
   });
   F('teamRows').querySelectorAll('[data-del-team]').forEach(b => b.onclick = () => {
     const t = teamById(b.dataset.delTeam);
     const n = state.sprints.filter(s => s.teamId === t.id).length;
     if (!confirm(`Delete ${t.name}${n ? ` and its ${n} sprint${n === 1 ? '' : 's'} of data` : ''}?`)) return;
+    const at = state.teams.findIndex(x => x.id === t.id);
     undoableToast(() => {
       state.teams = state.teams.filter(x => x.id !== t.id);
       state.sprints = state.sprints.filter(s => s.teamId !== t.id);
@@ -13073,6 +13099,7 @@ function renderManageTeamRows() {
         state.settings.activeTeamId = state.teams[0] ? state.teams[0].id : null;
       fixArtFilter();   // and it may have been the last team in the "No ART" group
     }, `${t.name} deleted${n ? ` with ${plural(n, 'sprint')} of data` : ''}`, renderManage);
+    landManageDelete('team', at, 'addTeamBtn');
   });
 }
 
@@ -13141,6 +13168,7 @@ function renderManage() {
      Delete PI, which destroy data. */
   manageDialog.querySelectorAll('[data-del-art]').forEach(b => b.onclick = () => {
     const a = artById(b.dataset.delArt);
+    const at = state.arts.findIndex(x => x.id === a.id);
     /* Still no confirm — an ART owns no data and its teams keep everything — but it
        gets the Undo anyway, because what it does destroy is the grouping, and
        re-assigning eight teams by hand is a worse afternoon than the delete looked
@@ -13154,6 +13182,7 @@ function renderManage() {
       if (Array.isArray(state.settings.artFilter))
         state.settings.artFilter = state.settings.artFilter.filter(id => id !== a.id);
     }, `${a.name} removed — its teams and their sprints are untouched`, renderManage);
+    landManageDelete('art', at, 'addArtBtn');
   });
   manageDialog.querySelectorAll('[data-del-pi]').forEach(b => b.onclick = () => {
     const p = piById(b.dataset.delPi);
@@ -13272,6 +13301,7 @@ function finishDeletePi(keepSprints) {
      sprints kept, or dropped, so one count read before anything moves serves
      both sentences. */
   const inPi = state.sprints.filter(s => s.piId === p.id).length;
+  const at = state.pis.findIndex(x => x.id === p.id);
   /* Both branches get the Undo, and the sprint-keeping one needs it as much: it
      un-assigns every sprint in the PI, and putting the grouping back by hand is one
      edit per sprint. */
@@ -13290,6 +13320,9 @@ function finishDeletePi(keepSprints) {
     deletingPi = null;
     renderManage();
   });
+  /* The close above returned the focus to the PI row's × and renderManage() then
+     rebuilt the row — see landManageDelete. */
+  landManageDelete('pi', at, 'addPiBtn');
 }
 
 /* ── Adding one of the three ─────────────────────────────────────────────────
@@ -13337,7 +13370,14 @@ F('addPiBtn').onclick = addPi;
 F('addTeamBtnFoot').onclick = addTeam;
 F('addArtBtnFoot').onclick = addArt;
 F('addPiBtnFoot').onclick = addPi;
-F('manageCloseBtn').onclick = () => manageDialog.close();
+F('manageCloseBtn').onclick = () => { manageDialog.close(); landFocus(manageFrom, 'manageBtn'); };
+/* Escape and the backdrop. Best effort — this event does not always arrive — and a
+   no-op whenever the opener is still there, which is every time it was the header's
+   button. See `manageFrom`. */
+manageDialog.addEventListener('close', () => {
+  if (manageDialog.open) return;
+  landFocus(manageFrom, 'manageBtn');
+});
 F('manageBtn').onclick = openManage;
 
 

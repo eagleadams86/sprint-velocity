@@ -2973,6 +2973,22 @@ Each bullet below is one commit.
   never render at all. **The reviewer's ArrowDown probe read clean by accident**: on macOS a
   select's arrow key opens the popup and fires no `change`, so only `selectOption`/a committed
   pick shows the fault — the test dispatches `change` on a focused control.
+- **Inside Teams, ARTs & PIs, a delete or an ART-picker change keeps the keyboard in the list
+  (2026-09-18).** `renderManage()` / `renderManageTeamRows()` rebuild every row, so the × that
+  was pressed (or the team's ART picker that was changed) no longer exists and the focus fell
+  to `<body>` behind an open modal. `landManageDelete(kind, index, addBtnId)` focuses the × now
+  at the same position — the next row's, or the previous if it was last — or the section's
+  `+ Add` button once the list is empty; the team and ART deletes call it after
+  `undoableToast()`, and `finishDeletePi()` after its own, because `delPiDialog.close()` returns
+  the focus to the PI row's × and `renderManage()` then rebuilds it. It does nothing unless the
+  window is open (the suite drives `finishDeletePi()` with it shut). The ART picker re-focuses
+  `#art-of-<id>` when the old node had the focus. Plain `focus()`, as `moveInList` uses in this
+  window — a row scrolled out of the dialog should come into view. **And the window's own
+  opener can be the thing that is destroyed**: the welcome card's Start Fresh and Forecast
+  Ahead's Start a Team call `openManage(); addTeam();`, the first team replaces the card they
+  sit on, and Done/Esc dropped the keyboard on `<body>`. `openManage()` takes `manageFrom =
+  focusOrigin()` and Done plus a best-effort `close` listener run `landFocus(manageFrom,
+  'manageBtn')` — a no-op whenever the opener was the header's button, which survives renders.
 
 
 ### The Forecast Card, Dates and the Demo

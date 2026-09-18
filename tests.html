@@ -10384,6 +10384,80 @@ t('a view’s own toggles and pickers keep the keyboard after the render they ca
   });
 });
 
+t('deleting a row in Teams, ARTs & PIs — or changing a team’s ART — keeps the keyboard in the list', async () => {
+  await inFrame('b7manage', {}, async (W, D) => {
+    const st = W.svGet();
+    W.toast = () => {};
+    const dlg = D.getElementById('manageDialog');
+    D.getElementById('manageBtn').focus();
+    D.getElementById('manageBtn').click();
+    await wait(60);
+    ok(dlg.open, 'Teams, ARTs & PIs is open');
+    const dels = (kind) => [...dlg.querySelectorAll(`[data-del-${kind}]`)];
+    const press = async (el) => { el.focus(); el.click(); await tick(); await wait(30); };
+
+    /* The ART picker on a team row: renderManage() rebuilds it under the press. */
+    const sel = dlg.querySelector('#teamRows select[data-art-of]');
+    ok(sel && sel.id, 'a team row has its ART picker');
+    if (sel) {
+      sel.focus();
+      sel.selectedIndex = [...sel.options].findIndex(o => !o.selected); fire(W, sel, 'change');
+      await tick();
+      ok(D.getElementById(sel.id) !== sel, 'the change rebuilt the row');
+      ok(D.activeElement === D.getElementById(sel.id),
+         'and the same team’s picker still has the keyboard', focusName(D.activeElement));
+    }
+
+    /* A team, from the middle of the list: the next row moves up into its place. */
+    ok(dels('team').length >= 3, 'the sample has teams to delete');
+    const nextTeam = dels('team')[2].dataset.delTeam;
+    await press(dels('team')[1]);
+    ok(D.activeElement === dels('team')[1] && dels('team')[1].dataset.delTeam === nextTeam,
+       'after deleting the second team the keyboard is on the × of the row now in its place', focusName(D.activeElement));
+    /* The last row: there is no next one, so the previous. */
+    await press(dels('team')[dels('team').length - 1]);
+    ok(D.activeElement === dels('team')[dels('team').length - 1],
+       'after deleting the last team it is on the new last row’s ×', focusName(D.activeElement));
+
+    /* A PI goes through its own window first. */
+    ok(dels('pi').length >= 2, 'the sample has PIs to delete');
+    await press(dels('pi')[0]);
+    ok(D.getElementById('delPiDialog').open, 'Delete PI asks what to do with the sprints');
+    D.getElementById('delPiKeepBtn').click();
+    await tick(); await wait(30);
+    ok(!D.getElementById('delPiDialog').open && dlg.open, 'and closes back onto Teams, ARTs & PIs');
+    ok(D.activeElement === dels('pi')[0], 'with the keyboard on the first PI row’s ×', focusName(D.activeElement));
+
+    /* ARTs, down to none: the list is empty, so the section’s Add button. */
+    ok(dels('art').length >= 1, 'the sample has an ART to delete');
+    let guard = 0;
+    while (dels('art').length > 1 && guard++ < 10) await press(dels('art')[0]);
+    ok(D.activeElement === dels('art')[0], 'deleting ARTs one by one keeps the keyboard on the first row’s ×',
+       focusName(D.activeElement));
+    await press(dels('art')[0]);
+    eq(st.arts.length, 0, 'the last ART is gone');
+    ok(D.activeElement === D.getElementById('addArtBtn'),
+       'and with no rows left the keyboard is on + Add ART', focusName(D.activeElement));
+    dlg.close();
+  });
+});
+
+t('closing Teams, ARTs & PIs after Start Fresh replaced the welcome card lands on the header’s button', async () => {
+  await inFrame('b7welcome', { sample: false, blank: true }, async (W, D) => {
+    W.toast = () => {};
+    const start = D.getElementById('welcomeAddBtn');
+    ok(start, 'an empty app shows the welcome card');
+    start.focus(); start.click();
+    await wait(80);
+    ok(D.getElementById('manageDialog').open, 'Start Fresh opens Teams, ARTs & PIs');
+    ok(!D.getElementById('welcomeAddBtn'), 'and adds the first team, which replaces the card it was pressed on');
+    D.getElementById('manageCloseBtn').click();
+    await tick(); await wait(30);
+    ok(D.activeElement === D.getElementById('manageBtn'),
+       'Done lands on the header’s Teams & PIs button, not <body>', focusName(D.activeElement));
+  });
+});
+
 /* ═══════════════════ 2026-09-18 review — block C ═══════════════════════════
    One fix per commit, each test proven red against the commit before it. Tests
    for this block go DIRECTLY under its group() line and above the next banner,
