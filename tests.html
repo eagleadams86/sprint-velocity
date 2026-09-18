@@ -9674,6 +9674,40 @@ t('a direction is measured across the sprints that have a figure, not the empty 
   });
 });
 
+t('History counts what it says it counts when sprints are open, goals included', () => {
+  /* Six finished (goals: met, met, met, missed, and two never answered), one
+     RUNNING whose goal is already ticked, two planned ahead. */
+  const g = [true, true, true, false, undefined, undefined];
+  const rows = g.map(v => [100, 80, 'complete', v === undefined ? {} : { goalMet: v }]);
+  rows.push([100, 20, 'active', { goalMet: true }], [0, 0, 'planned'], [0, 0, 'planned']);
+  const read = (d) => ({
+    sub: reviewText(d.querySelector('#views .card .sub')),
+    count: reviewText(tileByLabel(d, 'Sprints recorded')),
+    goals: reviewText(tileByLabel(d, 'Sprint goals met')),
+    foot: [...d.querySelectorAll('#histTable tfoot th, #histTable tfoot td')].map(reviewText)
+  });
+  renderedFixture(historyFixture(rows), { view: 'history' }, (st, d) => {
+    const off = read(d);
+    ok(/3 sprints still in flight are drawn but left out/.test(off.sub), 'off: three sprints are out of the figures', off.sub);
+    ok(/6 counted sprints/.test(off.foot[1]), 'and the footer row counts six', off.foot.join(' | '));
+    /* The running sprint's tick is not a result yet, and a planned sprint has not
+       been ASKED the question — neither is "no goal recorded". */
+    ok(/3 of 4/.test(off.goals), 'the goal tile reads the six counted sprints: 3 of the 4 answered', off.goals);
+    ok(/2 sprints with no goal recorded/.test(off.goals), 'and only the two finished sprints nobody answered are missing', off.goals);
+    eq(off.foot[off.foot.length - 1], '3 of 4', 'the footer cell sits in a row labelled "6 counted sprints" and agrees with it');
+  });
+  renderedFixture(historyFixture(rows, { includeInProgress: true }), { view: 'history' }, (st, d) => {
+    const on = read(d);
+    ok(/7 count towards/.test(on.count) && /7 counted sprints/.test(on.foot[1]),
+       'on: the running sprint is counted', on.count + ' | ' + on.foot[1]);
+    ok(/2 sprints still in flight are drawn but left out/.test(on.sub),
+       'so the caption leaves out the two planned sprints and not the one it just counted', on.sub);
+    ok(/PI 2 · S1 is still running and counted, because/.test(on.sub),
+       'and says the running sprint is in the figures, in the words the other views use', on.sub);
+    ok(/4 of 5/.test(on.goals), 'its goal counts once the sprint does', on.goals);
+  });
+});
+
 /* ═══════════════════ 2026-09-18 review — block B ═══════════════════════════
    One fix per commit, each test proven red against the commit before it. Tests
    for this block go DIRECTLY under its group() line and above the next banner,

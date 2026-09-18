@@ -519,7 +519,7 @@ capacity target. It's off by default, because the numbers genuinely aren't final
 It's for the last day or two of a sprint, when you're planning the next one and today's
 provisional numbers beat last sprint's stale ones. When it's on, every view says so — the
 cross-team views too: Compare Teams, PI Trend and PI by Team name the team and the running
-sprint they are counting under their headings — and the
+sprint they are counting under their headings, and History does the same — and the
 capacity target stops aiming at the running sprint and points at the one after it — once a
 sprint is being counted as data, it isn't the sprint you're planning any more.
 
@@ -811,7 +811,9 @@ history stops being visible and starts being summarised.
 
 **History** has no window, and that is its whole definition. Every sprint on record, oldest
 first, with the in-flight and left-out ones drawn and marked rather than dropped. A sprint in
-flight is left out of the figures; a sprint you've left out of the *rolling average* is **still
+flight is left out of the figures — the goals count too, and a planned sprint is never "no goal
+recorded" — unless you've asked for [running sprints to count](#counting-a-sprint-thats-still-running),
+in which case the running one is in and the caption names it; a sprint you've left out of the *rolling average* is **still
 counted** here — that choice narrows the rolling window and the capacity target, not a team's
 history, the same as it leaves the PI totals alone.
 

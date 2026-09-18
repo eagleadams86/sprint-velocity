@@ -991,8 +991,9 @@ but Charles had ever actually signed in.)
   flattens them to one point per PI). It deliberately does **not** call `rollingSprints()`:
   the two rolling toggles narrow a window and this view has none, so every sprint is listed,
   with the in-flight and left-out ones drawn and marked rather than dropped. **A left-out
-  sprint is COUNTED here** (`pooled(counted)`), like the PI totals — only in-flight ones are
-  out of the figures. Its Direction
+  sprint is COUNTED here** (`pooled(counted)`), like the PI totals — only UNCOUNTED ones are
+  out of the figures (`!isCounted`, so a running sprint is in once "count sprints that are still
+  running" is on, and the caption says so — 2026-09-18). Its Direction
   tile is `trendChange()` over the whole run, and the demo is built so it disagrees with the
   five-sprint figure on both long-history teams — that disagreement IS the argument for the
   view, and a test pins it so tidying those numbers can't quietly remove it.
@@ -2796,6 +2797,19 @@ worded for a number other than the one beside them. Each bullet below is one com
   like; only the FIGURE stops there. A null in the MIDDLE still counts as a step. The demo's
   pinned "up 11 / up 14" did not move: those teams have no open sprints.
 
+- **History counts what it says it counts when sprints are open (2026-09-18).** Three things in
+  `renderHistoryView()`. `open` was built from `sprintStatus(s) !== 'complete'`, so with "count
+  sprints that are still running" ON the caption read "1 sprint still in flight is drawn but left
+  out of the figures" beside "8 — every one of them counts" and a footer of "8 counted sprints";
+  it is `!isCounted(s)` now, and a running sprint that IS counted gets `countedRunningSentence()`
+  — the same words Compare Teams, PI Trend and PI by Team use ("every view that counts one SAYS
+  so" had missed this view). And `goalRecord(all)` put a running sprint's goal inside a footer row
+  labelled "N counted sprints", and reported every PLANNED sprint as "no goal recorded" — a
+  question nobody can have answered yet; it is `goalRecord(counted)`, as Rolling 5, Compare Teams
+  and PI Trend read it. The `histTotalRow` help said in-flight sprints are never in the row,
+  which was false with the setting on; it names the setting now. **A fixture for this needs an
+  explicit `status`** — a dateless sprint is `complete` — and `historyFixture()` /
+  `renderedFixture()` in block A are the pair to reuse.
 
 ### The Sprint Form and the Windows Round It
 
