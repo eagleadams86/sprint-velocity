@@ -2758,3 +2758,9 @@ the figures.** One fix per commit, each with a test proven red against the commi
   dates**: its fixture set `cadenceStart`/`cadenceLength`, fields this app has never had, so it
   always took its no-cadence branch. `datedCapacityFixture()` (four fortnightly sprints, all in
   the past, next slot S5 = 31 Aug 2026) is the dated fixture to reuse. EXPECTED 526 → 527.
+- **A team that runs no PIs gets forecast dates between sprints (2026-09-18).** `forecast()`
+  projected the planned slot's start with `slot.piId ? cadenceDates(…) : null`, a guard older than
+  the optional PI (2026-08-20). A PI-less team got dates only while a sprint was RUNNING (through
+  that sprint's own start date) and lost them the day it ended: "about 4 weeks" with no "lands
+  around…". `cadenceDates()` already refuses to project across the two tracks (`sameBand`), so
+  the guard is simply gone. EXPECTED 527 → 528.

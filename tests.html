@@ -106,7 +106,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 527;
+const EXPECTED = 528;
 
 /* ── THE SUITE LEAVES STORAGE EXACTLY AS IT FOUND IT (2026-09-15 review) ──────
    The page header says "Read-only: nothing is saved", and it was not true: the
@@ -5380,6 +5380,24 @@ t('a lost sprint never lands on the IP sprint: the dates step over it too (2026-
     const plain = w.forecast('t1', 50, false);
     eq(plain.fastEnd, '2026-10-09', '2 delivering sprints from S5 cross the IP sprint once');
     eq(w.forecast('t1', 20, false).fastEnd, '2026-09-11', '1 sprint ends with S5');
+  });
+  adjust();
+});
+t('a team that runs no PIs gets forecast dates between sprints too (2026-09-18 review)', () => {
+  /* The same four dated sprints on the unassigned track, numbered 12–15. The
+     cadence projects S16 to 31 Aug perfectly well; forecast() never asked it,
+     because of a `slot.piId ?` guard older than the optional PI — so the card said
+     "about 4 weeks" with no "lands around", and only while nothing was running. */
+  const fx = datedCapacityFixture({ pis: [] });
+  fx.sprints.forEach((s, i) => { s.piId = null; s.sprintNumber = 12 + i; });
+  withState(fx, () => {
+    typed(); adjust();
+    eq(w.cadenceDates('t1', null, 16).startDate, '2026-08-31', 'the cadence knows where S16 falls');
+    const f = w.forecast('t1', 50, false);
+    eq([f.fast, f.fastWeeks], [2, 4]);
+    eq(f.fastEnd, '2026-09-25', 'two slots from 31 Aug, and no IP sprint out here to step over');
+    eq(f.slowEnd, '2026-10-09', 'three at the floor rate');
+    eq(f.piId, null, 'still no PI to fit inside');
   });
   adjust();
 });

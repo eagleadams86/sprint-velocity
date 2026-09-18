@@ -4445,7 +4445,10 @@ function forecast(teamId, points, includeSix) {
   let startDay = null;
   if (c && slot) {
     const own = slot.sprint && slot.sprint.startDate ? slot.sprint.startDate : null;
-    const projected = slot.piId ? cadenceDates(teamId, slot.piId, slot.sprintNumber) : null;
+    /* No `slot.piId ?` guard (2026-09-18): it predated the optional PI and left a
+       team that runs no PIs with "about 4 weeks" and no date whenever nothing was
+       running. cadenceDates() refuses a projection across the two tracks itself. */
+    const projected = cadenceDates(teamId, slot.piId, slot.sprintNumber);
     const iso = own || (projected && projected.startDate)
       /* cadenceDates() returns null for the anchor sprint itself — which is
          exactly the case where the slot already has its own dates to use. */
