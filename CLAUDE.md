@@ -2810,6 +2810,15 @@ worded for a number other than the one beside them. Each bullet below is one com
   which was false with the setting on; it names the setting now. **A fixture for this needs an
   explicit `status`** — a dateless sprint is `complete` — and `historyFixture()` /
   `renderedFixture()` in block A are the pair to reuse.
+- **"N more than the suggestion" is the difference between the two figures beside it (2026-09-18,
+  visible on the DEMO).** Team Live Sprint's card read "Recommended commitment 23 · 90% of 25"
+  and "Actually committed 32 — 10 more than the suggestion": 22.5 shown as 23, and 32 − 22.5 =
+  9.5 shown as 10, each rounded on its own. `nextSprintTarget().overBy` is
+  `committedAlready - Math.round(recommended)` now — the recommendation AS SHOWN — and the card
+  no longer rounds it a second time, so `over`, `under`, the tile foot and the fold-out's "about
+  N more" all read one number: 9. A reader can only subtract what is on the card. The colour
+  follows the same figure: 22 against a shown 23 is "1 under" (amber), where −0.5 used to round
+  to "in line".
 
 ### The Sprint Form and the Windows Round It
 

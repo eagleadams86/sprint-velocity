@@ -9708,6 +9708,35 @@ t('History counts what it says it counts when sprints are open, goals included',
   });
 });
 
+t('"N more than the suggestion" is the difference between the two figures beside it', () => {
+  /* The demo's own card: 90% of 25 is 22.5, shown as 23; 32 committed. 32 − 22.5
+     is 9.5, which rounds to 10 — beside a 23 and a 32. */
+  reviewView('rolling', (st, d) => {
+    const rec = tileByLabel(d, 'Recommended commitment');
+    const act = tileByLabel(d, 'Actually committed');
+    ok(rec && act, 'Team Live Sprint’s card has both tiles');
+    if (!rec || !act) return;
+    const num = (el) => Number(reviewText(el.querySelector('.value')).replace(/[^0-9.]/g, ''));
+    eq([num(rec), num(act)], [23, 32], 'the two figures a reader can subtract');
+    const foot = reviewText(act.querySelector('.foot'));
+    eq(foot, (num(act) - num(rec)) + ' more than the suggestion', 'and the caption is their difference');
+    const prose = reviewText(reviewCard(d, 'Target Capacity'));
+    ok(/committed to 32, about 9 more than/.test(prose), 'the fold-out says the same number',
+       (prose.match(/committed to 32[^.]*/) || [prose.slice(0, 120)])[0]);
+  }, (st) => { st.settings.activeTeamId = st.teams.find(t => t.name === 'Team Live Sprint').id; });
+  /* And the colour is judged on the same figure: 20 against a shown 23 is 3 under. */
+  const fx = capacityFixture({ plans: [{ id: 'pl1', teamId: 't1', piId: 'p1', sprintNumber: 5, availability: 90, reason: 'leave' }] });
+  fx.sprints.push({ id: 's5', teamId: 't1', piId: 'p1', sprintNumber: 5, status: 'active',
+    committed: 20, committedCompleted: 0, totalCompleted: 0, added: 0, removed: 0,
+    carriedIn: 0, carriedOut: 0, addedThenRemoved: 0 });
+  withState(fx, () => {
+    const tg = w.nextSprintTarget('t1', false);
+    eq(tg.recommended, 22.5, 'the fixture really does land on a half');
+    eq(tg.overBy, -3, 'measured from the 23 on the card, not the 22.5 behind it');
+    ok(w.targetCapacityCard(w.svGet().teams[0], false).includes('3 under the suggestion'), 'and said so');
+  });
+});
+
 /* ═══════════════════ 2026-09-18 review — block B ═══════════════════════════
    One fix per commit, each test proven red against the commit before it. Tests
    for this block go DIRECTLY under its group() line and above the next banner,

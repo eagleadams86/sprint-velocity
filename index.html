@@ -5869,8 +5869,15 @@ function nextSprintTarget(teamId, includeSix) {
        One flag for both, so the card can't show "actually committed 0" alongside
        a tick and "in line with the suggestion", which is what it used to do. */
     hasCommitment: committedAlready !== null && committedAlready > 0,
+    /* Against the recommendation AS SHOWN, which is a whole number (2026-09-18).
+       Against the raw figure the demo's own card read "Recommended commitment 23",
+       "Actually committed 32 — 10 more than the suggestion": 22.5 shown as 23, and
+       32 − 22.5 = 9.5 shown as 10, each rounded on its own beside the other. The
+       reader can only subtract the two figures on the card, so the difference is
+       taken between those — and `over`/`under` are judged on it, so the colour can
+       never disagree with the arithmetic either. */
     overBy: (committedAlready !== null && committedAlready > 0)
-      ? committedAlready - recommended : null,
+      ? committedAlready - Math.round(recommended) : null,
     /* Through isIpSlot, never `sprintNumber === IP_SPRINT` on its own. Sprint 6
        of a team that isn't running PIs is an ordinary delivery sprint —
        rollingSprints() already counts it as one — and this said otherwise, so the
@@ -9335,8 +9342,10 @@ function targetCapacityCard(team, includeSix) {
 
   /* An over-commitment on a sprint already running is the one finding here that's
      still actionable — there's time to descope rather than carry it over. */
-  const over = t.overBy !== null && Math.round(t.overBy) >= 1;
-  const under = t.overBy !== null && Math.round(t.overBy) <= -1;
+  /* No second rounding here: overBy is already the difference between the two
+     figures the card shows, and rounding it again is how 32 − 23 became 10. */
+  const over = t.overBy !== null && t.overBy >= 1;
+  const under = t.overBy !== null && t.overBy <= -1;
 
   /* Not a caveat, so not in the ⚠ list: nothing here is wrong with the data or
      shaky about the figure. It's a finding ABOUT the team, and the one thing this
@@ -9394,8 +9403,8 @@ function targetCapacityCard(team, includeSix) {
                    : 'story points', true)}
       ${t.hasCommitment ? tile('Actually committed', fmtNum(t.committedAlready),
         over ? 'red' : under ? 'yellow' : 'green',
-        over ? `${fmtNum(Math.round(t.overBy))} more than the suggestion`
-             : under ? `${fmtNum(Math.abs(Math.round(t.overBy)))} under the suggestion`
+        over ? `${fmtNum(t.overBy)} more than the suggestion`
+             : under ? `${fmtNum(Math.abs(t.overBy))} under the suggestion`
                      : 'in line with the suggestion') : ''}
       ${tile('Already carried over', fmtNum(t.carriedIn), null,
         t.slot && t.slot.last ? `from ${esc(sprintLabel(t.slot.last))}` : 'from the last finished sprint')}
@@ -9471,7 +9480,7 @@ function targetCapacityCard(team, includeSix) {
              <strong>${fmtNum(Math.round(t.newWork))}</strong> points of new work to pull off the backlog.`
           : 'Nothing was carried over from the last sprint, so the whole commitment is new work.'}</p>
         ${over ? `<p><strong>This sprint they committed to
-          ${fmtNum(t.committedAlready)}</strong>, about ${fmtNum(Math.round(t.overBy))} more than ${
+          ${fmtNum(t.committedAlready)}</strong>, about ${fmtNum(t.overBy)} more than ${
           t.adjusted ? 'this sprint\u2019s adjusted target' :
           `the last ${t.sprints} sprint${t.sprints === 1 ? '' : 's'} suggest they finish`}. There is still time
           to pull something out deliberately, which is a better outcome than carrying it over
