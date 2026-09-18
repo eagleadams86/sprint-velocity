@@ -2769,8 +2769,8 @@ before trusting an early cherry-pick.**
 
 **CI went red on a green suite:** the workflow waited 60 s for a summary the suite, fifty tests
 longer, no longer produced in time on a runner (48 s on a laptop). The wait is 300 s now, inside
-the job's ten-minute limit — Money Map's 2026-09-07 change. Golf, PAPTrack and Flow Metrics
-still carry 60 s.
+the job's ten-minute limit — Money Map's 2026-09-07 change. Golf Handicap and PAPTrack
+took the same change the same day; Flow Metrics already had it (this line first said otherwise).
 
 **Left alone on purpose — raise only if Charles asks:** PI Trend's "Teams counted" counts a team
 whose sprints in that PI are all still running (its help defines it as teams that HAD sprints
@@ -2781,8 +2781,18 @@ paste from Charles's Jira ever fails with "Couldn't find any issue rows", that i
 thing to check; duplicate ids or two sprints on one slot in a HAND-EDITED file still cross the
 boundary (the first wins in most views), and `sprints.sprintNumber` is still `num`; a blank
 Adjust Capacity box saves 0% (the preview says "34 → 0"); a crafted 300,000-sprint link
-overflows `Math.max(...)` and falls back to the error card. The two-copies guard and the
-ART-menu focusout belong in Flow Metrics (and the first in Money Map and Golf) — not ported.
+overflows `Math.max(...)` and falls back to the error card. 
+
+**The ports, done the same day (2026-09-18) — and two of them turned out not to be ports:**
+the two-copies guard went into **Flow Metrics** (`90a5a42`; narrower exposure there, since it
+writes `td-state` only on a real edit) and **Money Map** (financial-plan PR #21, `94f6b00`),
+where it could NOT be pasted: sync rewrites the same plan in different bytes, so that guard
+compares the plan's MEANING (`planKeyOf`), keeps each window's own `ui`, never pushes from an
+adoption, and ends the row editor's context before closing it. **Golf Handicap needed nothing**
+— it has adopted another tab's write since long before, dialog open or not (recorded in its
+CLAUDE.md). **Flow Metrics needed no ART-menu fix** — it has closed the menu on `focusout`
+since 2026-09-10, ancestor rule included; THIS app was the one behind. Survey the sibling
+before writing "belongs in X": two of four such claims here were wrong.
 - **A lost sprint never lands on the IP sprint (2026-09-18).** `forecast()` walked only the
   DELIVERING sprints through `calendarSlots()` and added `lost` afterwards, on the reasoning that
   a lost sprint "is a calendar slot already". It is a slot the team spends on something else —
@@ -2907,7 +2917,9 @@ worded for a number other than the one beside them. Each bullet below is one com
   event in the suite would have. Escape now returns only when a
   `dialog[open]` owns it, and hands the keyboard to the button only if it was in the picker.
   `goToSearchHit()` clears `artPickOpen`, the flag that survives a render. **Flow Metrics, the
-  reference implementation, has the same gap** and wants the same three changes. The tests send
+  reference implementation, already had this** (its 2026-09-10 evening audit, with the ancestor
+  rule added 2026-09-15 after Charles reported the label press) — this app was behind, and an
+  earlier version of this line claimed the opposite. The tests send
   the `focusout` by hand when `focus()` in an unwatched frame did not fire one (see
   `spinFocusIn`) — real where the browser gives it, never silently skipped.
 
@@ -3220,8 +3232,9 @@ Each bullet below is one commit.
     service-worker block already uses. That is also why the listener is pinned as SOURCE and
     the `save()` half is what the suite drives, in a real frame with the real `save()`.
   - `let storedRaw` is declared ABOVE `let state = load()`: `load()` assigns it during script
-    evaluation (the TDZ trap, again). Flow Metrics, Money Map and Golf save the same way — this
-    belongs in each of them; not ported here.
+    evaluation (the TDZ trap, again). Ported the same day to Flow Metrics and Money Map; Golf
+    Handicap already had a listener and needed nothing — see the ports note at the top of this
+    section.
 - **A refused storage write is said WITH the next toast, never replaced by it (2026-09-18).**
   There is one toast, and nearly every caller raises its own right after `save()`. So when
   `setItem` threw (a full quota — shared with every app on this origin — or private mode),

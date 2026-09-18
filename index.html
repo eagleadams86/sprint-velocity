@@ -10895,7 +10895,8 @@ document.addEventListener('keydown', (e) => {
    synthetic event in the suite would have shown. A Tab cannot land on an
    ancestor of the picker, and a press genuinely outside it is the mousedown
    handler's business. Bound once, out here, like the two handlers above and for
-   the same reason. Flow Metrics' picker has the same gap. */
+   the same reason. Flow Metrics' picker has carried this since 2026-09-10 — it was
+   this app that was behind. */
 document.addEventListener('focusout', (e) => {
   if (!artPickOpen) return;
   const from = e.target && e.target.closest && e.target.closest('.art-pick');
