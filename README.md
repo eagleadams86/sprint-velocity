@@ -1439,6 +1439,12 @@ default, not a rule: the setting is three-state, so the first press wins for goo
 direction. Tick it over a team with a year of history and it stays ticked; untick it over a
 brand-new team and it stays unticked.
 
+**A team set to a standing 0% availability is told that is the reason.** Nothing times 0% is a
+rate, so the forecast can't answer from the history — but it says so, names the 0% and points
+at **Adjust Capacity**, rather than telling a team with four good sprints that it has finished
+none of its committed points. A typed velocity still answers, since availability isn't applied
+to one.
+
 **The card says which of the two it drew from, every time.** A typed rate names both ends as
 *yours* rather than as something the team averaged, carries a caveat saying it's your estimate
 with the arithmetic done, and offers to go back to the history when there is some. The two

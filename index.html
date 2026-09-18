@@ -4507,7 +4507,14 @@ function forecast(teamId, points, includeSix) {
   /* A team that has finished none of its commitment has no rate to divide by.
      Zero sprints would be a lie and Infinity is not a forecast, so the card says
      it can't answer rather than printing something. */
-  if (!(slowRate > 0)) return { points, impossible: true, sprints: t ? t.sprints : 0 };
+  /* `zeroedByAvailability` (2026-09-18): the history HAS a rate and a standing 0%
+     is the only thing that made it nothing. Four sprints finishing 20 each under
+     a 0% team were told the team "has finished none of its committed points …
+     Record a sprint with some committed work finished" — false, and advice that
+     cannot work: every sprint they record is multiplied by the same nought. The
+     card names the 0% and points at the control that holds it instead. */
+  if (!(slowRate > 0)) return { points, impossible: true, sprints: t ? t.sprints : 0,
+    zeroedByAvailability: !typed && forecastZeroedByAvailability(teamId, includeSix) };
 
   /* ── Scope growth ────────────────────────────────────────────────────────
      Applied to the WORK, not to the rate, and each end of the growth range pairs
@@ -8924,6 +8931,17 @@ function forecastHasRate(teamId, includeSix) {
   return Math.min(t.planningBase, t.reliableBase) * lasting > 0;
 }
 
+/* The other way to have no rate (2026-09-18): the history has one and a standing
+   0% availability multiplied it away. Asked in one place because two sentences
+   need it — the card's refusal, and the line shown before any points are typed,
+   which otherwise tells a team with four finished sprints it "has no finished
+   sprints to take a rate from". */
+function forecastZeroedByAvailability(teamId, includeSix) {
+  const t = nextSprintTarget(teamId, includeSix);
+  return !!t && standingAvailability(teamId) === 0
+    && Math.min(t.planningBase, t.reliableBase) > 0;
+}
+
 const forecastTypedTicked = (teamId, includeSix) =>
   fcs().forecastTypedOn == null ? !forecastHasRate(teamId, includeSix)
                                 : !!fcs().forecastTypedOn;
@@ -8988,7 +9006,10 @@ function forecastResultHtml(team, includeSix) {
       team ? 'it would take ' + who : 'that would take'} ${typedRate
       ? 'at the velocity typed below.'
       : ticked
-      ? `at a velocity you type below. ${team
+      ? `at a velocity you type below. ${team && forecastZeroedByAvailability(teamId, includeSix)
+          ? who + ' has a standing availability of 0%, which leaves no rate to take from its '
+            + 'sprints, so the two boxes are where it comes from.'
+          : team
           ? who + ' has no finished sprints to take a rate from, so the two boxes are where it '
             + 'comes from.'
           : 'There is nothing recorded to take a rate from, so the two boxes are where it '
@@ -9001,6 +9022,12 @@ function forecastResultHtml(team, includeSix) {
   if (!f) return `<p class="sub" style="margin:0">${ticked
     ? 'Type a velocity below — points a sprint, or a range — and this will answer.'
     : ''}</p>`;
+  if (f.impossible && f.zeroedByAvailability) return `<p class="warn" style="margin:0">${who}
+    has a standing availability of <strong>0%</strong>, and that holds for every sprint a forecast
+    looks across — so there is no rate to forecast from, whatever the team has finished.
+    ${viewOnly ? 'It is set on the team, not on any one sprint.'
+      : `Change it with <strong>Adjust Capacity</strong> on the card above, where it is the
+         team's standing figure — or forecast from a velocity you type, with the tick above.`}</p>`;
   if (f.impossible) return `<p class="warn" style="margin:0">${who} has finished none
     of its committed points across the last ${plural(f.sprints, 'sprint')}, so there is no rate
     to forecast from. Record a sprint with some committed work finished and this will answer.</p>`;

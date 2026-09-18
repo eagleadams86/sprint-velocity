@@ -3023,6 +3023,17 @@ impossible. Each bullet below is one commit.
   the single figure loosely: the two rates "happen to round to the same whole number of sprints
   for this much work". **Not dropped**, because 125 points on the same team IS 6 to 7, and a
   reader who saw no caveat at 120 would be surprised by one at 125.
+- **A standing 0% availability is named as the reason there is no rate (2026-09-18).** Four
+  sprints finishing 20 each under a team set to 0% read "T has finished none of its committed
+  points across the last 4 sprints … Record a sprint with some committed work finished and this
+  will answer" — false, and advice that cannot work, since every sprint they record is
+  multiplied by the same nought. `forecast()`'s `impossible` return now carries
+  `zeroedByAvailability` (history rate above 0, standing exactly 0, no typed rate), asked through
+  `forecastZeroedByAvailability()` because TWO sentences needed it: the refusal, and the line
+  shown before any points are typed, which told the same team it "has no finished sprints to
+  take a rate from" (the tick defaults ON there — `forecastHasRate()` is false). The refusal
+  names the 0% and points at Adjust Capacity, except in a shared view, which has no such button.
+  A team that really finished nothing keeps the old message, 0% or not.
 
 
 ### Import, Boundaries and the Rest

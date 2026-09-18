@@ -10555,6 +10555,44 @@ t('the swings caveat explains a range only where the card shows one (2026-09-18 
   ok(/would take 6 to 7 sprints/.test(two) && /two ends are far apart/.test(two),
     'a real range keeps the sentence that explains it', two);
 });
+t('a standing availability of 0% is named as the reason there is no rate, not the team’s history (2026-09-18 review)', () => {
+  /* Four sprints finishing 20 each, and a team set to a standing 0%. The rate is
+     20 × 0, and the card said the team "has finished none of its committed points
+     … Record a sprint with some committed work finished and this will answer" —
+     false, and advice that cannot work. */
+  const fx = forecastWordsFixture([20, 20, 20, 20], 0);
+  withState(fx, () => {
+    typed(); adjust();
+    const f = w.forecast('t1', 100, false);
+    eq(f.impossible, true, 'still no forecast — nothing times 0% is a rate');
+    eq(f.zeroedByAvailability, true, 'but the object says WHY');
+  });
+  const text = forecastCardText(fx, 100);
+  ok(!/finished none of its committed points/.test(text), 'the history is not blamed', text);
+  ok(/standing availability of 0%/.test(text) && /Adjust Capacity/.test(text),
+    'the 0% is named, and so is where to change it', text);
+  /* Before any points are typed the card says where the rate will come from, and
+     that sentence blamed the history too. */
+  const empty = forecastCardText(fx, 0);
+  ok(!/has no finished sprints/.test(empty) && /standing availability of 0%/.test(empty),
+    'the line shown before any points are typed names the 0% too', empty);
+  /* A team that really has finished none of its commitment keeps its own message —
+     with or without a 0% on top, because there the history IS the reason. */
+  const none = forecastWordsFixture([20, 20, 20, 20], 0);
+  none.sprints.forEach(sp => { sp.committedCompleted = 0; });
+  withState(none, () => {
+    typed(); adjust();
+    eq(w.forecast('t1', 100, false).zeroedByAvailability, false, 'nothing finished: not the 0%’s doing');
+  });
+  ok(/finished none of its committed points/.test(forecastCardText(none, 100)),
+    'and the card still says so');
+  /* A typed rate takes no availability, so a 0% team with one typed still answers. */
+  withState(fx, () => {
+    typed(10, 20, true);
+    eq(w.forecast('t1', 100, false).fast, 5, 'a typed rate is untouched by the standing 0%');
+  });
+  typed();
+});
 
 /* ═══════════════════ 2026-09-18 review — block D ═══════════════════════════
    One fix per commit, each test proven red against the commit before it. Tests
