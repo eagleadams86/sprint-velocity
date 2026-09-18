@@ -493,10 +493,14 @@ Status comes from the dates and looks after itself:
 | Start date hasn't arrived | **Planned** |
 | Today is on or before the end date | **In progress** |
 | End date has passed | **Complete** |
+| Start date has arrived, no end date | **Complete** — the form says so, and that adding an end date keeps it out of the averages while it runs |
 | No dates at all | **Complete** |
 
 A sprint with no dates counts as complete, so everything recorded before this existed keeps
-working exactly as it did. The **Status** field on the sprint form overrides the dates
+working exactly as it did. The same rule is why a sprint with a start date and **no end date**
+counts as finished from its first day: give a sprint you are recording ahead of time both dates.
+The form refuses an end date that falls before the start date — one sprint saved that way used
+to switch off the projected dates for the whole team, without a word. The **Status** field on the sprint form overrides the dates
 either way — useful if your team doesn't record dates, or closes a sprint late. An
 overridden sprint stops looking after itself, and the form says so.
 

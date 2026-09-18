@@ -11782,7 +11782,17 @@ function updateStatusHint() {
     let why;
     if (st === 'planned') why = `hasn't started yet — begins ${when(draft.startDate)}`;
     else if (st === 'active') why = `still running — ends ${when(draft.endDate)}`;
-    else why = draft.endDate ? `finished ${when(draft.endDate)}` : 'no dates set, so treated as finished';
+    /* THREE ways to be complete, not two (2026-09-18 review). A new sprint with a
+       start date of today and the end date not filled in yet was told "no dates set,
+       so treated as finished" — a date IS set, and the sentence gave no hint that the
+       missing END date is what put a sprint on its first day into the averages with
+       zeros. The lifecycle itself is deliberate (sprintStatus: no end date → complete
+       once started, which is what keeps dateless history counted); the words now say
+       which date is missing and what adding it does. */
+    else if (draft.endDate) why = `finished ${when(draft.endDate)}`;
+    else if (draft.startDate) why = `started ${when(draft.startDate)} with no end date set, so treated `
+      + `as finished — add an end date to keep it out of your averages while it runs`;
+    else why = 'no dates set, so treated as finished';
     el.textContent = `Auto: ${STATUS_TEXT[st].toLowerCase()} — ${why}.`
       + (st === 'complete' ? ' Counted in your averages.' : ' Not counted in your averages yet.');
   } else {
@@ -11799,6 +11809,9 @@ function updateStatusHint() {
 
 ['f_status', 'f_start', 'f_end'].forEach(id =>
   F(id).addEventListener('change', updateStatusHint));
+/* The dates can be wrong as well as the figures — see datesBackwards. */
+['f_start', 'f_end'].forEach(id =>
+  F(id).addEventListener('change', () => checkSprintForm()));
 
 /* Moving the form to a different sprint changes which sprint precedes it — and
    which dates the cadence lands on. */
@@ -11854,6 +11867,17 @@ function autofillSprintForm() {
   }
 }
 
+/* An end date before the start date (2026-09-18 review). Both are well-formed dates,
+   so nothing refused them — and one such sprint, once it is the team's latest dated
+   one, makes teamCadence() return null (`length < 0` on the anchor), which silently
+   switches off date prefill, the "scheduled" rows and every forecast date for the
+   WHOLE TEAM. Unlike the figure warnings below this cannot be "right", so it is one of
+   the form's two hard refusals (slotClash is the other): Save Sprint says why and
+   stays open, and the Jira auto-save leaves the boxes filled and unsaved. ISO dates
+   compare correctly as strings. A function declaration, not a const: checkSprintForm
+   is reachable from boot paths and must never meet this in its dead zone. */
+function datesBackwards(r) { return !!(r.startDate && r.endDate && r.endDate < r.startDate); }
+
 function checkSprintForm() {
   /* null for a blank box, so a half-filled sprint doesn't trip warnings about
      figures the user simply hasn't got to yet. */
@@ -11877,8 +11901,13 @@ function checkSprintForm() {
   /* Emptied rather than `hidden`: this is a live region, and an element toggled out
      of the accessibility tree announces nothing when it comes back. CSS collapses it
      while it holds no text. */
-  F('sprintWarn').textContent = msgs.length
-    ? '⚠ ' + msgs.join(' ') + ' Saving anyway is fine if that’s right.' : '';
+  /* The one warning that is not advisory goes first and never sits under "saving
+     anyway is fine" — that sentence is only true of the ones after it. */
+  const hard = datesBackwards({ startDate: F('f_start').value, endDate: F('f_end').value })
+    ? 'The end date is before the start date. Fix the dates — the sprint can’t be saved like this.' : '';
+  const soft = msgs.length ? msgs.join(' ') + ' Saving anyway is fine if that’s right.' : '';
+  F('sprintWarn').textContent = (hard || soft)
+    ? '⚠ ' + [hard, hard && soft ? 'Also: ' + soft : soft].filter(Boolean).join(' ') : '';
 }
 
 ['f_committed', 'f_committedCompleted'].forEach(id =>
@@ -12338,6 +12367,7 @@ function autoSaveJiraNumbers() {
   if (viewOnly) return false;              // someone else's data — nothing here saves
   const record = buildSprintRecord();
   if (slotClash(record)) return false;
+  if (datesBackwards(record)) return false;   // boxes stay filled; the form already says why
   const i = state.sprints.findIndex(s => s.id === record.id);
   const before = i >= 0 ? state.sprints[i] : null;
 
@@ -12727,6 +12757,11 @@ F('sprintSaveBtn').onclick = () => {
   const record = buildSprintRecord();
   if (slotClash(record)) {
     toast('That sprint already has data — edit it instead');
+    return;
+  }
+  if (datesBackwards(record)) {
+    checkSprintForm();                     // the standing explanation, in case a date was typed and never blurred
+    toast('The end date is before the start date — fix the dates first');
     return;
   }
   const i = state.sprints.findIndex(s => s.id === record.id);

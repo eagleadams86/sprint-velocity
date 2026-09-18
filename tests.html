@@ -10067,6 +10067,69 @@ t('a prefilled Carried In follows the form to another slot instead of going stal
   });
 });
 
+/* A real-size frame holding a fixture instead of the sample: its own state, save and
+   confirm stubbed by inFrame, so Save Sprint can be pressed for real. */
+async function formFrame(tag, fixture, fn) {
+  await inFrame(tag, { sample: false, blank: true }, async (W, D) => {
+    const st = W.svGet();
+    ['teams', 'arts', 'pis', 'sprints', 'plans', 'objectives'].forEach((k) => {
+      st[k] = JSON.parse(JSON.stringify(fixture[k] || []));
+    });
+    st.settings.activeTeamId = fixture.teams[0].id;
+    st.settings.activePiId = fixture.pis.length ? fixture.pis[0].id : null;
+    st.settings.artFilter = [];
+    W.render();
+    await wait(100);
+    await fn(W, D, st);
+  });
+}
+
+t('a sprint with a start date and no end date is not told "no dates set"', () => {
+  withState(formFixture([{ sprintNumber: 1 }]), () => {
+    const d = w.document;
+    const hint = () => d.getElementById('statusHint').textContent;
+    const start = d.getElementById('f_start');
+    try {
+      w.openSprint('t1', 'p1', 2);
+      ok(/no dates set, so treated as finished/.test(hint()), 'with neither date the old sentence is true', hint());
+      start.value = '2026-01-05'; fire(w, start, 'change');     // long past, so "started" on any day the suite runs
+      ok(/^Auto: complete/.test(hint()), 'a started sprint with no end date still resolves complete — the lifecycle is unchanged', hint());
+      ok(!/no dates set/.test(hint()), 'but a date IS set, so the form does not say none is', hint());
+      ok(/no end date/.test(hint()), 'it names the date that is missing', hint());
+      ok(/add an end date/.test(hint()), 'and says what adding it does', hint());
+      ok(/Counted in your averages\.$/.test(hint()), 'and still says it is being counted', hint());
+    } finally {
+      d.getElementById('sprintDialog').close();
+    }
+  });
+});
+
+t('an end date before the start date is warned about and cannot be saved', async () => {
+  const fx = formFixture([{ sprintNumber: 1, startDate: '2026-01-05', endDate: '2026-01-16' }]);
+  await formFrame('b2dates', fx, async (W, D, st) => {
+    const toasts = [];
+    W.toast = (m) => { toasts.push(String(m)); };
+    W.openSprint('t1', 'p1', 2);
+    const start = D.getElementById('f_start'), end = D.getElementById('f_end');
+    const warn = () => D.getElementById('sprintWarn').textContent;
+    start.value = '2026-02-10'; fire(W, start, 'input'); fire(W, start, 'change');
+    end.value = '2026-02-01';   fire(W, end, 'input');   fire(W, end, 'change');
+    ok(/end date is before the start date/i.test(warn()), 'the form says so as soon as the dates cross', warn());
+    ok(!/Saving anyway is fine/.test(warn()), 'and does not call it fine to save', warn());
+    D.getElementById('sprintSaveBtn').click();
+    await wait(30);
+    eq(st.sprints.length, 1, 'Save Sprint refuses: one such sprint switches off every projected date for the team');
+    ok(D.getElementById('sprintDialog').open, 'and the form stays open to be fixed');
+    ok(toasts.some(m => /end date is before the start date/i.test(m)), 'saying why', JSON.stringify(toasts));
+    ok(W.teamCadence('t1') !== null, 'so the team keeps its cadence');
+    end.value = '2026-02-20'; fire(W, end, 'input'); fire(W, end, 'change');
+    eq(/end date is before/i.test(warn()), false, 'fixing the date withdraws the warning');
+    D.getElementById('sprintSaveBtn').click();
+    await wait(30);
+    eq(st.sprints.length, 2, 'and the sprint saves');
+  });
+});
+
 /* ═══════════════════ 2026-09-18 review — block C ═══════════════════════════
    One fix per commit, each test proven red against the commit before it. Tests
    for this block go DIRECTLY under its group() line and above the next banner,

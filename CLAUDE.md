@@ -2887,6 +2887,23 @@ Each bullet below is one commit.
   from the new slot's predecessor or left empty. An existing figure or a typed one still always
   wins. **The `openSprint()` reset is load-bearing**: without it a mark left by the last form
   makes the next saved sprint's own figure disposable (the test's last step).
+- **The status hint names the date that is missing, and backwards dates cannot be saved
+  (2026-09-18).** A new sprint with start = today and the end date not yet filled in read "Auto:
+  complete — no dates set, so treated as finished. Counted in your averages." A date IS set, and
+  the sprint joins the rolling window with zeros on its first day. **`sprintStatus()` is
+  untouched** — no end date → complete once started is the rule that keeps dateless history
+  counted. The WORDS changed: "started 5 Jan with no end date set, so treated as finished — add
+  an end date to keep it out of your averages while it runs", and the README's status table has
+  the row it was missing. Same commit: nothing checked for an end date BEFORE the start date, and
+  one such sprint as the team's latest dated one makes `teamCadence()` return null (`length < 0`)
+  — date prefill, the "scheduled" rows and every forecast date go off for the whole team, in
+  silence. `datesBackwards(record)` is the form's SECOND HARD REFUSAL, beside `slotClash`: Save
+  Sprint toasts and stays open, the Jira auto-save returns false (boxes filled, unsaved), and
+  `checkSprintForm()` — now also run on the date boxes' `change` — puts it first in `#sprintWarn`
+  WITHOUT the "Saving anyway is fine" sentence, which is only true of the advisory warnings. It
+  is a function declaration on purpose (checkSprintForm must never meet a `const` in its dead
+  zone). The import boundary was not touched here: a backwards pair arriving in a file still
+  loads, and the form then refuses to re-save it until it is fixed.
 
 
 ### The Forecast Card, Dates and the Demo
