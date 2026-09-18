@@ -2365,3 +2365,6 @@ throws away the button the window was opened from — so after Save Sprint, Dele
 Adjustment and Remove Adjustment the focus lands on the redrawn copy of that button (from a
 table row: the row for the same sprint, or the row that took a deleted sprint's place) rather
 than falling off the page. Until 2026-09-18 only the Business Value and Targets windows did.
+The same goes for the controls that redraw the page they sit on — the two Rolling 5 tick
+boxes and the PI and Sprint pickers: the keyboard stays on the control, so Space toggles a
+tick box back and Tab carries on from the picker rather than from the top.

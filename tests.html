@@ -10340,6 +10340,50 @@ t('Save Adjustment and Remove Adjustment leave the keyboard on Adjust Capacity',
   });
 });
 
+/* The same fault without a window: a control inside #views whose `change` renders
+   the view it sits in. On the sample, which has three PIs, ARTs and an IP sprint. */
+t('a view’s own toggles and pickers keep the keyboard after the render they cause', async () => {
+  await inFrame('b7view', {}, async (W, D) => {
+    const st = W.svGet();
+    const show = async (view) => { st.settings.view = view; W.render(); await wait(80); };
+    const toggle = async (id) => {
+      const el = D.getElementById(id);
+      ok(el, '#' + id + ' is on the page');
+      if (!el) return;
+      el.focus();
+      el.checked = !el.checked; fire(W, el, 'change');
+      await tick();
+      ok(D.getElementById(id) !== el, '#' + id + ': the change re-rendered the view, so the control is a new node');
+      ok(D.activeElement === D.getElementById(id),
+         '#' + id + ' still has the keyboard — Space toggles it back instead of scrolling the page', focusName(D.activeElement));
+    };
+    const pick = async (id) => {
+      const el = D.getElementById(id);
+      ok(el && el.options.length > 1, '#' + id + ' is on the page with a choice to make');
+      if (!el) return;
+      el.focus();
+      el.selectedIndex = [...el.options].findIndex(o => !o.selected); fire(W, el, 'change');
+      await tick();
+      ok(D.activeElement === D.getElementById(id),
+         '#' + id + ' still has the keyboard after the pick', focusName(D.activeElement));
+    };
+    await show('rolling'); await toggle('incSix'); await toggle('incProgress');
+    await show('sprint');  await pick('numSel');   await pick('piSel');
+    await show('pi');      await pick('piSel2');
+    await show('art');     await pick('piSel3');
+
+    /* Only when it HAD the focus: a change made with the focus elsewhere steals nothing. */
+    await show('rolling');
+    const six = D.getElementById('incSix');
+    const other = D.getElementById('manageBtn');
+    other.focus();
+    six.checked = !six.checked; fire(W, six, 'change');
+    await tick();
+    ok(D.activeElement === other, 'a toggle changed while something else held the focus leaves it there',
+       focusName(D.activeElement));
+  });
+});
+
 /* ═══════════════════ 2026-09-18 review — block C ═══════════════════════════
    One fix per commit, each test proven red against the commit before it. Tests
    for this block go DIRECTLY under its group() line and above the next banner,

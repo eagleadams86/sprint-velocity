@@ -2961,6 +2961,18 @@ Each bullet below is one commit.
   bullets), which is why the buttons land for themselves; it carries the `bvDialog` open check.
   **A mouse click on a row's cells (not its button) has no origin row** and falls through to
   the fallback id, which only the Sprint view has — a pointer user loses nothing by it.
+- **A view's own toggles and pickers keep the keyboard (2026-09-18).** Same cause, no window:
+  `#incSix`, `#incProgress`, `#piSel`, `#numSel`, `#piSel2` and `#piSel3` live inside `#views`,
+  so the `render()` their `change` causes replaces the control that caused it. After a toggle,
+  Space scrolled the page instead of toggling back; after a picker the next Tab started from
+  the top. `renderKeeping(el)` is `render()` plus a re-focus of the CURRENT element with that
+  id, `preventScroll`, **only when the old one had the focus** — a change made with the focus
+  elsewhere (Safari does not focus a checkbox on a click) steals nothing, and a control the
+  render dropped stays dropped. The six handlers call it in place of `render()`. `#teamSel`
+  and the tabs were already fine (they are chrome, outside `#views`); the forecast card's boxes
+  never render at all. **The reviewer's ArrowDown probe read clean by accident**: on macOS a
+  select's arrow key opens the popup and fires no `change`, so only `selectOption`/a committed
+  pick shows the fault — the test dispatches `change` on a focused control.
 
 
 ### The Forecast Card, Dates and the Demo

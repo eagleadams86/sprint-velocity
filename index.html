@@ -8230,9 +8230,9 @@ function wireSprintSelectors(piId, numSel) {
   /* Through piKey, so the stored value is a real null and not the `''` the
      none-option hands back — `activePiId` is typed `idOrNull` at the boundary,
      and one way of saying "no PI" is the whole point of that helper. */
-  if (piEl) piEl.onchange = () => { state.settings.activePiId = piKey(piEl.value); save(); render(); };
+  if (piEl) piEl.onchange = () => { state.settings.activePiId = piKey(piEl.value); save(); renderKeeping(piEl); };
   if (numEl) numEl.onchange = () => {
-    state.settings.activeSprintNum = Number(numEl.value); save(); render();
+    state.settings.activeSprintNum = Number(numEl.value); save(); renderKeeping(numEl);
   };
   const edit = document.getElementById('editSprintBtn');
   if (edit) edit.onclick = () => openSprint(activeTeam().id, piId, numSel);
@@ -8469,7 +8469,7 @@ function renderPiView() {
     </div>`;
 
   document.getElementById('piSel2').onchange = (e) => {
-    state.settings.activePiId = e.target.value; save(); render();
+    state.settings.activePiId = e.target.value; save(); renderKeeping(e.target);
   };
   const bvBtn = document.getElementById('bvBtn');
   if (bvBtn) bvBtn.onclick = () => openBv(team.id, piId);
@@ -9599,11 +9599,11 @@ function rollingToolbar(includeSix, ipApplies) {
 function wireRollingToolbar() {
   const el = document.getElementById('incSix');
   if (el) el.onchange = () => {
-    state.settings.includeSprint6InRolling = el.checked; save(); render();
+    state.settings.includeSprint6InRolling = el.checked; save(); renderKeeping(el);
   };
   const ip = document.getElementById('incProgress');
   if (ip) ip.onchange = () => {
-    state.settings.includeInProgress = ip.checked; save(); render();
+    state.settings.includeInProgress = ip.checked; save(); renderKeeping(ip);
   };
 }
 
@@ -10690,7 +10690,7 @@ function wireArtToolbar() {
   const piSel = document.getElementById('piSel3');
   if (piSel) piSel.onchange = () => {
     state.settings.activePiId = piSel.value;
-    save(); render();
+    save(); renderKeeping(piSel);
   };
 }
 
@@ -11422,6 +11422,22 @@ function landRowFocus(from, fallbackId) {
   const a = document.activeElement;
   if (a && a !== document.body && a.isConnected && a.getClientRects().length) return;
   btn.focus({ preventScroll: true });
+}
+
+/* ── render(), from a control that lives in the view it re-renders ───────────
+   The Rolling 5 toggles and the PI and Sprint pickers sit inside #views, so the
+   render their `change` causes replaces the control that caused it, and the
+   keyboard fell to <body> (2026-09-18 review): after a toggle, Space scrolled the
+   page instead of toggling back; after a picker, the next Tab started from the
+   top. The CURRENT control with the same id gets the focus back — only when the
+   old one HAD it, so a change that left the focus elsewhere (Safari does not focus
+   a checkbox on a click) steals nothing, and a control the render dropped is left
+   dropped. `preventScroll`, like every focus() here. */
+function renderKeeping(el) {
+  const id = el && el.id && document.activeElement === el ? el.id : '';
+  render();
+  const now = id ? document.getElementById(id) : null;
+  if (now && now !== document.activeElement) now.focus({ preventScroll: true });
 }
 
 function openModal(dlg) {
