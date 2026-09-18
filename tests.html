@@ -9639,6 +9639,63 @@ group('the forecast card, dates and the demo (2026-09-18 review)');
    test never fails the floor, so a fix commit leaves it alone.
    ═════════════════════════════════════════════════════════════════════════ */
 group('import, boundaries and the rest (2026-09-18 review)');
+/* A frame booted on a share link: marker 0 is plain JSON, so the token needs no
+   compression to build. Puts `sv-pin` back like inFrame, because a boot stores it. */
+async function inSharedFrame(tag, payload, fn) {
+  const keepPin = localStorage.getItem('sv-pin');
+  const b64 = btoa(unescape(encodeURIComponent(JSON.stringify(payload))))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const f = document.createElement('iframe');
+  f.setAttribute('data-sv-tests', '');
+  f.setAttribute('aria-hidden', 'true');
+  f.style.cssText = 'position:absolute;left:-9999px;width:1280px;height:900px;border:0';
+  await new Promise((resolve) => {
+    f.onload = resolve;
+    f.src = 'index.html?' + tag + '=' + Date.now() + '#share=0.' + b64;
+    document.body.appendChild(f);
+  });
+  try {
+    await wait(500);
+    await fn(f);
+  } finally {
+    f.remove();
+    if (keepPin === null) localStorage.removeItem('sv-pin');
+    else localStorage.setItem('sv-pin', keepPin);
+  }
+}
+const SHARED_BOARD = {
+  v: 4, teams: [{ id: 'shT', name: 'Shared Team' }], arts: [], pis: [{ id: 'shP', name: 'PI 1' }],
+  sprints: [{ id: 'shS', teamId: 'shT', piId: 'shP', sprintNumber: 1, committed: 10,
+    committedCompleted: 8, totalCompleted: 8, added: 0, removed: 0, carriedIn: 0, carriedOut: 2,
+    addedThenRemoved: 0 }], plans: [], objectives: [], settings: {}
+};
+t('“Skip to content” in a shared view stays in the shared view', async () => {
+  /* It was a bare href="#maincontent": the share fragment was replaced, the
+     hashchange handler read "no longer shared" and RELOADED — onto the reader's own
+     board, editable. A reload gives the frame a new window, so a mark left on the
+     old one is how the test sees it. */
+  await inSharedFrame('skipshare', SHARED_BOARD, async (f) => {
+    let W = f.contentWindow, D = W.document;
+    ok(W.svViewOnly === true, 'the frame booted as a shared view');
+    eq(W.svGet().teams.map((x) => x.name), ['Shared Team']);
+    W.__stayed = 1;
+    D.querySelector('a.skip').click();
+    await wait(600);
+    W = f.contentWindow; D = W.document;
+    ok(W.__stayed === 1, 'the page did not reload');
+    ok(W.location.hash.startsWith('#share='), 'the address still holds the link', W.location.hash.slice(0, 20));
+    eq(W.svGet().teams.map((x) => x.name), ['Shared Team'], 'and the board is still the one that was sent');
+    ok(D.activeElement === D.getElementById('maincontent'), 'focus went to the content', D.activeElement && D.activeElement.tagName);
+    /* …and a fragment naming something on the page, arriving any other way, is
+       moving about rather than opening another link. */
+    W.location.hash = '#maincontent';
+    await wait(600);
+    W = f.contentWindow;
+    ok(W.__stayed === 1, 'an in-page fragment does not reload a shared view either');
+    ok(W.location.hash.startsWith('#share='), 'and the share fragment is put back', W.location.hash.slice(0, 20));
+  });
+});
+
 
 group('the suite leaves storage exactly as it found it (2026-09-15 review)');
 /* LAST, on purpose: every test above has run, every frame has been removed. */

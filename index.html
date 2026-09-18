@@ -14874,8 +14874,33 @@ window.svGet = () => state;
    there looking broken. Reload instead, and let the normal boot path run. */
 addEventListener('hashchange', () => {
   const nowShared = location.hash.startsWith(SHARE_PREFIX);
+  /* A fragment that names an element ON THIS PAGE is somebody moving about in it,
+     not a different link being opened (2026-09-18). "Skip to content" was
+     `href="#maincontent"` and nothing else, so in a shared view it swapped the
+     share fragment for that one, this handler read "no longer shared", reloaded —
+     and the keyboard reader who had asked to skip the header was sitting on their
+     OWN board, editable, under the URL of the page they had been sent. The share
+     fragment goes back so the address still says what is on screen. */
+  if (!nowShared && location.hash.length > 1) {
+    let target = null;
+    try { target = document.getElementById(decodeURIComponent(location.hash.slice(1))); }
+    catch (e) { /* a malformed escape names nothing */ }
+    if (target) {
+      if (shareToken) history.replaceState(null, '', SHARE_PREFIX + shareToken);
+      return;
+    }
+  }
   if (nowShared !== viewOnly || (nowShared && location.hash.slice(SHARE_PREFIX.length) !== shareToken))
     location.reload();
+});
+
+/* The skip link does its job without touching the address at all — the fragment
+   is where a shared view LIVES, so a control that rewrites it is a control that
+   can throw the reader out of what they were sent. <main> carries tabindex="-1"
+   for exactly this focus. */
+document.querySelector('a.skip').addEventListener('click', (e) => {
+  e.preventDefault();
+  F('maincontent').focus();
 });
 
 applyTheme();

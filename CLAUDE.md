@@ -2801,4 +2801,14 @@ impossible. Each bullet below is one commit.
 
 What the boundary and UI-state reviewers found, and the small things.
 Each bullet below is one commit.
-
+- **"Skip to content" no longer throws a reader out of a shared view (2026-09-18).** The link
+  was a bare `href="#maincontent"`. A shared view LIVES in the fragment, so pressing it replaced
+  `#share=…`, the `hashchange` handler read "no longer shared" and called `location.reload()` —
+  and the keyboard reader who had asked to skip the header landed on their OWN board, editable,
+  with the banner gone. The link now has a click handler that focuses `<main>` and never touches
+  the address; and `hashchange` treats a fragment naming an element on this page as movement
+  within it (no reload, and the share fragment is put back with `replaceState` so the address
+  still says what is on screen). `inSharedFrame(tag, payload, fn)` + `SHARED_BOARD` in tests.html
+  boot a frame on a real share link (marker 0 is plain JSON, so no compression is needed) — the
+  suite had no shared-view frame before this. A reload gives a frame a new window, so the test
+  marks the old one and looks for the mark.
