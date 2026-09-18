@@ -2767,6 +2767,11 @@ CSP violation**. A usage limit cut two agents off mid-run; their worktrees held 
 one had re-made a commit the supervisor had already picked — **diff an agent's branch again
 before trusting an early cherry-pick.**
 
+**CI went red on a green suite:** the workflow waited 60 s for a summary the suite, fifty tests
+longer, no longer produced in time on a runner (48 s on a laptop). The wait is 300 s now, inside
+the job's ten-minute limit — Money Map's 2026-09-07 change. Golf, PAPTrack and Flow Metrics
+still carry 60 s.
+
 **Left alone on purpose — raise only if Charles asks:** PI Trend's "Teams counted" counts a team
 whose sprints in that PI are all still running (its help defines it as teams that HAD sprints
 there; a second basis on the same row would be worse); a semicolon-separated (European Excel)

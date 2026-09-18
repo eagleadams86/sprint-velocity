@@ -45,9 +45,14 @@ jobs:
           const errors = [];
           page.on('pageerror', (e) => errors.push(String(e)));
           await page.goto('http://localhost:8012/tests.html');
+          // The suite boots real frames and drives real dialogs, and ran about 48 s on
+          // a laptop at 576 tests — past this wait's old 60 s on a CI runner, which
+          // failed a GREEN suite for being slow (2026-09-18, PR #15). The job's own
+          // ten-minute limit is the real ceiling; Money Map made the same change on
+          // 2026-09-07 for the same reason.
           await page.waitForFunction(
             () => !/^Loading/.test(document.getElementById('summary').textContent),
-            null, { timeout: 60000 });
+            null, { timeout: 300000 });
           const summary = await page.evaluate(() => document.getElementById('summary').textContent);
           const failedNames = await page.evaluate(() =>
             [...document.querySelectorAll('tr.fail, li.bad')].map((el) => el.textContent.trim()));
