@@ -202,8 +202,14 @@ are untouched, they simply stop being in a PI…
 Either way, this PI's 4 business value records and 1 capacity adjustment
 are deleted — both are defined by the PI and have nowhere to go without it.
 
-[ Cancel ]              [ Delete the sprints too ]  [ Keep the sprints ]
+[ Cancel ]              [ Delete the Sprints Too ]  [ Keep the Sprints ]
 ```
+
+**One thing does move when you keep them, and the dialog says so when it applies.** Sprint 6
+is only an IP sprint *inside a PI*. A kept sprint 6 has no PI, so it becomes an ordinary
+sprint and the Rolling 5 and the capacity target start counting it. When the PI holds a
+sprint 6 the dialog drops "the figures are untouched" and says that instead (until 2026-09-18
+it made the promise regardless, and a team's Rolling 5 velocity went from 24 to 19.6 under it).
 
 Kept sprints are renumbered onto the end of the team's unassigned run, so no two sprints
 end up sharing a slot. Business value and capacity adjustments go either way — both are

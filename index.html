@@ -13121,12 +13121,26 @@ function openDeletePi(pi) {
      (The rule itself stays: the common case by far is a team recording history
      before it ever creates a PI, and there it is exactly right.) */
   const othersRemain = state.pis.length > 1;
+  /* "THE FIGURES ARE UNTOUCHED" IS NOT TRUE OF A KEPT SPRINT 6 (2026-09-18 review).
+     The IP sprint is sprint 6 OF A PI (isIpSlot) — the rule does not exist on the
+     unassigned track — so a kept S6 stops being one and becomes an ordinary counted
+     delivery sprint: Rolling 5 completion 79% → 77%, velocity 24 → 19.6 and the
+     recommendation 21 → 17 in the reviewer's run, under a dialog that had just
+     promised nothing would move. The rule stays (a PI-less team's sprint 6 is an
+     ordinary sprint, and that is right); the WORDS change. When an IP sprint would
+     be kept, the promise is dropped and the consequence is said instead. */
+  const ipKept = sprints.filter(isIpSlot).length;
   F('delPiBody').innerHTML = sprints.length
     ? `<strong>${plural(sprints.length, 'sprint')}</strong> across
        ${plural(teamsHit, 'team')} ${sprints.length === 1 ? 'is' : 'are'} in this PI.
-       You can keep ${sprints.length === 1 ? 'it' : 'them'} — the figures are untouched,
+       You can keep ${sprints.length === 1 ? 'it' : 'them'} — ${ipKept ? '' : 'the figures are untouched, '}
        ${sprints.length === 1 ? 'it simply stops' : 'they simply stop'} being in a PI, and you can
        put ${sprints.length === 1 ? 'it' : 'them'} in another one later.${
+       ipKept ? ` <strong>Sprint ${IP_SPRINT} is only an IP sprint inside a PI</strong>, so
+       ${ipKept === 1 ? `the sprint ${IP_SPRINT} kept here stops being one` : `the ${ipKept} sprint
+       ${IP_SPRINT}s kept here stop being IP sprints`}: the Rolling ${ROLLING_WINDOW} and the
+       capacity target will start counting ${ipKept === 1 ? 'it' : 'them'} like any other sprint,
+       which moves those figures.` : ''}${
        othersRemain ? ` One thing to know: sprints with no PI count as the oldest history a
        team has, so ${sprints.length === 1 ? 'it would move' : 'they would move'} <em>before</em>
        your remaining ${plural(state.pis.length - 1, 'PI')} rather than after.` : ''}`
@@ -13141,7 +13155,8 @@ function openDeletePi(pi) {
        to go without it.`
     : '';
   F('delPiKeepBtn').hidden = !sprints.length;
-  F('delPiDropBtn').textContent = sprints.length ? 'Delete the sprints too' : 'Delete the PI';
+  /* Title Case, like the markup it overwrites and "Keep the Sprints" beside it. */
+  F('delPiDropBtn').textContent = sprints.length ? 'Delete the Sprints Too' : 'Delete the PI';
   openModal(delPiDialog);
 }
 

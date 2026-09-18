@@ -475,7 +475,8 @@ but Charles had ever actually signed in.)
   would put two sprints in one slot and make `findSprint` non-deterministic. Business value
   and capacity plans die either way (both are defined by the PI) and the dialog says so.
   It also **discloses the one place the ordering rule bites backwards**: kept sprints move
-  *before* any remaining PIs, because unassigned is the oldest track.
+  *before* any remaining PIs, because unassigned is the oldest track. And, since 2026-09-18,
+  the other thing that moves: a kept sprint 6 stops being an IP sprint (see that review).
 - **The demo's Team No PI exists to show the app working with no PI, and carries nothing
   else.** Sprints 12–16 — continuous, past six, and a 16th that could not exist in a
   six-slot PI. No ART, no scale, no exclusion, no dates, no goals, no business value: every
@@ -2933,6 +2934,17 @@ Each bullet below is one commit.
   was saved before carries its old record in `before`, still asks at Use These Numbers, and
   still asks at Save Sprint if something else changes after it (the documented
   compares-against-stored behaviour; not revisited here).
+- **"Keep the Sprints" no longer promises untouched figures over a kept sprint 6
+  (2026-09-18).** Deleting a PI and keeping its sprints moves them to the unassigned track,
+  where the IP-sprint rule does not exist (`isIpSlot` needs a `piId`), so every kept S6 becomes
+  a counted delivery sprint: Rolling 5 completion 79% → 77%, velocity 24 → 19.6, recommendation
+  21 → 17 in the reviewer's run — under "You can keep them — the figures are untouched". **The
+  rule stays; the words changed.** When `sprints.filter(isIpSlot).length` is non-zero
+  `openDeletePi()` drops the promise and adds: "Sprint 6 is only an IP sprint inside a PI, so
+  the sprint 6 kept here stops being one: the Rolling 5 and the capacity target will start
+  counting it like any other sprint, which moves those figures." A PI with no sprint 6 reads as
+  before. Same commit: the JS overwrote the markup's Title Case "Delete the Sprints Too" with
+  "Delete the sprints too", beside "Keep the Sprints".
 
 
 ### The Forecast Card, Dates and the Demo

@@ -10219,6 +10219,36 @@ t('Save Sprint after Use These Numbers on a brand-new sprint asks nothing; a re-
   });
 });
 
+t('Keep the Sprints does not promise untouched figures when a sprint 6 would stop being an IP sprint', () => {
+  const six = formFixture([1, 2, 3, 4, 5, 6].map((n) => ({ sprintNumber: n })));
+  const five = formFixture([1, 2, 3, 4, 5].map((n) => ({ sprintNumber: n })));
+  const body = () => reviewText(w.document.getElementById('delPiBody'));
+  withState(six, () => {
+    try {
+      w.openDeletePi(w.svGet().pis[0]);
+      ok(/6 sprints across 1 team/.test(body()), 'the dialog is up for the six-sprint PI', body());
+      ok(!/figures are untouched/.test(body()),
+         'it does not say the figures are untouched: the kept S6 starts counting in Rolling 5 and the target', body());
+      ok(/Sprint 6 is only an IP sprint inside a PI/.test(body()), 'it says why', body());
+      ok(/Rolling 5 and the capacity target will start counting it/.test(body()), 'and what will move', body());
+      eq(w.document.getElementById('delPiDropBtn').textContent, 'Delete the Sprints Too',
+         'and the button beside Keep the Sprints is Title Case, as its markup is');
+      ok(!w.document.getElementById('delPiKeepBtn').hidden, 'with Keep the Sprints on offer');
+    } finally {
+      w.document.getElementById('delPiCancelBtn').click();
+    }
+  });
+  withState(five, () => {
+    try {
+      w.openDeletePi(w.svGet().pis[0]);
+      ok(/figures are untouched/.test(body()), 'with no sprint 6 in the PI the promise is true, and still made', body());
+      ok(!/IP sprint/.test(body()), 'and nothing is said about an IP sprint', body());
+    } finally {
+      w.document.getElementById('delPiCancelBtn').click();
+    }
+  });
+});
+
 /* ═══════════════════ 2026-09-18 review — block C ═══════════════════════════
    One fix per commit, each test proven red against the commit before it. Tests
    for this block go DIRECTLY under its group() line and above the next banner,
