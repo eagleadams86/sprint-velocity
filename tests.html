@@ -10130,6 +10130,60 @@ t('an end date before the start date is warned about and cannot be saved', async
   });
 });
 
+t('carried out is offered as what is left of the commitment — removed points are not left', () => {
+  withState(formFixture([{ sprintNumber: 1 }]), () => {
+    const d = w.document;
+    const box = (id) => d.getElementById(id);
+    const type = (id, v) => { box(id).value = String(v); fire(w, box(id), 'input'); };
+    try {
+      w.openSprint('t1', 'p1', 2);
+      type('f_committed', 30); type('f_committedCompleted', 24);
+      eq(box('f_carriedOut').value, '6', 'with nothing removed it is committed − completed, as before');
+      type('f_removed', 4);
+      eq(box('f_carriedOut').value, '2', 'typing Removed re-works it: 30 − 24 − 4 (it stayed 6, counting the 4 twice)');
+      type('f_removed', 40);
+      eq(box('f_carriedOut').value, '0', 'never below nought');
+      type('f_carriedOut', 9);
+      type('f_removed', 1);
+      eq(box('f_carriedOut').value, '9', 'and a figure typed by hand is left alone');
+    } finally {
+      d.getElementById('sprintDialog').close();
+    }
+  });
+});
+
+t('the carried-out note never calls points break-in that the Added figure cannot hold', async () => {
+  const fx = formFixture([{ sprintNumber: 1 }]);
+  await formFrame('b3note', fx, async (W, D, st) => {
+    const show = (figures) => {
+      st.sprints = [Object.assign({ id: 's1', teamId: 't1', piId: 'p1', sprintNumber: 1,
+        carriedIn: 0, addedThenRemoved: 0 }, figures)];
+      st.settings.view = 'sprint'; st.settings.activePiId = 'p1'; st.settings.activeSprintNum = 1;
+      W.render();
+      const card = reviewCard(D, 'Where the Points Went');
+      const note = card && [...card.querySelectorAll('p')].map(reviewText).find(x => /carried-out point/.test(x));
+      return note || '';
+    };
+    /* Hand-entered the old way: carried out 6 = committed − completed, removed 4, nothing added. */
+    let note = show({ committed: 30, committedCompleted: 24, totalCompleted: 24, added: 0, removed: 4, carriedOut: 6 });
+    ok(/The bar shows the 2 carried-out points/.test(note), 'the note is still there: the bar shows 2 of the 6', note);
+    ok(!/broke in/.test(note), 'with 0 points added nothing is said to have broken in — it said the other 4 had', note);
+    ok(/other 4 of the 6/.test(note) && /removed points still counted/.test(note), 'the 4 are named for what they can be', note);
+
+    /* The reviewer’s paste: two re-sized stories, 8 added of which 5 finished. */
+    note = show({ committed: 34, committedCompleted: 18, totalCompleted: 23, added: 8, removed: 5, carriedOut: 21 });
+    ok(/Of the other 10 of the 21/.test(note), 'ten of the 21 are beyond the commitment’s share', note);
+    ok(/ 3 broke in after the sprint started/.test(note), 'three of them can be break-in: 8 added less the 5 that finished', note);
+    ok(/remaining 7 is not break-in/.test(note) && /re-sized/.test(note), 'and the other 7 are not called break-in', note);
+
+    /* A sprint that balances keeps the sentence it always had. */
+    note = show({ committed: 30, committedCompleted: 24, totalCompleted: 24, added: 5, removed: 0, carriedOut: 11 });
+    ok(/The other 5 of the 11 going to the next sprint broke in after the sprint started/.test(note),
+       'unfinished break-in is still called break-in', note);
+    ok(!/re-sized/.test(note), 'with no remainder to explain', note);
+  });
+});
+
 /* ═══════════════════ 2026-09-18 review — block C ═══════════════════════════
    One fix per commit, each test proven red against the commit before it. Tests
    for this block go DIRECTLY under its group() line and above the next banner,

@@ -446,7 +446,12 @@ means carryover can be larger than the shortfall against the commitment.
 
 Because of that, the *Where the points went* Committed bar shows only the carried-out points
 that came **from the commitment**, and the card says so whenever that's less than the full
-carryover figure on the tile. Its dropped slice is the removed points, capped at the
+carryover figure on the tile. It calls the difference break-in only as far as the figures allow:
+no more than the points added after the start less the added work that finished. Anything
+beyond that is described as what it is — more than the commitment, as sized at the start,
+accounts for, which means work re-sized during the sprint or removed points still counted in
+carried out (until 2026-09-18 all of it was said to have "broken in", including on a sprint
+with nothing added). Its dropped slice is the removed points, capped at the
 shortfall. Stacking the whole carryover figure into that bar used to overstate carryover and
 leave "dropped" as a residual, which under-reported removed work — a sprint that dropped six
 points read as one.
@@ -592,6 +597,12 @@ entered or typed. The guess belongs to the slot it was made for: change the Spri
 on the form and it is worked out again for the new slot — or taken away, if the sprint before
 that one has no record — rather than riding along (until 2026-09-18 it rode along, without its
 note, and saved).
+
+**Carried out** and **Total completed** are offered too when you type a sprint in by hand:
+carried out as what is left of the commitment — committed, less what was completed, less what
+was **removed** (removed points are gone, not rolling over; until 2026-09-18 they were counted
+in both) — and total completed as the committed points completed. Both stop following along the
+moment you type your own figure.
 
 ### Blank Means Zero
 

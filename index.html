@@ -8058,11 +8058,29 @@ function renderSprintView() {
      residual, so on hand-entered figures that don't balance the unexplained points
      land there rather than in "dropped". That's the safer place for them: "dropped"
      names a specific thing that happened, "carried out" is the shortfall by
-     default. Jira-pasted sprints always balance. */
+     default. A Jira-pasted sprint balances ONLY while nothing was re-sized: this
+     said "always" until 2026-09-18, and it is false the moment an estimate moves,
+     because `committed` is held at sprint-START sizes and every other figure at
+     CURRENT ones. An unfinished 8 → 13 carries out 13 against a commitment that
+     knows about 8; a finished 3 → 5 closes 5 of a commitment that held 3. */
   const shortfall = Math.max(0, m.committed - num(m.committedCompleted));
   const dropped = Math.min(num(m.removed), shortfall);
   const carriedFromCommit = shortfall - dropped;
   const addedDone = Math.max(0, num(m.velocity) - num(m.committedCompleted));
+  /* What is carried out BEYOND the commitment's share, split by what the figures can
+     support (2026-09-18 review). The note under the bars called all of it work that
+     "broke in after the sprint started" — a cause — on the strength of a subtraction.
+     Hand-entered, committed 30 / completed 24 / removed 4 with nothing added read
+     "Break-in 0 points added after start" two cards above "the other 4 of the 6 …
+     broke in": those 4 were the REMOVED points. Pasted, a report with two re-sized
+     stories read "the other 10 of the 21 … broke in" beside a Break-in tile of 8, of
+     which 5 had finished. Break-in still unfinished can be no more than what was
+     added less the added work that finished, so that is the most the note may call
+     break-in; the remainder is named as what it is, and with no unfinished added
+     work the note makes no break-in claim at all. */
+  const beyondCommit = Math.max(0, num(m.carriedOut) - carriedFromCommit);
+  const brokeInLeft = Math.min(beyondCommit, Math.max(0, num(m.added) - addedDone));
+  const unaccounted = beyondCommit - brokeInLeft;
 
   const st = sprintStatus(s);
   const inFlight = st !== 'complete';
@@ -8154,12 +8172,22 @@ function renderSprintView() {
           <strong>${fmtNum(m.added)}</strong> added ·
           <strong>${fmtNum(m.removed)}</strong> removed</span>
       </div>
-      ${num(m.carriedOut) > carriedFromCommit ? `<p class="muted" style="font-size:var(--fs-xs);margin:8px 0 0">→
+      ${beyondCommit > 0 ? `<p class="muted" style="font-size:var(--fs-xs);margin:8px 0 0">→
         The bar shows the <strong>${fmtNum(carriedFromCommit)}</strong> carried-out
-        point${carriedFromCommit === 1 ? '' : 's'} that came from the commitment. The other
-        <strong>${fmtNum(num(m.carriedOut) - carriedFromCommit)}</strong> of the
+        point${carriedFromCommit === 1 ? '' : 's'} that came from the commitment. ${
+        !unaccounted
+          ? `The other <strong>${fmtNum(beyondCommit)}</strong> of the
         <strong>${fmtNum(m.carriedOut)}</strong> going to the next sprint broke in after the
-        sprint started, so it was never part of the commitment this bar breaks apart.</p>` : ''}
+        sprint started, so it was never part of the commitment this bar breaks apart.`
+          : `${brokeInLeft
+              ? `Of the other <strong>${fmtNum(beyondCommit)}</strong> of the
+        <strong>${fmtNum(m.carriedOut)}</strong> going to the next sprint,
+        <strong>${fmtNum(brokeInLeft)}</strong> broke in after the sprint started. The remaining
+        <strong>${fmtNum(unaccounted)}</strong> is not break-in: it is`
+              : `The other <strong>${fmtNum(beyondCommit)}</strong> of the
+        <strong>${fmtNum(m.carriedOut)}</strong> going to the next sprint is`}
+        more than the commitment, as it was sized at the start, accounts for — work re-sized
+        during the sprint, or removed points still counted in carried out.`}</p>` : ''}
       ${m.addedThenRemoved ? `<p class="muted" style="font-size:var(--fs-xs);margin:8px 0 0">↩
         <strong>${fmtNum(m.addedThenRemoved)}</strong> point${m.addedThenRemoved === 1 ? '' : 's'}
         came into the sprint after it started and then went back out again. That work is
@@ -11858,11 +11886,19 @@ F('f_carriedIn').addEventListener('input', () => {
     F('f_start').dataset.auto = '';
   }));
 
+/* Carried out defaults to what is LEFT of the commitment — and removed points are
+   not left, they are gone (2026-09-18 review). It was `committed − completed`, so
+   committed 30, completed 24, removed 4 offered 6 carried out: the 4 removed points
+   counted a second time, as work rolling into the next sprint, and the Sprint view
+   then had 4 carried-out points the commitment could not account for. Removed is
+   subtracted now, never below 0 (a team can remove work it had already finished),
+   and the Removed box re-runs this, since it is usually typed AFTER the two above. */
 function autofillSprintForm() {
   const committed = parseFloat(F('f_committed').value);
   const done = parseFloat(F('f_committedCompleted').value);
+  const removed = Math.max(0, parseFloat(F('f_removed').value) || 0);
   if (isFinite(committed) && isFinite(done)) {
-    if (!F('f_carriedOut').dataset.touched) F('f_carriedOut').value = Math.max(0, committed - done);
+    if (!F('f_carriedOut').dataset.touched) F('f_carriedOut').value = Math.max(0, committed - done - removed);
     if (!F('f_totalCompleted').dataset.touched) F('f_totalCompleted').value = done;
   }
 }
@@ -11914,8 +11950,9 @@ function checkSprintForm() {
   F(id).addEventListener('input', () => { autofillSprintForm(); checkSprintForm(); }));
 ['f_carriedOut', 'f_totalCompleted'].forEach(id =>
   F(id).addEventListener('input', (e) => { e.target.dataset.touched = '1'; checkSprintForm(); }));
-['f_added', 'f_removed', 'f_carriedIn'].forEach(id =>
+['f_added', 'f_carriedIn'].forEach(id =>
   F(id).addEventListener('input', checkSprintForm));
+F('f_removed').addEventListener('input', () => { autofillSprintForm(); checkSprintForm(); });
 
 /* ── Paste from Jira ────────────────────────────────────────────────────────
    The preview deliberately shows its working — the row counts, Jira's own section

@@ -2904,6 +2904,25 @@ Each bullet below is one commit.
   is a function declaration on purpose (checkSprintForm must never meet a `const` in its dead
   zone). The import boundary was not touched here: a backwards pair arriving in a file still
   loads, and the form then refuses to re-save it until it is fixed.
+- **The carried-out note claims no more break-in than the Added figure holds (2026-09-18).**
+  Under *Where the Points Went*, everything carried out beyond the commitment's share was said
+  to have "broke[n] in after the sprint started" — a cause, asserted from a subtraction.
+  Hand-entered: committed 30, completed 24, removed 4, Added blank → the form offered carried
+  out 6 (`committed − completed`, ignoring removed) and the view read "Break-in 0 points added
+  after start" above "the other 4 of the 6 … broke in"; the 4 were the REMOVED points. Pasted:
+  a report with a finished 3 → 5 and an unfinished 8 → 13 read "the other 10 of the 21 … broke
+  in" beside a Break-in tile of 8, 5 of which had finished. Three changes. (a)
+  `autofillSprintForm()` subtracts `removed` (never below 0), and the Removed box re-runs it,
+  since Removed is typed after the two it depends on. (b) The note splits `beyondCommit =
+  carriedOut − carriedFromCommit` into `brokeInLeft = min(beyondCommit, added − addedDone)` —
+  break-in still unfinished cannot exceed what was added less the added work that finished,
+  which is exactly `addedUnfinished` on a paste — and `unaccounted`, worded as "more than the
+  commitment, as it was sized at the start, accounts for — work re-sized during the sprint, or
+  removed points still counted in carried out". With no unfinished added work there is no
+  break-in claim at all; a sprint that balances keeps its old sentence word for word. (c) The
+  comment "Jira-pasted sprints always balance" was FALSE and is corrected: `committed` is held
+  at sprint-start sizes and everything else at current ones (the Paste from Jira bullet above),
+  so one re-estimate unbalances it in either direction.
 
 
 ### The Forecast Card, Dates and the Demo
