@@ -2892,3 +2892,10 @@ Each bullet below is one commit.
   forget to check. `saveBlockedMsg()` is a FUNCTION for the boot-time dead-zone reason. The test
   boots its own frame: `inFrame` replaces `save`, and a function declaration's global property
   cannot be deleted to get the real one back (strict mode throws).
+- **A truncated share link no longer leaves an uncaught error in the console (2026-09-18).**
+  `squeeze()` fired `w.write(bytes); w.close();` without handling either promise. A cut-off link
+  fails both sides of the stream: the read's rejection reaches `openSharedView()`'s catch and
+  draws the right card, and the two write-side rejections surfaced as an uncaught "Compressed
+  input was truncated". They take a no-op `catch` — NOT an `await`, which on a large input waits
+  on backpressure only the read relieves. Cosmetic, but an uncaught error on the one page a
+  stranger is sent to is the wrong thing to find in a console.

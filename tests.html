@@ -9885,6 +9885,21 @@ t('a refused storage write is said WITH the toast that follows it, never replace
     if (beforePin === null) localStorage.removeItem('sv-pin'); else localStorage.setItem('sv-pin', beforePin);
   }
 });
+t('a truncated share link is refused without an uncaught error beside it', async () => {
+  if (typeof w.CompressionStream !== 'function') return;   // marker-0 links never reach squeeze()
+  const token = await w.encodeShare(SHARED_BOARD);
+  const cut = token.slice(0, Math.floor(token.length * 0.6));
+  const loose = [];
+  const note = (e) => { loose.push(String(e.reason)); e.preventDefault(); };
+  w.addEventListener('unhandledrejection', note);
+  try {
+    let refused = false;
+    try { await w.decodeShare(cut); } catch (e) { refused = true; }
+    ok(refused, 'the link is refused, as it always was');
+    await wait(150);
+    eq(loose, [], 'and nothing rejects into thin air while it is');
+  } finally { w.removeEventListener('unhandledrejection', note); }
+});
 t('“Skip to content” in a shared view stays in the shared view', async () => {
   /* It was a bare href="#maincontent": the share fragment was replaced, the
      hashchange handler read "no longer shared" and RELOADED — onto the reader's own

@@ -13895,7 +13895,14 @@ const canCompress = () => typeof CompressionStream === 'function';
 async function squeeze(bytes, Stream, format) {
   const s = new Stream(format);
   const w = s.writable.getWriter();
-  w.write(bytes); w.close();
+  /* Not awaited — a large input would wait on backpressure that only the read
+     below relieves — but never left to reject into thin air either: a truncated
+     link fails BOTH sides of the stream, the read's rejection is the one the
+     caller catches, and these two used to surface as an uncaught "Compressed
+     input was truncated" in the console beside a perfectly good error card
+     (2026-09-18). */
+  w.write(bytes).catch(() => {});
+  w.close().catch(() => {});
   return new Uint8Array(await new Response(s.readable).arrayBuffer());
 }
 
