@@ -1461,7 +1461,9 @@ stopped being true of this one: the rest of the view steps aside as it always di
 forecast card is what's left. Hidden, the control built for a team with no history could only
 ever have been reached by a team that had some.
 
-**It belongs to one team.** Switching teams clears both the rate and the press, because "5 to
+**It belongs to one team.** Switching teams — by the header picker, a row in Compare Teams or
+PI by Team, a Find hit, an import that lands on another team, or deleting the team you were on
+— clears both the rate and the press, and the two adjustments in the fold with them, because "5 to
 10 points a sprint" is a statement about one team and so is the decision to type it — without
 that, a tick pressed for a team with no history followed you to a team with plenty and sat
 there checked over a card that had just said it had sprints to draw from. The backlog total in

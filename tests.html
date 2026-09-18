@@ -10593,6 +10593,82 @@ t('a standing availability of 0% is named as the reason there is no rate, not th
   });
   typed();
 });
+t('a typed velocity and the forecast adjustments stay with their team by EVERY way of changing team (2026-09-18 review)', async () => {
+  /* Only the header picker cleared them. Team New Start's typed 5–10 points, 20%
+     growth and 2 lost sprints followed a Compare Teams row click onto Team
+     Headroom's card — nine sprints of history — as "… at the velocity you typed". */
+  await inFrame('teamswitch', {}, async (W, D) => {
+    const st = W.svGet();
+    const id = (name) => st.teams.find(x => x.name === name).id;
+    const typeItFor = async (name) => {
+      const sel = D.getElementById('teamSel');
+      sel.value = id(name);
+      sel.dispatchEvent(new W.Event('change', { bubbles: true }));
+      W.__svTestHooks.svTypedRate(5, 10, true);
+      W.__svTestHooks.svAdjust(20, 20, 2);
+      st.settings.forecastPoints = '200';
+      await wait(50);
+    };
+    const held = () => [st.settings.forecastRateLo, st.settings.forecastRateHi, st.settings.forecastTypedOn,
+      st.settings.forecastGrowthLo, st.settings.forecastGrowthHi, st.settings.forecastLostSprints];
+    const CLEAR = ['', '', null, '', '', ''];
+    const card = () => {
+      const el = D.getElementById('forecastResult');
+      return el ? el.textContent.replace(/\s+/g, ' ').trim() : '(no forecast card)';
+    };
+
+    /* 1 — the Compare Teams row. It lands on Rolling 5, the card's own view. */
+    await typeItFor('Team New Start');
+    D.querySelector('.tab[data-view="teams"]').click();
+    await wait(300);
+    const row = [...D.querySelectorAll('#teamsTable tbody tr.clickable')]
+      .find(tr => tr.dataset.id === id('Team Headroom'));
+    ok(row && row.querySelector('.rowbtn'), 'Compare Teams has a row for Team Headroom to press');
+    row.querySelector('.rowbtn').click();
+    await wait(300);
+    eq([st.settings.activeTeamId, st.settings.view], [id('Team Headroom'), 'rolling'], 'the row landed on its team');
+    eq(held(), CLEAR, 'and the rate, the press and the adjustments stayed behind with Team New Start');
+    ok(!/you typed/.test(card()), 'so Team Headroom’s card answers from Team Headroom’s sprints', card());
+    eq(st.settings.forecastPoints, '200', 'the backlog total DOES travel — it is about the work, not the team');
+
+    /* 2 — a Find hit on another team. */
+    await typeItFor('Team New Start');
+    openFind(W, D, 'Team Overcommitted');
+    D.querySelector('#searchResults .hit').click();
+    await wait(300);
+    eq(st.settings.activeTeamId, id('Team Overcommitted'), 'the hit landed on its team');
+    eq(held(), CLEAR, 'and nothing typed for the last team came with it');
+
+    /* 3 — and a hit on the team ALREADY on screen is not a switch: looking something
+       up must not wipe a rate somebody reasoned about. */
+    await typeItFor('Team New Start');
+    openFind(W, D, 'Team New Start');
+    D.querySelector('#searchResults .hit').click();
+    await wait(300);
+    eq(st.settings.activeTeamId, id('Team New Start'));
+    eq(held(), ['5', '10', true, '20', '20', '2'], 'same team, nothing cleared');
+
+    /* 4 — deleting the active team moves to another one, and that is a switch too. */
+    const gone = id('Team New Start');
+    D.getElementById('manageBtn').click();
+    await wait(200);
+    const del = D.querySelector('[data-del-team="' + gone + '"]');
+    ok(del, 'Teams & PIs offers Team New Start’s delete button');
+    if (del) del.click();
+    await wait(300);
+    ok(!st.teams.some(x => x.id === gone) && st.settings.activeTeamId !== gone,
+      'the team is gone and the app has moved to another');
+    eq(held(), CLEAR, 'and its typed velocity and adjustments went with it');
+    D.getElementById('manageDialog').close();
+  });
+  /* Every way in, surveyed by ASSIGNMENT rather than by helper name: the header
+     picker, both row clicks, both Find paths, the delete, the import and the demo
+     all go through setActiveTeam(). Two plain assignments are left on purpose —
+     the helper's own, and addTeam()'s first-ever team, which keeps a velocity
+     typed on the planning screen for the team now being created. */
+  const plain = APP_SRC.match(/state\.settings\.activeTeamId\s*=(?!=)/g) || [];
+  eq(plain.length, 2, 'no way of changing team assigns activeTeamId behind the helper’s back');
+});
 
 /* ═══════════════════ 2026-09-18 review — block D ═══════════════════════════
    One fix per commit, each test proven red against the commit before it. Tests

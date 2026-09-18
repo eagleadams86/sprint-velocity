@@ -3034,6 +3034,21 @@ impossible. Each bullet below is one commit.
   take a rate from" (the tick defaults ON there — `forecastHasRate()` is false). The refusal
   names the 0% and points at Adjust Capacity, except in a shared view, which has no such button.
   A team that really finished nothing keeps the old message, 0% or not.
+- **`setActiveTeam(id)` is the ONE way the active team changes (2026-09-18).** The typed velocity
+  and the "Adjust for what you know" settings are cleared on a team switch — README, and the
+  comment above `forecastClearTypedRate()` — but only `teamSel.onchange` did it, and there were
+  seven other assignments: the Compare Teams row, the PI by Team row, `goToSearchHit` twice (the
+  hit's team, and the team a PI hit falls back to), deleting the active team, a CSV import
+  landing on a team it touched, and `loadSample`. Team New Start's typed 5–10 points, 20% growth
+  and 2 lost sprints read "26 to 50 sprints … you typed" on Team Headroom's card after a row
+  click. The helper clears both **only when the id actually changes** — a Find hit on the team
+  already on screen is not a switch — and `forecastPoints` still travels, on purpose. **Two plain
+  assignments remain and a test counts them**: the helper's own, and `addTeam()`'s FIRST team,
+  which keeps a velocity typed on the planning screen for the team now being created (with teams
+  already there and no stored id, `addTeam()` moves off `state.teams[0]` and goes through the
+  helper). An import or the demo arriving over a planning-screen rate DOES clear it: those land
+  on a team the rate was not typed for. The share payload carries none of these settings, and
+  Restore/Delete All replace the settings whole, so neither is a switch.
 
 
 ### Import, Boundaries and the Rest

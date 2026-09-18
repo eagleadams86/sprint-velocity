@@ -8920,6 +8920,32 @@ function forecastClearAdjustments() {
   fcs().forecastLostSprints = '';
 }
 
+/* ── The ONE way the active team changes (2026-09-18) ────────────────────────
+   Both clears above used to be called from the header picker's `onchange` and
+   nowhere else, and there are SEVEN other assignments to `activeTeamId`: the
+   Compare Teams row, the PI by Team row, a Find hit (twice — the hit's own team,
+   and the team a PI hit falls back to), deleting the active team, a CSV import
+   landing on a team it touched, and loading the demo. So Team New Start's typed
+   "5 to 10 points", 20% growth and 2 lost sprints arrived on Team Headroom's card
+   by a row click as "26 to 50 sprints … at the velocity you typed" — over a team
+   with nine sprints of history, which is the exact report of 2026-08-26 again by
+   a different door. A rule kept at one call site is a rule the next site forgets;
+   the helper is the fix, and a plain assignment to `activeTeamId` anywhere else
+   is now the thing to be suspicious of (tests.html counts them).
+
+   Only when the id actually CHANGES: a Find hit on the team already on screen,
+   or its own row pressed in Compare Teams, is not a switch, and wiping a rate
+   somebody reasoned about because they looked something up would be its own bug.
+   `forecastPoints` stays, by the rule in the comment above `forecastClearTypedRate`
+   — the scope is about the work, not about who is doing it. */
+function setActiveTeam(id) {
+  const next = id || null;
+  if ((state.settings.activeTeamId || null) === next) return;
+  state.settings.activeTeamId = next;
+  forecastClearTypedRate();
+  forecastClearAdjustments();
+}
+
 /* Whether this team has a rate to forecast FROM — the same two conditions
    `forecast()` refuses on, asked in one place so the tick's default and the
    card's own refusal cannot disagree about what "no history" means. */
@@ -10536,7 +10562,7 @@ function renderArtPiView() {
     /* render() rebuilds #views, so the name that was pressed no longer exists when this
        returns — focus has to be put somewhere deliberate or it falls to <body>. */
     const go = (fromKeyboard) => {
-      state.settings.activeTeamId = tr.dataset.id;
+      setActiveTeam(tr.dataset.id);
       state.settings.view = 'pi';
       save(); render();
       focusView(fromKeyboard);
@@ -11296,7 +11322,7 @@ function renderTeamsView() {
   viewsEl.querySelectorAll('tr.clickable').forEach(tr => {
     /* Same as Compare Teams above: render() destroys the button that was pressed. */
     const go = (fromKeyboard) => {
-      state.settings.activeTeamId = tr.dataset.id;
+      setActiveTeam(tr.dataset.id);
       state.settings.view = 'rolling';
       if (viewOnly) focusLatestSprint(tr.dataset.id);
       save(); render();
@@ -11771,7 +11797,7 @@ function goToSearchHit(h) {
      re-opened by wireArtToolbar() over the view the hit landed on — `artPickOpen`
      is what survives a render, so it is what has to be cleared. */
   artPickOpen = false;
-  if (h.teamId && teamById(h.teamId)) state.settings.activeTeamId = h.teamId;
+  if (h.teamId && teamById(h.teamId)) setActiveTeam(h.teamId);
   /* A hit on an ART REPLACES the scope rather than joining it: Find was asked
      for one ART, and landing on a view still showing the two that were ticked
      before would answer a question nobody asked. */
@@ -11784,7 +11810,7 @@ function goToSearchHit(h) {
   if (h.kind === 'PI' && !(state.sprints || []).some(
       x => x.piId === h.piId && x.teamId === state.settings.activeTeamId)) {
     const other = (state.sprints || []).find(x => x.piId === h.piId);
-    if (other) state.settings.activeTeamId = other.teamId;
+    if (other) setActiveTeam(other.teamId);
   }
   state.settings.view = h.view;
   save();
@@ -13176,7 +13202,7 @@ function renderManageTeamRows() {
       state.plans = state.plans.filter(p => p.teamId !== t.id);
       state.objectives = state.objectives.filter(o => o.teamId !== t.id);
       if (state.settings.activeTeamId === t.id)
-        state.settings.activeTeamId = state.teams[0] ? state.teams[0].id : null;
+        setActiveTeam(state.teams[0] ? state.teams[0].id : null);
       fixArtFilter();   // and it may have been the last team in the "No ART" group
     }, `${t.name} deleted${n ? ` with ${plural(n, 'sprint')} of data` : ''}`, renderManage);
     landManageDelete('team', at, 'addTeamBtn');
@@ -13424,8 +13450,17 @@ function focusNewRow(kind, id) {
 }
 
 function addTeam() {
+  /* The one assignment that does NOT go through setActiveTeam() when it is the
+     FIRST team: a velocity typed on the planning screen, before any team existed,
+     was typed for the team now being created, and clearing it at the moment that
+     team arrives would throw away the reason the screen exists. With teams already
+     there and no stored id, the team on screen is `state.teams[0]` and this DOES
+     move off it, so that case is a switch like any other (2026-09-18). */
+  const first = state.teams.length === 0;
   const t = addNamed(state.teams, 'team', `Team ${state.teams.length + 1}`);
-  if (!state.settings.activeTeamId) state.settings.activeTeamId = t.id;
+  if (!state.settings.activeTeamId) {
+    if (first) state.settings.activeTeamId = t.id; else setActiveTeam(t.id);
+  }
   save(); renderManage(); render();
   focusNewRow('team', t.id);
 }
@@ -14228,7 +14263,7 @@ F('importApplyBtn').onclick = () => {
   /* Land on a team the import actually touched, so the page behind the dialog is
      showing what just arrived rather than whatever was open before. */
   const first = good[0];
-  state.settings.activeTeamId = first.team.id;
+  setActiveTeam(first.team.id);
   state.settings.activePiId = piKey(first.record.piId);
   save();
   importDialog.close();
@@ -15250,7 +15285,7 @@ function loadSample() {
      7 to 8 for Team Overcommitted with its swings pulling the two ends apart. */
   state.settings.forecastPoints = '120';
 
-  state.settings.activeTeamId = t2.id;
+  setActiveTeam(t2.id);
   state.settings.activePiId = piB.id;
   state.settings.activeSprintNum = 4;
   state.settings.view = 'sprint';
@@ -15338,9 +15373,9 @@ F('themeSel').onchange = (e) => {
 }
 
 document.getElementById('teamSel').onchange = (e) => {
-  state.settings.activeTeamId = e.target.value;
-  forecastClearTypedRate();
-  forecastClearAdjustments();
+  /* setActiveTeam() takes the typed velocity and the adjustments with the old
+     team — here and at every other way of changing team (2026-09-18). */
+  setActiveTeam(e.target.value);
   /* In a shared view, follow the new team to its latest data. Your own copy keeps
      the sprint you were last looking at — that's a working position you chose,
      not a starting point someone handed you. */
