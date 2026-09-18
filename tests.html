@@ -10532,6 +10532,29 @@ t('a rate is shown to one decimal only where the whole number would not divide t
   ok(/At 32 points a sprint \(90% of the 35 they average\), and at 30 \(90% of the 33 they finished in 4 of the last 5\), it comes to the same number\./.test(same),
     'and 20 points is one sprint either way, so both rates stay whole', same);
 });
+t('the swings caveat explains a range only where the card shows one (2026-09-18 review)', () => {
+  /* 22, 12, 25, 20, 26: mean 21, floor 20, and a spread wide enough to be unsteady.
+     120 points is 6 sprints at either rate, so the card says "it comes to the same
+     number" — and used to go straight on to explain why "the two ends are far
+     apart" and that "the range is the honest answer". */
+  const fx = forecastWordsFixture([22, 12, 25, 20, 26]);
+  withState(fx, () => {
+    typed(); adjust();
+    const f = w.forecast('t1', 120, false);
+    eq([f.fast, f.slow, f.steady], [6, 6, false], 'one figure, from an unsteady team');
+  });
+  const one = forecastCardText(fx, 120);
+  ok(/would take 6 sprints/.test(one) && /it comes to the same number/.test(one), 'a single figure', one);
+  ok(!/two ends are far apart/.test(one) && !/range is the honest answer/.test(one),
+    'so nothing explains a range that is not there', one);
+  ok(/delivery swings a fair bit/.test(one) && /happen to round to the same whole number/.test(one),
+    'the swings are still said, and said truthfully', one);
+  /* 125 points is 6 at the 21 and 7 at the 20: a real range, and the old wording
+     is right for it. */
+  const two = forecastCardText(fx, 125);
+  ok(/would take 6 to 7 sprints/.test(two) && /two ends are far apart/.test(two),
+    'a real range keeps the sentence that explains it', two);
+});
 
 /* ═══════════════════ 2026-09-18 review — block D ═══════════════════════════
    One fix per commit, each test proven red against the commit before it. Tests

@@ -3014,6 +3014,15 @@ impossible. Each bullet below is one commit.
   in BRACKETS so one phrase reads right at either end of the range and inside "At …, and at …,
   it comes to the same number". An unadjusted team's sentence is word for word what it was, and
   a typed rate's wording is untouched — it takes no availability.
+- **The swings caveat explains a range only where the card shows one (2026-09-18).** It fired on
+  `!f.steady` alone. 22, 12, 25, 20, 26 with 120 points is 6 sprints at the 21 they average and
+  6 at the 20 floor, so the card said "it comes to the same number" and then "This team's
+  delivery swings a fair bit, which is why the two ends are far apart. The range is the honest
+  answer". With `f.fast !== f.slow` the sentence is unchanged; with one figure the swings are
+  still said — they are real, and `steady` is a fact about the history — but as a reason to hold
+  the single figure loosely: the two rates "happen to round to the same whole number of sprints
+  for this much work". **Not dropped**, because 125 points on the same team IS 6 to 7, and a
+  reader who saw no caveat at 120 would be surprised by one at 125.
 
 
 ### Import, Boundaries and the Rest

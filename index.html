@@ -9123,9 +9123,19 @@ function forecastResultHtml(team, includeSix) {
   if (f.thin)
     caveats.push(`Only ${plural(f.sprints, 'sprint')} of history behind the rate, so this is a
       rough shape rather than a forecast.`);
+  /* The range is only explained where there IS one (2026-09-18). 22, 12, 25, 20, 26
+     with 120 points is 6 sprints at either rate — "it comes to the same number" —
+     and the card went on to say the swings were "why the two ends are far apart.
+     The range is the honest answer". The swings are still real and still worth
+     saying; what they did NOT do here is separate the two ends, which only
+     happened to round to the same whole sprint. */
   if (!f.steady)
-    caveats.push(`This team's delivery swings a fair bit, which is why the two ends are far
-      apart. The range is the honest answer — quoting either end on its own isn't.`);
+    caveats.push(f.fast !== f.slow
+      ? `This team's delivery swings a fair bit, which is why the two ends are far
+         apart. The range is the honest answer — quoting either end on its own isn't.`
+      : `This team's delivery swings a fair bit. The two rates happen to round to the same whole
+         number of sprints for this much work — a different amount could pull them apart, so
+         treat the single figure as less firm than it looks.`);
   if (f.lastingAdjustment !== null)
     caveats.push(`Worked out at the team's standing <strong>${f.lastingAdjustment}%</strong>
       availability, because that is a lasting change and holds for every sprint here.`);
