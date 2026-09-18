@@ -2778,3 +2778,27 @@ the figures.** One fix per commit, each with a test proven red against the commi
   those records must not capture the card. The `blankState()` comment about a placeholder planned
   sprint moving the projection was written about the OLD rule; the projection now lands ON it.
   EXPECTED 528 → 529.
+
+### History, Tables and Wording
+
+Figures a reviewer recomputed by hand and found moved by sprints that carry no figure, or
+worded for a number other than the one beside them. Each bullet below is one commit.
+
+
+### The Sprint Form and the Windows Round It
+
+Found by entering sprints the long way round, from an empty app, with real key presses.
+Each bullet below is one commit.
+
+
+### The Forecast Card, Dates and the Demo
+
+Forward planning by hand against the card, and dates that are the right shape and
+impossible. Each bullet below is one commit.
+
+
+### Import, Boundaries and the Rest
+
+What the boundary and UI-state reviewers found, and the small things.
+Each bullet below is one commit.
+

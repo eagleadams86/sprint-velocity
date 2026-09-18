@@ -9604,6 +9604,42 @@ t('a control reached from the keyboard lands whole inside its table on a phone',
   });
 });
 
+/* ═══════════════════ 2026-09-18 review — block A ═══════════════════════════
+   One fix per commit, each test proven red against the commit before it. Tests
+   for this block go DIRECTLY under its group() line and above the next banner,
+   so parallel branches never edit the same lines.
+   EXPECTED is bumped once, when the branches are brought together — adding a
+   test never fails the floor, so a fix commit leaves it alone.
+   ═════════════════════════════════════════════════════════════════════════ */
+group('History, tables and wording (2026-09-18 review)');
+
+/* ═══════════════════ 2026-09-18 review — block B ═══════════════════════════
+   One fix per commit, each test proven red against the commit before it. Tests
+   for this block go DIRECTLY under its group() line and above the next banner,
+   so parallel branches never edit the same lines.
+   EXPECTED is bumped once, when the branches are brought together — adding a
+   test never fails the floor, so a fix commit leaves it alone.
+   ═════════════════════════════════════════════════════════════════════════ */
+group('the sprint form and the windows round it (2026-09-18 review)');
+
+/* ═══════════════════ 2026-09-18 review — block C ═══════════════════════════
+   One fix per commit, each test proven red against the commit before it. Tests
+   for this block go DIRECTLY under its group() line and above the next banner,
+   so parallel branches never edit the same lines.
+   EXPECTED is bumped once, when the branches are brought together — adding a
+   test never fails the floor, so a fix commit leaves it alone.
+   ═════════════════════════════════════════════════════════════════════════ */
+group('the forecast card, dates and the demo (2026-09-18 review)');
+
+/* ═══════════════════ 2026-09-18 review — block D ═══════════════════════════
+   One fix per commit, each test proven red against the commit before it. Tests
+   for this block go DIRECTLY under its group() line and above the next banner,
+   so parallel branches never edit the same lines.
+   EXPECTED is bumped once, when the branches are brought together — adding a
+   test never fails the floor, so a fix commit leaves it alone.
+   ═════════════════════════════════════════════════════════════════════════ */
+group('import, boundaries and the rest (2026-09-18 review)');
+
 group('the suite leaves storage exactly as it found it (2026-09-15 review)');
 /* LAST, on purpose: every test above has run, every frame has been removed. */
 t('every sv-* key is byte-identical to what it was before the suite ran', async () => {
