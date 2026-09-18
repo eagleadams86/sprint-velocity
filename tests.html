@@ -9737,6 +9737,44 @@ t('"N more than the suggestion" is the difference between the two figures beside
   });
 });
 
+t('a "so far" row sorts as a row with no percentage, because it shows none', () => {
+  /* S1 100%, S2 50%, S3 running at 10 of 30, S4 planned. Ascending by Complete %
+     put the two "so far" rows FIRST — on a 33% and a nothing the cells never print. */
+  const order = (d, id) => [...d.querySelectorAll('#' + id + ' tbody tr')].map(tr =>
+    reviewText(tr.querySelector('.rowbtn')).replace(/^.*·\s*/, '').replace(/^Sprint /, 'S')
+    + ' ' + (reviewText(tr.children[id === 'piTable' ? 3 : 4]).match(/so far|[\d.]+%|—/) || ['?'])[0]);
+  const hook = w.__svTestHooks;
+  try {
+    const four = [[100, 100], [100, 50], [30, 10, 'active'], [0, 0, 'planned']];
+    renderedFixture(historyFixture(four), { view: 'pi', activePiId: 'p1' }, (st, d) => {
+      ok(d.getElementById('piTable'), 'Team PI is on screen');
+      hook.setSort('piTable', 'commitPct', 'asc'); w.render();
+      eq(order(d, 'piTable').slice(0, 4), ['S2 50%', 'S1 100%', 'S3 so far', 'S4 so far'],
+         'Team PI, lowest first: the figures in order, then the rows that have none');
+      hook.setSort('piTable', 'commitPct', 'desc'); w.render();
+      eq(order(d, 'piTable').slice(0, 4), ['S1 100%', 'S2 50%', 'S3 so far', 'S4 so far'],
+         'and highest first leaves them at the foot too');
+    });
+    const eight = [[100, 100], [100, 50], [100, 80], [100, 70], [100, 90], [100, 60],
+                   [30, 10, 'active'], [0, 0, 'planned']];
+    renderedFixture(historyFixture(eight), { view: 'history' }, (st, d) => {
+      ok(d.getElementById('histTable'), 'History is on screen');
+      hook.setSort('histTable', 'commitPct', 'asc'); w.render();
+      const got = order(d, 'histTable');
+      eq(got.slice(0, 2).concat(got.slice(-2)), ['S2 50%', 'S6 60%', 'S1 so far', 'S2 so far'],
+         'History, lowest first: 50% leads and both "so far" rows close the table');
+    });
+    /* Counted, a running sprint DOES show its percentage — and then it sorts on it. */
+    renderedFixture(historyFixture(four, { includeInProgress: true }), { view: 'pi', activePiId: 'p1' }, (st, d) => {
+      hook.setSort('piTable', 'commitPct', 'asc'); w.render();
+      eq(order(d, 'piTable')[0], 'S3 33%', 'a running sprint that counts prints 33% and sorts first on it');
+    });
+  } finally {
+    hook.setSort('piTable', null, 'desc');
+    hook.setSort('histTable', null, 'desc');
+  }
+});
+
 /* ═══════════════════ 2026-09-18 review — block B ═══════════════════════════
    One fix per commit, each test proven red against the commit before it. Tests
    for this block go DIRECTLY under its group() line and above the next banner,

@@ -2819,6 +2819,15 @@ worded for a number other than the one beside them. Each bullet below is one com
   N more" all read one number: 9. A reader can only subtract what is on the card. The colour
   follows the same figure: 22 against a shown 23 is "1 under" (amber), where −0.5 used to round
   to "in line".
+- **A "so far" row sorts as a row with no percentage (2026-09-18).** Team PI's and History's
+  Complete % cell prints "so far" for a sprint that is not counted, and both getters returned
+  `metrics(s).commitCompletePct` regardless: S1 100%, S2 50%, S3 running at 10 of 30, S4 planned
+  sorted ascending with the two "so far" rows FIRST — on a 33% and a null-as-nothing the reader
+  could not see. Both return null when `!isCounted(s)`, so they sit at the foot either way, which
+  is the sorting rule as written ("`get` returns what the column SHOWS"). With running sprints
+  counted the cell prints the 33% and sorts on it. The other percentage columns were checked:
+  History's three churn columns print a running sprint's pill, so they rightly sort on it, and
+  Rolling 5 lists counted sprints only.
 
 ### The Sprint Form and the Windows Round It
 

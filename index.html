@@ -8355,8 +8355,12 @@ function renderPiView() {
           { key: 'sprint', label: 'Sprint', text: true, get: (r) => r.n },
           { key: 'committed', label: 'Committed', get: (r) => (r.s ? metrics(r.s).committed : null) },
           { key: 'done', label: 'Cmt. done', get: (r) => (r.s ? metrics(r.s).committedCompleted : null) },
+          /* Null for a sprint that is not counted, because its CELL says "so far"
+             and shows no percentage (2026-09-18): S1 100%, S2 50%, S3 running at 10
+             of 30 sorted the "so far" row FIRST ascending, on a 33% nobody could
+             see. `get` returns what the column shows; no figure sits at the foot. */
           { key: 'commitPct', label: 'Complete %', cls: 'metric',
-            get: (r) => (r.s ? metrics(r.s).commitCompletePct : null) },
+            get: (r) => (r.s && isCounted(r.s) ? metrics(r.s).commitCompletePct : null) },
           { key: 'added', label: 'Added', get: (r) => (r.s ? metrics(r.s).added : null) },
           { key: 'removed', label: 'Removed', get: (r) => (r.s ? metrics(r.s).removed : null) },
           { key: 'carriedIn', label: 'Carried in', get: (r) => (r.s ? metrics(r.s).carriedIn : null) },
@@ -10799,7 +10803,12 @@ const SPRINT_COLS = (long) => [
   ...(long ? [{ key: 'dates', label: 'Dates', text: true, get: (s) => s.startDate || s.endDate || null }] : []),
   { key: 'committed', label: 'Committed', get: (s) => metrics(s).committed },
   { key: 'done', label: 'Cmt. done', get: (s) => metrics(s).committedCompleted },
-  { key: 'commitPct', label: 'Complete %', cls: 'metric', get: (s) => metrics(s).commitCompletePct },
+  /* Null when the sprint is not counted: History prints "so far" in that cell, not
+     a percentage, and a row must not sort by a figure it does not show (2026-09-18).
+     Rolling 5 lists counted sprints only, so nothing changes there. The three churn
+     columns DO print a running sprint's figure, so they sort on it. */
+  { key: 'commitPct', label: 'Complete %', cls: 'metric',
+    get: (s) => (isCounted(s) ? metrics(s).commitCompletePct : null) },
   { key: 'breakIn', label: 'Break-in %', cls: 'metric', get: (s) => metrics(s).breakInPct },
   { key: 'removed', label: 'Removed %', cls: 'metric', get: (s) => metrics(s).removedPct },
   { key: 'carry', label: 'Carryover %', cls: 'metric', get: (s) => metrics(s).carryoverPct },

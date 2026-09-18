@@ -917,8 +917,9 @@ ART grouping on Compare Teams. Three presses rather than a *Clear* button nobody
   order.
 - A row with **no figure** in the column you pressed stays at the foot whichever way the
   column runs — a team with no finished sprint has not got the best carryover on the page, a
-  sprint nobody recorded a goal for has not missed it, and an empty slot on Team PI is a place
-  in the calendar rather than a zero.
+  sprint nobody recorded a goal for has not missed it, an empty slot on Team PI is a place
+  in the calendar rather than a zero, and a running sprint whose Complete % reads *so far* has
+  no percentage to sort on yet.
 - Rows that tie keep the order they were already in, so a table never reshuffles between two
   redraws of the same figures.
 - Each column sorts on the figure it *shows*: **Trend** on the direction it prints rather than
