@@ -9765,6 +9765,35 @@ t('a share link’s label names whole teams and counts the rest, inside the boun
     eq(got.label, sent, 'the label arrives as it was sent');
   });
 });
+t('a team, ART or PI name cannot be saved blank', () => {
+  /* Select-all + Backspace wrote "" on the keystroke, and a nameless team is an
+     empty picker option and a 0×0 row button on Compare Teams. A deep copy of the
+     fixture: these handlers write to the records, and MANAGE_FIXTURE is shared. */
+  withState(JSON.parse(JSON.stringify(MANAGE_FIXTURE)), () => {
+    w.renderManage();
+    const st = w.svGet(), D = w.document;
+    const type = (el, v) => { el.value = v; el.dispatchEvent(new w.Event('input', { bubbles: true })); };
+    const leave = (el) => el.dispatchEvent(new w.FocusEvent('focusout', { bubbles: true }));
+    [['#teamRows [data-name-team]', () => st.teams[0]],
+     ['#artRows [data-name-art]', () => st.arts[0]],
+     ['#piRows [data-name-pi]', () => st.pis[0]]].forEach(([sel, rec]) => {
+      const was = rec().name;
+      ok(was && was.trim(), sel + ': the fixture row has a name to lose');
+      type(D.querySelector(sel), '');
+      eq(rec().name, was, sel + ': an emptied box writes nothing');
+      type(D.querySelector(sel), '   ');
+      eq(rec().name, was, sel + ': nor do spaces');
+      const box = D.querySelector(sel);
+      type(box, '');
+      leave(box);
+      eq(box.value, was, sel + ': left empty, the box shows the name the record still has');
+      type(D.querySelector(sel), 'Renamed');
+      eq(rec().name, 'Renamed', sel + ': and a real name is written as typed, as before');
+    });
+  });
+  w.renderManage();
+  w.render();
+});
 t('“Skip to content” in a shared view stays in the shared view', async () => {
   /* It was a bare href="#maincontent": the share fragment was replaced, the
      hashchange handler read "no longer shared" and RELOADED — onto the reader's own

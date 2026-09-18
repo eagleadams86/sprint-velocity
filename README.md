@@ -1074,7 +1074,9 @@ All three lists are managed in one window, and all three rows work the same way.
 
 **A name is edited in place.** Type in the box; there is no *Rename* button and no prompt.
 A prompt was a box on top of a box to change one word, and it could not show you the other
-names while you picked one that fits beside them.
+names while you picked one that fits beside them. **A name is never blank**: emptying the box
+is how you start retyping, so nothing is written until there is something to write, and a box
+left empty shows the name again.
 
 **× deletes**, in the same red the app's other destructive buttons use. What a delete takes
 with it differs by row and the confirmation says so: a team takes its sprints, a PI takes

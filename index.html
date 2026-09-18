@@ -12612,6 +12612,32 @@ function moveInList(list, kind, id, dir) {
    prompt(). Mirrored from Team Dashboard, whose Teams window this one is now laid
    out like: a prompt is a modal on top of a modal to change one word, and it
    cannot show you the other names while you pick one that fits beside them. */
+/* ── A name is never blank (2026-09-18) ─────────────────────────────────────
+   The three boxes write on every keystroke, and select-all + Backspace is a
+   keystroke: `""` (or three spaces) was saved as the name and survived a reload.
+   A team with no name is an empty option in the header picker, a Rolling 5
+   heading reading "— Last 5 Sprints", and on Compare Teams a row button measuring
+   0×0 px called "Switch to " — a team nobody can reach by pointer or keyboard.
+
+   Emptying the box is how anybody starts retyping, so it is a PAUSE: nothing is
+   written while the box holds no visible character, and the name stays what it
+   was. Leaving the box still empty puts that name back in it, so the window never
+   shows a blank over a team that has one. One delegated listener, because the
+   rows are rebuilt under it. */
+function restoreBlankName(el) {
+  if (el.value.trim()) return;
+  const d = el.dataset;
+  const thing = d.nameTeam !== undefined ? teamById(d.nameTeam)
+    : d.nameArt !== undefined ? artById(d.nameArt)
+    : d.namePi !== undefined ? piById(d.namePi) : null;
+  if (thing && typeof thing.name === 'string' && thing.name.trim()) el.value = thing.name;
+}
+manageDialog.addEventListener('focusout', (e) => {
+  const el = e.target;
+  if (el && el.matches && el.matches('[data-name-team], [data-name-art], [data-name-pi]'))
+    restoreBlankName(el);
+});
+
 function nameCell(kind, thing, i) {
   return `<td><input type="text" data-name-${kind}="${esc(thing.id)}" maxlength="120"
     value="${esc(thing.name)}" aria-label="Name of ${kind}, row ${i + 1}"></td>`;
@@ -12657,6 +12683,7 @@ function renderManageTeamRows() {
     if (!t) return;
     /* The same 120-char cap keepKnown enforces at the boundary: maxlength stops
        typing past it but not a paste, and save() pushes the object as-is. */
+    if (!el.value.trim()) return;        // an emptied box is a pause, not a name — see nameCell
     t.name = el.value.slice(0, 120);
     /* Deliberately NOT renderManage() — that would replace the box being typed
        in. render() redraws the pickers in the chrome, which is everywhere else a
@@ -12733,6 +12760,7 @@ function renderManage() {
   manageDialog.querySelectorAll('[data-name-art]').forEach(el => el.oninput = () => {
     const a = artById(el.dataset.nameArt);
     if (!a) return;
+    if (!el.value.trim()) return;
     a.name = el.value.slice(0, 120);
     save(); render();
     /* Only the rows that print this name — not the row it is being typed in. */
@@ -12741,6 +12769,7 @@ function renderManage() {
   manageDialog.querySelectorAll('[data-name-pi]').forEach(el => el.oninput = () => {
     const p = piById(el.dataset.namePi);
     if (!p) return;
+    if (!el.value.trim()) return;
     p.name = el.value.slice(0, 120);
     save(); render();
   });

@@ -2849,3 +2849,12 @@ Each bullet below is one commit.
   Squ"), with the cut counted as a repair of the sender's own link. `shareLabel(names)` names
   whole teams for as long as they fit beside "and N more", and falls back to "N teams". The pin
   stays where it is — it is there for a crafted link, and this is the sender fitting inside it.
+- **A team, ART or PI name is never saved blank (2026-09-18).** The three in-place boxes write on
+  every keystroke, and select-all + Backspace is a keystroke: `""` (or three spaces) was stored
+  and survived a reload — an empty option in the header picker, "— Last 5 Sprints" as a heading,
+  and on Compare Teams a row button measuring 0×0 px named "Switch to ", which nobody can press.
+  An emptied box is a pause now (nothing is written, the record keeps its name), and one
+  delegated `focusout` on `manageDialog` puts the name back in a box left empty
+  (`restoreBlankName`). The boundary is unchanged: a nameless record in a hand-edited file still
+  arrives nameless — it renders without throwing and its box in this window is where it is
+  fixed. The test deep-copies `MANAGE_FIXTURE`, because these handlers write to the records.
