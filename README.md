@@ -828,7 +828,9 @@ Sprints recorded   Commitment completion   Direction   Best and worst
 *up 11* across nine sprints and *level* across the last five; Team Headroom reads *up 14*
 across its history and *down 1* over the window. Those aren't contradictions — a team can be
 climbing over three PIs and flat over a fortnight-and-a-half of them — but only one of the two
-answers was previously available, and it was the short one.
+answers was previously available, and it was the short one. The figure is measured between the
+first and last sprint that *have* a percentage: a sprint still running, or planned ahead, is
+drawn on the chart but adds nothing to how far the team has moved.
 
 **Best and worst** is the other thing an average hides. Two teams both averaging 85% — one
 running 84, 85, 86 and one running 40, 100, 115 — need completely different conversations.
@@ -943,7 +945,9 @@ apart: a sparkline of the same window, and the change in words.
 "up 12" means twelve percentage points from one end of the window to the other, read off a
 **least-squares fit** through the sprints — the same one the Rolling 5 chart draws its dashed
 line from — so one bad sprint at either end can't decide the direction on its own. It needs
-**three** sprints before it will say anything: two points make a slope, not a trend.
+**three** sprints before it will say anything: two points make a slope, not a trend. The "ends"
+are the first and last sprint with a percentage — a window that opens on a sprint with nothing
+committed doesn't stretch the figure.
 
 The sparkline is deliberately **colourless**, one neutral stroke. The level beside it already
 carries the RAG colour, and two colour languages in adjacent cells teaches a reader to trust

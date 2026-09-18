@@ -9613,6 +9613,67 @@ t('a control reached from the keyboard lands whole inside its table on a phone',
    ═════════════════════════════════════════════════════════════════════════ */
 group('History, tables and wording (2026-09-18 review)');
 
+/* A team described by one row per sprint, RENDERED on one view. `rows` are
+   [committed, committedCompleted, status, extra]; six slots to a PI, so the ninth
+   row is PI 2 · S3. Status is always EXPLICIT — a dateless sprint reads as
+   complete, and these tests are about the ones that are not. withState puts the
+   collections back; the settings object is restored whole, as withRenderedSample
+   does and for the reason it gives. */
+function historyFixture(rows, extra) {
+  return Object.assign({
+    teams: [{ id: 't1', name: 'Team One' }],
+    arts: [],
+    pis: [{ id: 'p1', name: 'PI 1' }, { id: 'p2', name: 'PI 2' }],
+    sprints: rows.map((r, i) => Object.assign({
+      id: 'h' + (i + 1), teamId: 't1', piId: i < 6 ? 'p1' : 'p2', sprintNumber: (i % 6) + 1,
+      committed: r[0], committedCompleted: r[1], totalCompleted: r[1], status: r[2] || 'complete',
+      added: 0, removed: 0, carriedIn: 0, carriedOut: 0, addedThenRemoved: 0
+    }, r[3] || {})),
+    plans: []
+  }, extra || {});
+}
+function renderedFixture(data, settings, fn) {
+  const st = w.svGet();
+  const kept = Object.assign({}, st.settings);
+  try {
+    return withState(data, () => {
+      Object.assign(st.settings, { activeTeamId: 't1', activePiId: null, artFilter: [],
+        includeSprint6InRolling: false }, settings);
+      w.render();
+      return fn(st, w.document);
+    });
+  } finally {
+    Object.keys(st.settings).forEach(k => { if (!(k in kept)) delete st.settings[k]; });
+    Object.assign(st.settings, kept);
+    w.render();
+  }
+}
+const tileByLabel = (d, label) => [...d.querySelectorAll('#views .tile')]
+  .find(el => el.querySelector('.label').textContent.trim().startsWith(label)) || null;
+
+t('a direction is measured across the sprints that have a figure, not the empty ones after them', () => {
+  /* 50 → 100 over six finished sprints is a fit of exactly 10 a sprint: up 50. The
+     running and planned sprints after them hold no percentage, and the figure was
+     read off the fitted line at THEIR end of the chart — 10 × 8 gaps. */
+  eq(Math.round(w.trendChange([50, 60, 70, 80, 90, 100, null, null, null])), 50,
+     'three empty sprints at the end add nothing to how far the team moved');
+  eq(Math.round(w.trendChange([null, 50, 60, 70, 80])), 30,
+     'nor does one at the start — Compare Teams, when the window opens on a sprint that committed 0');
+  eq(Math.round(w.trendChange([50, 60, 70, 80, 90, 100])), 50, 'and with no gaps nothing moves');
+  /* A gap in the MIDDLE is still a step the team took: 80 → 88 over three gaps. */
+  eq(Math.round(w.trendChange([80, null, 84, 88])), 8, 'a gap in the middle still counts as time passing');
+  eq(w.trendChange([null, null, 50, 60, null]), null, 'two real figures are still too few');
+  /* And on the page, which is where it was found. */
+  const rows = [50, 60, 70, 80, 90, 100].map(v => [100, v]);
+  rows.push([100, 20, 'active'], [0, 0, 'planned'], [0, 0, 'planned']);
+  renderedFixture(historyFixture(rows), { view: 'history' }, (st, d) => {
+    const dir = tileByLabel(d, 'Direction');
+    ok(dir, 'History has its Direction tile');
+    eq(dir ? reviewText(dir.querySelector('.value')) : null, 'Up 50',
+       'six sprints from 50% to 100%, then one running and two planned');
+  });
+});
+
 /* ═══════════════════ 2026-09-18 review — block B ═══════════════════════════
    One fix per commit, each test proven red against the commit before it. Tests
    for this block go DIRECTLY under its group() line and above the next banner,

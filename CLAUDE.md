@@ -2785,6 +2785,16 @@ the figures.** One fix per commit, each with a test proven red against the commi
 
 Figures a reviewer recomputed by hand and found moved by sprints that carry no figure, or
 worded for a number other than the one beside them. Each bullet below is one commit.
+- **A direction is measured across the sprints that HOLD a figure (2026-09-18).**
+  `trendChange()` returned `fit[last] - fit[0]` over every index, nulls included. History hands it
+  a null for each uncounted sprint, so six finished sprints at 50,60,70,80,90,100 followed by one
+  running and two planned read "Direction: Up 80" where the data moved 50 (the slope × 8 gaps,
+  not × 5), and one trailing running sprint turned "Down 8" into "Down 9". Compare Teams' Trend
+  had it from the other end: a window opening on a sprint that committed 0 (null %) read "up 40"
+  for 50,60,70,80. It is `fit[lastReal] - fit[firstReal]` now. `linearTrend()` and the chart's
+  dashed line are untouched — a line drawn on across the open sprints is what a projection looks
+  like; only the FIGURE stops there. A null in the MIDDLE still counts as a step. The demo's
+  pinned "up 11 / up 14" did not move: those teams have no open sprints.
 
 
 ### The Sprint Form and the Windows Round It

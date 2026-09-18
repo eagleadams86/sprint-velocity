@@ -6238,8 +6238,22 @@ function trendChange(values) {
   const real = values.filter(v => v !== null && v !== undefined && isFinite(v));
   if (real.length < MIN_TREND_POINTS) return null;
   const fit = linearTrend(values);
-  if (fit[0] === null || fit[fit.length - 1] === null) return null;
-  return fit[fit.length - 1] - fit[0];
+  /* Between the first and last sprint that HOLD a figure, not the first and last
+     index (2026-09-18). History hands this a null for every running and planned
+     sprint, and the fit was read across them too: 50,60,70,80,90,100 followed by
+     one running and two planned sprints read "Up 80" where the data moved 50 —
+     the slope (10 a sprint) multiplied by eight gaps rather than five. Compare
+     Teams had it from the other end: a window whose first sprint committed 0 has
+     no percentage there, and 50,60,70,80 after it read "up 40" for 30. The LINE
+     is still drawn across the whole chart, which is what a projection looks
+     like; the FIGURE is how far the team moved across what it has actually run.
+     A null in the MIDDLE still counts as a step — time passed there. */
+  const has = (v) => v !== null && v !== undefined && isFinite(v);
+  let first = 0, last = values.length - 1;
+  while (first < last && !has(values[first])) first++;
+  while (last > first && !has(values[last])) last--;
+  if (fit[first] === null || fit[last] === null) return null;
+  return fit[last] - fit[first];
 }
 
 /* What goes in the cell: the shape, then the direction in words. "up 12" rather
