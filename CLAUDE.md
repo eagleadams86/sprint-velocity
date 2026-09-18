@@ -1301,7 +1301,8 @@ but Charles had ever actually signed in.)
   a comment/notes field back**. `sanitizeIds()` enforces this as a **whitelist, not a
   blocklist** (added 2026-08-13): `keepKnown()` rebuilds every team/ART/PI/sprint/settings
   object from only the keys the app knows, pins each value to its type (numbers must be
-  finite numbers, dates must match `YYYY-MM-DD` or become `''`, status must be one of the
+  finite numbers, dates must be REAL `YYYY-MM-DD` dates — `isRealDate()`, a round trip through
+  the calendar, 2026-09-18 — or become `''`, status must be one of the
   four, names capped at 120), and drops stray top-level keys too — except the share-meta
   keys (`v`/`sharedAt`/`label`/`allTeams`/`range`), which the shared-view banner needs and
   which never persist because `save()` is a no-op there. **That last clause was only true of the share path**: Restore crosses the same
@@ -2631,7 +2632,7 @@ proven red against the commit before it.
   it and the banner read "Shared on Invalid Date" — the exact thing the pin was written to stop.
   A JS `Date` holds ±8.64e15 ms; the boundary now drops anything outside that. `sharedAt` is the
   only millisecond date that crosses the boundary (every other date is a `YYYY-MM-DD` string
-  held to `DATE_RE`), so nothing else took the same change. Test: 1e300, one past the limit and
+  held to `DATE_RE` — `isRealDate()` since 2026-09-18), so nothing else took the same change. Test: 1e300, one past the limit and
   -1e300 dropped; ±8.64e15 kept.
 - **A record whose own id is missing or not a string gets a minted one (2026-09-15).**
   `cleanKey` only rewrote strings, and `keepKnown`'s `id` kind only kept them, so a restore
@@ -3049,6 +3050,27 @@ impossible. Each bullet below is one commit.
   helper). An import or the demo arriving over a planning-screen rate DOES clear it: those land
   on a team the rate was not typed for. The share payload carries none of these settings, and
   Restore/Delete All replace the settings whole, so neither is a switch.
+- **A date has to be on the calendar, not merely shaped like one (2026-09-18).** `DATE_RE` in
+  `keepKnown()`'s `'date'` kind and `DATE_ONLY` in the importer were both
+  `/^\d{4}-\d{2}-\d{2}$/`, and `2026-00-10`, `2026-02-30` and `2026-13-01` all pass it — so a CSV
+  row, a Restore file and a SHARE LINK could each carry one in. `2026-00-10` does not parse:
+  `dayNum()` gave NaN, `forecast()`'s `startDay === null` guard let it by, `isoDay(NaN)` threw
+  "Invalid time value", and a running sprint starting on it plus a typed backlog took the whole
+  Rolling 5 view down. `2026-02-30` parses — V8 reads it as 2 March — so every sum on it is
+  quietly about another day. Fixed at BOTH ends. **The boundary**: `isRealDate(v)`, the round
+  trip (`new Date(Date.parse(v + 'T00:00:00Z')).toISOString().slice(0, 10) === v`); both regexes
+  are gone, an impossible date becomes `''` like any other bad one, and the importer refuses the
+  row with its existing POINTING message, never quoting the cell. **The guard**: `forecast()`
+  takes `startDay` only when `Number.isFinite`. **`isRealDate` is a `function` declaration using
+  only built-ins, on purpose**: `sanitizeIds()` runs from `let state = load()`, where `dayNum`,
+  `isoDay` and `DAY_MS` are consts still in their temporal dead zone — `isoDay(dayNum(v)) === v`
+  would have thrown at BOOT and handed back a blank board, invisibly to every test that calls
+  `sanitizeIds()` after boot. A `bootWithSavedCopy` test pins it. The readers were already safe
+  and are pinned as such: `fmtDate` → `''`, `fmtDateRange` → the other end, `sprintPace` → null,
+  `sprintStatus` compares strings. `updateStatusHint()` would print "Invalid Date", but it reads
+  the sprint FORM, and an `<input type="date">` sanitises its own value — setting `2026-02-30`
+  into it reads back `''` (asserted, not assumed). `teamCadence`/`cadenceDates` still call
+  `isoDay` on stored dates unguarded; the boundary is what keeps a NaN from them.
 
 
 ### Import, Boundaries and the Rest

@@ -10669,6 +10669,92 @@ t('a typed velocity and the forecast adjustments stay with their team by EVERY w
   const plain = APP_SRC.match(/state\.settings\.activeTeamId\s*=(?!=)/g) || [];
   eq(plain.length, 2, 'no way of changing team assigns activeTeamId behind the helper’s back');
 });
+/* `2026-00-10`, `2026-02-30` and `2026-13-01` are the right SHAPE, and the shape
+   was the whole test — so a CSV row, a Restore file and a share link could each
+   carry one in, and `2026-00-10` on a running sprint made render() throw. */
+const IMPOSSIBLE_DATES = ['2026-00-10', '2026-02-30', '2026-13-01', '2026-04-31', '2027-02-29'];
+t('a date that is the right shape and not on the calendar is emptied at the boundary (2026-09-18 review)', () => {
+  IMPOSSIBLE_DATES.forEach((bad) => {
+    const out = w.sanitizeIds(w.coerceShape({
+      teams: [{ id: 't1', name: 'Team One' }], arts: [], pis: [{ id: 'p1', name: 'PI 1' }],
+      sprints: [{ id: 's1', teamId: 't1', piId: 'p1', sprintNumber: 1, committed: 10,
+        startDate: bad, endDate: '2026-03-13' }],
+      settings: {},
+    }));
+    eq(out.sprints[0].startDate, '', bad + ' is not a date, so it is emptied like any other bad one');
+    eq(out.sprints[0].endDate, '2026-03-13', 'and the real date beside it is untouched');
+  });
+  ['2026-01-01', '2026-12-31', '2028-02-29', '2026-03-29', '2026-10-25'].forEach((good) => {
+    const out = w.sanitizeIds(w.coerceShape({
+      teams: [{ id: 't1', name: 'Team One' }], arts: [], pis: [],
+      sprints: [{ id: 's1', teamId: 't1', piId: null, sprintNumber: 1, startDate: good, endDate: good }],
+      settings: {},
+    }));
+    eq(out.sprints[0].startDate, good, good + ' is a real date (a leap day and both DST days among them) and survives');
+  });
+});
+t('the importer refuses a row whose date is not on the calendar, pointing at the column without quoting the cell (2026-09-18 review)', () => {
+  withState(capacityFixture(), () => {
+    IMPOSSIBLE_DATES.forEach((bad) => {
+      const r = w.parseImport('team\tpi\tsprint\tstart\tend\tcommitted\nTeam One\tPI 1\t5\t' + bad
+        + '\t2026-09-11\t20', 't1').rows[0];
+      eq(r.record, null, bad + ': the row is refused rather than imported');
+      ok(/^Row 2: the Start column needs a date written YYYY-MM-DD/.test(r.problem || ''),
+        'with the message that points at the row and the column', r.problem);
+      ok(!(r.problem || '').includes(bad), 'and never quotes the cell', r.problem);
+    });
+    const fine = w.parseImport('team\tpi\tsprint\tstart\tend\tcommitted\nTeam One\tPI 1\t5\t2026-08-31'
+      + '\t2026-09-11\t20', 't1').rows[0];
+    eq([fine.action, fine.record && fine.record.startDate], ['new', '2026-08-31'], 'a real date still imports');
+  });
+});
+t('a saved copy holding an impossible date still BOOTS, with the date emptied (2026-09-18 review)', async () => {
+  /* The validator is called from sanitizeIds(), which runs from `let state =
+     load()` — above `dayNum`/`isoDay`, which are consts and still in their
+     temporal dead zone there. Only a real boot can see that, so this is one. */
+  const got = await bootWithSavedCopy(savedCopy({
+    sprints: [{ id: 's1', teamId: 't1', piId: 'p1', sprintNumber: 1, committed: 30,
+      committedCompleted: 28, totalCompleted: 31, startDate: '2026-00-10', endDate: '2026-02-30' }],
+  }));
+  eq(got.teams.length, 1, 'the board is still there — the boundary did not throw at boot');
+  eq(got.sprints.length, 1);
+  eq([got.sprints[0].startDate, got.sprints[0].endDate], ['', ''], 'and neither impossible date was kept');
+  eq(got.sprints[0].committed, 30, 'the figures beside them came back as saved');
+});
+t('a date that cannot be parsed can never make the forecast throw (2026-09-18 review)', () => {
+  /* The other end of the same fault. withState() swaps the collections in behind
+     the boundary's back, which is the point: a running S5 whose start is
+     `2026-00-10`, and a later sprint with real dates for the cadence to anchor
+     on. `dayNum()` gave NaN, the `startDay === null` guard let it by, and
+     `isoDay(NaN)` threw "Invalid time value" — out of forecast(), and so out of
+     render(). */
+  const fx = datedCapacityFixture();
+  const extra = (n, start, end) => ({ id: 's' + n, teamId: 't1', piId: 'p1', sprintNumber: n,
+    startDate: start, endDate: end, committed: 20, committedCompleted: 5, totalCompleted: 5,
+    added: 0, removed: 0, carriedIn: 0, carriedOut: 0, addedThenRemoved: 0 });
+  fx.sprints.push(extra(5, '2026-00-10', '2099-12-31'), extra(6, '2099-01-05', '2099-01-16'));
+  withState(fx, () => {
+    typed(); adjust();
+    eq(w.targetSprintSlot('t1').sprintNumber, 5, 'the running S5 is the slot being planned');
+    let f = null, threw = null;
+    try { f = w.forecast('t1', 100, false); } catch (e) { threw = e.message; }
+    eq(threw, null, 'forecast() does not throw on a start date that is not a date');
+    eq(f && [f.fast, f.fastEnd, f.slowEnd], [4, null, null], 'it answers in sprints and offers no date it cannot work out');
+    /* The things that READ a date already refuse one like this rather than throw
+       or print "Invalid Date". */
+    eq(w.__svTestHooks.fmtDate('2026-00-10'), '', 'fmtDate prints nothing');
+    eq(w.fmtDateRange('2026-00-10', '2026-09-11'), 'to ' + w.__svTestHooks.fmtDate('2026-09-11'), 'fmtDateRange reads it as a missing end');
+    eq(w.sprintPace(fx.sprints[4]), null, 'and sprintPace has no pace to give');
+  });
+  /* And the sprint FORM cannot produce one: a date input sanitises its own value,
+     so an impossible date set into it reads back empty. Stated rather than assumed. */
+  const box = w.document.getElementById('f_start'), before = box.value;
+  box.value = '2026-02-30';
+  eq(box.value, '', 'a date input refuses 30 February by itself');
+  box.value = '2026-00-10';
+  eq(box.value, '', 'and month 00');
+  box.value = before;
+});
 
 /* ═══════════════════ 2026-09-18 review — block D ═══════════════════════════
    One fix per commit, each test proven red against the commit before it. Tests

@@ -3386,6 +3386,28 @@ function coerceShape(data) {
   return d;
 }
 
+/* ── A date that is on the calendar, not merely shaped like one (2026-09-18) ──
+   `2026-00-10`, `2026-02-30` and `2026-13-01` all match /^\d{4}-\d{2}-\d{2}$/,
+   and that shape test was the whole boundary — so a CSV row, a Restore file and
+   a SHARE LINK (attacker-controlled) could each carry one in. `2026-00-10` does
+   not parse at all: `dayNum()` gave NaN, `isoDay(NaN)` threw "Invalid time
+   value", and a running sprint starting on it plus a typed backlog took the whole
+   Rolling 5 view down. `2026-02-30` is worse in its way — V8 reads it as 2 March,
+   so every sum done on it is quietly about a different day from the one on screen.
+   The test is the round trip: a real date comes back from the calendar as itself.
+
+   A `function` DECLARATION, using nothing but built-ins, ON PURPOSE. It is called
+   from sanitizeIds(), which runs from `let state = load()` while every top-level
+   `const` below that line — `dayNum`, `isoDay`, `DAY_MS` among them — is still in
+   its temporal dead zone. Written as `isoDay(dayNum(v)) === v` this would throw
+   at BOOT, load()'s catch would turn that into a blank board over a good saved
+   copy, and no test that calls sanitizeIds() after boot could see it. */
+function isRealDate(v) {
+  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const ms = Date.parse(v + 'T00:00:00Z');
+  return Number.isFinite(ms) && new Date(ms).toISOString().slice(0, 10) === v;
+}
+
 /* ⚠️ THIS RUNS BEFORE THE REST OF THE FILE EXISTS. load() calls it from `let state
    = load()`, which sits several hundred lines above the domain helpers — so every
    `const` below that line (piKey, teamById, isIpSlot, todayISO …) is still in its
@@ -3510,7 +3532,6 @@ function sanitizeIds(data) {
      valid, so no key is ever created holding undefined — see cleanKey above
      for why that matters. Every drop or repair is counted in
      sanitizeIds.pruned so boot can persist the scrub. */
-  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
   const STATUSES = ['auto', 'planned', 'active', 'complete'];
   const VIEWS = ['sprint', 'pi', 'rolling', 'history', 'trend', 'art', 'teams'];   // renderTabs() owns this list
   /* ── A number somebody STATED, or NaN (2026-09-18) ──────────────────────────
@@ -3567,7 +3588,9 @@ function sanitizeIds(data) {
         if (v === '') out[k] = '';
         else { const n = Number(v); if (Number.isFinite(n)) out[k] = n; }
       } else if (kind === 'date') {
-        out[k] = (typeof v === 'string' && DATE_RE.test(v)) ? v : '';
+        /* On the calendar, not just the right shape — see isRealDate(). An
+           impossible date becomes '' like any other bad one (2026-09-18). */
+        out[k] = isRealDate(v) ? v : '';
       } else if (kind === 'bool') {
         out[k] = !!v;
       } else if (kind === 'status') {
@@ -4596,7 +4619,12 @@ function forecast(teamId, points, includeSix) {
          exactly the case where the slot already has its own dates to use. */
       || (c.anchor.piId === (slot.piId || null) && c.anchor.sprintNumber === slot.sprintNumber
           ? c.anchor.startDate : null);
-    if (iso) startDay = dayNum(iso);
+    /* `isFinite`, because `startDay === null` is the only "no date" the code
+       below knows, and a NaN walked straight past it into isoDay(), which throws
+       "Invalid time value" and takes render() with it (2026-09-18). The boundary
+       refuses an impossible date now; this is the other end, so that nothing
+       which ever gets past it can do that again. */
+    if (iso) { const dn = dayNum(iso); if (Number.isFinite(dn)) startDay = dn; }
   }
   /* `deliver` is the delivering sprints; the lost ones are walked WITH them,
      because neither kind can be the IP sprint (2026-09-18). */
@@ -13944,7 +13972,6 @@ function splitImportLine(line, delim) {
   return out;
 }
 
-const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 /* Reads the box into a plan: one entry per data row, each already decided — what
    it would write, and if it would write nothing, why not. Nothing here touches
@@ -14057,7 +14084,10 @@ function parseImport(text, fallbackTeamId) {
 
     for (const key of ['startDate', 'endDate']) {
       const v = raw[key];
-      if (v && !DATE_ONLY.test(v)) {
+      /* isRealDate(), not a shape test: 2026-02-30 is the right shape and still
+         not a date. The message is the same pointing one — it names the column
+         and never quotes the cell (2026-09-18). */
+      if (v && !isRealDate(v)) {
         bad = `${at}the ${COL[key]} column needs a date written YYYY-MM-DD — a spreadsheet will do it `
           + 'with Format cells.';
         break;

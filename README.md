@@ -1765,7 +1765,9 @@ what would happen to it — new sprint, overwrites what is there, or a sentence 
 can't be used. Rows that can't be used are **skipped and named, never guessed at**: a figure
 that is present and isn't a number stops its row, because "n/a" in a committed column almost
 always means the columns are one out, and reading it as 0 would import a plausible, wrong
-history.
+history. A date has to be **on the calendar**, not just written `YYYY-MM-DD`: `2026-02-30`
+and `2026-13-01` stop their row the same way. The same test guards a Restore file and a share
+link, where a date that isn't one is emptied rather than kept.
 
 **An error names the row and the column, and never repeats what was in the cell** —
 *Row 7: no team by that name in the Team column*. The row is the line in your paste, blank
