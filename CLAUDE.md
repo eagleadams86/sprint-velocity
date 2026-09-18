@@ -2876,6 +2876,17 @@ worded for a number other than the one beside them. Each bullet below is one com
 
 Found by entering sprints the long way round, from an empty app, with real key presses.
 Each bullet below is one commit.
+- **A prefilled Carried In follows the form to another slot (2026-09-18).**
+  `maybePrefillCarriedIn()` "only ever fills an empty box" — and returned early on the number it
+  had put there ITSELF, so the re-projection the `f_num`/`f_pi` listeners call it for never
+  happened. Add Sprint on S3 where S2 carried out 18: the box says 18, with the note. Move the
+  form to S5 (S4 has no record): the dates re-project, the note disappears, the box still says
+  18, and Save stored `carriedIn: 18` on a sprint nothing carried into. Same answer as the dates:
+  `f_carriedIn.dataset.auto = '1'` marks our guess, the box's `input` listener clears the mark,
+  `openSprint()` resets it, and while it is set the box counts as empty — cleared, then re-guessed
+  from the new slot's predecessor or left empty. An existing figure or a typed one still always
+  wins. **The `openSprint()` reset is load-bearing**: without it a mark left by the last form
+  makes the next saved sprint's own figure disposable (the test's last step).
 
 
 ### The Forecast Card, Dates and the Demo

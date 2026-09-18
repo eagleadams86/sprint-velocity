@@ -11728,6 +11728,7 @@ function openSprint(teamId, piId, sprintNumber) {
   F('f_start').value = s.startDate || '';
   F('f_end').value = s.endDate || '';
   F('f_start').dataset.auto = '';    // nothing projected yet — these are the sprint's own
+  F('f_carriedIn').dataset.auto = '';   // same for carried in: maybePrefillCarriedIn marks its own guess
   ['committed', 'committedCompleted', 'totalCompleted', 'added', 'removed', 'carriedIn',
    'carriedOut', 'addedThenRemoved']
     .forEach(k => { F('f_' + k).value = (s[k] === 0 || s[k]) ? s[k] : ''; });
@@ -11828,8 +11829,13 @@ F('f_pi').addEventListener('change', () => {
   checkSprintForm();
 });
 
-/* Once the user types their own carried-in, the note explaining the guess is stale. */
-F('f_carriedIn').addEventListener('input', () => { F('carryHint').hidden = true; });
+/* Once the user types their own carried-in, the note explaining the guess is stale —
+   and the figure is theirs from here on, not a guess to be re-worked when the form
+   moves to another slot (2026-09-18: see maybePrefillCarriedIn). */
+F('f_carriedIn').addEventListener('input', () => {
+  F('carryHint').hidden = true;
+  F('f_carriedIn').dataset.auto = '';
+});
 
 /* Same for the dates: once they've been touched by hand they're the user's, not a
    projection to be re-worked when the sprint number changes. */
@@ -11973,15 +11979,29 @@ F('jiraParseBtn').onclick = () => {
    sprint form is opened rather than only when a Jira report is pasted — that was
    the one path that offered it, which made it look broken everywhere else.
 
-   Only ever fills an empty box: an existing figure, or one already typed, wins. */
+   Only ever fills an empty box: an existing figure, or one already typed, wins.
+
+   ITS OWN GUESS IS NOT A FIGURE (2026-09-18 review). The Sprint and PI pickers call
+   this again because moving the form changes which sprint precedes it — and until
+   this date the early return below fired on the number this function had put there
+   itself, so the re-projection never happened. Add Sprint on S3 (S2 carried out 18)
+   showed 18 with the note; moving the form to S5, whose S4 has no record, re-worked
+   the dates, hid the note and left 18 in the box, and Save stored `carriedIn: 18`
+   on a sprint nothing had carried into. The dates solved this with
+   `f_start.dataset.auto`; this is the same mark on this box. While the mark is set
+   the box counts as empty: it is cleared, then filled again from the new slot's
+   predecessor or left empty. Typing clears the mark (the `input` listener above),
+   and so does openSprint(). */
 function maybePrefillCarriedIn() {
   const el = F('f_carriedIn');
   const hint = F('carryHint');
   hint.hidden = true;
+  if (el.dataset.auto === '1') { el.value = ''; el.dataset.auto = ''; }
   if (el.value.trim() !== '') return;
   const prev = previousCarriedOut();
   if (prev === null) return;
   el.value = prev;
+  el.dataset.auto = '1';
   const from = previousSprint();
   hint.textContent = `Carried in was filled in as ${fmtNum(prev)} — what `
     + `${from ? sprintLabel(from) : 'the previous sprint'} carried out. Change it if that's not right.`;

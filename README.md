@@ -584,7 +584,10 @@ real history out of your averages.
 Whenever you open a sprint that has no carried-in figure yet, it's filled with what the
 previous sprint carried out — crossing a PI boundary if you're on sprint 1. A note under the
 fields says which sprint it came from, and it never overwrites a number you've already
-entered or typed.
+entered or typed. The guess belongs to the slot it was made for: change the Sprint or PI picker
+on the form and it is worked out again for the new slot — or taken away, if the sprint before
+that one has no record — rather than riding along (until 2026-09-18 it rode along, without its
+note, and saved).
 
 ### Blank Means Zero
 

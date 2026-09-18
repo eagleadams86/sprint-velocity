@@ -10014,6 +10014,58 @@ t('a Find hit does not bring the open ART menu with it', async () => {
    test never fails the floor, so a fix commit leaves it alone.
    ═════════════════════════════════════════════════════════════════════════ */
 group('the sprint form and the windows round it (2026-09-18 review)');
+/* Found by entering sprints the long way round. Each test drives the real form or
+   the real window; the fixtures are dateless unless the finding is about dates. */
+const formFixture = (rows) => ({
+  teams: [{ id: 't1', name: 'Team One' }], arts: [], plans: [],
+  pis: [{ id: 'p1', name: 'PI 1' }],
+  sprints: rows.map((r) => Object.assign({ id: 's' + r.sprintNumber, teamId: 't1', piId: 'p1',
+    committed: 30, committedCompleted: 30, totalCompleted: 30, added: 0, removed: 0,
+    carriedIn: 0, carriedOut: 0, addedThenRemoved: 0 }, r))
+});
+const fire = (W, el, type) => el.dispatchEvent(new W.Event(type, { bubbles: true }));
+
+t('a prefilled Carried In follows the form to another slot instead of going stale', () => {
+  withState(formFixture([{ sprintNumber: 1 }, { sprintNumber: 2, carriedIn: 4, carriedOut: 18 }]), () => {
+    const d = w.document;
+    const cin = d.getElementById('f_carriedIn'), numSel = d.getElementById('f_num');
+    const hint = d.getElementById('carryHint');
+    const move = (n) => { numSel.value = String(n); fire(w, numSel, 'change'); };
+    try {
+      w.openSprint('t1', 'p1', 3);
+      eq(cin.value, '18', 'Add Sprint on S3 offers what S2 carried out');
+      ok(!hint.hidden, 'with the note saying where it came from');
+      move(5);
+      eq(numSel.value, '5', 'the form moved to S5, whose S4 has no record');
+      eq(cin.value, '', 'so the guess made for S3 is withdrawn — it stayed 18, with no note, and saved on S5');
+      ok(hint.hidden, 'and no note claims a source');
+      move(3);
+      eq(cin.value, '18', 'moving back re-makes the guess');
+      ok(!hint.hidden, 'and its note');
+      /* A typed figure is the user’s, wherever the form goes next. */
+      cin.value = '7'; fire(w, cin, 'input');
+      move(5);
+      eq(cin.value, '7', 'a figure typed by hand is never cleared');
+      move(3);
+      eq(cin.value, '7', 'nor replaced by a fresh guess');
+      d.getElementById('sprintDialog').close();
+      /* And a saved sprint’s own figure is a fact, not a guess. */
+      w.openSprint('t1', 'p1', 2);
+      eq(cin.value, '4', 'a saved sprint opens on its own carried in');
+      move(4);
+      eq(cin.value, '4', 'and keeps it when the form is moved');
+      d.getElementById('sprintDialog').close();
+      /* The mark does not outlive the form it was made on. */
+      w.openSprint('t1', 'p1', 3);
+      d.getElementById('sprintDialog').close();
+      w.openSprint('t1', 'p1', 2);
+      move(4);
+      eq(cin.value, '4', 'a guess marked on the last form does not make this one’s figure disposable');
+    } finally {
+      d.getElementById('sprintDialog').close();
+    }
+  });
+});
 
 /* ═══════════════════ 2026-09-18 review — block C ═══════════════════════════
    One fix per commit, each test proven red against the commit before it. Tests
