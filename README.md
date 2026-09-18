@@ -1756,7 +1756,11 @@ backup, for moving between browsers, or for handing a colleague a starting point
 that follows, for ten seconds. It puts back everything that delete reached: a team comes back
 with its sprints, its capacity adjustments and its business value, field for field, and a PI
 deleted with *Keep the sprints* comes back with the grouping restored rather than nineteen
-sprints to re-file by hand.
+sprints to re-file by hand. **It puts back what the delete took and nothing else**: a team
+renamed, an ART added or a sprint edited *after* the delete stays exactly as you left it, and
+Undo does not move you back to the tab or team you were on. (Until 2026-09-18 it rolled the
+whole board back to the moment before the delete — and because the offer waits for the
+*Teams, ARTs & PIs* window to close, that could silently discard everything done in it since.)
 
 The countdown pauses while the toast has keyboard focus, so tabbing to the button doesn't
 race it. A delete made *inside* the **Teams, ARTs & PIs** window — a team, an ART or a PI —

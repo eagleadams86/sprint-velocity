@@ -3893,11 +3893,12 @@ function sanitizeIds(data) {
    of every figure a re-save would change. This is the other half of that care: the
    confirm asks, and the toast that follows can put it back.
 
-   A whole-state snapshot rather than a list of what was removed, deliberately. The
-   deletes here reach four collections and two settings between them, and a
-   hand-written inverse for each is a list somebody has to remember to extend the
-   next time a delete learns to tidy up after itself. Stringify beats that, and at
-   this size costs nothing worth measuring.
+   Snapshots rather than a hand-written inverse per delete, deliberately. The
+   deletes here reach four collections and two settings between them, and an
+   inverse for each is a list somebody has to remember to extend the next time a
+   delete learns to tidy up after itself. Stringify beats that, and at this size
+   costs nothing worth measuring. (What is DONE with the snapshots changed on
+   2026-09-18 — see undoable() below.)
 
    Deliberately NOT a stack: one step back, offered for as long as the toast is up
    and then gone. An undo history is a feature with its own rules — what survives a
@@ -3905,15 +3906,54 @@ function sanitizeIds(data) {
    answer here. Delete all data keeps its own dialog and its export-first prompt
    instead: that one is meant to be hard, and a 10-second Undo would quietly make it
    the easiest destructive thing in the app. */
-const UNDO_KEYS = ['teams', 'arts', 'pis', 'sprints', 'plans', 'objectives', 'settings'];
+const UNDO_LISTS = ['teams', 'arts', 'pis', 'sprints', 'plans', 'objectives'];
 
+/* ── Undo puts back what the DELETE took, and nothing else (2026-09-18) ────────
+   It used to write the whole `before` snapshot over the state, settings included.
+   That is only an undo if nothing has happened since — and the toast is HELD while
+   a dialog is open, so inside Teams, ARTs & PIs the offer outlives any amount of
+   further work: delete a team, rename another, add an ART and a PI, press Done,
+   press Undo — and the rename, the ART and the PI were all gone, under a toast
+   reading "Put back". A delete made on one tab and undone on another also dragged
+   the reader back to the old team, tab and forecast figures.
+
+   So three copies, record by record: what was there BEFORE, what the delete left
+   (AFTER), and what is there NOW.
+   - A record the delete REMOVED comes back, at its old place in the list.
+   - A record the delete CHANGED (Delete ART clears its teams' `artId`; Keep the
+     Sprints renumbers them) goes back to how it was — unless it has been changed
+     again since, and then the later change stands.
+   - Anything added or edited since is not this undo's business.
+   - A setting is put back only if the delete moved it and nothing has since.
+   Every record in these six lists has an id — the boundary mints one for any
+   that arrives without (`ownId`) — which is what makes this a lookup. */
 function undoable(fn, message) {
-  const before = JSON.stringify(UNDO_KEYS.reduce((a, k) => { a[k] = state[k]; return a; }, {}));
+  const snap = () => JSON.stringify({
+    lists: UNDO_LISTS.reduce((a, k) => { a[k] = state[k]; return a; }, {}),
+    settings: state.settings
+  });
+  const before = snap();
   fn();
   save();
+  const after = snap();
   return { message, restore: () => {
-    const back = JSON.parse(before);
-    UNDO_KEYS.forEach(k => { state[k] = back[k]; });
+    const b = JSON.parse(before), a = JSON.parse(after);
+    const same = (x, y) => JSON.stringify(x) === JSON.stringify(y);
+    UNDO_LISTS.forEach(k => {
+      const was = b.lists[k] || [], left = new Map((a.lists[k] || []).map(r => [r.id, r]));
+      const now = state[k].slice();
+      const at = (id) => now.findIndex(r => r.id === id);
+      was.forEach((rec, i) => {
+        const l = left.get(rec.id), j = at(rec.id);
+        if (!l) { if (j < 0) now.splice(Math.min(i, now.length), 0, rec); }
+        else if (!same(l, rec) && j >= 0 && same(now[j], l)) now[j] = rec;
+      });
+      state[k] = now;
+    });
+    Object.keys(b.settings).forEach(key => {
+      if (!same(b.settings[key], a.settings[key]) && same(state.settings[key], a.settings[key]))
+        state.settings[key] = b.settings[key];
+    });
     save();
     render();
   } };

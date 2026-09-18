@@ -2812,3 +2812,17 @@ Each bullet below is one commit.
   boot a frame on a real share link (marker 0 is plain JSON, so no compression is needed) — the
   suite had no shared-view frame before this. A reload gives a frame a new window, so the test
   marks the old one and looks for the mark.
+- **Undo puts back what the delete took, and nothing done since (2026-09-18).** `undoable()`
+  wrote its whole `before` snapshot — six collections AND `settings` — over the state. That is
+  an undo only if nothing has happened since, and fix 6 of the 2026-09-03 audit HOLDS the toast
+  while a dialog is open: delete a team in Teams, ARTs & PIs, rename another, add an ART and a
+  PI, Done, Undo — the rename, the ART and the PI were gone under "Put back". Outside the window
+  it dragged the reader back to the old team and tab and reset the forecast boxes. It is a
+  three-way merge by record id now (before / what the delete left / now): a record the delete
+  REMOVED comes back at its old index; one it CHANGED (Delete ART clearing `artId`, Keep the
+  Sprints renumbering) goes back unless it has been changed again since; anything added or
+  edited since is untouched; a setting goes back only if the delete moved it and nothing has
+  since. **Considered and not done: refusing the undo when anything changed** — honest, but it
+  makes the offer worthless in exactly the window where the toast is held longest. Still one
+  step and not a stack, and the snapshots are still stringified rather than a hand-written
+  inverse per delete — the older comment's reasoning holds; only what is done with them changed.

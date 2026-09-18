@@ -9669,6 +9669,58 @@ const SHARED_BOARD = {
     committedCompleted: 8, totalCompleted: 8, added: 0, removed: 0, carriedIn: 0, carriedOut: 2,
     addedThenRemoved: 0 }], plans: [], objectives: [], settings: {}
 };
+t('Undo puts back what the delete took, and leaves everything done since alone', () => {
+  /* The reviewer's run: delete a team inside Teams, ARTs & PIs (the toast is held
+     while the window is open), rename another, add an ART and a PI, Done, Undo —
+     and the rename, the ART and the PI all went, under "Put back". */
+  withNoSave(() => withState(importFixture(), () => {
+    const st = w.svGet();
+    const keep = { view: st.settings.view, activeTeamId: st.settings.activeTeamId };
+    try {
+      st.arts = [{ id: 'a1', name: 'ART One' }];
+      st.teams.forEach((x) => { x.artId = 'a1'; });
+      st.settings.activeTeamId = 't1';
+      st.settings.view = 'sprint';
+      const names = st.teams.map((x) => x.name);
+      /* Delete team t1 the way the app does: the team, its sprints, and the active
+         team moved off it. */
+      const step = w.undoable(() => {
+        st.teams = st.teams.filter((x) => x.id !== 't1');
+        st.sprints = st.sprints.filter((x) => x.teamId !== 't1');
+        st.settings.activeTeamId = 't2';
+      }, 'gone');
+      /* …then carry on working. */
+      st.teams[0].name = 'Renamed After Delete';
+      st.arts.push({ id: 'a2', name: 'Brand New ART' });
+      st.pis.push({ id: 'pNew', name: 'PI 2026.4' });
+      st.settings.view = 'rolling';
+      step.restore();
+      eq(st.teams.map((x) => x.id), ['t1', 't2'], 'the deleted team is back, in its old place');
+      eq(st.teams[0].name, names[0], 'as it was');
+      eq(st.teams[1].name, 'Renamed After Delete', 'the rename made since is KEPT');
+      ok(st.arts.some((x) => x.id === 'a2'), 'so is the ART added since');
+      ok(st.pis.some((x) => x.id === 'pNew'), 'and the PI');
+      eq(st.sprints.length, 1, 'its sprint came back with it');
+      eq(st.settings.activeTeamId, 't1', 'the setting the delete moved goes back');
+      eq(st.settings.view, 'rolling', 'a setting the reader moved since does not');
+
+      /* A record the delete CHANGED goes back — unless it has been changed again. */
+      const step2 = w.undoable(() => {
+        st.arts = st.arts.filter((x) => x.id !== 'a1');
+        st.teams.forEach((x) => { if (x.artId === 'a1') delete x.artId; });
+      }, 'ART gone');
+      st.teams[1].artId = 'a2';
+      step2.restore();
+      ok(st.arts.some((x) => x.id === 'a1'), 'the ART is back');
+      eq(st.teams[0].artId, 'a1', 'an untouched team is back on it');
+      eq(st.teams[1].artId, 'a2', 'a team moved since stays where it was put');
+    } finally {
+      st.settings.view = keep.view;
+      st.settings.activeTeamId = keep.activeTeamId;
+    }
+  }));
+  w.render();
+});
 t('“Skip to content” in a shared view stays in the shared view', async () => {
   /* It was a bare href="#maincontent": the share fragment was replaced, the
      hashchange handler read "no longer shared" and RELOADED — onto the reader's own
