@@ -2857,6 +2857,20 @@ worded for a number other than the one beside them. Each bullet below is one com
   are strings it is `localeCompare(y, undefined, { sensitivity: 'base', numeric: true }) * dir`
   now, a tie falling through to `home` order like any other. Number columns never reach it, nulls
   still go to the foot first, and History's ISO `dates` strings order the same under `numeric`.
+- **The ART menu closes when the keyboard leaves it (2026-09-18).** It closed on a mouse press
+  off it, and on Escape only while the focus was INSIDE `.art-pick` — so ArrowDown, two ticks
+  with Space, four Tabs left it hanging open over the table (`aria-expanded="true"`) with no key
+  that would shut it, and a ⌘K hit landed with the menu re-opened by `wireArtToolbar()`. Three
+  changes. A document-level `focusout` closes it when focus LANDS outside the picker — **and a
+  null `relatedTarget` is deliberately ignored, which is the guard the render-surviving state
+  depends on**: a tick's re-render destroys the focused box, a press on a label's text or the
+  menu's padding blurs towards nothing, and so does the window losing focus; none is the reader
+  leaving, all have no relatedTarget, and a Tab always has one. Escape now returns only when a
+  `dialog[open]` owns it, and hands the keyboard to the button only if it was in the picker.
+  `goToSearchHit()` clears `artPickOpen`, the flag that survives a render. **Flow Metrics, the
+  reference implementation, has the same gap** and wants the same three changes. The tests send
+  the `focusout` by hand when `focus()` in an unwatched frame did not fire one (see
+  `spinFocusIn`) — real where the browser gives it, never silently skipped.
 
 ### The Sprint Form and the Windows Round It
 

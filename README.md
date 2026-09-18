@@ -1148,7 +1148,9 @@ at:
   there is no "select all" to remember to press. Put the last un-grouped team on an ART and
   the *No ART* option goes with it, so a filter left sitting on it drops that tick rather than
   filtering to nothing behind a picker that no longer offers the option. **PI by Team** and
-  **PI Trend** share the same picker, so the scope follows you between all three.
+  **PI Trend** share the same picker, so the scope follows you between all three. The menu
+  stays open while you tick and closes when you leave it — a press anywhere else, **Tab**bing
+  on past it, **Esc** from wherever the keyboard is, or a **Find** hit.
   (Before September 2026 it was a single-choice dropdown, so wanting two ARTs out of five
   meant taking every team you support and reading past the ones you hadn't asked about.)
 - Everything below it follows: the table, its footer row, the

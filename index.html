@@ -10701,9 +10701,36 @@ document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape' || !artPickOpen) return;
   const inside = document.activeElement
     && document.activeElement.closest && document.activeElement.closest('.art-pick');
-  if (!inside) return;              /* a dialog's own Escape is not ours to take */
+  /* A dialog's own Escape is not ours to take — but that is the ONLY Escape that
+     isn't (2026-09-18). This used to return whenever the focus was outside the
+     picker, so a menu left open behind a reader who had tabbed on could not be
+     shut from the keyboard at all. The keyboard goes back to the button only
+     when it was in the picker to begin with: from anywhere else the reader is
+     somewhere, and being pulled back here would undo it. */
+  if (!inside && document.querySelector('dialog[open]')) return;
   e.stopPropagation();
-  closeArtMenu(true);
+  closeArtMenu(!!inside);
+}, true);
+/* THE KEYBOARD'S "PRESS OUTSIDE" (2026-09-18). The menu closed on a mouse press
+   off it and on nothing else, so a reader who opened it with ArrowDown, ticked two
+   ARTs with Space and tabbed on left it hanging open over the table
+   (`aria-expanded="true"`) with no key that would shut it. Focus LANDING outside
+   the picker is the same event as a press outside it.
+
+   ONLY WHEN IT LANDS SOMEWHERE — a null `relatedTarget` is deliberately ignored,
+   and that is the guard the three variables above depend on. A tick re-renders
+   and destroys the box that had the keyboard, which leaves the focus nowhere for
+   a moment before wireArtToolbar() puts it back; a press on a label's text, or on
+   the menu's own padding, blurs the box towards nothing as well; so does the
+   window losing focus. None of those is the reader leaving, and all of them have
+   no relatedTarget. A Tab always has one. Bound once, out here, like the two
+   handlers above and for the same reason. Flow Metrics' picker has the same gap. */
+document.addEventListener('focusout', (e) => {
+  if (!artPickOpen) return;
+  const from = e.target && e.target.closest && e.target.closest('.art-pick');
+  const to = e.relatedTarget;
+  if (!from || !to || (to.closest && to.closest('.art-pick'))) return;
+  closeArtMenu();
 }, true);
 document.addEventListener('mousedown', (e) => {
   if (!artPickOpen) return;
@@ -11575,6 +11602,11 @@ function renderSearchResults() {
    rather than needing a second copy of those rules here. */
 function goToSearchHit(h) {
   F('searchDialog').close();
+  /* A hit is the reader going somewhere else, so the ART menu does not follow
+     them (2026-09-18): opened by a press and left up when ⌘K was pressed, it was
+     re-opened by wireArtToolbar() over the view the hit landed on — `artPickOpen`
+     is what survives a render, so it is what has to be cleared. */
+  artPickOpen = false;
   if (h.teamId && teamById(h.teamId)) state.settings.activeTeamId = h.teamId;
   /* A hit on an ART REPLACES the scope rather than joining it: Find was asked
      for one ART, and landing on a view still showing the two that were ticked

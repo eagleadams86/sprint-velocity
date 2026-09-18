@@ -9908,6 +9908,104 @@ t('teams sort by name the way a reader files them: É with E, Team 2 before Team
   } finally { hook.setSort('teamsTable', null, 'desc'); }
 });
 
+/* The ART picker and a reader who is not using a mouse. Three tests rather than
+   one so each is proven red on its own; one helper so they share a way in. */
+async function artPickFrame(tag, fn) {
+  await inFrame(tag, {}, async (W, D) => {
+    D.querySelector('.tab[data-view="teams"]').click();
+    await wait(350);
+    const btn = () => D.getElementById('artFilterBtn');
+    await fn(W, D, {
+      btn,
+      says: () => ({ open: !D.getElementById('artFilterMenu').hidden,
+                     expanded: btn().getAttribute('aria-expanded') }),
+      boxes: () => [...D.querySelectorAll('input[data-art-pick]')],
+      outside: () => D.querySelector('#teamsTable thead button[data-sortcol]'),
+      escape: () => D.dispatchEvent(new W.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })),
+      /* A REAL focus move — and, because focus() inside a frame nobody is looking
+         at can set activeElement without firing the events (see spinFocusIn), the
+         focusout the browser owes is sent by hand when it did not arrive by itself. */
+      moveFocus: (from, to) => {
+        let fired = false;
+        const seen = () => { fired = true; };
+        D.addEventListener('focusout', seen, true);
+        to.focus({ preventScroll: true });
+        D.removeEventListener('focusout', seen, true);
+        if (!fired) from.dispatchEvent(new W.FocusEvent('focusout', { bubbles: true, relatedTarget: to }));
+      }
+    });
+  });
+}
+t('the ART menu closes when the keyboard leaves it — and only then', async () => {
+  await artPickFrame('artpickleave', async (W, D, p) => {
+    const st = W.svGet();
+    const tick = (box) => { box.focus(); box.checked = true; box.dispatchEvent(new W.Event('change', { bubbles: true })); };
+    p.btn().focus();
+    p.btn().dispatchEvent(new W.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+    eq(p.says(), { open: true, expanded: 'true' }, 'ArrowDown opens it');
+    ok(p.boxes().length >= 2, 'the demo has two ARTs to tick', p.boxes().length);
+    tick(p.boxes()[0]);
+    tick(p.boxes()[1]);
+    eq(st.settings.artFilter.length, 2, 'two ARTs ticked from the keyboard');
+    eq(p.says().open, true, 'and the menu rode out both re-renders — the guard the new close must not break');
+    /* Focus going NOWHERE is not the reader leaving: a tick's re-render, a press on
+       a label's text, the window losing focus. All have no relatedTarget. */
+    p.boxes()[1].dispatchEvent(new W.FocusEvent('focusout', { bubbles: true, relatedTarget: null }));
+    eq(p.says().open, true, 'a blur towards nothing leaves it open');
+    p.boxes()[1].focus();
+    p.moveFocus(p.boxes()[1], p.boxes()[0]);
+    eq(p.says().open, true, 'and so does a move INSIDE the picker');
+    /* Tab on, out of the picker, onto the table under it. */
+    ok(p.outside(), 'there is a control past the picker to land on');
+    p.moveFocus(p.boxes()[0], p.outside());
+    eq(p.says(), { open: false, expanded: 'false' }, 'focus landing outside the picker closes the menu');
+    eq(st.settings.artFilter.length, 2, 'and the scope the reader ticked is kept');
+  });
+});
+t('Escape shuts the ART menu with the keyboard anywhere, but never under an open window', async () => {
+  await artPickFrame('artpickesc', async (W, D, p) => {
+    /* click() does not move focus, so the menu is open and the focus is still on
+       the table heading — where a reader is who tabbed out to the browser and back. */
+    p.outside().focus({ preventScroll: true });
+    p.btn().click();
+    eq(p.says().open, true, 'opened, focus outside it');
+    p.escape();
+    eq(p.says(), { open: false, expanded: 'false' }, 'Escape closes it although the focus is outside');
+    ok(!(D.activeElement && D.activeElement.id === 'artFilterBtn'), 'without pulling the keyboard back to the button');
+    /* From INSIDE it still hands the keyboard back, as it always did. */
+    p.btn().click();
+    p.boxes()[0].focus();
+    p.escape();
+    eq([p.says().open, D.activeElement && D.activeElement.id], [false, 'artFilterBtn'], 'from inside, the button gets the keyboard');
+    /* A dialog's Escape is still the dialog's. Focus is put outside the picker
+       first: from INSIDE it, the window opening is the keyboard leaving, and the
+       menu would (rightly) already be shut. */
+    p.outside().focus({ preventScroll: true });
+    p.btn().click();
+    openFind(W, D, 'zzzz');
+    eq(p.says().open, true, 'the menu is still up under the window');
+    p.escape();
+    eq(p.says().open, true, 'Escape under an open window is not taken by the picker');
+    D.getElementById('searchDialog').close();
+  });
+});
+t('a Find hit does not bring the open ART menu with it', async () => {
+  await artPickFrame('artpickfind', async (W, D, p) => {
+    p.btn().click();
+    eq(p.says().open, true, 'the menu is up when Find is opened');
+    openFind(W, D, 'Platform');
+    const hit = [...D.querySelectorAll('#searchResults .hit')]
+      .find(h => /— ART$/.test(reviewText(h.querySelector('.hitwhere'))));
+    ok(hit, 'Find has a hit for the ART');
+    if (!hit) return;
+    hit.click();
+    await wait(350);
+    ok(!D.getElementById('searchDialog').open, 'the hit closed the window');
+    eq(W.svGet().settings.view, 'teams', 'and landed on Compare Teams, where the picker is');
+    eq(p.says(), { open: false, expanded: 'false' }, 'with the menu shut, not re-opened over the hit');
+  });
+});
+
 /* ═══════════════════ 2026-09-18 review — block B ═══════════════════════════
    One fix per commit, each test proven red against the commit before it. Tests
    for this block go DIRECTLY under its group() line and above the next banner,
