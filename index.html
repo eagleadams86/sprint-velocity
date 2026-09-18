@@ -12335,7 +12335,28 @@ const sameBand = (a, b) => (!a.piId) === (!b.piId);
    With two dated sprints to go on the gap is measured — that's the team's real
    rhythm, weekend break and all. With only one, its length is snapped to whole
    weeks: a Monday-to-Friday sprint is 12 days long but comes round every 14, and
-   sprint cadences are always whole weeks. */
+   sprint cadences are always whole weeks.
+
+   MEASURED FROM MORE THAN ONE PAIR (2026-09-18). It used to read the last two
+   dated sprints and nothing else, so ONE irregular gap became the team's rhythm:
+   fortnightly sprints, a two-week Christmas break, and the first sprint of January
+   gave a stride of 28 — the next sprint prefilled a fortnight late, and a
+   100-point forecast read "5 sprints — about 24 weeks" where the answer was 12.
+   One three-week sprint among two-week ones gave 21 by the same cause. The stride
+   is now the MEDIAN of the per-slot gaps across the most recent `CADENCE_PAIRS`
+   consecutive dated pairs, which one odd gap cannot move.
+
+   Capped, so a rhythm the team left behind cannot outvote the new one for ever: a
+   team that really does move from two-week to four-week sprints has the new stride
+   once THREE gaps at it are on record (three of the five), sooner with a shorter
+   history. Until then the sprint form's hint still says which rhythm it used and
+   to change the dates if that is wrong.
+
+   With an even count there are two middle values. If they differ, the one that
+   matches the anchor's own week-snapped length wins — the newest sprint's length
+   is evidence about the rhythm too — and otherwise the more recent of the two.
+   With exactly one pair all of this is the single measurement it always was. */
+const CADENCE_PAIRS = 5;
 function teamCadence(teamId) {
   const dated = teamSprints(teamId).filter(s => s.startDate && s.endDate);
   if (!dated.length) return null;
@@ -12343,19 +12364,34 @@ function teamCadence(teamId) {
   const length = dayNum(anchor.endDate) - dayNum(anchor.startDate);
   if (!isFinite(length) || length < 0) return null;
 
-  let stride = Math.max(7, Math.round((length + 1) / 7) * 7);
-  if (dated.length > 1) {
-    const prev = dated[dated.length - 2];
-    /* Only when both sprints are in the same band — both in PIs, or both in
-       none. `slotIndex` puts PI-less sprints a hundred thousand slots below the
-       first PI, so a difference that spans the two is not a big number of
-       sprints, it is a meaningless one, and dividing the date gap by it would
-       hand back a stride of zero days. Falling through leaves the week-snapped
+  const snapped = Math.max(7, Math.round((length + 1) / 7) * 7);
+  /* Newest pair first, so an entry's index is its age. */
+  const strides = [];
+  for (let i = dated.length - 1; i > 0 && dated.length - 1 - i < CADENCE_PAIRS; i--) {
+    const later = dated[i], prev = dated[i - 1];
+    /* Only pairs in the ANCHOR's band — both in PIs, or both in none. `slotIndex`
+       puts PI-less sprints a hundred thousand slots below the first PI, so a
+       difference that spans the two is not a big number of sprints, it is a
+       meaningless one, and dividing the date gap by it would hand back a stride
+       of zero days. With no usable pair this falls through to the week-snapped
        length, which is the same answer a team with one dated sprint gets. */
-    if (sameBand(anchor, prev)) {
-      const slots = slotIndex(anchor.piId, anchor.sprintNumber) - slotIndex(prev.piId, prev.sprintNumber);
-      const gap = dayNum(anchor.startDate) - dayNum(prev.startDate);
-      if (slots > 0 && gap > 0) stride = Math.round(gap / slots);
+    if (!sameBand(anchor, later) || !sameBand(later, prev)) continue;
+    const slots = slotIndex(later.piId, later.sprintNumber) - slotIndex(prev.piId, prev.sprintNumber);
+    const gap = dayNum(later.startDate) - dayNum(prev.startDate);
+    if (slots > 0 && gap > 0) strides.push({ v: Math.round(gap / slots), age: strides.length });
+  }
+  let stride = snapped;
+  if (strides.length) {
+    const sorted = strides.slice().sort((a, b) => a.v - b.v || a.age - b.age);
+    const mid = sorted.length >> 1;
+    if (sorted.length % 2) stride = sorted[mid].v;
+    else {
+      const lo = sorted[mid - 1], hi = sorted[mid];
+      const newest = (v) => Math.min(...strides.filter(x => x.v === v).map(x => x.age));
+      stride = lo.v === hi.v ? lo.v
+        : hi.v === snapped ? hi.v
+        : lo.v === snapped ? lo.v
+        : (newest(lo.v) < newest(hi.v) ? lo.v : hi.v);
     }
   }
   return { anchor, length, stride };

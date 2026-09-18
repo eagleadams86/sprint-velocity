@@ -401,7 +401,9 @@ but Charles had ever actually signed in.)
 - **Sprint dates project from the team's cadence** (`teamCadence()` / `cadenceDates()`): a new
   sprint form fills its own dates by counting slots from the latest dated sprint, and empty
   rows on the PI table show where they'd fall. The stride is *measured* once two sprints have
-  dates, otherwise the anchor's length snapped to whole weeks — a Mon–Fri sprint is 12 days
+  dates — **since 2026-09-18 as the MEDIAN of the last `CADENCE_PAIRS` (5) consecutive dated
+  pairs, not the last pair alone** (see that review's notes) — otherwise the anchor's length
+  snapped to whole weeks — a Mon–Fri sprint is 12 days
   long and recurs every 14, so a raw length would drift onto the weekend. It fills only empty
   boxes on an **unsaved** sprint: dating an existing dateless sprint would flip it out of
   complete and silently pull history from the averages, which is the one thing the lifecycle
@@ -3094,6 +3096,22 @@ impossible. Each bullet below is one commit.
   red in America/New_York; the reviewer's `t6-probes.mjs` confirms New York, London and Lord
   Howe against the real thing.
 
+
+- **One holiday gap does not become the team's rhythm (2026-09-18; agent C's code, finished by
+  the supervisor after a usage limit cut the agent off).** `teamCadence()` measured the stride
+  from the LAST TWO dated sprints only. Fortnightly sprints 9–20 Nov, 23 Nov–4 Dec, 7–18 Dec, a
+  two-week Christmas break, S4 4–15 Jan: stride 28 — S5 prefilled 1–12 Feb instead of 18–29 Jan,
+  and a 100-point forecast read "5 sprints — about 24 weeks" for twelve. One three-week sprint
+  among two-week ones gave 21 the same way. The stride is now the MEDIAN per-slot gap over the
+  last `CADENCE_PAIRS` (5) consecutive dated pairs in the anchor's own track. An even count has
+  two middles: the one equal to the anchor's week-snapped LENGTH wins (the newest sprint's
+  length is evidence too), else the more recent. One pair is the single measurement it always
+  was; cross-track pairs are still never measured. **Convergence, stated:** a team that really
+  moves from two- to four-week sprints reads 28 after TWO sprints at it when the sprints
+  themselves now run four weeks (14, 14, 28, 28 is a tie the length settles), and after three
+  regardless. **Not fixed, same as before:** when the ANCHOR is the one long sprint, the next
+  sprint is still projected one ordinary stride after its START, which can overlap its end —
+  the form's hint says which rhythm was used and the dates are editable.
 
 ### Import, Boundaries and the Rest
 

@@ -10821,6 +10821,48 @@ t('the demo’s live sprint is 14 days long whenever it is loaded — near midni
   ok(/d\.setDate\(d\.getDate\(\) \+ offset\)/.test(APP_SRC), 'they are counted on the local calendar');
 });
 
+t('one holiday gap, or one long sprint, does not become the team’s rhythm (2026-09-18 review)', () => {
+  /* teamCadence() read the last two dated sprints and nothing else. Fortnightly
+     sprints, a two-week Christmas break, then S4: stride 28 — S5 prefilled a
+     fortnight late and every forecast duration doubled. */
+  const team = (rows, piless) => ({
+    teams: [{ id: 't1', name: 'Team One' }], arts: [], pis: piless ? [] : [{ id: 'p1', name: 'PI 1' }, { id: 'p2', name: 'PI 2' }],
+    sprints: rows.map(([start, end, pi, n], i) => ({ id: 's' + i, teamId: 't1',
+      piId: piless ? null : (pi || 'p1'), sprintNumber: n || i + 1,
+      startDate: start, endDate: end, status: 'complete', committed: 20, committedCompleted: 20, totalCompleted: 20,
+      added: 0, removed: 0, carriedIn: 0, carriedOut: 0, addedThenRemoved: 0 })), plans: [] });
+  const F14 = [['2026-11-09', '2026-11-20'], ['2026-11-23', '2026-12-04'], ['2026-12-07', '2026-12-18']];
+  /* The holiday gap, with history behind it… */
+  withState(team(F14.concat([['2027-01-04', '2027-01-15']])), () => {
+    eq(w.teamCadence('t1').stride, 14, 'three gaps of 14, 14 and 28: the rhythm is 14');
+    eq(w.cadenceDates('t1', 'p1', 5).startDate, '2027-01-18', 'and S5 follows S4 by a fortnight');
+  });
+  /* …and with only one ordinary gap behind it: two values, and the one that
+     agrees with the newest sprint’s own length wins. */
+  withState(team([F14[1], F14[2], ['2027-01-04', '2027-01-15']]), () =>
+    eq(w.teamCadence('t1').stride, 14, 'gaps of 14 and 28, and a 12-day sprint says fortnightly'));
+  /* One three-week sprint among two-week ones. */
+  withState(team([F14[0], F14[1], ['2026-12-07', '2026-12-25'], ['2026-12-28', '2027-01-08']]), () =>
+    eq(w.teamCadence('t1').stride, 14, 'gaps of 14, 14 and 21'));
+  /* A team that really does move to four-week sprints converges: not at the first
+     long gap, but once three of the last five are long. */
+  const four = (k) => F14.concat(Array.from({ length: k }, (_, i) => {
+    const d = (n) => new Date(Date.UTC(2026, 11, 7) + n * 86400000).toISOString().slice(0, 10);
+    return [d(28 * (i + 1)), d(28 * (i + 1) + 25), 'p1', 4 + i];
+  }));
+  withState(team(four(1)), () => eq(w.teamCadence('t1').stride, 14, 'one long gap is not yet a rhythm'));
+  withState(team(four(2)), () => eq(w.teamCadence('t1').stride, 28,
+    'two are, when the sprints themselves now run four weeks — 14, 14, 28, 28 is a tie their length settles'));
+  withState(team(four(3)), () => eq(w.teamCadence('t1').stride, 28, 'and three are outright'));
+  /* With exactly one pair it is the single measurement it always was. */
+  withState(team([F14[0], ['2026-11-30', '2026-12-11']]), () =>
+    eq(w.teamCadence('t1').stride, 21, 'two sprints three weeks apart: 21, as before'));
+  /* And a pair that spans the two tracks is still never measured. */
+  const mixed = team(F14);
+  mixed.sprints[0].piId = null; mixed.sprints[0].sprintNumber = 40;
+  withState(mixed, () => eq(w.teamCadence('t1').stride, 14, 'only the pair inside the anchor’s own track counts'));
+});
+
 /* ═══════════════════ 2026-09-18 review — block D ═══════════════════════════
    One fix per commit, each test proven red against the commit before it. Tests
    for this block go DIRECTLY under its group() line and above the next banner,

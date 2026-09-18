@@ -582,7 +582,12 @@ The cadence is worked out from your dates, not assumed. With one dated sprint to
 length is rounded to whole weeks — a Monday-to-Friday sprint is twelve days long but comes
 round every fourteen, and a fortnightly team stays fortnightly. Once two sprints have dates,
 the real gap between them is measured instead, so a team with a break between sprints, or a
-three-week cadence, self-corrects.
+three-week cadence, self-corrects. **It is the usual gap, not the latest one**: the middle value
+of the last five sprint-to-sprint gaps, so a two-week Christmas break — or one three-week sprint
+— doesn't become the team's rhythm. (Until 2026-09-18 only the last two dated sprints were read,
+and one holiday gap doubled the stride: the next sprint was dated a fortnight late and a forecast
+read "about 24 weeks" for twelve.) A team that really does change cadence has the new one within two
+or three sprints.
 
 The empty rows on the **Team PI** table show where each remaining sprint falls
 (`No data — click to add · scheduled 17 Aug – 28 Aug`), so the whole PI is laid out before
