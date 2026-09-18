@@ -475,7 +475,10 @@ to press.
 If you're pasting over a sprint that has already finished and has real figures in it, the
 usual "saving will change…" confirmation appears at **Use these numbers** rather than at Save
 sprint, listing each figure that would change. Say no and the boxes are still filled in for
-you to look at — nothing is saved until you press Save sprint yourself.
+you to look at — nothing is saved until you press Save sprint yourself. A sprint that did not
+exist before you pasted is never asked about: it is new until the form closes, so adding a
+sprint goal and pressing Save sprint goes straight through (until 2026-09-18 it was told the
+sprint "already has data").
 
 Both common paste shapes work — tab-separated rows and one-cell-per-line — since browsers
 differ in how they copy tables. Which shape you've pasted is decided on a count of the

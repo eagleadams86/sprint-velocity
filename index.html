@@ -12802,7 +12802,17 @@ F('sprintSaveBtn').onclick = () => {
     return;
   }
   const i = state.sprints.findIndex(s => s.id === record.id);
-  if (!confirmOverwrite(i >= 0 ? state.sprints[i] : null, record)) return;
+  /* A NEW sprint is still new after "Use These Numbers" (2026-09-18 review). The guard
+     is silent for a new sprint on purpose — but the Jira auto-save writes the record
+     the moment the numbers are used, so by the time Save Sprint is pressed the slot
+     "already has data", and setting the goal to Met raised "… already has data…
+     Sprint goal: Not recorded → Met" about a sprint that did not exist when this form
+     opened. The snapshot knows: `before: null` means nothing was there before this
+     dialog session, so there is nothing to overwrite. A re-paste over a sprint that
+     WAS saved before carries its old record in `before`, and still asks. */
+  const bornHere = !!pendingJiraSave && pendingJiraSave.before === null
+    && pendingJiraSave.recordId === record.id;
+  if (!bornHere && !confirmOverwrite(i >= 0 ? state.sprints[i] : null, record)) return;
   if (!commitSprint(record)) return;
 
   clearPendingJiraSave();

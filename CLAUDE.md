@@ -2923,6 +2923,16 @@ Each bullet below is one commit.
   comment "Jira-pasted sprints always balance" was FALSE and is corrected: `committed` is held
   at sprint-start sizes and everything else at current ones (the Paste from Jira bullet above),
   so one re-estimate unbalances it in either direction.
+- **A sprint made by "Use These Numbers" is still new when Save Sprint is pressed
+  (2026-09-18).** Empty slot → paste → Use These Numbers (auto-saves) → Sprint goal: Met → Save
+  Sprint raised `confirm()`: "… already has data… Sprint goal: Not recorded → Met". The
+  overwrite guard "deliberately stays silent for … new sprints", and the "data" was the
+  auto-save from the same dialog session. Save Sprint now skips `confirmOverwrite()` when
+  `pendingJiraSave.before === null` for this record id — the snapshot's own statement that
+  nothing was there when the form opened. **Narrow on purpose**: a re-paste over a sprint that
+  was saved before carries its old record in `before`, still asks at Use These Numbers, and
+  still asks at Save Sprint if something else changes after it (the documented
+  compares-against-stored behaviour; not revisited here).
 
 
 ### The Forecast Card, Dates and the Demo

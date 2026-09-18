@@ -10184,6 +10184,41 @@ t('the carried-out note never calls points break-in that the Added figure cannot
   });
 });
 
+t('Save Sprint after Use These Numbers on a brand-new sprint asks nothing; a re-paste over a saved one still asks', async () => {
+  await formFrame('b4new', formFixture([{ sprintNumber: 1 }]), async (W, D, st) => {
+    const asked = [];
+    W.confirm = (m) => { asked.push(String(m)); return true; };
+    W.toast = () => {};
+    const paste = (text) => {
+      D.getElementById('jiraText').value = text;
+      D.getElementById('jiraParseBtn').click();
+      const use = D.getElementById('jiraApplyBtn');
+      ok(use, 'the paste was read and offers Use These Numbers');
+      if (use) use.click();
+    };
+    W.openSprint('t1', 'p1', 2);
+    paste(TABBED);
+    eq(st.sprints.length, 2, 'Use These Numbers saved the new sprint there and then');
+    eq(asked.length, 0, 'without a question — nothing was there to overwrite');
+    const goal = D.getElementById('f_goalMet');
+    goal.value = 'met'; fire(W, goal, 'change');
+    D.getElementById('sprintSaveBtn').click();
+    await wait(30);
+    eq(asked.length, 0, 'and Save Sprint does not call the sprint it has just made "data" to be overwritten',
+       asked.join(' | '));
+    const s2 = st.sprints.find(x => x.sprintNumber === 2);
+    eq(s2 && s2.goalMet, true, 'the goal is saved');
+    ok(!D.getElementById('sprintDialog').open, 'and the form closes');
+
+    /* The guard itself is untouched: the same sprint, saved and finished, pasted over. */
+    W.openSprint('t1', 'p1', 2);
+    paste(RESIZED);
+    eq(asked.length, 1, 'a different report over a sprint saved earlier still asks first');
+    ok(/already has data/.test(asked[0] || ''), 'in the usual words', asked[0]);
+    D.getElementById('sprintDialog').close();
+  });
+});
+
 /* ═══════════════════ 2026-09-18 review — block C ═══════════════════════════
    One fix per commit, each test proven red against the commit before it. Tests
    for this block go DIRECTLY under its group() line and above the next banner,
