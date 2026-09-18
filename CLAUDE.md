@@ -2755,6 +2755,29 @@ using the app end to end from empty, every figure against a hand calculation, th
 boundaries, UI state after destructive actions, and dates in seven timezones. **Timezones, DST
 and "today" came back clean (118 cases); the bugs were in forward planning and at the edges of
 the figures.** One fix per commit, each with a test proven red against the commit before it.
+
+**How it ran, for the next one:** five read-only reviewers (end-to-end use from empty; figures
+by hand; boundaries and security; UI state with real key presses; dates in seven timezones),
+then three fix agents in their own worktrees plus the supervisor on a fourth block, every
+commit through one `cycle.sh` (suite green on the fix, the named test RED on the commit
+before, a tests.html diff required). Parallel branches merged with ONE conflict because the
+test groups and these sub-headings were laid down empty first, and nobody bumped `EXPECTED`
+until the end: **526 → 576**. The security pass found **no XSS, no prototype pollution and no
+CSP violation**. A usage limit cut two agents off mid-run; their worktrees held everything, and
+one had re-made a commit the supervisor had already picked — **diff an agent's branch again
+before trusting an early cherry-pick.**
+
+**Left alone on purpose — raise only if Charles asks:** PI Trend's "Teams counted" counts a team
+whose sprints in that PI are all still running (its help defines it as teams that HAD sprints
+there; a second basis on the same row would be worse); a semicolon-separated (European Excel)
+CSV is refused with a message about a missing Sprint column; a row of only commas is reported
+as an unusable row; Jira Cloud's newer "work items" section headings are unverified — if a
+paste from Charles's Jira ever fails with "Couldn't find any issue rows", that is the first
+thing to check; duplicate ids or two sprints on one slot in a HAND-EDITED file still cross the
+boundary (the first wins in most views), and `sprints.sprintNumber` is still `num`; a blank
+Adjust Capacity box saves 0% (the preview says "34 → 0"); a crafted 300,000-sprint link
+overflows `Math.max(...)` and falls back to the error card. The two-copies guard and the
+ART-menu focusout belong in Flow Metrics (and the first in Money Map and Golf) — not ported.
 - **A lost sprint never lands on the IP sprint (2026-09-18).** `forecast()` walked only the
   DELIVERING sprints through `calendarSlots()` and added `lost` afterwards, on the reasoning that
   a lost sprint "is a calendar slot already". It is a slot the team spends on something else —
