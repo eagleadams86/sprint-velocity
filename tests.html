@@ -10195,6 +10195,35 @@ t('a truncated share link is refused without an uncaught error beside it', async
     eq(loose, [], 'and nothing rejects into thin air while it is');
   } finally { w.removeEventListener('unhandledrejection', note); }
 });
+t('"no value" in a file is not a zero: null, "" and false never become 0% or a target of 1', () => {
+  /* Number(null) === 0. For these fields absent means the default, and a zero is
+     destructive: availability 0% took a recommended commitment from 36 to 0. */
+  const file = { version: 5,
+    teams: [{ id: 't1', name: 'One', availability: null }, { id: 't2', name: 'Two', availability: '' },
+            { id: 't3', name: 'Three', availability: '80' }, { id: 't4', name: 'Four', availability: 0 }],
+    arts: [], pis: [{ id: 'p1', name: 'PI 1' }],
+    sprints: [{ id: 's1', teamId: 't1', piId: 'p1', sprintNumber: 1, committed: '', capacityScale: null }],
+    plans: [{ id: 'pl1', teamId: 't1', piId: 'p1', sprintNumber: null, availability: 50, reason: 'leave' }],
+    objectives: [{ id: 'o1', teamId: 't1', piId: 'p1', plannedBv: null, actualBv: false, stretchBv: 3 }],
+    settings: { targets: { completionGreen: null, churnGreen: '', predLow: false, completionRed: 70 } } };
+  const out = w.sanitizeIds(w.coerceShape(JSON.parse(JSON.stringify(file))));
+  eq(out.teams.map((x) => x.availability), [undefined, undefined, 80, 0],
+    'null and "" are absent (100%); a stated "80" and a stated 0 are what they say');
+  ok(!('availability' in out.teams[0]), 'absent, not a key holding undefined');
+  ok(!('capacityScale' in out.sprints[0]), 'a null scale is no scale, not 0%');
+  eq(out.sprints[0].committed, 0, 'a sprint FIGURE keeps “blank means zero”');
+  ok(!out.plans.length || out.plans[0].sprintNumber !== 1, 'a plan with no sprint number is not filed against S1',
+    JSON.stringify(out.plans));
+  eq([out.objectives[0].plannedBv, out.objectives[0].actualBv, out.objectives[0].stretchBv], [undefined, undefined, 3]);
+  eq(out.settings.targets, { completionRed: 70 }, 'a null target is no target — the default stands');
+  /* And a set that contradicts itself is refused whole, as the Targets window refuses it. */
+  const bad = w.sanitizeIds(w.coerceShape({ teams: [], sprints: [],
+    settings: { targets: { completionGreen: 60, completionRed: 75 } } }));
+  ok(!('targets' in bad.settings), 'green under its own red never reaches rag()', JSON.stringify(bad.settings.targets));
+  const fine = w.sanitizeIds(w.coerceShape({ teams: [], sprints: [],
+    settings: { targets: { completionGreen: 90, completionRed: 75 } } }));
+  eq(fine.settings.targets, { completionGreen: 90, completionRed: 75 }, 'a coherent set crosses untouched');
+});
 t('“Skip to content” in a shared view stays in the shared view', async () => {
   /* It was a bare href="#maincontent": the share fragment was replaced, the
      hashchange handler read "no longer shared" and RELOADED — onto the reader's own

@@ -3513,6 +3513,18 @@ function sanitizeIds(data) {
   const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
   const STATUSES = ['auto', 'planned', 'active', 'complete'];
   const VIEWS = ['sprint', 'pi', 'rolling', 'history', 'trend', 'art', 'teams'];   // renderTabs() owns this list
+  /* ── A number somebody STATED, or NaN (2026-09-18) ──────────────────────────
+     `Number(null)`, `Number('')`, `Number(false)` and `Number([])` are all 0 — a
+     perfectly finite number — so "no value", written into a file or a link as
+     null or "", crossed every clamped kind below as a REAL ZERO. For these fields
+     absent means the default and zero is destructive: `availability: null` became
+     0% and the team's recommended commitment went from 36 to 0; `capacityScale:
+     null` wiped a sprint out of the planning base; a `null` target became its
+     field's minimum, under its own red line. Only an actual number, or a string
+     with a number in it, is a statement. (The sprint FIGURES stay on plain
+     Number(): there, blank really does mean zero — see "Blank means 0".) */
+  const stated = (v) => (typeof v === 'number' ? v
+    : (typeof v === 'string' && v.trim() !== '') ? Number(v) : NaN);
   const keepKnown = (src, spec) => {
     const out = {};
     for (const k of Object.keys(src)) {
@@ -3574,14 +3586,14 @@ function sanitizeIds(data) {
            'num'); this widening is what lets `plans.sprintNumber` and
            `settings.activeSprintNum` follow a PI-less sprint, while still bounding
            all three against a crafted payload. */
-        const n = Number(v);
+        const n = stated(v);
         if (Number.isFinite(n)) out[k] = Math.min(MAX_SPRINT_NO, Math.max(1, Math.round(n)));
       } else if (kind === 'pct') {
         /* Team availability, as a percentage of a normal sprint. Clamped to the
            same range the form offers rather than merely checked for finiteness:
            it MULTIPLIES the recommended commitment, so a payload carrying 1e9
            would otherwise put a nonsense figure on the planning card. */
-        const n = Number(v);
+        const n = stated(v);
         if (Number.isFinite(n)) out[k] = Math.min(200, Math.max(0, Math.round(n)));
       } else if (kind === 'tribool') {
         /* A field with THREE states: true, false, and not recorded at all. Unlike
@@ -3599,7 +3611,7 @@ function sanitizeIds(data) {
            the denominator of the predictability measure, so a payload carrying
            1e9 would put a nonsense figure on an RTE's card. Whole numbers only —
            nobody scores an objective 7.5. */
-        const n = Number(v);
+        const n = stated(v);
         if (Number.isFinite(n)) out[k] = Math.min(BV_MAX, Math.max(0, Math.round(n)));
       } else if (kind === 'targets') {
         /* The one NESTED object that crosses this boundary, and it gets the same
@@ -3617,7 +3629,7 @@ function sanitizeIds(data) {
           const clean = {};
           for (const f of TARGET_FIELDS) {
             if (!Object.prototype.hasOwnProperty.call(v, f.key)) continue;
-            const n = Number(v[f.key]);
+            const n = stated(v[f.key]);
             if (!Number.isFinite(n)) { sanitizeIds.pruned++; continue; }
             const fixed = Math.min(f.max, Math.max(f.min, Math.round(n)));
             if (fixed !== v[f.key]) sanitizeIds.pruned++;
@@ -3627,8 +3639,16 @@ function sanitizeIds(data) {
             if (!TARGET_FIELDS.some(f => f.key === k2)) sanitizeIds.pruned++;
           }
           /* Dropped entirely when nothing survived, rather than stored as `{}`:
-             an empty object is a key the format claims to hold a setting in. */
-          if (Object.keys(clean).length) out[k] = clean;
+             an empty object is a key the format claims to hold a setting in. And
+             dropped WHOLE when the set contradicts itself (2026-09-18) — green
+             under its own red, a ceiling under its floor. The Targets window
+             refuses to store such a set because rag() would have a branch nothing
+             can reach; a file or a link must not be able to store what the window
+             cannot. targetProblems() is pure, so it is safe this early in boot. */
+          if (Object.keys(clean).length) {
+            if (targetProblems(Object.assign({}, TARGET_DEFAULTS, clean)).length) sanitizeIds.pruned++;
+            else out[k] = clean;
+          }
         }
       } else if (kind === 'reason') {
         /* One of the fixed codes — see REASONS. An unknown one becomes 'other'

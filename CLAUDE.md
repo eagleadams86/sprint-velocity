@@ -2970,3 +2970,16 @@ Each bullet below is one commit.
   input was truncated". They take a no-op `catch` — NOT an `await`, which on a large input waits
   on backpressure only the read relieves. Cosmetic, but an uncaught error on the one page a
   stranger is sent to is the wrong thing to find in a console.
+- **"No value" in a file is not a zero (2026-09-18).** `Number(null)`, `Number('')` and
+  `Number(false)` are 0 — finite — so the boundary's CLAMPED kinds (`pct`, `bv`, `sprintNum`,
+  and `targets` one level down) read "nothing here", written as `null` or `""` in a hand-edited
+  backup or a link, as a stated zero. For every one of those fields absent means the default
+  and zero is destructive: `availability: null` → 0% (Team Baseline's recommended commitment
+  36 → 0), `capacityScale: null` → a sprint wiped out of the planning base, a plan's
+  `sprintNumber: null` → filed against S1, `targets.completionGreen: null` → 1, under its own
+  red line. `stated(v)` answers a number only for a number or a non-blank numeric string; the
+  key is otherwise dropped and counted. **The sprint FIGURES stay on plain `Number()`** —
+  "Blank means 0" is the documented rule there. Same commit: a `targets` set that
+  `targetProblems()` would refuse in the window is dropped whole at the boundary too — a file
+  or a link must not store what the window cannot. This is [[number-null-is-zero-trap]] from
+  League Night's first audit, met again.
