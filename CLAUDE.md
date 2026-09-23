@@ -591,7 +591,9 @@ but Charles had ever actually signed in.)
   filled this in") are different answers, so the empty record is deleted rather than stored
   and the ART view says which teams it left out of the predictability figures. It stays in
   every points figure. **A record with nothing PLANNED is the third case and is named too**
-  (`unplanned`, 2026-09-15): out of the mean, in the pooled row. Same never-silent rule as `orphanNote()` and `excludedTeamsLine()`.
+  (`unplanned`, 2026-09-15): out of the mean, in the pooled row. Same never-silent rule as `orphanNote()` and `excludedTeamsLine()`. **A record with a plan and NO
+  achieved key is the fourth** (`pending`, 2026-09-23): a PI awaiting its result — out of both
+  methods, named under ⚑ *Awaiting results*. See that review's section.
 - **An orphaned objective is `pruned`, not `dropped`, and the distinction is the toast.** An
   orphaned sprint moves a rolling average with nothing on screen behind it, which is what
   `orphanNote()` exists to announce; business value is only ever read for a team and PI both
@@ -3279,3 +3281,48 @@ Each bullet below is one commit.
   refuses it (`datesBackwards`, this review) — `teamCadence()` gives up on such a sprint, which
   costs the whole team its date prefill and forecast dates. Every message points at the column
   and quotes nothing (Charles's 2026-09-15 rule), and the test checks that too.
+
+## Fixes From the 2026-09-23 Review
+
+Charles asked for a review of the predictability feature alone. Three findings, one commit each
+on PR "Three predictability fixes", each with a test in the "predictability (2026-09-23 review)"
+group proven red against the commit before it. EXPECTED 576 → 583.
+
+- **A blank Achieved is a PI awaiting its result, never 0% (2026-09-23).** `bvFigures()` read an
+  absent `actualBv` as 0 and nothing asked whether the PI was over, so the workflow the window
+  invites — planned figure at PI planning, Achieved at Inspect & Adapt — scored every PI in
+  progress a final 0%, red, on Team PI, PI by Team and PI Trend (where it also read as a fall
+  from the PI before). **Dates were considered and rejected as the test**: dateless history
+  resolves complete, and a team can stop recording before sprint 6, so "is the PI over?" has no
+  reliable answer from the sprints. The answer is the `goalMet` one — absent is a real answer:
+  `plannedBv > 0` with **no `actualBv` key** is `pending`, with `pct` and `delivered` null.
+  `artPredictability()` returns `pending` and `resulted`; a pending team is out of the MEAN and
+  out of the POOLED row (its plan with nothing against it would score the plan a failure), named
+  under ⚑ *Awaiting results*, its row reads *awaiting result*, and the methodnote names whose
+  planned figure the total row leaves out. Team PI draws no predictability tile while pending
+  (the card below says so). PI Trend names the reason per PI (see the next bullet) and its
+  movement says "no figure yet" when the LATEST PI is the empty side. The window: `bvAchieved()`
+  reads a blank Achieved box as null, `commitBv` then writes **no key** (never null — the
+  `cleanKey` rule), `fillBvBoxes` leaves the box blank, and the preview says what blank means.
+  **A typed 0 is still a result.** This REVERSED a pinned test ("absent figures read as 0, like
+  every other blank in the app") on purpose. **No schema bump**: every record the window wrote
+  before carried all three keys, so no saved figure moves; an older build reading a pending
+  record strips nothing and shows the old 0% — the existing fault, not a new false statement.
+  **The demo does not show the state yet, and that is a decision for Charles**: the natural home
+  is Team Live Sprint (its PI is running), but it is also the demo's one never-scored team, the
+  only thing that puts the ⚑ *Not scored yet* note on Payments ART.
+- **PI Trend names WHY a PI has no figure (2026-09-23).** The note said "no business value
+  recorded" of every PI with no measure, including one where every recorded team entered value
+  delivered and nothing planned — the 2026-09-15 fix for that case reached PI by Team and Team PI
+  and missed this view. Each PI is named under the reason true of it (awaiting its result, value
+  delivered but none planned, nothing recorded — checked in that order) and the remedy names the
+  missing figure, or "the missing figures" when there are several kinds.
+- **A sprint-window share link cuts PI figures per team (2026-09-23).** The window is per team,
+  but `objectives` and `plans` were filtered by `usedPis` — every team's PIs pooled — so on "the
+  last 5 sprints" one team's older PI carried another team's business value (and old
+  adjustments) into a link whose banner says earlier history is left out: the 2026-09-01 fix 3
+  class. Under a window (`scope.kind !== 'all'`) a record travels only if THAT team has a sprint
+  in its PI in the payload (`ownPi`), plus the plan for the team's next slot (`isNextSlot`,
+  through `targetSprintSlot`) — forward-looking, and what the recipient's capacity card reads. A
+  plan on the unassigned track still always travels (it names no PI). With no window the old
+  rule stands: nothing was promised.

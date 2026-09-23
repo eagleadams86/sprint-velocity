@@ -2936,7 +2936,9 @@ html[data-booting] footer { visibility: hidden; }
       <p class="sub" style="margin:10px 0 0">Add up the business value your ART assigned to this
         team's objectives at PI planning. <strong>Planned</strong> covers the objectives the team
         committed to — leave stretch objectives out of it, they were never a commitment.
-        <strong>Achieved</strong> is how much of that committed value landed.
+        <strong>Achieved</strong> is how much of that committed value landed — leave it
+        blank while the PI is still running, and it stays out of the predictability figures
+        until you fill it in.
         <strong>From stretch</strong> is what the stretch objectives delivered on top: it counts
         in the measure and never in the commitment, which is what lets an honest figure sit
         above 100%.</p>
@@ -4734,6 +4736,7 @@ function piTrend(teams, includeSix) {
       scored: pred.scored,
       missing: pred.missing,
       unplanned: pred.unplanned,
+      pending: pred.pending,
       goals: goalRecord(closed),
       /* A PI nobody recorded anything in is a gap in the history rather than a
          zero, and the view drops it rather than plotting a hole as a collapse. */
@@ -4808,12 +4811,26 @@ function goalGapKind(goals, commitPct) {
 const objectivesFor = (teamId, piId) =>
   state.objectives.find(o => o.teamId === teamId && o.piId === piId) || null;
 
+/* ── A BLANK "ACHIEVED" IS A PI STILL WAITING FOR ITS RESULT (2026-09-23) ──────
+   This used to read an absent `actualBv` as 0, like every other blank in the
+   app, and nothing asked whether the PI was over. So a Scrum Master who did
+   what the window invites — the planned figure off the PI planning sheet on day
+   one, Achieved left for Inspect & Adapt — had a PI in progress scored a FINAL
+   0%, red, off target, on Team PI, PI by Team and PI Trend, for the whole PI.
+   Dates can't settle it (dateless history resolves complete, and a team can
+   stop recording before sprint 6), so the answer is the goalMet one: absent is a
+   real answer. Planned with no Achieved figure at all is `pending` — a plan
+   awaiting its result, no measure, out of both methods, named where it is left
+   out. A 0 TYPED into Achieved is still a 0: that is a result. Every record the
+   window wrote before this carried all three keys, so no saved figure moves. */
 function bvFigures(rec) {
   const planned = num(rec && rec.plannedBv);
   const actual  = num(rec && rec.actualBv);
   const stretch = num(rec && rec.stretchBv);
+  const pending = planned > 0 && (rec.actualBv === undefined || rec.actualBv === null || rec.actualBv === '');
+  if (pending) return { planned, actual: null, stretch, delivered: null, pct: null, pending };
   return {
-    planned, actual, stretch,
+    planned, actual, stretch, pending,
     /* Stretch counts in the numerator and never in the denominator. That is the
        whole design of a stretch objective, and it is what lets an honest measure
        land above 100% — the same shape as commitment completion exceeding 100%
@@ -4852,14 +4869,21 @@ function artPredictability(teams, piId) {
      0 planned sits in the numerator exactly as stretch does. `mean` needs each
      team's own measure and still takes only `scored`; `unplanned` names the rest. */
   const recorded = rows.filter(r => r.has);
-  const planned = recorded.reduce((a, r) => a + r.bv.planned, 0);
-  const delivered = recorded.reduce((a, r) => a + r.bv.delivered, 0);
+  /* A PENDING record (2026-09-23 — see bvFigures) has a plan and no result, so it
+     is in neither method: its planned value in the pooled row with nothing
+     delivered against it would score the plan a failure before the PI is over.
+     `resulted` is what the pooled row adds up. */
+  const resulted = recorded.filter(r => !r.bv.pending);
+  const planned = resulted.reduce((a, r) => a + r.bv.planned, 0);
+  const delivered = resulted.reduce((a, r) => a + r.bv.delivered, 0);
   return {
     rows,
     scored: scored.length,
     recorded: recorded.length,
+    resulted: resulted.length,
     missing: rows.filter(r => !r.has).map(r => r.team),
-    unplanned: rows.filter(r => r.has && r.bv.pct === null).map(r => r.team),
+    pending: recorded.filter(r => r.bv.pending).map(r => r.team),
+    unplanned: resulted.filter(r => r.bv.pct === null).map(r => r.team),
     mean: scored.length ? scored.reduce((a, r) => a + r.bv.pct, 0) / scored.length : null,
     pooled: planned > 0 ? (delivered / planned) * 100 : null,
     planned, delivered
@@ -5434,7 +5458,9 @@ const METRIC_HELP = {
       <p>It is a different question from commitment completion: that one asks whether the points
       landed, this one asks whether the <em>objectives</em> did.</p>
       <p>Value from stretch objectives counts in what was delivered but never in what was
-      committed, which is <strong>what lets an honest figure sit above 100%</strong>.</p>` },
+      committed, which is <strong>what lets an honest figure sit above 100%</strong>.</p>
+      <p>Planned with <em>Achieved</em> left blank is a PI still waiting for its result, and it
+      has no figure until the result is filled in — never a 0% for a PI that isn't over.</p>` },
   trendPredictability: { title: 'PI Predictability', target: TARGET_PREDICTABILITY,
     body: `The latest PI's measure, and how far it moved from the one before. Each team's own
       measure averaged, so it stays comparable across PIs that covered different teams — a
@@ -8375,7 +8401,9 @@ function renderPiView() {
              reads as a metric that failed rather than one nobody uses, and plenty
              of teams don't run PI objectives at all — the card below is what
              offers the feature to those who do. */
-          bvScored ? (bv.pct === null
+          /* Not while the PI awaits its result (2026-09-23): a "—" tile reads as a
+             metric that failed, and the card below already says what is missing. */
+          bvScored && !bv.pending ? (bv.pct === null
             /* Value recorded against nothing planned: a record, and no measure.
                "8 of 0 business value — not recorded" called a recorded 8 missing. */
             ? tile('PI predictability', '—', null,
@@ -8398,7 +8426,9 @@ function renderPiView() {
       ${bvScored ? `
         <p class="sub">What <strong>${esc(team.name)}</strong> committed to at PI planning for
           ${esc(pi.name)}, and what landed. Stretch objectives count in what was delivered and
-          never in what was committed — which is why this figure can sit above 100%.</p>
+          never in what was committed — which is why this figure can sit above 100%.${
+          bv.pending ? ` <strong>Achieved isn’t filled in yet</strong>, so this PI has no measure
+          until its result is in.` : ''}</p>
         <div class="tablewrap">
         <table aria-label="Business value for this team and PI">
           <thead><tr>
@@ -8412,7 +8442,8 @@ function renderPiView() {
             <td>${fmtNum(bv.actual)}</td>
             <td>${fmtNum(bv.stretch)}</td>
             <td>${fmtNum(bv.delivered)}</td>
-            <td class="metric">${bv.pct === null
+            <td class="metric">${bv.pending ? '<span class="muted">awaiting result</span>'
+              : bv.pct === null
               ? '<span class="muted">nothing planned</span>' : predPill(bv.pct)}</td>
           </tr></tbody>
         </table></div>`
@@ -9993,7 +10024,11 @@ function renderPiTrendView() {
      printed a number. One argument, no way to pass the wrong thing. */
   const movement = (key, unit) => {
     const d = delta(key);
-    if (d === null) return `no figure for ${esc(prev.pi.name)} to compare with`;
+    /* Which side has no figure. With a PI still awaiting its result (2026-09-23)
+       the LATEST is the usual empty one, and "no figure for PI 2 to compare with"
+       under a "—" for PI 3 blamed the wrong PI. */
+    if (d === null) return latest[key] === null ? 'no figure yet'
+      : `no figure for ${esc(prev.pi.name)} to compare with`;
     const r = Math.round(Math.abs(d) * 10) / 10;
     if (r < 0.5) return `level with ${esc(prev.pi.name)}`;
     /* pointsOf() for the two percentage tiles: "up 1 points on PI 1" was the slip
@@ -10022,13 +10057,37 @@ function renderPiTrendView() {
         ${empty.length === 1 ? 'it is' : 'they are'} left out rather than drawn as a gap.</span></p>`
     : '';
 
+  /* ── WHY a PI has no figure, per PI (2026-09-23) ────────────────────────────
+     "No business value recorded" was said of every PI with no measure, and a PI
+     can have none with value recorded: every recorded team entered value
+     delivered and nothing planned. The note sent the reader off to record what
+     was already there, while the Teams counted tile beside it called the same
+     team "unscored" — the 2026-09-15 fix for this case reached PI by Team and
+     Team PI and not this view. Each PI is now named under the reason that is
+     true of it, and the remedy names the figure that is actually missing. */
   const unscored = rows.filter(r => r.predPct === null);
+  /* A plan still awaiting its result comes first: it is the ordinary state of the
+     PI in progress, and "none planned" or "none recorded" would both be false of
+     it (2026-09-23 — see bvFigures). */
+  const awaiting = unscored.filter(r => r.pending.length);
+  const noPlan = unscored.filter(r => !r.pending.length && r.unplanned.length);
+  const noRecord = unscored.filter(r => !r.pending.length && !r.unplanned.length);
+  const piList = (list) => andList(list.map(r => esc(r.pi.name)));
+  const hasHave = (list) => (list.length === 1 ? 'has' : 'have');
   const unscoredNote = unscored.length
-    ? `<p class="sub exnote"><span class="badge">⚑ No business value</span>
-        <span class="muted">${unscored.map(r => esc(r.pi.name)).join(', ')} ${
-          unscored.length === 1 ? 'has' : 'have'} no business value recorded, so the
-        predictability line skips ${unscored.length === 1 ? 'it' : 'them'}. Record it on the
-        <strong>Team PI</strong> tab and the line fills in.</span></p>`
+    ? `<p class="sub exnote"><span class="badge">⚑ No predictability figure</span>
+        <span class="muted">${[
+          noRecord.length ? `${piList(noRecord)} ${hasHave(noRecord)} no business value recorded` : '',
+          noPlan.length ? `${piList(noPlan)} ${hasHave(noPlan)} business value delivered but none
+            planned, so there is nothing to score it against` : '',
+          awaiting.length ? `${piList(awaiting)} ${hasHave(awaiting)} business value planned and
+            nothing achieved filled in yet — a PI still waiting for its result` : ''
+        ].filter(Boolean).join('; ')}. The predictability line skips ${
+          unscored.length === 1 ? 'it' : 'them'} until ${
+          [noRecord, noPlan, awaiting].filter(l => l.length).length > 1 ? 'the missing figures are'
+            : noPlan.length ? 'the planned figure is'
+            : awaiting.length ? 'the achieved figure is' : 'it is'} filled in on the
+        <strong>Team PI</strong> tab.</span></p>`
     : '';
 
   viewsEl.innerHTML = artToolbar(shown.length, hiddenCount) + `
@@ -10052,8 +10111,8 @@ function renderPiTrendView() {
           `points in ${esc(latest.pi.name)} — ${movement('velocity', '')}`,
           false, 'trendDelivered')}
         ${tile('Teams counted', String(latest.teamsIn.length), null,
-          `in ${esc(latest.pi.name)}${latest.missing.length + latest.unplanned.length
-            ? ` · ${plural(latest.missing.length + latest.unplanned.length, 'team')} unscored` : ''}`,
+          `in ${esc(latest.pi.name)}${latest.missing.length + latest.unplanned.length + latest.pending.length
+            ? ` · ${plural(latest.missing.length + latest.unplanned.length + latest.pending.length, 'team')} unscored` : ''}`,
           false, 'trendTeams')}
       </div>
     </div>
@@ -10427,6 +10486,17 @@ function renderArtPiView() {
         Fill in the planned figure on the <strong>Team PI</strong> tab.</span></p>`
     : '';
 
+  /* Planned, with no result yet — the PI in progress (2026-09-23, see bvFigures).
+     Out of BOTH methods, where "nothing planned" is out of the tile only. */
+  const pendingNote = pred.pending.length
+    ? `<p class="sub exnote"><span class="badge">⚑ Awaiting results</span>
+        <span class="muted">${pred.pending.map(t => esc(t.name)).join(', ')} — business value
+        planned for ${esc(pi.name)} and nothing achieved filled in yet, so ${
+        pred.pending.length === 1 ? 'it is' : 'they are'} out of the ART predictability tile
+        and the ART total row until the result is in. Fill in <strong>Achieved</strong> on the
+        <strong>Team PI</strong> tab once the PI is scored.</span></p>`
+    : '';
+
   /* ── When the average hides the train ────────────────────────────────────
      A two-sided measure has a failure mode no one-sided one has: a team that
      under-delivered and a team that under-committed sit on OPPOSITE sides of
@@ -10476,7 +10546,7 @@ function renderArtPiView() {
         RTE reports at Inspect &amp; Adapt, and a different question from whether the points
         landed. The two sit side by side here because a train can hit one and miss the other.${
         runningLine ? ' ' + runningLine + '.' : ''}</p>
-      ${notInPiNote}${missingNote}${unplannedNote}${cancellingNote}
+      ${notInPiNote}${missingNote}${pendingNote}${unplannedNote}${cancellingNote}
       <div class="tiles">
         ${tile('ART predictability', fmtPct(pred.mean, 'predictability'),
           rag(pred.mean, 'predictability'),
@@ -10531,7 +10601,7 @@ function renderArtPiView() {
           { key: 'bvPlanned', label: 'BV planned', help: ['bvPlanned', 'planned business value'],
             get: (r) => (r.has ? r.bv.planned : null) },
           { key: 'bvDelivered', label: 'BV delivered', help: ['bvDelivered', 'business value delivered'],
-            get: (r) => (r.has ? r.bv.delivered : null) },
+            get: (r) => (r.has && !r.bv.pending ? r.bv.delivered : null) },
           /* A team nobody scored is not the least predictable team on the train,
              so it sorts as no figure and lands at the foot either way round. */
           { key: 'pred', label: 'Predictability', cls: 'metric',
@@ -10547,8 +10617,9 @@ function renderArtPiView() {
             <td class="metric">${pill(r.commitPct, 'completion')}</td>
             <td>${fmtNum(r.velocity)}</td>
             <td>${r.has ? fmtNum(r.bv.planned) : '<span class="muted">—</span>'}</td>
-            <td>${r.has ? fmtNum(r.bv.delivered) : '<span class="muted">—</span>'}</td>
+            <td>${r.has && !r.bv.pending ? fmtNum(r.bv.delivered) : '<span class="muted">—</span>'}</td>
             <td class="metric">${!r.has ? '<span class="muted">not scored</span>'
+              : r.bv.pending ? '<span class="muted">awaiting result</span>'
               : r.bv.pct === null ? '<span class="muted">nothing planned</span>'
               : predPill(r.bv.pct)}</td></tr>`).join('')}</tbody>
         <tfoot>
@@ -10559,8 +10630,8 @@ function renderArtPiView() {
             <td>${fmtNum(artDone)}</td>
             <td class="metric">${pill(artCommitPct, 'completion')}</td>
             <td>${fmtNum(artVelocity)}</td>
-            <td>${pred.recorded ? fmtNum(pred.planned) : '<span class="muted">—</span>'}</td>
-            <td>${pred.recorded ? fmtNum(pred.delivered) : '<span class="muted">—</span>'}</td>
+            <td>${pred.resulted ? fmtNum(pred.planned) : '<span class="muted">—</span>'}</td>
+            <td>${pred.resulted ? fmtNum(pred.delivered) : '<span class="muted">—</span>'}</td>
             <td class="metric">${pred.pooled !== null ? predPill(pred.pooled)
               : '<span class="muted">—</span>'}</td>
           </tr>
@@ -10574,7 +10645,13 @@ function renderArtPiView() {
         /* Against the rows on the page, not every team on the ART: a team with
            no sprint in this PI isn't in the table at all, so saying the figures
            cover fewer teams than it shows would be counting the wrong absence. */
-        pred.unplanned.length
+        pred.pending.length
+          /* The business value columns above this row then include a planned
+             figure the row leaves out, so the row has to say so. */
+          ? ` The tile covers the ${plural(pred.scored, 'team')} with a measure; the row adds up
+              the ${plural(pred.resulted, 'team')} with a result, and leaves out ${
+              andList(pred.pending.map(t => esc(t.name)))}, whose PI is still awaiting one.`
+          : pred.unplanned.length
           ? ` The tile covers the ${plural(pred.scored, 'team')} with a measure; the row adds up
               all ${plural(pred.recorded, 'team')} with business value recorded.`
           : pred.scored && pred.scored < rows.length
@@ -12907,12 +12984,18 @@ const bvInput = (id) => {
   const n = Math.round(Number(F(id).value));
   return Number.isFinite(n) ? Math.min(BV_MAX, Math.max(0, n)) : 0;
 };
+/* Achieved is the one box whose BLANK is an answer (2026-09-23, see bvFigures):
+   null while the PI awaits its result, which the write leaves out as a key. */
+const bvAchieved = () => (String(F('bv_actual').value).trim() === '' ? null : bvInput('bv_actual'));
 
 function updateBvPreview() {
   const planned = bvInput('bv_planned');
-  const bv = bvFigures({ plannedBv: planned, actualBv: bvInput('bv_actual'),
+  const bv = bvFigures({ plannedBv: planned, actualBv: bvAchieved(),
                          stretchBv: bvInput('bv_stretch') });
-  F('bvPreview').textContent = planned > 0
+  F('bvPreview').textContent = bv.pending
+    ? `${fmtNum(planned)} business value planned. Achieved is blank, so this PI stays out of `
+      + 'the predictability figures until you fill it in — do that once the PI is scored.'
+    : planned > 0
     ? `${fmtNum(bv.delivered)} of ${fmtNum(planned)} business value — `
       + `${fmtPct(bv.pct, 'predictability')}, ${predictabilityStatus(bv.pct).toLowerCase()}.`
     : (bv.delivered > 0
@@ -12926,7 +13009,7 @@ function updateBvPreview() {
 
 /* The three boxes as they stand — the one reading, so "has anything moved?" and
    "what would be written?" can never disagree about what is on screen. */
-const bvDraft = () => JSON.stringify([bvInput('bv_planned'), bvInput('bv_actual'),
+const bvDraft = () => JSON.stringify([bvInput('bv_planned'), bvAchieved(),
                                       bvInput('bv_stretch')]);
 
 /* THE ONE SETTER for the three boxes, reached at open and after every write.
@@ -12936,7 +13019,9 @@ const bvDraft = () => JSON.stringify([bvInput('bv_planned'), bvInput('bv_actual'
    after each commit is what makes the window and a reopened window agree. */
 function fillBvBoxes(rec) {
   F('bv_planned').value = rec ? num(rec.plannedBv) : '';
-  F('bv_actual').value  = rec ? num(rec.actualBv) : '';
+  /* A pending record holds no achieved figure, and its box stays blank — a 0 here
+     would be the score this state exists to withhold. */
+  F('bv_actual').value  = rec && rec.actualBv != null ? num(rec.actualBv) : '';
   F('bv_stretch').value = rec ? num(rec.stretchBv) : '';
 }
 
@@ -12963,13 +13048,15 @@ function openBv(teamId, piId) {
 function commitBv(ctx, speak) {
   const { teamId, piId } = ctx;
   const planned = bvInput('bv_planned');
-  const actual = bvInput('bv_actual');
+  const actual = bvAchieved();
   const stretch = bvInput('bv_stretch');
   const had = state.objectives.find(o => o.teamId === teamId && o.piId === piId);
   state.objectives = state.objectives.filter(o => !(o.teamId === teamId && o.piId === piId));
   const empty = !planned && !actual && !stretch;
-  if (!empty) state.objectives.push({ id: had ? had.id : uid(), teamId, piId,
-    plannedBv: planned, actualBv: actual, stretchBv: stretch });
+  /* No actualBv KEY when Achieved is blank — absent, never null or undefined (the
+     cleanKey rule): absent is what bvFigures reads as awaiting a result. */
+  if (!empty) state.objectives.push(Object.assign({ id: had ? had.id : uid(), teamId, piId,
+    plannedBv: planned }, actual === null ? {} : { actualBv: actual }, { stretchBv: stretch }));
   /* Back from the state, not left as typed — see fillBvBoxes. Taken BEFORE
      `written` is read, so the two agree about what is on screen. */
   fillBvBoxes(objectivesFor(teamId, piId));
@@ -14571,6 +14658,21 @@ function buildSharePayload({ teamIds, includeAllTeams, scope }) {
   buildSharePayload.dropped = drop ? emptied.map(t => t.name) : [];
 
   const usedPis = new Set(sprints.map(s => s.piId));
+  /* ── A WINDOW IS CUT PER TEAM, SO ITS PI FIGURES ARE TOO (2026-09-23) ─────────
+     A sprint window is cut team by team, and `usedPis` is every team's PIs pooled —
+     so with "the last 5 sprints", Team B's business value for a PI only Team A's
+     window reached went into the link, under a banner saying earlier history isn't
+     included. Under a window a team's objectives travel only for a PI where THAT
+     team still has a sprint in the payload, and its capacity plans likewise —
+     except the plan for its next slot, which is what the recipient's capacity card
+     reads and is forward-looking rather than history. With no window in force the
+     rule is the old one: nothing was promised, and nothing is cut. */
+  const windowed = !!(scope && scope.kind !== 'all');
+  const ownPi = (rec) => sprints.some(s => s.teamId === rec.teamId && s.piId === rec.piId);
+  const isNextSlot = (pl) => {
+    const slot = targetSprintSlot(pl.teamId);
+    return !!slot && piKey(slot.piId) === piKey(pl.piId) && slot.sprintNumber === pl.sprintNumber;
+  };
   /* Only the ARTs the shared teams are actually on — same rule as the PIs above, so
      sharing one team doesn't publish the names of every train you support. A team
      whose ART didn't make it would be un-grouped by sanitizeIds() at the far end,
@@ -14597,7 +14699,7 @@ function buildSharePayload({ teamIds, includeAllTeams, scope }) {
        of the trimmed sprints was itself unassigned — dropped a PI-less team's
        adjustment out of the link for reasons that had nothing to do with it. */
     plans: state.plans.filter(pl => teams.some(t => t.id === pl.teamId)
-      && (!pl.piId || usedPis.has(pl.piId))),
+      && (!pl.piId || (windowed ? ownPi(pl) || isNextSlot(pl) : usedPis.has(pl.piId)))),
     /* Business value for the teams and PIs that made it through — three numbers
        and two ids, nothing identifying, exactly like a plan. It travels for the
        same reason: without it a shared link's Team PI and PI by Team views would
@@ -14605,7 +14707,7 @@ function buildSharePayload({ teamIds, includeAllTeams, scope }) {
        reads as the recipient's copy being broken. A PI the window cut away takes
        its objectives with it. */
     objectives: state.objectives.filter(o =>
-      teams.some(t => t.id === o.teamId) && usedPis.has(o.piId)),
+      teams.some(t => t.id === o.teamId) && (windowed ? ownPi(o) : usedPis.has(o.piId))),
     /* Numbers only, and undefined on a full history so JSON.stringify drops the key
        entirely. The recipient's banner is built from these two figures rather than
        from a sentence the sender wrote, so a hand-edited link has no text to inject. */
