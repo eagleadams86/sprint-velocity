@@ -106,7 +106,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 578;
+const EXPECTED = 583;
 
 /* ── THE SUITE LEAVES STORAGE EXACTLY AS IT FOUND IT (2026-09-15 review) ──────
    The page header says "Read-only: nothing is saved", and it was not true: the
@@ -4392,10 +4392,22 @@ t('nothing planned is null, not 0% — the same rule as every other percentage',
     'value delivered against no plan still has no denominator to divide by');
   eq(w.bvFigures(null).pct, null, 'and a team with no record at all');
 });
-t('absent figures read as 0, like every other blank in the app', () => {
+t('planned with no achieved figure is a PI awaiting its result, never 0% (2026-09-23)', () => {
+  /* This test used to pin the opposite — "absent figures read as 0, like every other
+     blank in the app" — and that rule scored every PI in progress a final 0%, red,
+     from the day its planned figure went in. Absent Achieved is a real answer now,
+     the goalMet rule; a TYPED 0 is still a result, and stretch still reads blank as 0. */
   const bv = w.bvFigures({ plannedBv: 20 });
-  eq(bv.actual, 0); eq(bv.stretch, 0); eq(bv.delivered, 0);
-  approx(bv.pct, 0);
+  eq(bv.pending, true, 'a plan waiting for its result');
+  eq(bv.pct, null, 'no measure — not 0%');
+  eq(bv.delivered, null, 'and nothing delivered to show yet');
+  eq(bv.stretch, 0, 'stretch left blank is still nothing from stretch');
+  const zero = w.bvFigures({ plannedBv: 20, actualBv: 0 });
+  eq(zero.pending, false, 'a 0 typed into Achieved is a result');
+  approx(zero.pct, 0);
+  eq(w.bvFigures({ plannedBv: 0, stretchBv: 4 }).pending, false,
+    'with nothing planned there is no plan to wait on — the nothing-planned case, as before');
+  eq(w.bvFigures(null).pending, false, 'and no record at all is not pending either');
 });
 t('hasBv tells "planned nothing" apart from "nobody has filled this in"', () => {
   const hasBv = w.__svTestHooks.hasBv;
@@ -11284,6 +11296,116 @@ t('a sprint-window link carries a team’s PI figures only for the PIs its own w
     const all = w.buildSharePayload({ teamIds: ['a', 'b'], includeAllTeams: false, scope: { kind: 'all' } });
     eq(all.objectives.length, 4, 'with no window, nothing is cut — nothing was promised');
     eq(all.plans.length, 2);
+  });
+});
+
+
+/* Four teams in one PI, each with a sprint in it so PI by Team lists them all:
+   in the band, under it, awaiting its result, and never scored. */
+function pendingFixture() {
+  const sp = (team, n) => ({ id: team + n, teamId: team, piId: 'p1', sprintNumber: n,
+    committed: 20, committedCompleted: 18, totalCompleted: 18,
+    added: 0, removed: 0, carriedIn: 0, carriedOut: 2, addedThenRemoved: 0 });
+  return {
+    /* On one ART: PI by Team is only offered once an ART has teams on it. */
+    teams: [{ id: 't1', name: 'Done Team', artId: 'r1' }, { id: 't2', name: 'Short Team', artId: 'r1' },
+            { id: 't3', name: 'Running Team', artId: 'r1' }, { id: 't4', name: 'Blank Team', artId: 'r1' }],
+    arts: [{ id: 'r1', name: 'Train' }], pis: [{ id: 'p1', name: 'PI 1' }], plans: [],
+    sprints: [sp('t1', 1), sp('t2', 1), sp('t3', 1), sp('t4', 1)],
+    objectives: [
+      { id: 'o1', teamId: 't1', piId: 'p1', plannedBv: 10, actualBv: 9, stretchBv: 0 },   // 90%
+      { id: 'o2', teamId: 't2', piId: 'p1', plannedBv: 10, actualBv: 5, stretchBv: 0 },   // 50%
+      { id: 'o3', teamId: 't3', piId: 'p1', plannedBv: 40 }                               // awaiting
+    ]
+  };
+}
+
+t('a PI awaiting its result is out of both train figures, and named', () => {
+  withState(pendingFixture(), () => {
+    const pred = w.artPredictability(w.svGet().teams, 'p1');
+    approx(pred.mean, 70, '90% and 50% — the running team is not a 0% in the average');
+    approx(pred.pooled, 70, '14 of 20 — its 40 planned is not a 40-point miss in the pool');
+    eq(pred.planned, 20); eq(pred.delivered, 14);
+    eq(pred.pending.map(t => t.name), ['Running Team'], 'named, for the view to say so');
+    eq(pred.missing.map(t => t.name), ['Blank Team'], 'the never-scored team is still its own case');
+    eq(pred.unplanned.length, 0, 'and it is not "nothing planned" either');
+  });
+});
+
+t('PI by Team shows a PI awaiting its result as awaiting, not as 0% red', () => {
+  renderedFixture(pendingFixture(), { view: 'art', activePiId: 'p1' }, (st, d) => {
+    const row = [...d.querySelectorAll('#artTable tbody tr')].find(tr => /Running Team/.test(tr.textContent));
+    ok(row, 'the running team has its row');
+    const cells = [...row.querySelectorAll('td')].map(reviewText);
+    eq(cells[cells.length - 1], 'awaiting result', 'its Predictability cell', cells.join(' | '));
+    eq(cells[cells.length - 2], '—', 'nothing delivered yet is not 0 delivered');
+    eq(cells[cells.length - 3], '40', 'the plan itself is known and shown');
+    ok(!/(^|[^0-9.])0%/.test(reviewText(row)), 'no 0% anywhere on its row', reviewText(row));
+    const tileVal = reviewText(tileByLabel(d, 'ART predictability').querySelector('.value'));
+    eq(tileVal.replace(/[^0-9%]/g, ''), '70%', 'the tile is the two teams with a result', tileVal);
+    const note = [...d.querySelectorAll('#views .exnote')].map(reviewText).find(x => /Awaiting results/.test(x)) || '';
+    ok(/Running Team — business value planned for PI 1 and nothing achieved/.test(note), 'named in its own note', note);
+    const foot = [...d.querySelectorAll('#artTable tfoot td')].map(reviewText);
+    eq(foot.slice(-3, -1), ['20', '14'], 'the ART total row adds up the teams with a result', foot.join(' | '));
+    ok(/leaves out Running Team, whose PI is still awaiting one/.test(reviewText(d.querySelector('#views .methodnote'))),
+      'and says whose planned figure it left out', reviewText(d.querySelector('#views .methodnote')));
+  });
+});
+
+t('Team PI draws no predictability tile while the PI awaits its result', () => {
+  renderedFixture(pendingFixture(), { activeTeamId: 't3', view: 'pi', activePiId: 'p1' }, (st, d) => {
+    eq(tileByLabel(d, 'PI predictability'), null, 'no tile — a "0%" or a "—" would both mislead');
+    const cells = [...d.querySelectorAll('#views table')].find(tb => /Achieved/.test(tb.textContent));
+    ok(cells, 'the business value table is there');
+    ok(/awaiting result/.test(reviewText(cells)), 'and says the result is awaited', reviewText(cells));
+    ok(/Achieved isn’t filled in yet/.test(reviewText(d.querySelector('#views'))), 'in words, too');
+  });
+});
+
+t('PI Trend: the latest PI awaiting its result reads as no figure yet, not a collapse', () => {
+  const fx = trendFixture();
+  /* PI 2 is the latest with anything in it; A's result is in, B's is awaited — and
+     with B's the only one... make both awaited, the ordinary PI in progress. */
+  fx.objectives = [fx.objectives[0],
+    { id: 'o2', teamId: 'a', piId: 'p2', plannedBv: 20 },
+    { id: 'o3', teamId: 'b', piId: 'p2', plannedBv: 10 }];
+  withState(fx, () => {
+    const rows = w.piTrend(w.svGet().teams, false);
+    eq(rows[1].predPct, null, 'PI 2 has no measure while it waits — it was 0%');
+    eq(rows[1].pending.length, 2);
+  });
+  renderedFixture(fx, { activeTeamId: 'a', view: 'trend' }, (st, d) => {
+    const tile = reviewText(tileByLabel(d, 'PI predictability'));
+    ok(/—/.test(tile) && /no figure yet/.test(tile), 'the tile says the latest PI has no figure yet', tile);
+    ok(!/down/.test(tile), 'and reports no fall', tile);
+    const note = predNote(d);
+    ok(/PI 2 has business value planned and nothing achieved filled in yet/.test(note), note);
+    ok(/until the achieved figure is filled in/.test(note), note);
+  });
+});
+
+t('a blank Achieved box saves a plan awaiting its result; a typed 0 saves a result', async () => {
+  await inFrame('bvpending', {}, async (W, D) => {
+    const last = () => W.svGet().objectives[W.svGet().objectives.length - 1];
+    D.querySelector('.tab[data-view="pi"]').click();
+    await wait(200);
+    [...D.querySelectorAll('button')].find((b) => /Add Business Value/.test(b.textContent)).click();
+    await wait(30);
+    fireBox(W, D, 'bv_planned', '40');
+    ok(!('actualBv' in last()), 'no actualBv key at all — absent, never null or 0', JSON.stringify(last()));
+    eq(D.getElementById('bv_actual').value, '', 'and the box stays blank rather than showing a 0');
+    ok(/Achieved is blank/.test(D.getElementById('bvPreview').textContent),
+      'the preview says what a blank Achieved means', D.getElementById('bvPreview').textContent);
+    fireBox(W, D, 'bv_actual', '0');
+    eq(last().actualBv, 0, 'a typed 0 is stored as the result it is');
+    fireBox(W, D, 'bv_actual', '');
+    ok(!('actualBv' in last()), 'and emptying the box again takes the result back out');
+    const rec = last();
+    const out = W.sanitizeIds(W.coerceShape({ teams: W.svGet().teams, arts: [], pis: W.svGet().pis,
+      sprints: [], objectives: [rec], settings: {} }));
+    ok(out.objectives.length === 1 && !('actualBv' in out.objectives[0]),
+      'a pending record crosses the boundary still pending');
+    await pressDone(D, 'bvDoneBtn');
   });
 });
 
