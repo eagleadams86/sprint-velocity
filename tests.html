@@ -106,7 +106,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 576;
+const EXPECTED = 577;
 
 /* ── THE SUITE LEAVES STORAGE EXACTLY AS IT FOUND IT (2026-09-15 review) ──────
    The page header says "Read-only: nothing is saved", and it was not true: the
@@ -11213,6 +11213,39 @@ t('“Skip to content” in a shared view stays in the shared view', async () =>
     W = f.contentWindow;
     ok(W.__stayed === 1, 'an in-page fragment does not reload a shared view either');
     ok(W.location.hash.startsWith('#share='), 'and the share fragment is put back', W.location.hash.slice(0, 20));
+  });
+});
+
+group('predictability (2026-09-23 review)');
+/* The whole predictability feature read end to end, after the 2026-09-18 review.
+   Three findings; one commit each, each test proven red on the commit before it. */
+const predNote = (d) => [...d.querySelectorAll('#views .exnote')]
+  .map(reviewText).find(s => /predictability figure|No business value/.test(s)) || '';
+
+t('PI Trend names WHY a PI has no predictability figure, per PI', () => {
+  /* PI 1: team A recorded 14 delivered and nothing planned — a record, and no
+     measure. PI 2: nobody recorded anything. Two different reasons, two
+     different remedies, and the note used to give the second for both. */
+  const fx = trendFixture();
+  fx.objectives = [{ id: 'o1', teamId: 'a', piId: 'p1', plannedBv: 0, actualBv: 14, stretchBv: 0 }];
+  renderedFixture(fx, { activeTeamId: 'a', view: 'trend' }, (st, d) => {
+    const note = predNote(d);
+    ok(note, 'the note is on the page');
+    ok(!/PI 1[^;.]*no business value recorded/.test(note),
+      'PI 1 has business value recorded, and the note must not say otherwise', note);
+    ok(/PI 1 has business value delivered but none planned/.test(note),
+      'it says what IS missing for PI 1: the planned figure', note);
+    ok(/PI 2 has no business value recorded/.test(note),
+      'and PI 2, which really has none, keeps the old reason', note);
+    ok(/missing figures are filled in/.test(note),
+      'with two reasons the remedy names neither one alone', note);
+  });
+  /* The one-reason wordings. */
+  fx.objectives.push({ id: 'o2', teamId: 'a', piId: 'p2', plannedBv: 20, actualBv: 18, stretchBv: 0 });
+  renderedFixture(fx, { activeTeamId: 'a', view: 'trend' }, (st, d) => {
+    const note = predNote(d);
+    ok(/^⚑ No predictability figure PI 1 has business value delivered but none planned/.test(note), note);
+    ok(/until the planned figure is filled in/.test(note), note);
   });
 });
 

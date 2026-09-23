@@ -10022,13 +10022,30 @@ function renderPiTrendView() {
         ${empty.length === 1 ? 'it is' : 'they are'} left out rather than drawn as a gap.</span></p>`
     : '';
 
+  /* ── WHY a PI has no figure, per PI (2026-09-23) ────────────────────────────
+     "No business value recorded" was said of every PI with no measure, and a PI
+     can have none with value recorded: every recorded team entered value
+     delivered and nothing planned. The note sent the reader off to record what
+     was already there, while the Teams counted tile beside it called the same
+     team "unscored" — the 2026-09-15 fix for this case reached PI by Team and
+     Team PI and not this view. Each PI is now named under the reason that is
+     true of it, and the remedy names the figure that is actually missing. */
   const unscored = rows.filter(r => r.predPct === null);
+  const noPlan = unscored.filter(r => r.unplanned.length);
+  const noRecord = unscored.filter(r => !r.unplanned.length);
+  const piList = (list) => andList(list.map(r => esc(r.pi.name)));
+  const hasHave = (list) => (list.length === 1 ? 'has' : 'have');
   const unscoredNote = unscored.length
-    ? `<p class="sub exnote"><span class="badge">⚑ No business value</span>
-        <span class="muted">${unscored.map(r => esc(r.pi.name)).join(', ')} ${
-          unscored.length === 1 ? 'has' : 'have'} no business value recorded, so the
-        predictability line skips ${unscored.length === 1 ? 'it' : 'them'}. Record it on the
-        <strong>Team PI</strong> tab and the line fills in.</span></p>`
+    ? `<p class="sub exnote"><span class="badge">⚑ No predictability figure</span>
+        <span class="muted">${[
+          noRecord.length ? `${piList(noRecord)} ${hasHave(noRecord)} no business value recorded` : '',
+          noPlan.length ? `${piList(noPlan)} ${hasHave(noPlan)} business value delivered but none
+            planned, so there is nothing to score it against` : ''
+        ].filter(Boolean).join('; ')}. The predictability line skips ${
+          unscored.length === 1 ? 'it' : 'them'} until ${
+          noPlan.length && noRecord.length ? 'the missing figures are'
+            : noPlan.length ? 'the planned figure is' : 'it is'} filled in on the
+        <strong>Team PI</strong> tab.</span></p>`
     : '';
 
   viewsEl.innerHTML = artToolbar(shown.length, hiddenCount) + `
