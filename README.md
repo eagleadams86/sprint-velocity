@@ -109,9 +109,10 @@ use — and it doesn't. The figures only *match* those two with **Include sprint
 ticked: they always count the IP sprint, and this view leaves it out by default so a PI's
 delivery figures aren't diluted by the sprint that isn't for delivery. The page says which.
 
-A PI with nothing recorded is dropped rather than drawn as a hole, and a PI with no business
-value recorded leaves a gap in the predictability line rather than reading as 0%. Both are
-named under the heading.
+A PI with nothing recorded is dropped rather than drawn as a hole, and a PI with no
+predictability figure leaves a gap in the line rather than reading as 0%. Both are named under
+the heading, and a PI with no figure is named with the reason that's true of it: no business
+value recorded, value delivered but none planned, or planned and still awaiting its result.
 
 There's deliberately **no total row**. Adding PIs together answers nothing — a programme's
 history is a sequence, and the only summary worth having is which way it's going, which is
@@ -1034,12 +1035,20 @@ under *PI Objectives*:
 | Figure | What it is |
 |---|---|
 | **Planned (committed)** | The value of the objectives the team committed to at PI planning |
-| **Achieved** | How much of that committed value actually landed |
+| **Achieved** | How much of that committed value actually landed — leave it **blank** while the PI is still running |
 | **Achieved from stretch** | What the stretch objectives delivered on top |
 
 ```
 PI predictability = (achieved + achieved from stretch) / planned
 ```
+
+**A blank Achieved means the PI is still waiting for its result, not that nothing landed.**
+Enter the planned figure at PI planning and leave Achieved for Inspect & Adapt: until it's
+filled in, that team's PI has **no** predictability figure rather than a 0%. It's left out of
+the ART predictability tile and the ART total row, and marked *awaiting result* and named
+(⚑ *Awaiting results*) wherever it's left out. A **0 typed** into Achieved is a result like any
+other. (Until 2026-09-23 a blank read as 0, so every PI in progress showed 0%, red, from the
+day its plan went in.)
 
 **Stretch value counts in the top half and never in the bottom half.** That's the whole
 design of a stretch objective — it was never a commitment, so counting it as one would
@@ -2061,6 +2070,12 @@ The dialog says what you'd expect it to say and one thing you might not:
 - and if the window leaves a team with fewer than five finished sprints, it warns you, because
   **their Rolling 5 will then average fewer sprints than yours does** — trimming below five
   changes the figures rather than just the size of the link.
+
+Business value and capacity adjustments are cut **per team** along with the sprints: under a
+window, a team's figures for a PI go only if that team's own sprints in the link reach that PI.
+The one exception is the adjustment for a team's next sprint, which the recipient's capacity
+card needs. (Until 2026-09-23 they followed every team's PIs pooled, so on *the last 5
+sprints* one team's older PI could carry another team's business value into the link.)
 
 History from before your first PI never travels under a PI option: it is earlier history,
 which is exactly what the dialog and the recipient's banner say a PI window leaves out. (Until
