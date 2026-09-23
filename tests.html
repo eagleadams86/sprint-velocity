@@ -106,7 +106,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 589;
+const EXPECTED = 590;
 
 /* ── THE SUITE LEAVES STORAGE EXACTLY AS IT FOUND IT (2026-09-15 review) ──────
    The page header says "Read-only: nothing is saved", and it was not true: the
@@ -11265,6 +11265,30 @@ t('two copies: a refused paste stays in its box, and nothing says it was importe
     await Promise.resolve();
     const rec = Object.assign({}, W.svGet().sprints[0], { id: 's9', sprintNumber: 9 });
     eq(W.commitSprint(rec), false, 'commitSprint() does not report a refused save as saved');
+  });
+});
+t('two copies: a board from a newer build halts a Restore, and is not called the wrong file', async () => {
+  /* The same fault one level up (2026-09-23, found walking the AST for save()
+     inside a try): Restore saves inside its FileReader's try, and that catch
+     took the halt's throw for a file that is not an export — a toast in the top
+     layer, over the halt card. */
+  await twoCopiesFrame('restorehalt', async (W) => {
+    const D = W.document;
+    const errs = [];
+    W.addEventListener('error', (e) => { errs.push(String(e.message)); e.preventDefault(); });
+    W.confirm = () => true;
+    D.getElementById('dataDialog').showModal();
+    localStorage.setItem('sv-data', JSON.stringify(savedCopy({ version: 9999 })));
+    const input = D.getElementById('importFile');
+    const dt = new W.DataTransfer();
+    dt.items.add(new W.File([JSON.stringify(savedCopy())], 'backup.json', { type: 'application/json' }));
+    input.files = dt.files;
+    input.dispatchEvent(new W.Event('change'));
+    await wait(200);
+    const said = D.getElementById('toastText').textContent;
+    ok(!/look like a Sprint Velocity export/.test(said), 'nothing calls the backup the wrong file', said);
+    ok(errs.some((m) => /newer than this build/.test(m)), 'the halt stopped the handler by throwing', errs.join(' | '));
+    eq(JSON.parse(localStorage.getItem('sv-data')).version, 9999, 'the newer board is untouched');
   });
 });
 t('a truncated share link is refused without an uncaught error beside it', async () => {

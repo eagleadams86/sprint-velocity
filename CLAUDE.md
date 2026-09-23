@@ -3277,6 +3277,13 @@ Each bullet below is one commit.
     two refusals must `await` between them — in the app every press is its own task.
   - `let writeRefused` sits beside `storedRaw`, ABOVE `let state = load()` — `toast()` reads it,
     and anything toasting during script evaluation would hit the TDZ.
+  - **Follow-up, same day: a CALLER's try swallowed the halt too.** Restore saves inside its
+    FileReader's try, and that catch called the halt "That file doesn't look like a Sprint
+    Velocity export" — over the halt card. It rethrows when `viewOnly` is set (Back Up is hidden
+    in a shared view, so there it can only be the halt). Found by walking the AST for every call
+    to `save()`, or to a function that transitively calls it, inside a `try` block (acorn +
+    acorn-walk, not grep) — Restore was the only hit. EXPECTED 589 → 590. Re-run that walk
+    before adding a `save()` inside a try.
 - **A truncated share link no longer leaves an uncaught error in the console (2026-09-18).**
   `squeeze()` fired `w.write(bytes); w.close();` without handling either promise. A cut-off link
   fails both sides of the stream: the read's rejection reaches `openSharedView()`'s catch and
