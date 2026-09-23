@@ -3248,9 +3248,35 @@ Each bullet below is one commit.
   `save.blocked` and defers its own toast to the end of the task; `toast()` claims the flag and
   appends "— ⚠️ but this browser is blocking storage…" to whatever it was asked to say. Chosen
   over `save()` returning false: there are dozens of callers and the next one written would
-  forget to check. `saveBlockedMsg()` is a FUNCTION for the boot-time dead-zone reason. The test
+  forget to check. (`save()` does return a boolean since 2026-09-23, for the refused-save
+  case below — but the ride-along is still what carries a QUOTA failure; callers need not check.) `saveBlockedMsg()` is a FUNCTION for the boot-time dead-zone reason. The test
   boots its own frame: `inFrame` replaces `save`, and a function declaration's global property
   cannot be deleted to get the real one back (strict mode throws).
+- **What happens AROUND a refused save (2026-09-23, ported from Flow Metrics `5312018`).** The
+  two-copies guard was right; three faults sat in and around its callers. Each has its own `t()`
+  in `tests.html`, all three red against the build before (EXPECTED 586 → 589):
+  - **The foreign check is OUTSIDE `save()`'s try.** `adoptOtherCopy` → `load()` →
+    `haltForNewerData` stops by THROWING; inside the try that throw was caught as a quota error —
+    `save.blocked`, "this browser is blocking storage" under the halt card, and the caller
+    rendered on. Out there the halt stops the handler, as it stops boot.
+  - **`writeRefused` holds every toast for the rest of the TASK.** Set by `adoptOtherCopy(true)`,
+    lifted in a MICROTASK (a timer is throttled in a background tab), cleared first by the
+    adoption's own toast so the warning is never the one held back. Checked at the top of
+    `toast()`, before the `save.blocked` ride-along. NOT the ride-along itself: after a quota
+    failure the change IS on screen, so "Data imported — ⚠️ but…" is true; after a refusal it
+    is not, and the ride-along would still say "Data imported" — and still offer an Undo
+    (`undoableToast`) for a delete that did not happen. One flag in `toast()` rather than a
+    check in each of the dozens of callers — the reasoning of the bullet above still stands.
+  - **`save()` RETURNS whether the write landed**, and a caller that goes on to claim success
+    checks `!save() && writeRefused` — the second half so a quota failure (change on screen)
+    carries on exactly as before. Three callers: the history paste (`importApplyBtn`) reopens
+    its window — adopting closed it — with the paste still in the box, the preview re-checked
+    against the board now loaded, and fixed words in `#importWarn`; `commitSprint()` returns
+    false, so the Jira auto-save no longer reads a refusal as "Numbers saved" and sets up a
+    Cancel & Undo Save for it; Restore stops before `applyTheme()`/`render()`. A test that drives
+    two refusals must `await` between them — in the app every press is its own task.
+  - `let writeRefused` sits beside `storedRaw`, ABOVE `let state = load()` — `toast()` reads it,
+    and anything toasting during script evaluation would hit the TDZ.
 - **A truncated share link no longer leaves an uncaught error in the console (2026-09-18).**
   `squeeze()` fired `w.write(bytes); w.close();` without handling either promise. A cut-off link
   fails both sides of the stream: the read's rejection reaches `openSharedView()`'s catch and

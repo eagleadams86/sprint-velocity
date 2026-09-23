@@ -106,7 +106,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 586;
+const EXPECTED = 589;
 
 /* ── THE SUITE LEAVES STORAGE EXACTLY AS IT FOUND IT (2026-09-15 review) ──────
    The page header says "Read-only: nothing is saved", and it was not true: the
@@ -11169,6 +11169,103 @@ t('a refused storage write is said WITH the toast that follows it, never replace
     f.remove();
     if (beforePin === null) localStorage.removeItem('sv-pin'); else localStorage.setItem('sv-pin', beforePin);
   }
+});
+/* ── What happens AROUND a refused save (2026-09-23, ported from Flow Metrics) ──
+   The two-copies guard in save() was right; three things around it were not. Each
+   of these was red against the build before. Every one runs in a REAL frame, and
+   puts the reader's own `sv-data` and `sv-pin` back whatever happens. */
+async function twoCopiesFrame(tag, body) {
+  const beforeData = localStorage.getItem('sv-data'), beforePin = localStorage.getItem('sv-pin');
+  const f = document.createElement('iframe');
+  try {
+    localStorage.setItem('sv-data', JSON.stringify(savedCopy()));
+    f.setAttribute('data-sv-tests', '');
+    f.setAttribute('aria-hidden', 'true');
+    f.style.cssText = 'position:absolute;left:-9999px;width:1280px;height:900px;border:0';
+    await new Promise((resolve) => { f.onload = resolve; f.src = 'index.html?' + tag + '=' + Date.now(); document.body.appendChild(f); });
+    await wait(300);
+    await body(f.contentWindow);
+  } finally {
+    f.remove();
+    if (beforeData === null) localStorage.removeItem('sv-data'); else localStorage.setItem('sv-data', beforeData);
+    if (beforePin === null) localStorage.removeItem('sv-pin'); else localStorage.setItem('sv-pin', beforePin);
+  }
+}
+/* Window B's board: the fixture plus a second sprint. */
+const otherWindowRaw = () => {
+  const other = savedCopy();
+  other.sprints.push(Object.assign({}, other.sprints[0], { id: 's2', sprintNumber: 2 }));
+  return JSON.stringify(other);
+};
+t('two copies: a board from a newer build halts the save, and is not called a full disk', async () => {
+  /* The foreign-board check sat INSIDE save()'s try. Adopting a board written by a
+     newer build halts by THROWING (haltForNewerData), and the catch took that throw
+     for a storage failure: "this browser is blocking storage" under the halt card,
+     and the caller rendered on. */
+  await twoCopiesFrame('halt', async (W) => {
+    localStorage.setItem('sv-data', JSON.stringify(savedCopy({ version: 9999 })));
+    let halted = false;
+    try { W.save(); } catch (e) { halted = /newer than this build/.test(String(e)); }
+    ok(halted, 'save() stops by throwing, as boot does');
+    await wait(50);
+    const said = W.document.getElementById('toastText').textContent;
+    ok(!/blocking storage/.test(said), 'and nothing says storage is blocked', said);
+    eq(JSON.parse(localStorage.getItem('sv-data')).version, 9999, 'the newer board is untouched');
+  });
+});
+t('two copies: a success line after a refused save does not replace the warning', async () => {
+  /* One toast element, and nearly every caller toasts its success straight after
+     save() — "1 sprint imported", "Data imported", an Undo — which replaced the
+     warning with a claim about a change that had just been thrown away. */
+  await twoCopiesFrame('held', async (W) => {
+    const text = () => W.document.getElementById('toastText').textContent;
+    localStorage.setItem('sv-data', otherWindowRaw());
+    W.svGet().settings.view = 'rolling';
+    W.save();
+    W.toast('Data imported');
+    ok(/not saved/.test(text()) && !/imported/.test(text()),
+      'the warning is still up, not the success line', text());
+    W.toast('Sprint 1 deleted', { label: 'Undo', onClick() {} });
+    ok(/not saved/.test(text()), 'nor an Undo for a delete that did not happen', text());
+    ok(W.document.getElementById('toastAction').hidden, 'and no Undo button is offered');
+    await Promise.resolve();   // a press is a task of its own; this ends it
+    W.toast('A later message');
+    eq(text(), 'A later message', 'the next task’s toasts are shown as usual');
+  });
+});
+t('two copies: a refused paste stays in its box, and nothing says it was imported', async () => {
+  /* The history paste closed its window and said "1 sprint imported" over a board
+     that did not have the sprint in it — and the Jira paste's auto-save still set
+     up "Cancel & Undo Save" for a save that had not happened. save() now says
+     whether the write landed. */
+  await twoCopiesFrame('paste', async (W) => {
+    const D = W.document;
+    const stored = () => JSON.parse(localStorage.getItem('sv-data')).sprints.map((s) => s.sprintNumber).join(',');
+    W.openImport();
+    const paste = 'sprint\tcommitted\n3\t20';
+    D.getElementById('importText').value = paste;
+    W.refreshImportPreview();
+    ok(!D.getElementById('importApplyBtn').disabled, 'the paste is ready to import');
+    const otherRaw = otherWindowRaw();
+    localStorage.setItem('sv-data', otherRaw);
+    D.getElementById('importApplyBtn').click();
+    eq(localStorage.getItem('sv-data'), otherRaw, 'the refused paste wrote nothing over the other board');
+    ok(D.getElementById('importDialog').open, 'the import window is open again');
+    eq(D.getElementById('importText').value, paste, 'with the paste still in its box');
+    ok(/Nothing from this paste was saved/.test(D.getElementById('importWarn').textContent),
+      'and it says the paste was not saved', D.getElementById('importWarn').textContent);
+    ok(!/imported/.test(D.getElementById('toastText').textContent),
+      'and nothing says it was imported', D.getElementById('toastText').textContent);
+    await Promise.resolve();
+    D.getElementById('importApplyBtn').click();
+    eq(stored(), '1,2,3', 'pressed again, now current, the paste lands on the board it was refused against');
+    /* The Jira paste reaches storage through commitSprint(), whose `true` is what
+       autoSaveJiraNumbers() reads as "Numbers saved". */
+    localStorage.setItem('sv-data', otherRaw);
+    await Promise.resolve();
+    const rec = Object.assign({}, W.svGet().sprints[0], { id: 's9', sprintNumber: 9 });
+    eq(W.commitSprint(rec), false, 'commitSprint() does not report a refused save as saved');
+  });
 });
 t('a truncated share link is refused without an uncaught error beside it', async () => {
   if (typeof w.CompressionStream !== 'function') return;   // marker-0 links never reach squeeze()

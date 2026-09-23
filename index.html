@@ -4069,6 +4069,10 @@ let bootPruned = 0;          // stray keys or wrong-typed values found in it
    against before writing over it (see save()). Declared above load(), which sets
    it while the script is still being evaluated. */
 let storedRaw = null;
+/* True for the rest of the task in which save() adopted another window's board
+   instead of writing this one's — see adoptOtherCopy. Declared up here with
+   storedRaw, above anything that could toast while the script is evaluated. */
+let writeRefused = false;
 
 let state = load();
 
@@ -4138,14 +4142,8 @@ function load() {
 }
 
 function save() {
-  if (viewOnly) return;   // someone else's data — never write it over your own
-  /* Guarded like load(): Safari's private mode and a full quota both throw
-     here, and an unguarded throw would kill the click handler mid-save with
-     nothing on screen to say so. The in-memory state is still good — but since
-     sync was removed there is no second copy anywhere to fall back on, so
-     saying so is all the more the honest thing to do. */
-  try {
-    /* ── Two copies of the app open at once (2026-09-18) ─────────────────────
+  if (viewOnly) return false;   // someone else's data — never write it over your own
+  /* ── Two copies of the app open at once (2026-09-18) ─────────────────────
        save() writes the WHOLE in-memory board, and nearly everything saves — a
        tab press, a picker, a toggle. So with the app open twice (two tabs, or the
        installed window and a tab), the copy that had NOT been reloaded wrote its
@@ -4154,12 +4152,30 @@ function save() {
        other, and neither said a word. Storage is held up against what THIS copy
        last read or wrote; if somebody else has written since, their board is
        adopted instead of overwritten, and the one change that did not land is
-       said out loud. Losing one press, announced, beats losing a sprint in silence. */
-    if (localStorage.getItem(STORAGE_KEY) !== storedRaw) { adoptOtherCopy(true); return; }
+       said out loud. Losing one press, announced, beats losing a sprint in silence.
+     RETURNS whether the write landed (2026-09-23, ported from Flow Metrics), so a
+     caller can stop before announcing a change that was just thrown away — see
+     adoptOtherCopy. A quota failure returns false too, but leaves `writeRefused`
+     unset: that change IS on screen, and its callers carry on as they always did.
+     The check sits OUTSIDE the try below, and that is load-bearing: adopting a
+     board from a newer build halts the app by THROWING (haltForNewerData), and
+     inside the try that throw was caught as a storage failure — "this browser is
+     blocking storage" under the halt card, and the caller rendered on. Out here
+     the halt stops the handler, as it stops boot. */
+  let foreign = false;
+  try { foreign = localStorage.getItem(STORAGE_KEY) !== storedRaw; } catch (e) { foreign = false; }
+  if (foreign) { adoptOtherCopy(true); return false; }
+  /* Guarded like load(): Safari's private mode and a full quota both throw
+     here, and an unguarded throw would kill the click handler mid-save with
+     nothing on screen to say so. The in-memory state is still good — but since
+     sync was removed there is no second copy anywhere to fall back on, so
+     saying so is all the more the honest thing to do. */
+  try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     /* Read BACK rather than remembered: a browser that accepts the write and keeps
        nothing must not look, next time, like another window having emptied it. */
     storedRaw = localStorage.getItem(STORAGE_KEY);
+    return true;
   } catch (e) {
     console.warn('Could not write saved data', e);
     /* There is only ever ONE toast, and nearly every caller raises its own right
@@ -4170,6 +4186,7 @@ function save() {
        alone only if nothing claims it by the end of the task. */
     save.blocked = true;
     setTimeout(() => { if (save.blocked) { save.blocked = false; toast(saveBlockedMsg()); } }, 0);
+    return false;
   }
 }
 /* A function, not a const: toast() and save() can both run before a const down
@@ -4188,10 +4205,26 @@ function adoptOtherCopy(lostChange) {
   state = load();
   document.querySelectorAll('dialog[open]').forEach(d => d.close());
   render();
+  writeRefused = false;   // this sentence is never the one held back
   toast(lostChange
     ? 'This board was changed in another tab or window, so that copy is loaded here now. '
       + 'Your last change here was not saved — make it again.'
     : 'Updated — this board was changed in another tab or window.');
+  /* THE REST OF THIS TASK IS ABOUT A CHANGE THAT DID NOT HAPPEN (2026-09-23,
+     ported from Flow Metrics). save() runs inside the handler that made the
+     change, and nearly every such handler toasts straight after it — "Data
+     imported", "1 sprint imported", an Undo — which replaced the sentence above in
+     the one toast there is, so the reader was told of a change that had just been
+     thrown away, and offered to undo it. Not the save.blocked ride-along used for
+     a full quota: there the change IS on screen and the caller's news is true;
+     here it is false, and "Data imported — but…" would still say it. So the toast
+     is held for the rest of this task instead of each handler learning to check.
+     Lifted in a MICROTASK, not a timer — the handler's own synchronous tail is
+     what has to be silenced, and a timer is throttled in a background tab. */
+  if (lostChange) {
+    writeRefused = true;
+    queueMicrotask(() => { writeRefused = false; });
+  }
 }
 
 /* Sync was removed on 2026-08-20, and its two keys are actively DELETED rather
@@ -6558,6 +6591,8 @@ function toast(msg, action) {
      markup: the toast is one element the whole page shares, and the window's
      own list already shows the row gone. One toast, never a queue, held or
      shown: a later call replaces a held one too. */
+  /* A success line from a handler whose save was just refused — see adoptOtherCopy. */
+  if (writeRefused) return;
   /* A write that was refused is said WITH whatever this toast was going to say,
      never replaced by it — see save(). */
   if (save.blocked) {
@@ -12680,7 +12715,10 @@ function commitSprint(record) {
   if (i >= 0) state.sprints[i] = record; else state.sprints.push(record);
   state.settings.activePiId = piKey(record.piId);   // see focusLatestSprint
   state.settings.activeSprintNum = record.sprintNumber;
-  save();
+  /* Refused because another window wrote first (2026-09-23): that board is on
+     screen now and this record is not in it, so this is not a save — the Jira
+     auto-save reads `true` as "Numbers saved" and would set up an Undo for it. */
+  if (!save() && writeRefused) return false;
   return true;
 }
 
@@ -14024,7 +14062,9 @@ F('importFile').onchange = (e) => {
         + (unassigned ? `\n\n${unassignedNote(unassigned)}` : '');
       if (!confirm(msg)) return;
       state = adoptState(parsed);
-      save();
+      /* Refused: another window's board is loaded instead and the adoption has
+         said so — nothing below may call this file restored. */
+      if (!save() && writeRefused) return;
       applyTheme();
       render();
       toast('Data imported');
@@ -14458,7 +14498,19 @@ F('importApplyBtn').onclick = () => {
   const first = good[0];
   setActiveTeam(first.team.id);
   state.settings.activePiId = piKey(first.record.piId);
-  save();
+  /* Refused because another window wrote first (2026-09-23): that board is on
+     screen now and none of this paste is in it. Adopting closed this window with
+     every other one, so it is opened again — the box still holds the paste, the
+     preview is re-checked against the board now loaded, and the refusal is said
+     under it. Fixed words: nothing out of the paste is repeated. */
+  if (!save() && writeRefused) {
+    openModal(importDialog);
+    refreshImportPreview();
+    F('importWarn').textContent = 'Nothing from this paste was saved. This board was changed in '
+      + 'another tab or window, so that copy is loaded here now. Your paste is still in the box '
+      + '\u2014 check it and import again.' + (importPlan.fatal ? ' ' + importPlan.fatal : '');
+    return;
+  }
   importDialog.close();
   render();
   const teams = new Set(good.map(r => r.team.id));

@@ -1825,7 +1825,10 @@ and a tab — a window that is sitting idle picks up the other's changes as they
 window that was about to save over a newer board loads that board instead and says so: *"This
 board was changed in another tab or window… Your last change here was not saved — make it
 again."* (Until 2026-09-18 the window that had not been reloaded silently wrote its old board
-over the other's work the next time anything in it was pressed.)
+over the other's work the next time anything in it was pressed.) That warning is not
+replaced by a "Data imported" or an Undo for the change that did not land, and a pasted
+history that was turned away stays in its box, with the import window open again, so it can be
+imported onto the board now showing (2026-09-23).
 
 What's saved per sprint is the seven figures, its dates, its status, and — if you've set
 one — whether it's left out of the rolling average and which of the fixed reasons applies.
