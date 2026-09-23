@@ -106,7 +106,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 577;
+const EXPECTED = 578;
 
 /* ── THE SUITE LEAVES STORAGE EXACTLY AS IT FOUND IT (2026-09-15 review) ──────
    The page header says "Read-only: nothing is saved", and it was not true: the
@@ -11246,6 +11246,44 @@ t('PI Trend names WHY a PI has no predictability figure, per PI', () => {
     const note = predNote(d);
     ok(/^⚑ No predictability figure PI 1 has business value delivered but none planned/.test(note), note);
     ok(/until the planned figure is filled in/.test(note), note);
+  });
+});
+
+t('a sprint-window link carries a team’s PI figures only for the PIs its own window reaches', () => {
+  /* The window is cut per team; the PI filter was not. A's last five sprints reach
+     back into PI 1 and B's do not — so B's PI 1 business value and an old PI 1
+     adjustment went into a link whose banner says earlier history is left out. */
+  const sp = (team, pi, n) => ({ id: team + pi + n, teamId: team, piId: pi, sprintNumber: n,
+    committed: 10, committedCompleted: 8, totalCompleted: 8,
+    added: 0, removed: 0, carriedIn: 0, carriedOut: 2, addedThenRemoved: 0 });
+  const bv = (id, team, pi) => ({ id, teamId: team, piId: pi, plannedBv: 10, actualBv: 8, stretchBv: 0 });
+  const fx = {
+    teams: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }], arts: [],
+    pis: [{ id: 'p1', name: 'PI 1' }, { id: 'p2', name: 'PI 2' }],
+    sprints: [sp('a', 'p1', 4), sp('a', 'p1', 5), sp('a', 'p2', 1), sp('a', 'p2', 2), sp('a', 'p2', 3),
+              sp('b', 'p1', 1), sp('b', 'p1', 2),
+              sp('b', 'p2', 1), sp('b', 'p2', 2), sp('b', 'p2', 3), sp('b', 'p2', 4), sp('b', 'p2', 5)],
+    objectives: [bv('oa1', 'a', 'p1'), bv('oa2', 'a', 'p2'), bv('ob1', 'b', 'p1'), bv('ob2', 'b', 'p2')],
+    plans: [{ id: 'old', teamId: 'b', piId: 'p1', sprintNumber: 2, availability: 50, reason: 'leave' }]
+  };
+  withState(fx, () => {
+    /* B's next slot, whatever the app says it is — the plan the recipient's card reads. */
+    const next = w.targetSprintSlot('b');
+    ok(next && next.piId === 'p2', 'B plans next in PI 2', JSON.stringify(next));
+    w.svGet().plans.push({ id: 'next', teamId: 'b', piId: next.piId, sprintNumber: next.sprintNumber,
+                           availability: 80, reason: 'leave' });
+    const cut = w.buildSharePayload({ teamIds: ['a', 'b'], includeAllTeams: false,
+                                      scope: { kind: 'sprint', n: 5 } });
+    eq(cut.sprints.filter(s => s.teamId === 'b' && s.piId === 'p1').length, 0,
+      'the fixture: B’s window of five holds nothing from PI 1');
+    ok(cut.pis.some(p => p.id === 'p1'), 'the fixture: PI 1 is in the link, for A');
+    eq(cut.objectives.map(o => o.id).sort(), ['oa1', 'oa2', 'ob2'],
+      'B’s PI 1 business value stays behind — its window never reached PI 1');
+    eq(cut.plans.map(p => p.id), ['next'],
+      'so does B’s old PI 1 adjustment; the one for its next slot still travels');
+    const all = w.buildSharePayload({ teamIds: ['a', 'b'], includeAllTeams: false, scope: { kind: 'all' } });
+    eq(all.objectives.length, 4, 'with no window, nothing is cut — nothing was promised');
+    eq(all.plans.length, 2);
   });
 });
 

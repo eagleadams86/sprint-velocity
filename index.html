@@ -14588,6 +14588,21 @@ function buildSharePayload({ teamIds, includeAllTeams, scope }) {
   buildSharePayload.dropped = drop ? emptied.map(t => t.name) : [];
 
   const usedPis = new Set(sprints.map(s => s.piId));
+  /* ── A WINDOW IS CUT PER TEAM, SO ITS PI FIGURES ARE TOO (2026-09-23) ─────────
+     A sprint window is cut team by team, and `usedPis` is every team's PIs pooled —
+     so with "the last 5 sprints", Team B's business value for a PI only Team A's
+     window reached went into the link, under a banner saying earlier history isn't
+     included. Under a window a team's objectives travel only for a PI where THAT
+     team still has a sprint in the payload, and its capacity plans likewise —
+     except the plan for its next slot, which is what the recipient's capacity card
+     reads and is forward-looking rather than history. With no window in force the
+     rule is the old one: nothing was promised, and nothing is cut. */
+  const windowed = !!(scope && scope.kind !== 'all');
+  const ownPi = (rec) => sprints.some(s => s.teamId === rec.teamId && s.piId === rec.piId);
+  const isNextSlot = (pl) => {
+    const slot = targetSprintSlot(pl.teamId);
+    return !!slot && piKey(slot.piId) === piKey(pl.piId) && slot.sprintNumber === pl.sprintNumber;
+  };
   /* Only the ARTs the shared teams are actually on — same rule as the PIs above, so
      sharing one team doesn't publish the names of every train you support. A team
      whose ART didn't make it would be un-grouped by sanitizeIds() at the far end,
@@ -14614,7 +14629,7 @@ function buildSharePayload({ teamIds, includeAllTeams, scope }) {
        of the trimmed sprints was itself unassigned — dropped a PI-less team's
        adjustment out of the link for reasons that had nothing to do with it. */
     plans: state.plans.filter(pl => teams.some(t => t.id === pl.teamId)
-      && (!pl.piId || usedPis.has(pl.piId))),
+      && (!pl.piId || (windowed ? ownPi(pl) || isNextSlot(pl) : usedPis.has(pl.piId)))),
     /* Business value for the teams and PIs that made it through — three numbers
        and two ids, nothing identifying, exactly like a plan. It travels for the
        same reason: without it a shared link's Team PI and PI by Team views would
@@ -14622,7 +14637,7 @@ function buildSharePayload({ teamIds, includeAllTeams, scope }) {
        reads as the recipient's copy being broken. A PI the window cut away takes
        its objectives with it. */
     objectives: state.objectives.filter(o =>
-      teams.some(t => t.id === o.teamId) && usedPis.has(o.piId)),
+      teams.some(t => t.id === o.teamId) && (windowed ? ownPi(o) : usedPis.has(o.piId))),
     /* Numbers only, and undefined on a full history so JSON.stringify drops the key
        entirely. The recipient's banner is built from these two figures rather than
        from a sentence the sender wrote, so a hand-edited link has no text to inject. */
