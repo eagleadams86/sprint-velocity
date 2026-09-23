@@ -10553,6 +10553,11 @@ function renderArtPiView() {
           pred.scored
             ? `each of ${plural(pred.scored, 'team')} counted once — ${
                 esc(predictabilityStatus(pred.mean)).toLowerCase()}`
+            /* Why there is no figure, not always "nothing recorded" (2026-09-23): the
+               No ART group in the demo is one team, and a train whose every team is
+               awaiting its result has business value recorded. */
+            : pred.pending.length ? 'awaiting results — nothing achieved filled in yet'
+            : pred.unplanned.length ? 'business value delivered, none planned'
             : 'no business value recorded yet',
           true, 'artPredictability')}
         ${tile('Teams in the band', pred.scored ? `${inBand} of ${pred.scored}` : '—', null,
@@ -15431,9 +15436,11 @@ function loadSample() {
      stored data, so it is not part of this payload.) */
 
   /* ── PI business value, for the PI by Team view ──────────────────────────────
-     Four of the five teams are scored, and each is a different reading of the
+     Three of the five teams are scored, and each is a different reading of the
      band — the point being that predictability is a two-sided measure and a demo
-     that only ever shows teams under the band teaches it as a one-sided one.
+     that only ever shows teams under the band teaches it as a one-sided one. The
+     other two are the two ways a team can have NO figure, and they are different
+     findings with different notes, so each gets a team (2026-09-23).
 
      · Team Baseline       36 of 40  =  90%  — green, in the band, the ordinary
                                                team again.
@@ -15446,14 +15453,20 @@ function loadSample() {
                                                delivers. 28 committed plus 6 of
                                                stretch, so the stretch asymmetry
                                                is visible in a row.
-     · Team New Start      15 of 18  =  83%  — green, and in NO ART, so the "No
-                                               ART" group on this view has a
-                                               figure of its own.
-     · Team Live Sprint    not scored        — its PI is still running, which is
-                                               the honest reason a team has no
-                                               objectives yet, and it is what puts
-                                               the ⚑ "not scored" note on Payments
-                                               ART with a team named in it.
+     · Team Live Sprint    30 planned, Achieved blank — AWAITING ITS RESULT. Its
+                                               PI is the one running, so the plan is
+                                               in and the result is not: the ⚑
+                                               "Awaiting results" note, and a row
+                                               reading "awaiting result" rather
+                                               than 0%.
+     · Team New Start      not scored        — a brand-new team that joined after
+                                               PI planning, which is the honest
+                                               reason a team has no objectives at
+                                               all: the ⚑ "Not scored yet" note.
+                                               It used to hold 15 of 18 = 83% so
+                                               the No ART group had a figure of
+                                               its own; that was the price of
+                                               showing both empty states.
 
      That leaves Payments ART worked out from one of its two teams (the note says
      so) and Platform ART from both: mean 86%, pooled 84% — the two methods
@@ -15466,11 +15479,13 @@ function loadSample() {
     bv(t1.id, piB.id, 40, 36, 0),
     bv(t3.id, piB.id, 34, 20, 0),
     bv(t4.id, piB.id, 30, 28, 6),
-    bv(t5.id, piB.id, 18, 15, 0),
+    /* Planned at PI planning, Achieved still blank — the PI is running (2026-09-23).
+       No actualBv KEY at all: that absence is what reads as awaiting a result. */
+    { id: uid(), teamId: t2.id, piId: piB.id, plannedBv: 30 },
 
     /* ── And the two earlier PIs, so the trend tab has a direction ────────────
        Predictability is the mean of each PI's own teams, and these are picked to
-       climb: 2026.1 ≈ 75%, 2026.2 ≈ 81%, 2026.3 ≈ 86%. A train getting steadily
+       climb: 2026.1 ≈ 75%, 2026.2 ≈ 81%, 2026.3 ≈ 87%. A train getting steadily
        better is the easiest shape to read, and the point of the view is the
        DIRECTION — a demo where the three PIs jitter teaches nothing about what
        the chart is for. Both earlier PIs cover two teams against 2026.3's four,

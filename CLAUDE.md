@@ -561,7 +561,7 @@ but Charles had ever actually signed in.)
   five times it is a smaller team for a whole PI. Named under *⚑ One-off not stretched*. It covers only teams that have been in a PI, matching the table above it, and
   names any it left out — a team that doesn't run PIs has no place under a heading about the
   next PI, and its target is on Rolling 5 where it lives.
-- **The demo carries THREE PIs so the trend has a direction** (≈75% → 81% → 86%, climbing out
+- **The demo carries THREE PIs so the trend has a direction** (≈75% → 81% → 87%, climbing out
   of the band into it). Two points are a line and say nothing about whether a train is
   steadying or drifting. The two earlier PIs cover two teams against 2026.3's five, which is
   also deliberate: it is what makes the "not the same train throughout" note fire, and it
@@ -789,8 +789,10 @@ but Charles had ever actually signed in.)
   so the next slot is the IP sprint, Team Headroom's S2 lands at 92% so the note reads "4 of
   the last 5", Team New Start's carryover exceeds its halved figure. **The business value is picked
   the same way**: one team inside the band, one under, one over (Team Headroom, whose objectives
-  are under-committed just as its points are), one team unscored so the ⚑ note has something to
-  name, and Platform ART arranged as the cancelling case so the "average is hiding this" note
+  are under-committed just as its points are), one team unscored (Team New Start, which joined after PI
+  planning) so the ⚑ *Not scored yet* note has something to name, one team AWAITING its result
+  (Team Live Sprint, whose PI is the one running — planned, Achieved blank) for the ⚑ *Awaiting
+  results* note, and Platform ART arranged as the cancelling case so the "average is hiding this" note
   fires on a first run. A demo whose predictability figures are all healthy teaches a two-sided
   measure as a one-sided one. **The sprint goals are picked the same way and must not be tidied
   into agreement with the points**: Team Headroom reads best on every points figure and meets 2
@@ -3308,9 +3310,16 @@ group proven red against the commit before it. EXPECTED 576 → 583.
   every other blank in the app") on purpose. **No schema bump**: every record the window wrote
   before carried all three keys, so no saved figure moves; an older build reading a pending
   record strips nothing and shows the old 0% — the existing fault, not a new false statement.
-  **The demo does not show the state yet, and that is a decision for Charles**: the natural home
-  is Team Live Sprint (its PI is running), but it is also the demo's one never-scored team, the
-  only thing that puts the ⚑ *Not scored yet* note on Payments ART.
+  **The demo shows it on Team Live Sprint** (Charles's call, the same day: "find another way to
+  show both"): Live Sprint, whose PI is the running one, holds a plan awaiting its result, and
+  the never-scored role moved to Team New Start — a team that joined after PI planning, the more
+  honest reason for no objectives. The price, taken knowingly: New Start's 83% was what gave the
+  No ART group a predictability figure of its own; that group now reads "no business value
+  recorded yet", which is itself a true empty state. PI 2026.3's trend figure moved 86% → 87%
+  (up 6.2 on 2026.2). Six Business Value window tests landed on Live Sprint's Add button and now
+  go through `toUnscoredTeamPi()`. Same commit: the ART predictability tile said "no business
+  value recorded yet" whenever no team was scored, also over a train whose teams were all
+  awaiting results — it names the reason now. EXPECTED 583 → 586.
 - **PI Trend names WHY a PI has no figure (2026-09-23).** The note said "no business value
   recorded" of every PI with no measure, including one where every recorded team entered value
   delivered and nothing planned — the 2026-09-15 fix for that case reached PI by Team and Team PI

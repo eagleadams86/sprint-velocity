@@ -81,8 +81,8 @@ question can be asked: *not how the last PI went, but which way the train is mov
 Every Team — Across 3 PIs
 
 PI predictability        Commitment completion      Delivered
-      86% ✓                    81% !                   429
-PI 2026.3 — up 5.2         down 11.7 points        up 303 on
+      87% ✓                    81% !                   429
+PI 2026.3 — up 6.2         down 11.7 points        up 303 on
 points on PI 2026.2        on PI 2026.2            PI 2026.2
 ```
 
@@ -790,11 +790,11 @@ rather than a list of names you'd have to open one by one:
 
 | Team | ART | What it's there to show |
 |---|---|---|
-| **Team Live Sprint** | Payments | A sprint **running right now** — done-so-far, pace ("day 6 of 14, slightly behind") and carried-in. Its commitment is well over the suggestion, which is the one finding still actionable mid-sprint. Also a **⚑ standing team availability**, and the only team with **no business value recorded** — its PI is still running, which is why. Records **no sprint goals** either, so the goals tile is absent rather than showing a zero. |
+| **Team Live Sprint** | Payments | A sprint **running right now** — done-so-far, pace ("day 6 of 14, slightly behind") and carried-in. Its commitment is well over the suggestion, which is the one finding still actionable mid-sprint. Also a **⚑ standing team availability**, and the team whose PI business value is **awaiting its result** — planned at PI planning, *Achieved* still blank, because its PI is still running — so *PI by Team* shows it as *awaiting result* rather than 0%. Records **no sprint goals** either, so the goals tile is absent rather than showing a zero. |
 | **Team Baseline** | Payments | The ordinary team: green, landing about 90% of what it signs up for. Spans **all three PIs**, so the [PI Trend](#across-pis) has a team behind every point — and nine sprints, so it is one of the two teams with a **History** tab. Carries a **⚖ scaled sprint** (someone joined after it) and a sprint with work **↩ brought in then removed again**. Its PI predictability is 90% — **inside the band**. Sprint goals **3 of 4**, with one sprint unrecorded — the only place the "no goal recorded" caption appears. Its whole history reads **up 11** while its last five read **level**, which is the argument for [History](#the-whole-run-history-with-no-window) in one team. |
 | **Team Overcommitted** | Platform | The team the targets exist to catch — around 70% completion and swinging from 14 to 26 points. Has a **⚑ sprint left out** for a major incident, and its next slot is the **IP sprint**, so it carries that caveat too. 59% predictability — **under the band**. It's also the team where the [**reliable commitment**](#two-figures-not-one) differs from the average enough to matter: 20 or 17 — and where **◎ the goals land and the points don't**. |
 | **Team Headroom** | Platform | **↗ Room for more** — it clears its commitment then pulls extra work in, so it reads 98% commitment completion beside a **red 29% break-in**. The contradiction the [headroom note](#when-a-team-has-room-for-more) exists to resolve. It under-commits its objectives too: 113%, **over the band**, with the value coming partly from **stretch**. Steady enough that it gets **one** capacity figure rather than two — and it's the team where **◎ the points land and the goals don't**, at 2 of 5. The second team with a **History** tab, and the sharper case: **up 14** across nine sprints, **down 1** across the last five. |
-| **Team New Start** | *none* | A brand-new team: **thin history**, a **⚑ one-off availability** for leave, and a carryover that then **fills the whole figure** — no room for new work at all. Two sprints, so it's also the team whose [**Trend**](#which-way-each-team-is-going) cell reads `—`: not enough for a direction. Being in no ART, it's also the **No ART** group on *Compare Teams* and *PI by Team*. |
+| **Team New Start** | *none* | A brand-new team: **thin history**, a **⚑ one-off availability** for leave, and a carryover that then **fills the whole figure** — no room for new work at all. Two sprints, so it's also the team whose [**Trend**](#which-way-each-team-is-going) cell reads `—`: not enough for a direction. Being in no ART, it's also the **No ART** group on *Compare Teams* and *PI by Team*. And it's the one team with **no business value recorded at all** — it joined after PI planning — so the ⚑ *Not scored yet* note has a team to name. |
 | **Team No PI** | *none* | The team that [**doesn't run PIs**](#pis-are-optional) — sprints numbered **12–16**, continuous, past the six a PI holds. No IP sprint, no Team PI tab, and it's named on *PI by Team* as not being in that PI at all. Deliberately carries nothing else: every other finding already belongs to a team above. |
 
 Two ARTs of two plus two teams in neither is the arrangement where the *Compare Teams* ART
@@ -812,7 +812,9 @@ The business value is picked the same way — to make the *PI by Team* view say 
 first run. **Platform ART is the [cancelling case](#when-the-average-hides-the-train)**: Team
 Overcommitted at 59% and Team Headroom at 113% average to 86%, so the train reads on target
 while neither of its teams is, and the ⚑ note that catches it has something to catch. **Payments
-ART** is scored from one of its two teams, so the "not scored yet" note has a team to name.
+ART** is scored from one of its two teams — Team Live Sprint's PI is still awaiting its result —
+and across all ARTs the page shows both ways a team can have no figure: ⚑ *Awaiting results*
+(Team Live Sprint) and ⚑ *Not scored yet* (Team New Start).
 The two averaging methods land 1.7 points apart on Platform — don't tidy them into agreement, a
 demo where the two methods always match teaches that they always do.
 

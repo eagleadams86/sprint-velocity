@@ -106,7 +106,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 583;
+const EXPECTED = 586;
 
 /* ── THE SUITE LEAVES STORAGE EXACTLY AS IT FOUND IT (2026-09-15 review) ──────
    The page header says "Read-only: nothing is saved", and it was not true: the
@@ -2673,10 +2673,11 @@ t('the demo lands on the running sprint', () => {
 
 /* ── The demo's PI business value ────────────────────────────────────────────
    The PI by Team view's whole point is that predictability is a TWO-SIDED measure, so
-   the demo has to show a team on each side of the band and one that hasn't been
-   scored at all. Tidy these into four healthy percentages and a first run teaches
-   the measure as one-sided, which is the misreading the view exists to prevent. */
-t('four of the five teams are scored, one on each side of the band', () => {
+   the demo has to show a team on each side of the band, one that hasn't been
+   scored at all and one awaiting its result. Tidy these into healthy percentages
+   and a first run teaches the measure as one-sided, which is the misreading the
+   view exists to prevent. */
+t('three of the five teams are scored, one on each side of the band', () => {
   withSample((id) => {
     const st = w.svGet();
     const pct = (name) => w.bvFigures(
@@ -2687,8 +2688,8 @@ t('four of the five teams are scored, one on each side of the band', () => {
     eq(w.rag(pct('Team Headroom'), 'predictability'), 'yellow',
       'OVER it — the headroom team under-commits its objectives too');
     ok(pct('Team Headroom') > 100, 'which is only reachable because stretch is in the numerator');
-    eq(w.rag(pct('Team New Start'), 'predictability'), 'green',
-      'and it is in no ART, so that group has a figure');
+    eq(pct('Team New Start'), null, 'the fourth has no figure — see the next two tests');
+    eq(pct('Team Live Sprint'), null, 'nor the fifth, for a different reason');
   });
 });
 t('the History tab has teams to appear on — and shows what Rolling 5 cannot', () => {
@@ -2800,12 +2801,38 @@ t('an import error points at the row and column and quotes nothing that was past
     }
   });
 });
-t('Team Live Sprint is deliberately unscored — its PI is still running', () => {
+t('Team Live Sprint is awaiting its result — its PI is still running (2026-09-23)', () => {
+  withSample((id) => {
+    const st = w.svGet();
+    const rec = w.__svTestHooks.objectivesFor(id('Team Live Sprint'), st.settings.activePiId);
+    ok(rec && !('actualBv' in rec), 'planned at PI planning, Achieved still blank', JSON.stringify(rec));
+    eq(w.bvFigures(rec).pending, true, 'so the ⚑ "Awaiting results" note has a team to name');
+  });
+});
+t('Team New Start is deliberately unscored — it joined after PI planning (2026-09-23)', () => {
   withSample((id) => {
     const st = w.svGet();
     eq(w.__svTestHooks.hasBv(
-      w.__svTestHooks.objectivesFor(id('Team Live Sprint'), st.settings.activePiId)), false,
-      'so the ⚑ "not scored yet" note has a team to name on Payments ART');
+      w.__svTestHooks.objectivesFor(id('Team New Start'), st.settings.activePiId)), false,
+      'no record at all, so the ⚑ "Not scored yet" note has a team to name');
+  });
+});
+t('a first run of PI by Team shows both ways a team can have no figure', () => {
+  withRenderedSample((st) => {
+    st.settings.view = 'art';
+    st.settings.artFilter = [];
+    w.render();
+    const notes = [...w.document.querySelectorAll('#views .exnote')].map(reviewText);
+    ok(notes.some(n => /^⚑ Not scored yet Team New Start/.test(n)), 'the never-scored team', notes.join(' || '));
+    ok(notes.some(n => /^⚑ Awaiting results Team Live Sprint/.test(n)), 'and the one awaiting its result', notes.join(' || '));
+    ok(notes.some(n => /The average is hiding this/.test(n)), 'with the cancelling note still firing across all ARTs');
+    const row = [...w.document.querySelectorAll('#artTable tbody tr')].find(tr => /Team Live Sprint/.test(tr.textContent));
+    ok(row && /awaiting result/.test(reviewText(row)), 'and the row says so rather than 0%');
+    /* The No ART group is New Start alone now: the tile says why it has no figure. */
+    st.settings.artFilter = ['~none'];              // ART_NONE — the 'teams on no ART' tick
+    w.render();
+    ok(/no business value recorded yet/.test(reviewText(tileByLabel(w.document, 'ART predictability'))),
+      'the No ART group reads as not recorded', reviewText(tileByLabel(w.document, 'ART predictability')));
   });
 });
 t('Platform ART is the cancelling case, and its two methods disagree', () => {
@@ -2826,7 +2853,8 @@ t('Payments ART is scored from one of its two teams, and says so', () => {
     const payments = st.arts.find(a => a.name === 'Payments ART');
     const pred = w.artPredictability(w.teamsInArt(st.teams, payments.id), st.settings.activePiId);
     eq(pred.scored, 1);
-    eq(pred.missing.map(t => t.name), ['Team Live Sprint']);
+    eq(pred.pending.map(t => t.name), ['Team Live Sprint'], 'the other is awaiting its result');
+    eq(pred.missing.length, 0);
   });
 });
 
@@ -7674,6 +7702,16 @@ async function restoreDialogClose(W) {
   };
 }
 
+/* The demo lands on Team Live Sprint, whose PI business value has been AWAITING
+   ITS RESULT since 2026-09-23 — so its button says Edit, not Add. The Business
+   Value window's tests want a team with no record at all, and Team New Start is
+   the demo's unscored team now. */
+function toUnscoredTeamPi(W, D) {
+  const t = W.svGet().teams.find(x => x.name === 'Team New Start');
+  W.setActiveTeam(t.id);
+  D.querySelector('.tab[data-view="pi"]').click();
+}
+
 async function inFrame(tag, opts, fn) {
   const o = Object.assign({ width: 1280, height: 900, sample: true, blank: false }, opts || {});
   /* A frame's boot stores `sv-pin` (applyPin), and the pin tests press it on and
@@ -7904,7 +7942,10 @@ t('value delivered against nothing planned is named, and the business value colu
     const pi = st.pis.find(p => p.name === 'PI 2026.3');
     const live = st.teams.find(t => t.name === 'Team Live Sprint');
     const fresh = st.teams.find(t => t.name === 'Team New Start');
-    st.objectives = st.objectives.filter(o => !(o.teamId === fresh.id && o.piId === pi.id));
+    /* Both teams' own records go first: since 2026-09-23 Team Live Sprint holds a
+       plan awaiting its result, and a second record would never be the one read. */
+    st.objectives = st.objectives.filter(o =>
+      !((o.teamId === fresh.id || o.teamId === live.id) && o.piId === pi.id));
     st.objectives.push({ id: 'rvbv08', teamId: live.id, piId: pi.id, plannedBv: 0, actualBv: 8, stretchBv: 0 });
     st.settings.activePiId = pi.id;
     st.settings.activeTeamId = live.id;
@@ -8958,7 +8999,7 @@ t('a target window opened and closed untouched writes nothing at all', async () 
 t('business value writes box by box, and clearing every box removes the record', async () => {
   await inFrame('bvauto', {}, async (W, D) => {
     const objs = () => W.svGet().objectives;
-    D.querySelector('.tab[data-view="pi"]').click();
+    toUnscoredTeamPi(W, D);
     await wait(200);
     const add = [...D.querySelectorAll('button')].find((b) => /Add Business Value/.test(b.textContent));
     ok(add, 'the PI view offers a way in to the business-value window');
@@ -8996,7 +9037,7 @@ t('business value writes box by box, and clearing every box removes the record',
 t('Remove takes the context down, so closing does not write the boxes back in', async () => {
   await inFrame('bvremove', {}, async (W, D) => {
     const objs = () => W.svGet().objectives;
-    D.querySelector('.tab[data-view="pi"]').click();
+    toUnscoredTeamPi(W, D);
     await wait(200);
     [...D.querySelectorAll('button')].find((b) => /Add Business Value/.test(b.textContent)).click();
     await wait(30);
@@ -9015,7 +9056,7 @@ t('Remove takes the context down, so closing does not write the boxes back in', 
 
 t('a stale close event cannot silence the window that replaced it', async () => {
   await inFrame('bvstale', {}, async (W, D) => {
-    D.querySelector('.tab[data-view="pi"]').click();
+    toUnscoredTeamPi(W, D);
     await wait(200);
     const add = () => [...D.querySelectorAll('button')]
       .find((b) => /Add Business Value/.test(b.textContent)).click();
@@ -9059,7 +9100,7 @@ t('Done closes the Targets window, and a box never blurred is written on the way
 
 t('Done closes the Business Value window the same way', async () => {
   await inFrame('bvdone', {}, async (W, D) => {
-    D.querySelector('.tab[data-view="pi"]').click();
+    toUnscoredTeamPi(W, D);
     await wait(200);
     [...D.querySelectorAll('button')].find((b) => /Add Business Value/.test(b.textContent)).click();
     await wait(30);
@@ -9195,7 +9236,7 @@ t('closing Targets over a maximised chart lands the keyboard on the new card’s
 t('a Business Value box shows the figure that was stored, not the one that was typed', async () => {
   await inFrame('bvclamp', {}, async (W, D) => {
     const rec = () => W.svGet().objectives[W.svGet().objectives.length - 1];
-    D.querySelector('.tab[data-view="pi"]').click();
+    toUnscoredTeamPi(W, D);
     await wait(200);
     [...D.querySelectorAll('button')].find((b) => /Add Business Value/.test(b.textContent)).click();
     await wait(30);
@@ -11352,6 +11393,17 @@ t('PI by Team shows a PI awaiting its result as awaiting, not as 0% red', () => 
   });
 });
 
+t('the ART predictability tile says WHY it has no figure', () => {
+  const fx = pendingFixture();
+  fx.objectives = [fx.objectives[2]];                 // only the running team has a record
+  fx.teams = fx.teams.filter(t => t.id !== 't4');
+  renderedFixture(fx, { view: 'art', activePiId: 'p1' }, (st, d) => {
+    const tile = reviewText(tileByLabel(d, 'ART predictability'));
+    ok(/awaiting results/.test(tile) && !/no business value recorded/.test(tile),
+      'a train with business value planned is not "nothing recorded"', tile);
+  });
+});
+
 t('Team PI draws no predictability tile while the PI awaits its result', () => {
   renderedFixture(pendingFixture(), { activeTeamId: 't3', view: 'pi', activePiId: 'p1' }, (st, d) => {
     eq(tileByLabel(d, 'PI predictability'), null, 'no tile — a "0%" or a "—" would both mislead');
@@ -11387,7 +11439,7 @@ t('PI Trend: the latest PI awaiting its result reads as no figure yet, not a col
 t('a blank Achieved box saves a plan awaiting its result; a typed 0 saves a result', async () => {
   await inFrame('bvpending', {}, async (W, D) => {
     const last = () => W.svGet().objectives[W.svGet().objectives.length - 1];
-    D.querySelector('.tab[data-view="pi"]').click();
+    toUnscoredTeamPi(W, D);
     await wait(200);
     [...D.querySelectorAll('button')].find((b) => /Add Business Value/.test(b.textContent)).click();
     await wait(30);
