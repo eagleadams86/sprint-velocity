@@ -1705,7 +1705,8 @@ from the keyboard too: through its sort buttons, or — for the two with nothing
 the Next PI Could Hold* and the import preview — by tabbing to the table itself and using the
 arrow keys. Each table names itself and marks its column
 and row headings, so a screen reader reads "Sprint 3, carried out, 4" rather than nine
-unattached numbers. Every dialog announces its own title, the sprint form's warnings and
+unattached numbers. Every dialog announces its own title (and shows the focus ring when the
+keyboard lands on a window tall enough to scroll), the sprint form's warnings and
 auto-filled hints are tied to the boxes they refer to and read out when they change, and
 pressing **Read it** on a Jira paste moves you to the result rather than leaving it
 unannounced. Small targets like the ⓘ carry a 24px hit area without growing on screen, and

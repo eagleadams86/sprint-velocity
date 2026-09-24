@@ -3411,3 +3411,16 @@ proven red on the commit before it. Nothing here stores anything new.
   box already keeps for its sort buttons, so no card or dialog edge can clip it. The Jira paste's
   figures table has no controls either but wraps its third column, so it never scrolls; it was
   left alone. EXPECTED 593 → 595.
+- **A window the keyboard lands on shows a ring.** Chromium makes a `<dialog>` tall enough to
+  scroll a Tab stop of its own, and Tab wraps onto it past the last control — Teams & PIs at 1440
+  and 390; the sprint, Targets, Share and Adjust windows at 390 — where `dialog:focus { outline:
+  none }` left no ring at all (2.4.7). That rule exists for the phone (2026-08-22): `openModal()`
+  focuses the window itself on a coarse pointer, and **that scripted focus matches `:focus-visible`
+  in Safari**, so `:not(:focus-visible)` could not have kept the exemption — it would have put the
+  ring back on every iPhone. The discriminator is `tabindex="-1"`, which `openModal()` sets before
+  that focus and which also takes the window out of the Tab order, so a window carrying it is only
+  ever focused as the mechanism: `dialog[tabindex="-1"]:focus { outline: none }` (0,2,1) out-ranks
+  `dialog:focus-visible { outline: 2px solid var(--focus-border); outline-offset: -2px }`, drawn
+  inside the window's edge rather than on the backdrop. Pinned from the cascade, not by focusing
+  (`family-css-gotchas`); the 2026-08-22 source pin moved to the new selector. Checked with real Tab
+  presses on all six windows and a real tap on a touch-emulated phone. EXPECTED 595 → 596.

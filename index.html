@@ -528,15 +528,26 @@ textarea { width: 100%; resize: vertical; min-height: 64px; }
    not a control anybody is about to operate, so the ring says nothing and reads as a
    mistake. Same exemption `main:focus` already carries, for the same reason.
    A fine pointer never takes that path, which is why no desktop ever shows it — found
-   on an iPhone. Fixed across the whole family in one pass; PAPTrack led. */
-dialog:focus { outline: none; }
+   on an iPhone. Fixed across the whole family in one pass; PAPTrack led.
+   BUT A KEYBOARD CAN LAND ON A WINDOW TOO (2026-09-24 audit). A window tall enough
+   to scroll is a Tab stop of its own in Chromium, and Tab wraps onto it past the
+   last control — Teams & PIs at any width, the sprint, Targets, Share and Adjust
+   windows on a phone — where `dialog:focus` left no ring at all. `:not(:focus-
+   visible)` cannot tell the two apart: the phone's scripted focus MATCHES
+   :focus-visible, which is the whole reason this rule exists. `tabindex="-1"` can:
+   openModal() sets it before that focus, and it also takes the window out of the
+   Tab order, so a window carrying it is only ever focused as the mechanism. Every
+   other keyboard focus of a window draws the ring INSIDE its edge (outside, it
+   would sit on the backdrop, away from what it marks). */
+dialog[tabindex="-1"]:focus { outline: none; }
+dialog:focus-visible { outline: 2px solid var(--focus-border); outline-offset: -2px; }
 /* WHERE FOCUS GOES AFTER AN IN-PAGE NAVIGATION (2026-08-22). Pressing a team's name in
    Compare Teams switches team AND view and rebuilds #views from scratch, which destroys the
    button that was just pressed — so focus fell to <body>, the top of the document, and a
    keyboard or screen-reader user was silently returned to the start with nothing said
    about where they had arrived. `focusView()` moves focus to the heading of the view
    that replaced it instead.
-   The ring is OPT IN and keyboard-only, the same rule as `dialog:focus` above: a screen
+   The ring is OPT IN and keyboard-only, the same rule as the dialog's above: a screen
    reader on a touch device still needs the focus to MOVE, but somebody who tapped a team
    name does not need a heading to light up. */
 .landing:focus { outline: none; }

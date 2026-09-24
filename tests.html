@@ -106,7 +106,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 595;
+const EXPECTED = 596;
 
 /* ── THE SUITE LEAVES STORAGE EXACTLY AS IT FOUND IT (2026-09-15 review) ──────
    The page header says "Read-only: nothing is saved", and it was not true: the
@@ -3365,7 +3365,7 @@ t('a dialog focused as a container does not ring itself', () => {
      the on-screen keyboard up with it. That also makes the dialog match :focus-visible,
      and every phone drew a ring around the whole window until 2026-08-22. A fine pointer
      never takes that path, so no desktop and no CI run will ever show this coming back. */
-  ok(/dialog:focus \{ outline: none/.test(APP_SRC),
+  ok(/dialog\[tabindex="-1"\]:focus \{ outline: none/.test(APP_SRC),
     'without this the whole dialog rings itself on every phone and tablet');
   ok(/dlg\.tabIndex = -1;\s*\n\s*dlg\.focus\(\);/.test(APP_SRC),
     'and that container focus is still how the keyboard is kept down');
@@ -11716,6 +11716,29 @@ t('a keyboard-scrolled table box rings inside its own padding', () => {
   const css = [...w.document.styleSheets].flatMap((sh) => { try { return [...sh.cssRules]; } catch (e) { return []; } })
     .filter((r) => r.selectorText === '.tablewrap[tabindex]:focus-visible').map((r) => r.style.outlineOffset);
   eq(css, ['-2px']);
+});
+
+t('a window the keyboard lands on as a whole shows a ring; one focused as a mechanism does not', () => {
+  /* `dialog:focus { outline: none }` was written for the phone, where openModal()
+     focuses the dialog itself to keep the on-screen keyboard down. It also hid the
+     ring when Tab wraps onto a window tall enough to scroll, which Chromium makes a
+     Tab stop (Teams & PIs at any width; the sprint, Targets, Share and Adjust
+     windows on a phone). Read from the cascade, never by focusing — whether a
+     scripted focus is :focus-visible is a browser's call, and differs in CI. */
+  const rules = [...w.document.styleSheets].flatMap((sh) => { try { return [...sh.cssRules]; } catch (e) { return []; } })
+    .filter((r) => r.selectorText && /^dialog[:[]/.test(r.selectorText));
+  const by = (sel) => rules.filter((r) => r.selectorText === sel);
+  eq(by('dialog:focus').length, 0, 'no rule hides the ring on every focus of a window');
+  /* The phone's scripted focus MATCHES :focus-visible, so a `:not(:focus-visible)`
+     exemption would put the ring back on every phone; openModal()'s tabindex="-1"
+     is what marks a window focused as a mechanism. It must out-rank the ring. */
+  const quiet = by('dialog[tabindex="-1"]:focus');
+  ok(quiet.length === 1 && quiet[0].style.outlineStyle === 'none',
+    'a window openModal() focused as a mechanism still draws none', quiet.map((r) => r.cssText).join(' | '));
+  const ring = by('dialog:focus-visible');
+  ok(ring.length === 1 && /2px solid var\(--focus-border\)/.test(ring[0].cssText)
+    && ring[0].style.outlineOffset === '-2px',
+    'a keyboard focus rings it, inside its own edge, in the pack’s focus colour', ring.map((r) => r.cssText).join(' | '));
 });
 
 group('the suite leaves storage exactly as it found it (2026-09-15 review)');
