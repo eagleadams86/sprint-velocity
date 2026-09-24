@@ -3424,3 +3424,9 @@ proven red on the commit before it. Nothing here stores anything new.
   inside the window's edge rather than on the backdrop. Pinned from the cascade, not by focusing
   (`family-css-gotchas`); the 2026-08-22 source pin moved to the new selector. Checked with real Tab
   presses on all six windows and a real tap on a touch-emulated phone. EXPECTED 595 → 596.
+- **The ART picker no longer announces a menu.** `#artFilterBtn` carried `aria-haspopup="true"`,
+  which a screen reader reads as a MENU and which promises menu keys (arrows, typeahead); what
+  opens is a `role="group"` of tick boxes worked with Tab and Space. A disclosure says it is one
+  with `aria-expanded` + `aria-controls` alone, so the attribute went and those two stay. The
+  button's markup is now identical to Flow Metrics' again, where the same change was made the same
+  day (the shared chrome — change both). Advisory in the audit, fixed anyway. EXPECTED 596 → 597.

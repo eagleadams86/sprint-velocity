@@ -106,7 +106,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 596;
+const EXPECTED = 597;
 
 /* ── THE SUITE LEAVES STORAGE EXACTLY AS IT FOUND IT (2026-09-15 review) ──────
    The page header says "Read-only: nothing is saved", and it was not true: the
@@ -11739,6 +11739,19 @@ t('a window the keyboard lands on as a whole shows a ring; one focused as a mech
   ok(ring.length === 1 && /2px solid var\(--focus-border\)/.test(ring[0].cssText)
     && ring[0].style.outlineOffset === '-2px',
     'a keyboard focus rings it, inside its own edge, in the pack’s focus colour', ring.map((r) => r.cssText).join(' | '));
+});
+
+t('the ART picker does not announce a menu it does not open', () => {
+  /* aria-haspopup="true" means a MENU, with menu keys; the picker opens a
+     role="group" of tick boxes worked with Tab and Space. A disclosure says it
+     is one with aria-expanded and aria-controls alone. Flow Metrics' identical
+     picker was changed the same way the same day. */
+  const tag = (APP_SRC.match(/<button[^>]*id="artFilterBtn"[^>]*>/) || [''])[0];
+  ok(tag, 'the ART picker button is in the template');
+  ok(!/aria-haspopup/.test(tag), 'it claims no popup', tag);
+  ok(/aria-expanded="false" aria-controls="artFilterMenu"/.test(tag), 'and is still a disclosure of its list', tag);
+  ok(/id="artFilterMenu" role="group"/.test(APP_SRC), 'which is still a group');
+  ok(!/setAttribute\('aria-haspopup'/.test(APP_SRC), 'and nothing puts the claim back at run time');
 });
 
 group('the suite leaves storage exactly as it found it (2026-09-15 review)');
