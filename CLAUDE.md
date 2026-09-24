@@ -1065,7 +1065,9 @@ but Charles had ever actually signed in.)
   optional `piId` to 4, `settings.targets` to 5) rides into localStorage and every backup
   file, and these boundaries compare it:
   - `load()` calls **`haltForNewerData()`** — a full-screen card, no render, and a `throw`
-    that aborts the rest of the script block so nothing can save over the newer copy. It
+    that aborts the rest of the script block so nothing can save over the newer copy. The
+    card is MODAL: it closes every open window and the toast, makes the rest of `<body>`
+    `inert` and takes the focus (2026-09-24 accessibility audit, below). It
     reuses `viewOnly` (and `window.svViewOnly`) rather than inventing a second flag, so
     `save()` is already a no-op and the service-worker block registers nothing. (`svAdopt()`
     was the second caller and wrote the newer document to localStorage **verbatim** before
@@ -3368,3 +3370,26 @@ group proven red against the commit before it. EXPECTED 576 → 583.
   through `targetSprintSlot`) — forward-looking, and what the recipient's capacity card reads. A
   plan on the unassigned track still always travels (it names no PI). With no window the old
   rule stands: nothing was promised.
+
+## Fixes From the 2026-09-24 Accessibility Audit
+
+Charles asked for an accessibility pass over this app, Flow Metrics and Money Map (the audit of
+2026-09-23, harness as in `axe-audit-harness.md`: axe over every team, view, dialog and theme at
+1440 and 390, then the keyboard pass axe cannot do). One commit per finding on the
+`a11y-fixes-2026-09-24` branch, each with a test in the "accessibility (2026-09-24 audit)" group
+proven red on the commit before it. Nothing here stores anything new.
+
+- **The newer-version stop card is modal, wherever it is reached from.** Since the two-copies
+  guard (2026-09-18) the halt is reached from INSIDE a window too — Save Sprint, Restore and the
+  Targets auto-save all save from a modal `<dialog>`, and `adoptOtherCopy()` runs `load()` before
+  it closes anything. A modal dialog is in the browser's top layer, above every z-index, so the
+  card was drawn UNDER the window: Reload could not be pressed, a screen reader never heard the
+  card, and Esc handed focus back to a button the card covered. At boot the dead page stayed in
+  the Tab order behind it — twelve stops before Reload. Fixed once, in `haltForNewerData()`, not
+  per caller: it closes every `dialog[open]` and hides the toast popover, makes every other child
+  of `<body>` `inert`, marks the card `role="alertdialog"` + `aria-modal`, labelled by its heading
+  and described by the format sentence, and focuses Reload. `toast.halted` stops any later toast
+  (a close handler's, or a held Undo released by the dialogs closing) rising into the top layer
+  over it. Swapping the two lines in `adoptOtherCopy()` would have fixed one route and left boot
+  as it was. Tests drive the boot route and the Save Sprint and Restore routes in real frames.
+  EXPECTED 590 → 592.

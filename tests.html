@@ -106,7 +106,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 590;
+const EXPECTED = 592;
 
 /* ── THE SUITE LEAVES STORAGE EXACTLY AS IT FOUND IT (2026-09-15 review) ──────
    The page header says "Read-only: nothing is saved", and it was not true: the
@@ -11582,6 +11582,93 @@ t('a blank Achieved box saves a plan awaiting its result; a typed 0 saves a resu
   });
 });
 
+
+group('accessibility (2026-09-24 audit)');
+/* An axe run plus a keyboard pass over every view, dialog and theme at 1440 and
+   390. One commit per finding, each test below red on the commit before it. */
+
+/* The halt card is the only thing on the page once it is up: a real frame, the
+   reader's own `sv-data` and `sv-pin` put back whatever happens. */
+async function haltedAtBoot(tag, body) {
+  const beforeData = localStorage.getItem('sv-data'), beforePin = localStorage.getItem('sv-pin');
+  const f = document.createElement('iframe');
+  try {
+    localStorage.setItem('sv-data', JSON.stringify(savedCopy({ version: 9999 })));
+    f.setAttribute('data-sv-tests', '');
+    f.setAttribute('aria-hidden', 'true');
+    f.style.cssText = 'position:absolute;left:-9999px;width:1280px;height:900px;border:0';
+    await new Promise((resolve) => { f.onload = resolve; f.src = 'index.html?' + tag + '=' + Date.now(); document.body.appendChild(f); });
+    await wait(200);
+    await body(f.contentWindow);
+  } finally {
+    f.remove();
+    if (beforeData === null) localStorage.removeItem('sv-data'); else localStorage.setItem('sv-data', beforeData);
+    if (beforePin === null) localStorage.removeItem('sv-pin'); else localStorage.setItem('sv-pin', beforePin);
+  }
+}
+/* What "the card is the only thing on the page" means, checked the same way for
+   every route to it. */
+function haltIsModal(W, route) {
+  const D = W.document;
+  const card = D.querySelector('[role="alertdialog"]');
+  ok(card, route + ': the stop card is an alertdialog');
+  const title = card && D.getElementById(card.getAttribute('aria-labelledby') || '');
+  ok(title && /Newer Version/.test(title.textContent), route + ': named by its heading',
+    title && title.textContent);
+  const why = card && D.getElementById(card.getAttribute('aria-describedby') || '');
+  ok(why && /format 9999/.test(why.textContent), route + ': and described by what happened',
+    why && why.textContent);
+  const reload = [...card.querySelectorAll('button')].find((b) => /Reload/.test(b.textContent));
+  ok(reload && D.activeElement === reload, route + ': focus is on Reload',
+    D.activeElement && (D.activeElement.id || D.activeElement.tagName));
+  eq([...D.querySelectorAll('dialog[open]')].map((d) => d.id), [], route + ': no window is left open over it');
+  ok(!D.getElementById('toast').matches(':popover-open'), route + ': nor the toast');
+  W.toast('A late line', { label: 'Undo', onClick() {} });
+  ok(!D.getElementById('toast').matches(':popover-open'), route + ': and no later toast rises over the card');
+  const live = [...D.body.children].filter((el) => !el.contains(card) && !el.inert
+    && el.tagName !== 'SCRIPT');
+  eq(live.map((el) => el.id || el.className || el.tagName), [], route + ': everything else on the page is inert');
+  const r = reload.getBoundingClientRect();
+  ok(D.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) === reload,
+    route + ': and nothing covers Reload');
+}
+t('the newer-version stop card at boot takes the focus and leaves nothing live behind it', async () => {
+  await haltedAtBoot('haltboot', async (W) => {
+    haltIsModal(W, 'at boot');
+    ok(W.document.getElementById('pinBtn').inert || W.document.getElementById('pinBtn').closest('[inert]'),
+      'the dead page’s buttons are out of the Tab order');
+  });
+});
+t('the newer-version stop card closes the window it was reached from', async () => {
+  /* Save Sprint and Restore both save from INSIDE a modal window. The card was
+     drawn under it: the window stayed in the top layer, Reload could not be
+     reached, and a screen reader never heard the card. */
+  const routes = [
+    ['Save Sprint', (D) => { D.getElementById('editSprintBtn').click(); return D.getElementById('sprintDialog'); },
+      (D) => D.getElementById('sprintSaveBtn').click()],
+    ['Restore', (D) => { D.getElementById('dataBtn').click(); return D.getElementById('dataDialog'); },
+      (D, W) => {
+        const input = D.getElementById('importFile');
+        const dt = new W.DataTransfer();
+        dt.items.add(new W.File([JSON.stringify(savedCopy())], 'backup.json', { type: 'application/json' }));
+        input.files = dt.files;
+        input.dispatchEvent(new W.Event('change'));
+      }],
+  ];
+  for (const [route, open, press] of routes) {
+    await twoCopiesFrame('haltdlg' + route.length, async (W) => {
+      const D = W.document;
+      W.addEventListener('error', (e) => e.preventDefault());
+      W.confirm = () => true;
+      const dlg = open(D);
+      ok(dlg && dlg.open, route + ': its window is open');
+      localStorage.setItem('sv-data', JSON.stringify(savedCopy({ version: 9999 })));
+      press(D, W);
+      await wait(200);
+      haltIsModal(W, route);
+    });
+  }
+});
 
 group('the suite leaves storage exactly as it found it (2026-09-15 review)');
 /* LAST, on purpose: every test above has run, every frame has been removed. */

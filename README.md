@@ -1884,7 +1884,9 @@ the one in this browser. Your theme survives, and so do the pinned tab row and y
 **If one device is behind** — every saved copy carries the data format the app that wrote
 it understood. A copy written by a *newer* version than the one you're running won't be
 opened: you get a card saying so, nothing is changed or deleted, and reloading picks up the
-current version. That matters most on a device that's been offline for a while, where the
+current version. The card takes over the whole page, wherever it catches you — any window you
+had open (a sprint you were saving, a restore) closes, a screen reader announces the card,
+the keyboard lands on **Reload**, and nothing behind it can be reached. That matters most on a device that's been offline for a while, where the
 browser can still be running an older cached copy of the app while another device has moved
 on. A backup file from a newer version is refused the same way, and a share link from one
 tells the reader the link is fine and their copy of the app is behind.
