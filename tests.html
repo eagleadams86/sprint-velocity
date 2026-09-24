@@ -106,7 +106,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 593;
+const EXPECTED = 595;
 
 /* ── THE SUITE LEAVES STORAGE EXACTLY AS IT FOUND IT (2026-09-15 review) ──────
    The page header says "Read-only: nothing is saved", and it was not true: the
@@ -11681,6 +11681,41 @@ t('the pin button has a name in the markup, before any script has run', async ()
     eq(W.document.getElementById('pinBtn').getAttribute('aria-label'),
       'Pin the tabs to the top of the page', 'and keeps it when the app stops before dressing it');
   });
+});
+
+t('a table with nothing to press in it can still be scrolled from the keyboard', () => {
+  /* axe scrollable-region-focusable: PI Trend's capacity table runs past a 390px
+     phone with nothing in it to Tab to, so its last column could not be reached.
+     Every other wide table has sort buttons that scroll it; the two with none
+     are a labelled region in the Tab order themselves. */
+  const isRegion = (box, label, where) => {
+    ok(box, where + ': the table is on the page');
+    eq([box.getAttribute('tabindex'), box.getAttribute('role'), box.getAttribute('aria-label')],
+      ['0', 'region', label], where + ': its scroll box is a named region in the Tab order');
+    eq(box.querySelectorAll('button, a[href], input, select, textarea, [tabindex]').length, 0,
+      where + ': and it holds nothing else to Tab to');
+  };
+  renderedFixture(trendFixture(), { activeTeamId: 'a', view: 'trend' }, (st, d) => {
+    const tbl = d.querySelector('#views table[aria-label="Suggested capacity per team for the next PI"]');
+    isRegion(tbl && tbl.closest('.tablewrap'), 'Suggested capacity per team for the next PI', 'PI Trend');
+  });
+  withState(importFixture(), () => {
+    const D = w.document;
+    w.openImport();
+    try {
+      D.getElementById('importText').value = HEAD + '\nTeam One\tPI 1\t1\t20\t18';
+      w.refreshImportPreview();
+      isRegion(D.querySelector('#importPreview .tablewrap'), 'What this import would do', 'the import preview');
+    } finally { D.getElementById('importDialog').close(); }
+  });
+});
+t('a keyboard-scrolled table box rings inside its own padding', () => {
+  /* The global ring sits 2px OUTSIDE a box; this one draws in the 4px of padding
+     .tablewrap already keeps for its sort buttons' rings, so nothing round it can
+     clip it. */
+  const css = [...w.document.styleSheets].flatMap((sh) => { try { return [...sh.cssRules]; } catch (e) { return []; } })
+    .filter((r) => r.selectorText === '.tablewrap[tabindex]:focus-visible').map((r) => r.style.outlineOffset);
+  eq(css, ['-2px']);
 });
 
 group('the suite leaves storage exactly as it found it (2026-09-15 review)');

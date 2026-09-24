@@ -1202,6 +1202,15 @@ th .tile-help, td .tile-help { vertical-align: 1px; }
    and takes `padding-top: 0` instead (PI Trend's capacity table, whose heading row
    holds no control and so needs no ring room above it). */
 .tablewrap { overflow-x: auto; position: relative; padding: 4px; margin: -4px; }
+/* A TABLE WITH NOTHING TO PRESS IS ITSELF THE TAB STOP (2026-09-24 audit). A box
+   that scrolls is reached from the keyboard through what is inside it — every
+   wide table here has sort buttons, and the focusin reveal further down scrolls
+   to them. PI Trend's capacity table and the import preview have none, so on a
+   phone the capacity table's last column (and a long preview's lower rows) could
+   not be reached at all. Those two boxes carry tabindex="0", role="region" and a
+   name in their markup; the arrow keys scroll a focused box. The ring draws INSIDE,
+   in the 4px of padding above, where no card or dialog edge can clip it. */
+.tablewrap[tabindex]:focus-visible { outline-offset: -2px; }
 table { border-collapse: collapse; width: 100%; font-size: var(--fs-sm);
   font-variant-numeric: tabular-nums; }
 th, td { text-align: right; padding: 10px 12px; border-bottom: 1px solid var(--border); }
@@ -10394,7 +10403,8 @@ function piCapacityCard(teams, includeSix) {
       is leave for one sprint, not a smaller team for a whole PI, so ${
         oneOffs.length === 1 ? 'it counts' : 'they count'} here at the full figure — the
       adjusted one is next sprint's target on the <strong>Rolling ${ROLLING_WINDOW}</strong> tab.</span></p>` : ''}
-    <div class="tablewrap" style="margin-top:14px;padding-top:0">
+    <div class="tablewrap" tabindex="0" role="region"
+      aria-label="Suggested capacity per team for the next PI" style="margin-top:14px;padding-top:0">
     <table aria-label="Suggested capacity per team for the next PI">
       <thead><tr><th scope="col">Team</th><th scope="col">Per sprint</th>
         <th scope="col">Across ${plural(slots, 'sprint')}</th></tr></thead>
@@ -14430,7 +14440,8 @@ function refreshImportPreview() {
       bad.length ? `. ${plural(bad.length, 'row')} can’t be used and ${
         bad.length === 1 ? 'is' : 'are'} listed below — ${
         bad.length === 1 ? 'it is' : 'they are'} skipped, not guessed at.` : '.'}</p>
-    <div class="tablewrap" style="max-height:260px;overflow:auto">
+    <div class="tablewrap" tabindex="0" role="region" aria-label="What this import would do"
+      style="max-height:260px;overflow:auto">
     <table aria-label="What this import would do">
       <thead><tr><th scope="col">Row</th><th scope="col">Team</th><th scope="col">Sprint</th>
         <th scope="col">Committed</th><th scope="col">Cmt. done</th><th scope="col">What happens</th></tr></thead>

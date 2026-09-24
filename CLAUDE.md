@@ -3398,3 +3398,16 @@ proven red on the commit before it. Nothing here stores anything new.
   boot) left a nameless button in the page (axe `button-name`, critical). It now carries the
   unpinned `aria-label` in the markup, the same words `dressPinBtn()` writes, and the script still
   changes it with the state. EXPECTED 592 → 593.
+- **A table with nothing to press is itself a Tab stop.** axe `scrollable-region-focusable`: PI
+  Trend's *What the Next PI Could Hold* table is 402px wide in a 328px box at 390 (258 at 320), the
+  *Across 5 sprints* column was cut off, and nothing in it could take the focus to scroll it. Every
+  other wide table has sort buttons, which the 2026-09-15 `focusin` reveal scrolls into view. The
+  survey for the same state found one more: the history import's preview (`max-height: 260px;
+  overflow: auto`, no controls), whose lower rows a keyboard could not reach on a long paste. Both
+  boxes carry `tabindex="0" role="region"` and the table's own name, **in the markup and
+  unconditionally** — neither ever holds a control, and a run-time "only while it overflows" would
+  need re-checking on every render and resize for one extra stop at desktop width. The ring is
+  `outline-offset: -2px` (`.tablewrap[tabindex]:focus-visible`), drawn in the 4px of padding the
+  box already keeps for its sort buttons, so no card or dialog edge can clip it. The Jira paste's
+  figures table has no controls either but wraps its third column, so it never scrolls; it was
+  left alone. EXPECTED 593 → 595.

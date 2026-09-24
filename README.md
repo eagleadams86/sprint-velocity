@@ -1700,7 +1700,10 @@ ends, and the row takes a single stop in the tab order rather than one per tab.
 
 Everything else is reachable from the keyboard too. The sprint and team names in every
 table are real buttons, so you can tab to a row and press Enter to open it — clicking
-anywhere in the row still works for a mouse. Each table names itself and marks its column
+anywhere in the row still works for a mouse. A table too wide for a phone scrolls sideways
+from the keyboard too: through its sort buttons, or — for the two with nothing to press, *What
+the Next PI Could Hold* and the import preview — by tabbing to the table itself and using the
+arrow keys. Each table names itself and marks its column
 and row headings, so a screen reader reads "Sprint 3, carried out, 4" rather than nine
 unattached numbers. Every dialog announces its own title, the sprint form's warnings and
 auto-filled hints are tied to the boxes they refer to and read out when they change, and
