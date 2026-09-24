@@ -3430,3 +3430,14 @@ proven red on the commit before it. Nothing here stores anything new.
   with `aria-expanded` + `aria-controls` alone, so the attribute went and those two stay. The
   button's markup is now identical to Flow Metrics' again, where the same change was made the same
   day (the shared chrome — change both). Advisory in the audit, fixed anyway. EXPECTED 596 → 597.
+- **Checked for the theme pack's forced-colours rule, and nothing was missing.** The pack is gaining
+  an `@media (forced-colors: active)` rule that marks a selected control by its ARIA state
+  (`aria-selected/pressed/checked="true"`, `aria-current`, or a `label` holding a `:checked` box),
+  so any control whose state is shown ONLY by a fill must expose one of those. A walk of every view,
+  the ART menu open and five windows, grouping sibling controls whose fill differs and asking
+  whether their ARIA state differs too, found one such group — the view tabs — and they carry
+  `aria-selected`. Every other on/off here is a native checkbox (Rolling 5's toggles, the share and
+  ART lists) or a `<select>`. The pin button's pinned state is shown by its ICON as well as its
+  accent edge, and its name says which it is; it stays without `aria-pressed` for the reason in the
+  markup comment (the state would be announced twice). Nothing app-level was added for forced
+  colours — that belongs to the pack.
