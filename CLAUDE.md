@@ -3391,7 +3391,11 @@ proven red on the commit before it. Nothing here stores anything new.
   and described by the format sentence, and focuses Reload. `toast.halted` stops any later toast
   (a close handler's, or a held Undo released by the dialogs closing) rising into the top layer
   over it. Swapping the two lines in `adoptOtherCopy()` would have fixed one route and left boot
-  as it was. Tests drive the boot route and the Save Sprint and Restore routes in real frames.
+  as it was. Tests drive the Save Sprint and Restore routes in real frames, and boot's route as
+  `load()` meeting a newer board in a frame that booted normally: a REAL boot's throw is uncaught,
+  the CI runner fails on any page error, and a frame's error listener cannot be in place before
+  its own script runs (the first push went red on exactly that, with all tests passing). The real
+  boot was checked by hand with real Tab presses and axe.
   EXPECTED 590 → 592.
 - **The pin button is named in the markup.** `#pinBtn` was an empty `<button>` that
   `dressPinBtn()` gives its icon and name — so a script that stopped before that line (the halt at

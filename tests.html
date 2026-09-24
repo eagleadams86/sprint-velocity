@@ -11587,24 +11587,21 @@ group('accessibility (2026-09-24 audit)');
 /* An axe run plus a keyboard pass over every view, dialog and theme at 1440 and
    390. One commit per finding, each test below red on the commit before it. */
 
-/* The halt card is the only thing on the page once it is up: a real frame, the
-   reader's own `sv-data` and `sv-pin` put back whatever happens. */
+/* The halt card is the only thing on the page once it is up. Boot's own route is
+   load() finding a newer board, driven here in a frame that booted normally —
+   the throw at a REAL boot is uncaught, which CI counts as a page error, and
+   a frame's listeners cannot be in place before its script runs. What differs
+   at a real boot (no script after load() ever ran) is pinned from the source.
+   The reader's own `sv-data` and `sv-pin` go back whatever happens. */
 async function haltedAtBoot(tag, body) {
-  const beforeData = localStorage.getItem('sv-data'), beforePin = localStorage.getItem('sv-pin');
-  const f = document.createElement('iframe');
-  try {
+  await twoCopiesFrame(tag, async (W) => {
     localStorage.setItem('sv-data', JSON.stringify(savedCopy({ version: 9999 })));
-    f.setAttribute('data-sv-tests', '');
-    f.setAttribute('aria-hidden', 'true');
-    f.style.cssText = 'position:absolute;left:-9999px;width:1280px;height:900px;border:0';
-    await new Promise((resolve) => { f.onload = resolve; f.src = 'index.html?' + tag + '=' + Date.now(); document.body.appendChild(f); });
-    await wait(200);
-    await body(f.contentWindow);
-  } finally {
-    f.remove();
-    if (beforeData === null) localStorage.removeItem('sv-data'); else localStorage.setItem('sv-data', beforeData);
-    if (beforePin === null) localStorage.removeItem('sv-pin'); else localStorage.setItem('sv-pin', beforePin);
-  }
+    let halted = false;
+    try { W.load(); } catch (e) { halted = /newer than this build/.test(String(e)); }
+    ok(halted, 'load() stops, as it does at boot');
+    await wait(50);
+    await body(W);
+  });
 }
 /* What "the card is the only thing on the page" means, checked the same way for
    every route to it. */
@@ -11670,17 +11667,13 @@ t('the newer-version stop card closes the window it was reached from', async () 
   }
 });
 
-t('the pin button has a name in the markup, before any script has run', async () => {
+t('the pin button has a name in the markup, before any script has run', () => {
   /* dressPinBtn() names it, and a script that stops before it runs — the halt at
      boot — left an empty, nameless button (axe button-name, critical). */
   const tag = (APP_SRC.match(/<button[^>]*id="pinBtn"[^>]*>/) || [''])[0];
   ok(tag, 'the pin button is in the markup');
   ok(/aria-label="Pin the tabs to the top of the page"/.test(tag),
     'it carries the unpinned name dressPinBtn() gives it', tag);
-  await haltedAtBoot('pinname', async (W) => {
-    eq(W.document.getElementById('pinBtn').getAttribute('aria-label'),
-      'Pin the tabs to the top of the page', 'and keeps it when the app stops before dressing it');
-  });
 });
 
 t('a table with nothing to press in it can still be scrolled from the keyboard', () => {
