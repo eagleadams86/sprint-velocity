@@ -106,7 +106,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 590;
+const EXPECTED = 597;
 
 /* ── THE SUITE LEAVES STORAGE EXACTLY AS IT FOUND IT (2026-09-15 review) ──────
    The page header says "Read-only: nothing is saved", and it was not true: the
@@ -3365,7 +3365,7 @@ t('a dialog focused as a container does not ring itself', () => {
      the on-screen keyboard up with it. That also makes the dialog match :focus-visible,
      and every phone drew a ring around the whole window until 2026-08-22. A fine pointer
      never takes that path, so no desktop and no CI run will ever show this coming back. */
-  ok(/dialog:focus \{ outline: none/.test(APP_SRC),
+  ok(/dialog\[tabindex="-1"\]:focus \{ outline: none/.test(APP_SRC),
     'without this the whole dialog rings itself on every phone and tablet');
   ok(/dlg\.tabIndex = -1;\s*\n\s*dlg\.focus\(\);/.test(APP_SRC),
     'and that container focus is still how the keyboard is kept down');
@@ -11582,6 +11582,170 @@ t('a blank Achieved box saves a plan awaiting its result; a typed 0 saves a resu
   });
 });
 
+
+group('accessibility (2026-09-24 audit)');
+/* An axe run plus a keyboard pass over every view, dialog and theme at 1440 and
+   390. One commit per finding, each test below red on the commit before it. */
+
+/* The halt card is the only thing on the page once it is up. Boot's own route is
+   load() finding a newer board, driven here in a frame that booted normally —
+   the throw at a REAL boot is uncaught, which CI counts as a page error, and
+   a frame's listeners cannot be in place before its script runs. What differs
+   at a real boot (no script after load() ever ran) is pinned from the source.
+   The reader's own `sv-data` and `sv-pin` go back whatever happens. */
+async function haltedAtBoot(tag, body) {
+  await twoCopiesFrame(tag, async (W) => {
+    localStorage.setItem('sv-data', JSON.stringify(savedCopy({ version: 9999 })));
+    let halted = false;
+    try { W.load(); } catch (e) { halted = /newer than this build/.test(String(e)); }
+    ok(halted, 'load() stops, as it does at boot');
+    await wait(50);
+    await body(W);
+  });
+}
+/* What "the card is the only thing on the page" means, checked the same way for
+   every route to it. */
+function haltIsModal(W, route) {
+  const D = W.document;
+  const card = D.querySelector('[role="alertdialog"]');
+  ok(card, route + ': the stop card is an alertdialog');
+  const title = card && D.getElementById(card.getAttribute('aria-labelledby') || '');
+  ok(title && /Newer Version/.test(title.textContent), route + ': named by its heading',
+    title && title.textContent);
+  const why = card && D.getElementById(card.getAttribute('aria-describedby') || '');
+  ok(why && /format 9999/.test(why.textContent), route + ': and described by what happened',
+    why && why.textContent);
+  const reload = [...card.querySelectorAll('button')].find((b) => /Reload/.test(b.textContent));
+  ok(reload && D.activeElement === reload, route + ': focus is on Reload',
+    D.activeElement && (D.activeElement.id || D.activeElement.tagName));
+  eq([...D.querySelectorAll('dialog[open]')].map((d) => d.id), [], route + ': no window is left open over it');
+  ok(!D.getElementById('toast').matches(':popover-open'), route + ': nor the toast');
+  W.toast('A late line', { label: 'Undo', onClick() {} });
+  ok(!D.getElementById('toast').matches(':popover-open'), route + ': and no later toast rises over the card');
+  const live = [...D.body.children].filter((el) => !el.contains(card) && !el.inert
+    && el.tagName !== 'SCRIPT');
+  eq(live.map((el) => el.id || el.className || el.tagName), [], route + ': everything else on the page is inert');
+  const r = reload.getBoundingClientRect();
+  ok(D.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) === reload,
+    route + ': and nothing covers Reload');
+}
+t('the newer-version stop card at boot takes the focus and leaves nothing live behind it', async () => {
+  await haltedAtBoot('haltboot', async (W) => {
+    haltIsModal(W, 'at boot');
+    ok(W.document.getElementById('pinBtn').inert || W.document.getElementById('pinBtn').closest('[inert]'),
+      'the dead page’s buttons are out of the Tab order');
+  });
+});
+t('the newer-version stop card closes the window it was reached from', async () => {
+  /* Save Sprint and Restore both save from INSIDE a modal window. The card was
+     drawn under it: the window stayed in the top layer, Reload could not be
+     reached, and a screen reader never heard the card. */
+  const routes = [
+    ['Save Sprint', (D) => { D.getElementById('editSprintBtn').click(); return D.getElementById('sprintDialog'); },
+      (D) => D.getElementById('sprintSaveBtn').click()],
+    ['Restore', (D) => { D.getElementById('dataBtn').click(); return D.getElementById('dataDialog'); },
+      (D, W) => {
+        const input = D.getElementById('importFile');
+        const dt = new W.DataTransfer();
+        dt.items.add(new W.File([JSON.stringify(savedCopy())], 'backup.json', { type: 'application/json' }));
+        input.files = dt.files;
+        input.dispatchEvent(new W.Event('change'));
+      }],
+  ];
+  for (const [route, open, press] of routes) {
+    await twoCopiesFrame('haltdlg' + route.length, async (W) => {
+      const D = W.document;
+      W.addEventListener('error', (e) => e.preventDefault());
+      W.confirm = () => true;
+      const dlg = open(D);
+      ok(dlg && dlg.open, route + ': its window is open');
+      localStorage.setItem('sv-data', JSON.stringify(savedCopy({ version: 9999 })));
+      press(D, W);
+      await wait(200);
+      haltIsModal(W, route);
+    });
+  }
+});
+
+t('the pin button has a name in the markup, before any script has run', () => {
+  /* dressPinBtn() names it, and a script that stops before it runs — the halt at
+     boot — left an empty, nameless button (axe button-name, critical). */
+  const tag = (APP_SRC.match(/<button[^>]*id="pinBtn"[^>]*>/) || [''])[0];
+  ok(tag, 'the pin button is in the markup');
+  ok(/aria-label="Pin the tabs to the top of the page"/.test(tag),
+    'it carries the unpinned name dressPinBtn() gives it', tag);
+});
+
+t('a table with nothing to press in it can still be scrolled from the keyboard', () => {
+  /* axe scrollable-region-focusable: PI Trend's capacity table runs past a 390px
+     phone with nothing in it to Tab to, so its last column could not be reached.
+     Every other wide table has sort buttons that scroll it; the two with none
+     are a labelled region in the Tab order themselves. */
+  const isRegion = (box, label, where) => {
+    ok(box, where + ': the table is on the page');
+    eq([box.getAttribute('tabindex'), box.getAttribute('role'), box.getAttribute('aria-label')],
+      ['0', 'region', label], where + ': its scroll box is a named region in the Tab order');
+    eq(box.querySelectorAll('button, a[href], input, select, textarea, [tabindex]').length, 0,
+      where + ': and it holds nothing else to Tab to');
+  };
+  renderedFixture(trendFixture(), { activeTeamId: 'a', view: 'trend' }, (st, d) => {
+    const tbl = d.querySelector('#views table[aria-label="Suggested capacity per team for the next PI"]');
+    isRegion(tbl && tbl.closest('.tablewrap'), 'Suggested capacity per team for the next PI', 'PI Trend');
+  });
+  withState(importFixture(), () => {
+    const D = w.document;
+    w.openImport();
+    try {
+      D.getElementById('importText').value = HEAD + '\nTeam One\tPI 1\t1\t20\t18';
+      w.refreshImportPreview();
+      isRegion(D.querySelector('#importPreview .tablewrap'), 'What this import would do', 'the import preview');
+    } finally { D.getElementById('importDialog').close(); }
+  });
+});
+t('a keyboard-scrolled table box rings inside its own padding', () => {
+  /* The global ring sits 2px OUTSIDE a box; this one draws in the 4px of padding
+     .tablewrap already keeps for its sort buttons' rings, so nothing round it can
+     clip it. */
+  const css = [...w.document.styleSheets].flatMap((sh) => { try { return [...sh.cssRules]; } catch (e) { return []; } })
+    .filter((r) => r.selectorText === '.tablewrap[tabindex]:focus-visible').map((r) => r.style.outlineOffset);
+  eq(css, ['-2px']);
+});
+
+t('a window the keyboard lands on as a whole shows a ring; one focused as a mechanism does not', () => {
+  /* `dialog:focus { outline: none }` was written for the phone, where openModal()
+     focuses the dialog itself to keep the on-screen keyboard down. It also hid the
+     ring when Tab wraps onto a window tall enough to scroll, which Chromium makes a
+     Tab stop (Teams & PIs at any width; the sprint, Targets, Share and Adjust
+     windows on a phone). Read from the cascade, never by focusing — whether a
+     scripted focus is :focus-visible is a browser's call, and differs in CI. */
+  const rules = [...w.document.styleSheets].flatMap((sh) => { try { return [...sh.cssRules]; } catch (e) { return []; } })
+    .filter((r) => r.selectorText && /^dialog[:[]/.test(r.selectorText));
+  const by = (sel) => rules.filter((r) => r.selectorText === sel);
+  eq(by('dialog:focus').length, 0, 'no rule hides the ring on every focus of a window');
+  /* The phone's scripted focus MATCHES :focus-visible, so a `:not(:focus-visible)`
+     exemption would put the ring back on every phone; openModal()'s tabindex="-1"
+     is what marks a window focused as a mechanism. It must out-rank the ring. */
+  const quiet = by('dialog[tabindex="-1"]:focus');
+  ok(quiet.length === 1 && quiet[0].style.outlineStyle === 'none',
+    'a window openModal() focused as a mechanism still draws none', quiet.map((r) => r.cssText).join(' | '));
+  const ring = by('dialog:focus-visible');
+  ok(ring.length === 1 && /2px solid var\(--focus-border\)/.test(ring[0].cssText)
+    && ring[0].style.outlineOffset === '-2px',
+    'a keyboard focus rings it, inside its own edge, in the pack’s focus colour', ring.map((r) => r.cssText).join(' | '));
+});
+
+t('the ART picker does not announce a menu it does not open', () => {
+  /* aria-haspopup="true" means a MENU, with menu keys; the picker opens a
+     role="group" of tick boxes worked with Tab and Space. A disclosure says it
+     is one with aria-expanded and aria-controls alone. Flow Metrics' identical
+     picker was changed the same way the same day. */
+  const tag = (APP_SRC.match(/<button[^>]*id="artFilterBtn"[^>]*>/) || [''])[0];
+  ok(tag, 'the ART picker button is in the template');
+  ok(!/aria-haspopup/.test(tag), 'it claims no popup', tag);
+  ok(/aria-expanded="false" aria-controls="artFilterMenu"/.test(tag), 'and is still a disclosure of its list', tag);
+  ok(/id="artFilterMenu" role="group"/.test(APP_SRC), 'which is still a group');
+  ok(!/setAttribute\('aria-haspopup'/.test(APP_SRC), 'and nothing puts the claim back at run time');
+});
 
 group('the suite leaves storage exactly as it found it (2026-09-15 review)');
 /* LAST, on purpose: every test above has run, every frame has been removed. */

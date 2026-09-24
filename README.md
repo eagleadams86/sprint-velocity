@@ -1700,9 +1700,13 @@ ends, and the row takes a single stop in the tab order rather than one per tab.
 
 Everything else is reachable from the keyboard too. The sprint and team names in every
 table are real buttons, so you can tab to a row and press Enter to open it — clicking
-anywhere in the row still works for a mouse. Each table names itself and marks its column
+anywhere in the row still works for a mouse. A table too wide for a phone scrolls sideways
+from the keyboard too: through its sort buttons, or — for the two with nothing to press, *What
+the Next PI Could Hold* and the import preview — by tabbing to the table itself and using the
+arrow keys. Each table names itself and marks its column
 and row headings, so a screen reader reads "Sprint 3, carried out, 4" rather than nine
-unattached numbers. Every dialog announces its own title, the sprint form's warnings and
+unattached numbers. Every dialog announces its own title (and shows the focus ring when the
+keyboard lands on a window tall enough to scroll), the sprint form's warnings and
 auto-filled hints are tied to the boxes they refer to and read out when they change, and
 pressing **Read it** on a Jira paste moves you to the result rather than leaving it
 unannounced. Small targets like the ⓘ carry a 24px hit area without growing on screen, and
@@ -1884,7 +1888,9 @@ the one in this browser. Your theme survives, and so do the pinned tab row and y
 **If one device is behind** — every saved copy carries the data format the app that wrote
 it understood. A copy written by a *newer* version than the one you're running won't be
 opened: you get a card saying so, nothing is changed or deleted, and reloading picks up the
-current version. That matters most on a device that's been offline for a while, where the
+current version. The card takes over the whole page, wherever it catches you — any window you
+had open (a sprint you were saving, a restore) closes, a screen reader announces the card,
+the keyboard lands on **Reload**, and nothing behind it can be reached. That matters most on a device that's been offline for a while, where the
 browser can still be running an older cached copy of the app while another device has moved
 on. A backup file from a newer version is refused the same way, and a share link from one
 tells the reader the link is fine and their copy of the app is behind.

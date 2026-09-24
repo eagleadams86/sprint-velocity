@@ -1065,7 +1065,9 @@ but Charles had ever actually signed in.)
   optional `piId` to 4, `settings.targets` to 5) rides into localStorage and every backup
   file, and these boundaries compare it:
   - `load()` calls **`haltForNewerData()`** — a full-screen card, no render, and a `throw`
-    that aborts the rest of the script block so nothing can save over the newer copy. It
+    that aborts the rest of the script block so nothing can save over the newer copy. The
+    card is MODAL: it closes every open window and the toast, makes the rest of `<body>`
+    `inert` and takes the focus (2026-09-24 accessibility audit, below). It
     reuses `viewOnly` (and `window.svViewOnly`) rather than inventing a second flag, so
     `save()` is already a no-op and the service-worker block registers nothing. (`svAdopt()`
     was the second caller and wrote the newer document to localStorage **verbatim** before
@@ -3368,3 +3370,78 @@ group proven red against the commit before it. EXPECTED 576 → 583.
   through `targetSprintSlot`) — forward-looking, and what the recipient's capacity card reads. A
   plan on the unassigned track still always travels (it names no PI). With no window the old
   rule stands: nothing was promised.
+
+## Fixes From the 2026-09-24 Accessibility Audit
+
+Charles asked for an accessibility pass over this app, Flow Metrics and Money Map (the audit of
+2026-09-23, harness as in `axe-audit-harness.md`: axe over every team, view, dialog and theme at
+1440 and 390, then the keyboard pass axe cannot do). One commit per finding on the
+`a11y-fixes-2026-09-24` branch, each with a test in the "accessibility (2026-09-24 audit)" group
+proven red on the commit before it. Nothing here stores anything new.
+
+- **The newer-version stop card is modal, wherever it is reached from.** Since the two-copies
+  guard (2026-09-18) the halt is reached from INSIDE a window too — Save Sprint, Restore and the
+  Targets auto-save all save from a modal `<dialog>`, and `adoptOtherCopy()` runs `load()` before
+  it closes anything. A modal dialog is in the browser's top layer, above every z-index, so the
+  card was drawn UNDER the window: Reload could not be pressed, a screen reader never heard the
+  card, and Esc handed focus back to a button the card covered. At boot the dead page stayed in
+  the Tab order behind it — twelve stops before Reload. Fixed once, in `haltForNewerData()`, not
+  per caller: it closes every `dialog[open]` and hides the toast popover, makes every other child
+  of `<body>` `inert`, marks the card `role="alertdialog"` + `aria-modal`, labelled by its heading
+  and described by the format sentence, and focuses Reload. `toast.halted` stops any later toast
+  (a close handler's, or a held Undo released by the dialogs closing) rising into the top layer
+  over it. Swapping the two lines in `adoptOtherCopy()` would have fixed one route and left boot
+  as it was. Tests drive the Save Sprint and Restore routes in real frames, and boot's route as
+  `load()` meeting a newer board in a frame that booted normally: a REAL boot's throw is uncaught,
+  the CI runner fails on any page error, and a frame's error listener cannot be in place before
+  its own script runs (the first push went red on exactly that, with all tests passing). The real
+  boot was checked by hand with real Tab presses and axe.
+  EXPECTED 590 → 592.
+- **The pin button is named in the markup.** `#pinBtn` was an empty `<button>` that
+  `dressPinBtn()` gives its icon and name — so a script that stopped before that line (the halt at
+  boot) left a nameless button in the page (axe `button-name`, critical). It now carries the
+  unpinned `aria-label` in the markup, the same words `dressPinBtn()` writes, and the script still
+  changes it with the state. EXPECTED 592 → 593.
+- **A table with nothing to press is itself a Tab stop.** axe `scrollable-region-focusable`: PI
+  Trend's *What the Next PI Could Hold* table is 402px wide in a 328px box at 390 (258 at 320), the
+  *Across 5 sprints* column was cut off, and nothing in it could take the focus to scroll it. Every
+  other wide table has sort buttons, which the 2026-09-15 `focusin` reveal scrolls into view. The
+  survey for the same state found one more: the history import's preview (`max-height: 260px;
+  overflow: auto`, no controls), whose lower rows a keyboard could not reach on a long paste. Both
+  boxes carry `tabindex="0" role="region"` and the table's own name, **in the markup and
+  unconditionally** — neither ever holds a control, and a run-time "only while it overflows" would
+  need re-checking on every render and resize for one extra stop at desktop width. The ring is
+  `outline-offset: -2px` (`.tablewrap[tabindex]:focus-visible`), drawn in the 4px of padding the
+  box already keeps for its sort buttons, so no card or dialog edge can clip it. The Jira paste's
+  figures table has no controls either but wraps its third column, so it never scrolls; it was
+  left alone. EXPECTED 593 → 595.
+- **A window the keyboard lands on shows a ring.** Chromium makes a `<dialog>` tall enough to
+  scroll a Tab stop of its own, and Tab wraps onto it past the last control — Teams & PIs at 1440
+  and 390; the sprint, Targets, Share and Adjust windows at 390 — where `dialog:focus { outline:
+  none }` left no ring at all (2.4.7). That rule exists for the phone (2026-08-22): `openModal()`
+  focuses the window itself on a coarse pointer, and **that scripted focus matches `:focus-visible`
+  in Safari**, so `:not(:focus-visible)` could not have kept the exemption — it would have put the
+  ring back on every iPhone. The discriminator is `tabindex="-1"`, which `openModal()` sets before
+  that focus and which also takes the window out of the Tab order, so a window carrying it is only
+  ever focused as the mechanism: `dialog[tabindex="-1"]:focus { outline: none }` (0,2,1) out-ranks
+  `dialog:focus-visible { outline: 2px solid var(--focus-border); outline-offset: -2px }`, drawn
+  inside the window's edge rather than on the backdrop. Pinned from the cascade, not by focusing
+  (`family-css-gotchas`); the 2026-08-22 source pin moved to the new selector. Checked with real Tab
+  presses on all six windows and a real tap on a touch-emulated phone. EXPECTED 595 → 596.
+- **The ART picker no longer announces a menu.** `#artFilterBtn` carried `aria-haspopup="true"`,
+  which a screen reader reads as a MENU and which promises menu keys (arrows, typeahead); what
+  opens is a `role="group"` of tick boxes worked with Tab and Space. A disclosure says it is one
+  with `aria-expanded` + `aria-controls` alone, so the attribute went and those two stay. The
+  button's markup is now identical to Flow Metrics' again, where the same change was made the same
+  day (the shared chrome — change both). Advisory in the audit, fixed anyway. EXPECTED 596 → 597.
+- **Checked for the theme pack's forced-colours rule, and nothing was missing.** The pack is gaining
+  an `@media (forced-colors: active)` rule that marks a selected control by its ARIA state
+  (`aria-selected/pressed/checked="true"`, `aria-current`, or a `label` holding a `:checked` box),
+  so any control whose state is shown ONLY by a fill must expose one of those. A walk of every view,
+  the ART menu open and five windows, grouping sibling controls whose fill differs and asking
+  whether their ARIA state differs too, found one such group — the view tabs — and they carry
+  `aria-selected`. Every other on/off here is a native checkbox (Rolling 5's toggles, the share and
+  ART lists) or a `<select>`. The pin button's pinned state is shown by its ICON as well as its
+  accent edge, and its name says which it is; it stays without `aria-pressed` for the reason in the
+  markup comment (the state would be announced twice). Nothing app-level was added for forced
+  colours — that belongs to the pack.
