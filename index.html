@@ -2300,8 +2300,11 @@ html[data-booting] footer { visibility: hidden; }
     <!-- Dressed by dressPinBtn() — icon, accessible name and title all change
          together, and there is no aria-pressed on top of them: the state would
          then be announced twice and the two would have to be kept in agreement.
-         The same rule the full-screen button follows. -->
-    <button type="button" class="pinbtn" id="pinBtn"></button>
+         The same rule the full-screen button follows. The aria-label in the
+         markup is the unpinned one dressPinBtn() writes, so the button is never
+         nameless — the halt card at boot stops the script before it runs. -->
+    <button type="button" class="pinbtn" id="pinBtn"
+      aria-label="Pin the tabs to the top of the page"></button>
   </div>
 
   <!-- The tabpanel role goes on an inner div, not on <main> itself: putting it on

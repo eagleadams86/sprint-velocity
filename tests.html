@@ -106,7 +106,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 592;
+const EXPECTED = 593;
 
 /* ── THE SUITE LEAVES STORAGE EXACTLY AS IT FOUND IT (2026-09-15 review) ──────
    The page header says "Read-only: nothing is saved", and it was not true: the
@@ -11668,6 +11668,19 @@ t('the newer-version stop card closes the window it was reached from', async () 
       haltIsModal(W, route);
     });
   }
+});
+
+t('the pin button has a name in the markup, before any script has run', async () => {
+  /* dressPinBtn() names it, and a script that stops before it runs — the halt at
+     boot — left an empty, nameless button (axe button-name, critical). */
+  const tag = (APP_SRC.match(/<button[^>]*id="pinBtn"[^>]*>/) || [''])[0];
+  ok(tag, 'the pin button is in the markup');
+  ok(/aria-label="Pin the tabs to the top of the page"/.test(tag),
+    'it carries the unpinned name dressPinBtn() gives it', tag);
+  await haltedAtBoot('pinname', async (W) => {
+    eq(W.document.getElementById('pinBtn').getAttribute('aria-label'),
+      'Pin the tabs to the top of the page', 'and keeps it when the app stops before dressing it');
+  });
 });
 
 group('the suite leaves storage exactly as it found it (2026-09-15 review)');

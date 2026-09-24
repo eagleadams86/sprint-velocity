@@ -3393,3 +3393,8 @@ proven red on the commit before it. Nothing here stores anything new.
   over it. Swapping the two lines in `adoptOtherCopy()` would have fixed one route and left boot
   as it was. Tests drive the boot route and the Save Sprint and Restore routes in real frames.
   EXPECTED 590 → 592.
+- **The pin button is named in the markup.** `#pinBtn` was an empty `<button>` that
+  `dressPinBtn()` gives its icon and name — so a script that stopped before that line (the halt at
+  boot) left a nameless button in the page (axe `button-name`, critical). It now carries the
+  unpinned `aria-label` in the markup, the same words `dressPinBtn()` writes, and the script still
+  changes it with the state. EXPECTED 592 → 593.
