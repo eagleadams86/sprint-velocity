@@ -1149,6 +1149,8 @@ pointer, and moving something with the keyboard keeps your place on it.
 Adding is the same shape: **+ Add** puts a row in with a working default name and lands the
 cursor in it, already selected, so typing replaces it.
 
+**Scrolling never changes a number box.** A browser steps a number box you have just typed in every time the mouse wheel or trackpad scrolls over it, so scrolling a window down past it used to change the figure without a word. The box now lets go of the cursor the moment you scroll over it, and the page scrolls instead; click it again to carry on typing.
+
 **A long list gets a second + Add at its foot.** Once a list reaches **twelve** rows, its
 *+ Add* button appears again under the last row, so adding one more team doesn't mean
 scrolling back up to the heading first. It is a copy, not a move — the button beside the
