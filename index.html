@@ -1947,7 +1947,7 @@ legend { font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .04
    mid-sentence while half the page sat empty. They wrap only when the window is
    genuinely too narrow. */
 .privacy { font-size: var(--fs-xs); color: var(--text-muted);
-  margin: 28px 0 0; padding-left: 19px; }
+  margin: 28px 0 0; padding: 0 19px; }
 .privacy-links { margin-top: 6px; }
 .privacy-links a { color: var(--text-muted); }
 .privacy-links a:hover { color: var(--text-secondary); }
@@ -11655,12 +11655,26 @@ const KEYBOARD_TYPES = new Set(['text', 'number', 'search', 'tel', 'url', 'email
 /* Which elements a phone answers with a keyboard — pure over {tagName, type},
    so the list is pinned by tests rather than rediscovered the next time a
    dialog opens on a field nobody thought about. A checkbox, a button and a
-   select all raise nothing, which is why the dialogs that open on one are left
-   exactly as they were. */
+   select raise no keyboard — though a select OPENS on focus, which is what
+   opensOnFocus() below adds. */
 function raisesKeyboard(el) {
   if (!el) return false;
   return el.tagName === 'TEXTAREA'
     || (el.tagName === 'INPUT' && KEYBOARD_TYPES.has(el.type));
+}
+
+/* Which controls OPEN something the moment they are focused, on a touch
+   screen: the keyboard's, plus a <select> and the date and time pickers.
+   iOS 26 opens a focused select's menu at once — Wine Cellar's Share and
+   Settings windows opened with their first dropdown already down (Charles,
+   iPhone, 2026-10-23) — so openModal() asks this, not raisesKeyboard(). */
+function opensOnFocus(el) {
+  if (!el) return false;
+  if (raisesKeyboard(el)) return true;
+  const tag = (el.tagName || '').toUpperCase();
+  if (tag === 'SELECT') return true;
+  return tag === 'INPUT' && ['date', 'time', 'datetime-local', 'month', 'week']
+    .indexOf((el.type || '').toLowerCase()) !== -1;
 }
 /* ── Where the keyboard lands after an auto-saving window closes ────────────
    A dialog hands the focus back to the element that had it when it opened.
@@ -11760,7 +11774,7 @@ function openModal(dlg) {
   if (!window.matchMedia('(pointer: coarse)').matches) return;
   const el = document.activeElement;
   if (!el || !dlg.contains(el)) return;
-  if (!raisesKeyboard(el)) return;
+  if (!opensOnFocus(el)) return;
   dlg.tabIndex = -1;
   dlg.focus();
 }
@@ -15975,7 +15989,7 @@ document.documentElement.removeAttribute('data-booting');
    calls the pure functions). Function declarations are already reachable as
    window properties; this exposes the consts the tests need. Nothing in the
    app reads it. */
-window.__svTestHooks = { raisesKeyboard, reorderById,
+window.__svTestHooks = { raisesKeyboard, opensOnFocus, reorderById,
   /* The row count at which a section earns a second Add button at its foot. The
      suite reads it rather than repeating the number, so the check follows a
      measured change instead of having to be found and edited after one. */
