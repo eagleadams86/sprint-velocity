@@ -46,7 +46,7 @@
      Note: frame-ancestors is ignored in a meta tag; it needs a real header. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; manifest-src 'self'; worker-src 'self'; frame-src 'none'; base-uri 'none'; form-action 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sprint Predictability · Charlie’s Epic Sprint Planner</title>
+<title>Sprint Predictability</title>
 <meta name="description" content="Track sprint predictability across teams: commitment completion, break-in, carryover, and velocity.">
 <!-- The mark is the sprint itself: a cycle that comes round again, opening at the
      commitment point. It's the family tile Money Map, PAPTrack and Flow Metrics wear
@@ -341,10 +341,9 @@ header {
    icon arrives — the header paints long before anything else runs, and a growing
    header is the one thing this row must never do.
    The icon sits in the text's own flow (Money Map makes .brand a flex row instead;
-   don't copy that here). This brand line is long enough to wrap on a phone, and as
-   flex items the title and the "· Charlie's Epic…" span become two columns — the
-   subtitle then wraps inside a narrow one beside the title rather than running on
-   below it. Mirrored in Flow Metrics, whose line is longer still. */
+   don't copy that here). Mirrored in Flow Metrics. (The brand line carried a
+   "· Charlie's Epic…" subtitle until 2026-10-24, which as a flex item would have
+   wrapped in a narrow column beside the title on a phone.) */
 .brand img { width: 22px; height: 22px; vertical-align: middle; margin-right: 9px; }
 /* THE CONTROLS ARE ONE LINE THAT SCROLLS SIDEWAYS, AT EVERY WIDTH (Charles,
    2026-09-14, family-wide: "should we just make them both always single line
@@ -2190,7 +2189,7 @@ html[data-booting] footer { visibility: hidden; }
          without it the header would keep showing whatever icon it cached the first
          time. Bump it on both references whenever make_favicon.py is re-run. -->
     <h1 class="brand"><img src="favicon.ico?v=1" width="22" height="22" alt=""
-      >Sprint&nbsp;Predictability <span>· Charlie’s Epic Sprint Planner</span></h1>
+      >Sprint&nbsp;Predictability</h1>
     <!-- The controls sit in a wrapper of their own since 2026-09-14, so they can
          be one line that scrolls sideways at any width while the name stays
          put. `.headrow` holds that scroller (`.headctl`) and its two arrows —
@@ -14071,7 +14070,7 @@ async function runExport(btn) {
   a.href = url;
   /* todayISO() for the same reason downloadBackup() uses it — a raw UTC slice
      stamps tomorrow's date on an evening export west of Greenwich. */
-  a.download = `sprint-velocity-${name}-${todayISO()}.csv`;
+  a.download = `sprint-predictability-${name}-${todayISO()}.csv`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 0);
   toast('Exported');
@@ -14091,7 +14090,7 @@ function downloadBackup() {
   a.href = url;
   /* todayISO(), not toISOString(): a raw UTC slice stamps tomorrow's date on an
      evening export west of Greenwich, which is exactly when the name misleads. */
-  a.download = `sprint-velocity-${todayISO()}.json`;
+  a.download = `sprint-predictability-${todayISO()}.json`;
   a.click();
   /* Revoking in the same tick races the download starting: Chrome usually wins,
      Firefox has historically handed back an empty file. One turn of the event loop
@@ -14115,7 +14114,7 @@ F('importFile').onchange = (e) => {
          Downloads folder must be refused, not imported as nothing. */
       if (!rawParsed || typeof rawParsed !== 'object'
           || !Array.isArray(rawParsed.teams) || !Array.isArray(rawParsed.sprints))
-        throw new Error('not a Sprint Velocity export');
+        throw new Error('not a Sprint Predictability export');
       /* A backup written by a newer build, the same check load() makes at boot.
          This one does NOT halt the app: unlike at boot, nothing has arrived yet
          and the data on screen is still perfectly good — the file is simply
@@ -14155,7 +14154,7 @@ F('importFile').onchange = (e) => {
          it stops this handler as it stops boot. Back Up is hidden in a shared
          view, so here `viewOnly` can only be the halt. */
       if (viewOnly) throw err;
-      toast('That file doesn’t look like a Sprint Velocity export');
+      toast('That file doesn’t look like a Sprint Predictability export');
       console.warn('import failed', err);
     } finally {
       e.target.value = '';
@@ -14526,7 +14525,7 @@ F('importTemplateBtn').onclick = () => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `sprint-velocity-import-template-${todayISO()}.csv`;
+  a.download = `sprint-predictability-import-template-${todayISO()}.csv`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 0);
   toast('Template downloaded — fill it in and paste it back');

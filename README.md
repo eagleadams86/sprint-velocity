@@ -1,4 +1,4 @@
-# Sprint Predictability · Charlie’s Epic Sprint Planner
+# Sprint Predictability
 
 A sprint predictability tracker for Scrum Masters. Record what each team committed to,
 what they actually finished, and what changed mid-sprint — the app works out commitment
@@ -1728,7 +1728,7 @@ Every table in the app carries a **Copy** and a **⬇ CSV** button in its headin
 | **Compare Teams** | Every team, averaged across its sprints |
 
 **Copy** puts the table on the clipboard tab-separated, which pastes as a real grid into a
-status email, a slide or a spreadsheet. **⬇ CSV** downloads a file — `sprint-velocity-all-teams-avg-2026-08-20.csv`
+status email, a slide or a spreadsheet. **⬇ CSV** downloads a file — `sprint-predictability-all-teams-avg-2026-08-20.csv`
 — for keeping or for opening in Excel later. (Tabs for the clipboard because a pasted CSV
 lands as a single column of text and has to be run through Text to Columns; a file has to be
 a CSV because that's what a spreadsheet opens.)
@@ -1849,7 +1849,7 @@ saved, imported or shared copy. Percentages and reason codes
 pass that same boundary, so a hand-edited file can't widen either.
 
 **Back Up & Restore** — the *Back Up* button exports everything as a JSON file
-(`sprint-velocity-YYYY-MM-DD.json`, dated in local time) and imports it back. Useful as a
+(`sprint-predictability-YYYY-MM-DD.json`, dated in local time) and imports it back. Useful as a
 backup, for moving between browsers, or for handing a colleague a starting point.
 
 **Undo** — deleting a sprint, a team, a PI or an ART leaves an **Undo** button in the toast

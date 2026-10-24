@@ -12,7 +12,7 @@
      not this one). -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self'; connect-src 'self' https://api.github.com; frame-src 'self'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sprint Velocity — Tests</title>
+<title>Sprint Predictability — Tests</title>
 <link rel="stylesheet" href="theme.css">
 <style>
   /* Dev-only page: pins the pure functions in index.html. It loads the real app
@@ -58,7 +58,7 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>Sprint Velocity — Pure-Function Tests</h1>
+  <h1>Sprint Predictability — Pure-Function Tests</h1>
   <p class="sub">Runs against the real <code>index.html</code> in a hidden iframe. Read-only:
     nothing is saved — every <code>sv-</code> key is noted before the first test and the last
     test checks each one is as it was — and it only runs on <code>localhost</code>, where that
@@ -11317,7 +11317,7 @@ t('two copies: a board from a newer build halts a Restore, and is not called the
     input.dispatchEvent(new W.Event('change'));
     await wait(200);
     const said = D.getElementById('toastText').textContent;
-    ok(!/look like a Sprint Velocity export/.test(said), 'nothing calls the backup the wrong file', said);
+    ok(!/look like a Sprint Predictability export/.test(said), 'nothing calls the backup the wrong file', said);
     ok(errs.some((m) => /newer than this build/.test(m)), 'the halt stopped the handler by throwing', errs.join(' | '));
     eq(JSON.parse(localStorage.getItem('sv-data')).version, 9999, 'the newer board is untouched');
   });

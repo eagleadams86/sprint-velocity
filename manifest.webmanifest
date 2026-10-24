@@ -1,7 +1,7 @@
 {
   "id": "/sprint-velocity/",
   "name": "Sprint Predictability",
-  "short_name": "Sprints",
+  "short_name": "Sprint Predictability",
   "description": "Sprint predictability across teams: commitment completion, break-in, carryover and velocity, private to your own browser.",
   "start_url": "./",
   "scope": "./",

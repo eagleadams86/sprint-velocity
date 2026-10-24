@@ -1298,9 +1298,9 @@ but Charles had ever actually signed in.)
   The two extra tints (`#a5b4fc`, `#141c33`) are artwork, not palette: they came from Money
   Map's icon and are copied byte-for-byte rather than re-picked, so nothing new enters the
   theme pack. `.brand img` sits in the text's own flow with `vertical-align: middle` —
-  **don't make `.brand` a flex row** the way Money Map does. This brand line wraps on a
-  phone, and as flex items the title and the "· Charlie's Epic…" span become two columns,
-  so the subtitle wraps inside a narrow one beside the title instead of running on below it.
+  **don't make `.brand` a flex row** the way Money Map does. The brand line is the
+  name alone since 2026-10-24 (the family dropped its "· Charlie's Epic…" subtitles); while
+  it had one, flex made the title and the subtitle two columns on a phone.
 - **Only numbers and dates are ever saved — there is deliberately NO free-text field in the
   data (2026-08-12).** The figures come out of Charles's work Jira, and the copy in GitHub-
   hosted localStorage — one browser origin shared with every other app on the account — has
