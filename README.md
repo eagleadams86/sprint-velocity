@@ -398,6 +398,10 @@ one place further along.
 Rather than retyping seven numbers, open the sprint's **Sprint Report** in Jira, copy the
 whole thing, and paste it into **📋 Paste from Jira** at the top of the sprint form.
 
+There is no Read button: the report is read as soon as it lands in the box (a moment after the
+box stops changing, so typing into it doesn't flicker), and the figures appear underneath with
+**Use These Numbers**. Clear empties the box and takes the figures away.
+
 It works out every figure and shows you exactly how before filling anything in:
 
 | Field | Where it comes from |
@@ -503,7 +507,8 @@ bookmarks bar once. Then:
 
 1. Open your board in Jira and click the bookmark.
 2. Pick the sprint from the list of the board's twelve most recent.
-3. Press **Copy**, paste into the sprint's Paste from Jira box and press **Read It**.
+3. Press **Copy**, paste into the sprint's Paste from Jira box, check the figures and press
+   **Use These Numbers**.
 
 It copies the same four tables the Sprint Report page shows, with Jira's own section totals,
 so the checksum works exactly as it does on a hand copy. It copies only each issue's key, its
@@ -1742,8 +1747,8 @@ and row headings, so a screen reader reads "Sprint 3, carried out, 4" rather tha
 unattached numbers. Every dialog announces its own title (and shows the focus ring when the
 keyboard lands on a window tall enough to scroll), the sprint form's warnings and
 auto-filled hints are tied to the boxes they refer to and read out when they change, and
-pressing **Read it** on a Jira paste moves you to the result rather than leaving it
-unannounced. Small targets like the ⓘ carry a 24px hit area without growing on screen, and
+a Jira paste is read the moment it lands, with a one-line summary announced (how many issues,
+and whether Jira's totals matched) while the caret stays in the box. Small targets like the ⓘ carry a 24px hit area without growing on screen, and
 `prefers-reduced-motion` is honoured — from `theme.css`, which has carried it for every app in the family since 2026-08-26 (pack rule 15) rather than each page keeping its own copy.
 
 ---
