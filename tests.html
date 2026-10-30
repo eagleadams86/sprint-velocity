@@ -106,7 +106,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 602;
+const EXPECTED = 603;
 
 /* ── THE SUITE LEAVES STORAGE EXACTLY AS IT FOUND IT (2026-09-15 review) ──────
    The page header says "Read-only: nothing is saved", and it was not true: the
@@ -10343,6 +10343,35 @@ t('the carried-out note never calls points break-in that the Added figure cannot
   });
 });
 
+t('a Jira paste is read as it arrives — no Read It button to press', async () => {
+  await formFrame('autoread', formFixture([{ sprintNumber: 1 }]), async (W, D) => {
+    W.openSprint('t1', 'p1', 2);
+    D.getElementById('jiraBlock').open = true;
+    ok(!D.getElementById('jiraParseBtn'), 'the Read It button is gone');
+    const box = D.getElementById('jiraText');
+    box.focus();
+    box.value = TABBED;
+    fire(W, box, 'input');
+    ok(D.getElementById('jiraPreview').hidden, 'nothing is read while the box is still changing');
+    await wait(400);
+    ok(!D.getElementById('jiraPreview').hidden && D.getElementById('jiraApplyBtn'),
+       'a moment after it stops, the figures and Use These Numbers are there');
+    eq(D.activeElement, box, 'and the caret stays in the box — focus is not pulled to the result');
+    ok(/^Read 6 issues\. Jira’s totals matched\./.test(D.getElementById('jiraReadStatus').textContent),
+       'one line is announced instead: ' + D.getElementById('jiraReadStatus').textContent);
+    box.value = '';
+    fire(W, box, 'input');
+    await wait(400);
+    ok(D.getElementById('jiraPreview').hidden, 'emptying the box takes the figures away');
+    eq(D.getElementById('jiraReadStatus').textContent, '', 'and the announcement with them');
+    box.value = TABBED;
+    fire(W, box, 'input');
+    W.openSprint('t1', 'p1', 2);
+    await wait(400);
+    ok(D.getElementById('jiraPreview').hidden, 'a read still pending when another sprint opens never lands on it');
+  });
+});
+
 t('Save Sprint after Use These Numbers on a brand-new sprint asks nothing; a re-paste over a saved one still asks', async () => {
   await formFrame('b4new', formFixture([{ sprintNumber: 1 }]), async (W, D, st) => {
     const asked = [];
@@ -10350,7 +10379,7 @@ t('Save Sprint after Use These Numbers on a brand-new sprint asks nothing; a re-
     W.toast = () => {};
     const paste = (text) => {
       D.getElementById('jiraText').value = text;
-      D.getElementById('jiraParseBtn').click();
+      W.svReadJiraNow();
       const use = D.getElementById('jiraApplyBtn');
       ok(use, 'the paste was read and offers Use These Numbers');
       if (use) use.click();

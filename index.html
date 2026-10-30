@@ -2431,7 +2431,8 @@ input:is([type="checkbox"], [type="radio"]) { flex: none; width: 1.25rem; height
     <details id="jiraBlock">
       <summary>📋 Paste from Jira</summary>
       <p class="sub" style="margin:10px 0 8px">Open the sprint's <strong>Sprint Report</strong> in
-        Jira, select the whole report and copy it, then paste it below. Pressing
+        Jira, select the whole report and copy it, then paste it below. It is read as soon as
+        it lands, and the figures appear underneath. Pressing
         <strong>Use these numbers</strong> saves the sprint straight away, so you can't lose the
         figures by closing this box — only Cancel undoes that save.</p>
       <!-- THE JIRA BOOKMARK (2026-10-30, decided with Charles). Jira Cloud won't
@@ -2451,7 +2452,7 @@ input:is([type="checkbox"], [type="radio"]) { flex: none; width: 1.25rem; height
             <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> (<kbd>&#8984;</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> on a Mac).</li>
           <li>Open your board in Jira and click the bookmark.</li>
           <li>Pick the sprint from the list it shows, then press <strong>Copy</strong>.</li>
-          <li>Paste into the box below and press <strong>Read It</strong>.</li>
+          <li>Paste into the box below, check the figures and press <strong>Use These Numbers</strong>.</li>
         </ol>
         <p class="sub" style="margin:8px 0 0">It runs inside your Jira tab on the sign-in you
           already have, so there is no password or token to give it. It only reads, and copies
@@ -2466,10 +2467,16 @@ input:is([type="checkbox"], [type="radio"]) { flex: none; width: 1.25rem; height
       <label class="sr-only" for="jiraText">Pasted Jira Sprint Report</label>
       <textarea id="jiraText" rows="5" placeholder="Paste the whole Sprint Report here, including the
  &quot;Completed Issues&quot; / &quot;Issues Not Completed&quot; / &quot;Issues Removed From Sprint&quot; headings"></textarea>
+      <!-- READ AS IT ARRIVES (2026-10-30, Charles: "add the same auto read
+           functionality that flow metrics has"). There was a Read It button; the
+           paste is now read 300ms after the box stops changing (readJiraPaste).
+           Focus is NOT moved to the result any more: that suited a press, and would
+           yank the caret out of a box being typed in. The one-line status below is
+           announced instead, and the table is still one Tab away. -->
       <div class="row" style="margin-top:8px">
-        <button type="button" class="btn" id="jiraParseBtn">Read It</button>
         <button type="button" class="btn" id="jiraClearBtn">Clear</button>
       </div>
+      <p class="sr-only" id="jiraReadStatus" role="status" aria-live="polite"></p>
       <div id="jiraPreview" tabindex="-1" hidden></div>
     </details>
 
@@ -12221,9 +12228,8 @@ function openSprint(teamId, piId, sprintNumber) {
   /* A paste belongs to one sprint, so it never carries over into the next one
      opened. */
   F('jiraText').value = '';
-  F('jiraPreview').hidden = true;
+  readJiraPaste();          // empty: hides the figures and cancels a read still pending
   F('jiraBlock').open = false;
-  jiraDerived = null;
   clearPendingJiraSave();   // no auto-save carries over from the sprint just closed
 
   F('sprintDeleteBtn').hidden = !existing;
@@ -12562,7 +12568,7 @@ function jiraBookmarkSrc() {
     var t = toReport(rep && rep.contents);
     if (!t.count) { say('That sprint has no issues in its report.'); button('Close', close); return; }
     say(t.count + ' issues are ready. Copy them, then paste into the sprint\u2019s ' +
-      'Paste from Jira box in Sprint Predictability and press Read It.');
+      'Paste from Jira box in Sprint Predictability.');
     var copy = button('Copy', function () {
       navigator.clipboard.writeText(t.text).then(function () {
         say('Copied ' + t.count + ' issues. Paste them into Sprint Predictability.');
@@ -12585,9 +12591,21 @@ function jiraBookmarkSrc() {
   });
   F('jiraBookmarkCode').textContent = jiraBookmarkSrc();
 })();
-F('jiraParseBtn').onclick = () => {
-  const parsed = parseJiraSprintReport(F('jiraText').value);
+/* Reads whatever is in the paste box and draws the figures, or hides them when
+   the box is empty. Called 300ms after the box stops changing, the way Flow
+   Metrics plans a paste; svReadJiraNow() is the suite's way to "stop typing". */
+let jiraReadTimer = 0;
+function readJiraPaste() {
+  clearTimeout(jiraReadTimer);
   const box = F('jiraPreview');
+  const status = F('jiraReadStatus');
+  if (!F('jiraText').value.trim()) {
+    box.hidden = true;
+    jiraDerived = null;
+    status.textContent = '';
+    return;
+  }
+  const parsed = parseJiraSprintReport(F('jiraText').value);
   box.hidden = false;
 
   if (!parsed.found) {
@@ -12598,6 +12616,7 @@ F('jiraParseBtn').onclick = () => {
       <em>Completed Issues</em>, <em>Issues Not Completed</em> and
       <em>Issues Removed From Sprint</em> headings. Issue keys need to look like
       <code>CMD-1234</code>, and the report needs a Story Points column.</p>`;
+    status.textContent = 'No issue rows found in the paste yet.';
     return;
   }
 
@@ -12660,10 +12679,19 @@ F('jiraParseBtn').onclick = () => {
 
   F('jiraApplyBtn').onclick = applyJiraNumbers;
   /* Results that appear elsewhere on the page are the classic thing a screen reader
-     never mentions. Announcing this whole table would be worse than useless, so focus
-     moves to it instead — which is also where a sighted user is already looking. */
-  box.focus();
-};
+     never mentions. Announcing this whole table would be worse than useless, and
+     moving focus to it would pull the caret out of the box, so one line is
+     announced instead and the table is the next thing Tab reaches. */
+  status.textContent = `Read ${parsed.found} issue${parsed.found === 1 ? '' : 's'}. `
+    + (bad.length ? 'Jira\u2019s totals did not match; check the figures.'
+       : d.checks.length ? 'Jira\u2019s totals matched.' : 'No totals to check against.')
+    + ' Use These Numbers is below.';
+}
+F('jiraText').addEventListener('input', () => {
+  clearTimeout(jiraReadTimer);
+  jiraReadTimer = setTimeout(readJiraPaste, 300);
+});
+window.svReadJiraNow = readJiraPaste;
 
 /* Carried-in is the previous sprint's carried-out, so it's filled in the moment a
    sprint form is opened rather than only when a Jira report is pasted — that was
@@ -12890,8 +12918,8 @@ function applyJiraNumbers() {
 
 F('jiraClearBtn').onclick = () => {
   F('jiraText').value = '';
-  F('jiraPreview').hidden = true;
-  jiraDerived = null;
+  readJiraPaste();
+  F('jiraText').focus();
 };
 
 /* Guards a finished sprint against being overwritten by accident — picking the wrong

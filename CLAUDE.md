@@ -1626,6 +1626,18 @@ but Charles had ever actually signed in.)
   not under `/sprint-velocity/`, and an absolute scope is simply invalid there.
 
 
+
+## The Jira Paste Reads Itself (2026-10-30) — no schema change
+
+Charles: *"add the same auto read functionality that flow metrics has to the sprint paste to
+reduce button clicks"*. The **Read It** button is gone. `readJiraPaste()` (the old handler's
+body) runs 300ms after `#jiraText` stops changing, the delay Flow Metrics' `pastePlan` uses;
+an empty box hides the figures and clears `jiraDerived`. `openSprint()` and Clear both call it,
+so they also cancel a read still pending: a paste typed into one sprint can never land on the
+next one opened. **Focus is no longer moved to `#jiraPreview`.** That suited a press, but on
+`input` it would pull the caret out of the box mid-typing. `#jiraReadStatus` (sr-only,
+`role="status"`) announces one line instead. `window.svReadJiraNow` is the suite's way to
+"stop typing". Paste → Use These Numbers is now two steps, not three.
 ## The Jira Bookmark (2026-10-30) — no schema change, DECIDED WITH CHARLES
 
 Flow Metrics' CLAUDE.md has the full reasoning (Jira Cloud sends no CORS permission, measured
