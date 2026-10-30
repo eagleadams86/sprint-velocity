@@ -1093,6 +1093,13 @@ th .tile-help, td .tile-help { vertical-align: 1px; }
   padding: 10px 12px; background: var(--bg-card-alt); }
 #jiraBlock { margin-bottom: 14px; }
 #jiraBlock > summary { cursor: pointer; font-weight: 600; font-size: var(--fs-sm); }
+#jiraBookmark { margin: 4px 0 10px; }
+#jiraBookmark summary { cursor: pointer; }
+#jiraBookmark ol { margin: 0; padding-left: 1.4em; font-size: var(--fs-xs); }
+#jiraBookmark li { margin-bottom: 4px; }
+.jira-code { margin: 8px 0 0; max-height: 20em; overflow: auto; white-space: pre;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 10px 12px; font-family: var(--font-mono); font-size: var(--fs-xs); }
 #jiraBlock textarea { font-family: var(--font-mono);
   font-size: var(--fs-xs); min-height: 90px; }
 /* The bulk-import box gets the Jira paste's monospace treatment for the same
@@ -2427,6 +2434,35 @@ input:is([type="checkbox"], [type="radio"]) { flex: none; width: 1.25rem; height
         Jira, select the whole report and copy it, then paste it below. Pressing
         <strong>Use these numbers</strong> saves the sprint straight away, so you can't lose the
         figures by closing this box — only Cancel undoes that save.</p>
+      <!-- THE JIRA BOOKMARK (2026-10-30, decided with Charles). Jira Cloud won't
+           answer a page on another site (no CORS), and a Jira token kept here would
+           sit on the shared Pages origin where every page could read it. So the
+           bookmark runs on Charles's own Jira tab, on its own sign-in, and copies a
+           Sprint Report in the shape parseJiraSprintReport already reads. This app
+           never runs it and connects to nothing. Purely additive: removing it is one
+           revert (README, "Removing the Jira Bookmark"). -->
+      <details id="jiraBookmark">
+        <summary>Or Let a Bookmark Copy It for You</summary>
+        <p style="margin:8px 0">
+          <a class="btn" id="jiraBookmarkLink" href="#" draggable="true">Copy for Sprint Predictability</a>
+        </p>
+        <ol>
+          <li><strong>Drag that button to your bookmarks bar.</strong> No bar? Press
+            <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> (<kbd>&#8984;</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> on a Mac).</li>
+          <li>Open your board in Jira and click the bookmark.</li>
+          <li>Pick the sprint from the list it shows, then press <strong>Copy</strong>.</li>
+          <li>Paste into the box below and press <strong>Read It</strong>.</li>
+        </ol>
+        <p class="sub" style="margin:8px 0 0">It runs inside your Jira tab on the sign-in you
+          already have, so there is no password or token to give it. It only reads, and copies
+          only each issue&rsquo;s key, whether it joined after the sprint started, and its story
+          points &mdash; never a summary. The text goes to your clipboard and nowhere else. This
+          app still connects to nothing. To stop using it, delete the bookmark.</p>
+        <details style="margin-top:8px">
+          <summary>Show the Bookmark&rsquo;s Code</summary>
+          <pre class="jira-code" id="jiraBookmarkCode"></pre>
+        </details>
+      </details>
       <label class="sr-only" for="jiraText">Pasted Jira Sprint Report</label>
       <textarea id="jiraText" rows="5" placeholder="Paste the whole Sprint Report here, including the
  &quot;Completed Issues&quot; / &quot;Issues Not Completed&quot; / &quot;Issues Removed From Sprint&quot; headings"></textarea>
@@ -12364,6 +12400,191 @@ F('f_removed').addEventListener('input', () => { autofillSprintForm(); checkSpri
    numbers, and can be diagnosed from a screenshot. */
 let jiraDerived = null;
 
+/* ── THE JIRA BOOKMARK (2026-10-30) ─────────────────────────────────────────
+   The source of the "Copy for Sprint Predictability" bookmark, as TEXT. This app
+   never runs it: it becomes the href of a link dragged to the bookmarks bar, and
+   only runs when clicked on a Jira tab. A function rather than a const so it is
+   hoisted and reachable from tests.html as w.jiraBookmarkSrc(). String.raw, so its
+   own escapes reach the bookmark as written; it must hold no backtick, no "${" and
+   no line comment (pinned in tests). */
+function jiraBookmarkSrc() {
+  return String.raw`/* Copy for Sprint Predictability - a bookmark that runs on YOUR Jira tab.
+   It reads (never writes) through the Jira sign-in that tab already has, so
+   there is no token anywhere. It asks Jira for one sprint's Sprint Report and
+   copies only what the report's tables hold that this app reads: each issue's
+   key, whether it was added after the sprint started, and its story points.
+   Summaries are never copied. The text goes to your clipboard, and nowhere
+   else, for you to paste into a sprint's Paste from Jira box. */
+(function () {
+  'use strict';
+  var KEY_RE = /^[A-Z][A-Z0-9_]{0,9}-[0-9]{1,6}$/;
+  /* The four tables of a Sprint Report, in the order Jira draws them, with the
+     headings Sprint Predictability's parser looks for. */
+  var SECTIONS = [
+    ['Completed Issues', 'completedIssues', 'completedIssues'],
+    ['Issues Not Completed', 'issuesNotCompletedInCurrentSprint', 'issuesNotCompleted'],
+    ['Issues Removed From Sprint', 'puntedIssues', 'puntedIssues'],
+    ['Issues completed outside of this sprint', 'issuesCompletedInAnotherSprint',
+      'issuesCompletedInAnotherSprint']
+  ];
+
+  /* A figure, or null for "no estimate". Anything else means the report is not
+     the shape this bookmark knows, and it says so rather than guess. */
+  function num(stat) {
+    var v = stat && stat.statFieldValue ? stat.statFieldValue.value : stat && stat.value;
+    if (v == null || v === '') return null;
+    if (typeof v !== 'number' || !isFinite(v) || v < 0) throw new Error('unexpected estimate');
+    return Math.round(v * 1000) / 1000;
+  }
+  function pts(a, b) {
+    var s = a == null ? '-' : String(a);
+    var c = b == null ? '-' : String(b);
+    return s === c ? s : s + ' \u2192 ' + c;
+  }
+
+  /* The Sprint Report as the text a copy of Jira's own page gives: a heading
+     line per table carrying Jira's total, then one tab-separated row per issue.
+     An empty table is left out, as Jira leaves it out. */
+  function toReport(contents) {
+    if (!contents || typeof contents !== 'object') throw new Error('no report in the answer');
+    var added = contents.issueKeysAddedDuringSprint || {};
+    var lines = [];
+    var count = 0;
+    SECTIONS.forEach(function (s) {
+      var list = contents[s[1]];
+      if (list == null) return;
+      if (!Array.isArray(list)) throw new Error('unexpected table');
+      var rows = [];
+      list.forEach(function (iss) {
+        var k = iss && typeof iss.key === 'string' ? iss.key : '';
+        if (!KEY_RE.test(k)) return;
+        rows.push(k + (added[k] ? '*' : '') + '\t' +
+          pts(num(iss.estimateStatistic), num(iss.currentEstimateStatistic)));
+      });
+      if (!rows.length) return;
+      var head = s[0];
+      var start = num(contents[s[2] + 'InitialEstimateSum']);
+      var now = num(contents[s[2] + 'EstimateSum']);
+      if (start != null || now != null) head += '\tStory Points (' + pts(start, now) + ')';
+      lines.push(head);
+      lines = lines.concat(rows);
+      count += rows.length;
+    });
+    return { text: lines.join('\n'), count: count };
+  }
+
+  var api = { toReport: toReport, SECTIONS: SECTIONS };
+  if (window.SV_JIRA_BOOKMARK_TEST) { window.SV_JIRA_BOOKMARK = api; return; }
+
+  /* -- Everything below talks to Jira, read-only, on this tab's own sign-in -- */
+  function get(path) {
+    return fetch(path, { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('Jira answered ' + r.status + ' to ' + path.split('?')[0]);
+        return r.json();
+      });
+  }
+
+  var box = document.createElement('div');
+  var msg = document.createElement('p');
+  var row = document.createElement('div');
+  function button(text, onClick) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = text;
+    b.style.font = 'inherit';
+    b.style.padding = '6px 14px';
+    b.style.marginRight = '8px';
+    b.style.borderRadius = '6px';
+    b.style.border = '1px solid #8590a2';
+    b.style.background = '#fff';
+    b.style.color = '#172b4d';
+    b.style.cursor = 'pointer';
+    b.addEventListener('click', onClick);
+    row.appendChild(b);
+    return b;
+  }
+  box.style.position = 'fixed';
+  box.style.top = '16px';
+  box.style.right = '16px';
+  box.style.zIndex = '2147483647';
+  box.style.maxWidth = '380px';
+  box.style.padding = '16px';
+  box.style.background = '#fff';
+  box.style.color = '#172b4d';
+  box.style.border = '2px solid #0c66e4';
+  box.style.borderRadius = '10px';
+  box.style.font = '14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  msg.style.margin = '0 0 12px';
+  box.appendChild(msg);
+  box.appendChild(row);
+  function say(t) { msg.textContent = t; }
+  function close() { box.remove(); }
+  function fail(e) {
+    say('Couldn\u2019t read the sprint: ' + (e && e.message ? e.message : e) +
+      '. Run this from a tab showing your Jira board, or copy the Sprint Report page instead.');
+    row.textContent = '';
+    button('Close', close);
+  }
+  document.body.appendChild(box);
+
+  var m = /\/boards\/(\d+)/.exec(location.pathname) || /[?&]rapidView=(\d+)/.exec(location.search);
+  var board = m ? m[1] : window.prompt('Copy for Sprint Predictability\n\nWhich board? ' +
+    '(Its number is in the address of the board, after /boards/.)', '');
+  if (!board || !/^\d{1,9}$/.test(String(board).trim())) { close(); return; }
+  board = String(board).trim();
+  say('Finding the sprints on board ' + board + '\u2026');
+
+  var sprints = [];
+  function page(at) {
+    return get('/rest/agile/1.0/board/' + board + '/sprint?state=closed,active&maxResults=50&startAt=' + at)
+      .then(function (p) {
+        sprints = sprints.concat(p.values || []);
+        if (p.isLast === false && (p.values || []).length) return page(at + p.values.length);
+      });
+  }
+  page(0).then(function () {
+    var recent = sprints.filter(function (s) { return s && /^\d+$/.test(String(s.id)); })
+      .sort(function (a, b) { return String(b.startDate || '').localeCompare(String(a.startDate || '')); })
+      .slice(0, 12);
+    if (!recent.length) throw new Error('board ' + board + ' has no started sprints');
+    var pick = window.prompt('Copy for Sprint Predictability\n\nWhich sprint? Type its number.\n\n' +
+      recent.map(function (s, i) {
+        return (i + 1) + '. ' + String(s.name || '').slice(0, 60) + (s.state === 'active' ? ' (running)' : '');
+      }).join('\n'), '1');
+    var n = parseInt(pick, 10);
+    if (!(n >= 1 && n <= recent.length)) { close(); return null; }
+    say('Reading the Sprint Report\u2026');
+    return get('/rest/greenhopper/1.0/rapid/charts/sprintreport?rapidViewId=' + board +
+      '&sprintId=' + recent[n - 1].id);
+  }).then(function (rep) {
+    if (rep === null) return;
+    var t = toReport(rep && rep.contents);
+    if (!t.count) { say('That sprint has no issues in its report.'); button('Close', close); return; }
+    say(t.count + ' issues are ready. Copy them, then paste into the sprint\u2019s ' +
+      'Paste from Jira box in Sprint Predictability and press Read It.');
+    var copy = button('Copy', function () {
+      navigator.clipboard.writeText(t.text).then(function () {
+        say('Copied ' + t.count + ' issues. Paste them into Sprint Predictability.');
+        copy.remove();
+      }, function () { say('Your browser refused the clipboard. Try Copy again.'); });
+    });
+    button('Close', close);
+    copy.focus();
+  }).catch(fail);
+})();`;
+}
+(function wireJiraBookmark() {
+  const link = F('jiraBookmarkLink');
+  if (!link) return;
+  link.href = 'javascript:' + encodeURIComponent(jiraBookmarkSrc());
+  /* Clicked HERE it could only fail (connect-src 'none'), so a click explains. */
+  link.addEventListener('click', (e) => {
+    e.preventDefault();
+    toast('Drag this button to your bookmarks bar, then click it on your Jira board.');
+  });
+  F('jiraBookmarkCode').textContent = jiraBookmarkSrc();
+})();
 F('jiraParseBtn').onclick = () => {
   const parsed = parseJiraSprintReport(F('jiraText').value);
   const box = F('jiraPreview');

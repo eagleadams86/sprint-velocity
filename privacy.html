@@ -75,7 +75,7 @@ footer { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
        is why this closes before it and why .wrap stays an ordinary <div>. -->
   <main>
   <h1>Sprint Predictability — Privacy Policy</h1>
-  <p class="meta">Effective September 15, 2026</p>
+  <p class="meta">Effective October 30, 2026</p>
 
   <p>Sprint Predictability is built to work entirely in your browser. This page explains exactly
   what data exists, where it goes, and who can see it.</p>
@@ -146,6 +146,19 @@ footer { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
     <li>No network connections at all: the page's Content-Security-Policy sets
       <code>connect-src 'none'</code>, so the browser itself refuses to let this page open
       one — not to Google, not to the developer, not anywhere</li>
+  </ul>
+
+  <h2>The Jira Bookmark</h2>
+  <ul>
+    <li>The optional <strong>Copy for Sprint Predictability</strong> bookmark runs in your own
+      Jira tab, not in this app, and uses the Jira sign-in that tab already has. No password or
+      token is ever asked for or kept.</li>
+    <li>It only reads: the board's list of sprints, so you can pick one, and that sprint's
+      report. It copies only each issue's key, whether it joined after the sprint started, and
+      its story points. Summaries are never copied.</li>
+    <li>The text goes to your clipboard and nowhere else. What reaches this app is only what
+      you paste, read by the same rules as any other paste, and issue keys are still never
+      stored.</li>
   </ul>
 
   <h2>Your Choices</h2>
