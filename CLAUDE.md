@@ -1625,6 +1625,32 @@ but Charles had ever actually signed in.)
 - The scope is `./`, never absolute: on the local server the app is at the root,
   not under `/sprint-velocity/`, and an absolute scope is simply invalid there.
 
+
+## The Jira Bookmark (2026-10-30) — no schema change, DECIDED WITH CHARLES
+
+Flow Metrics' CLAUDE.md has the full reasoning (Jira Cloud sends no CORS permission, measured
+2026-10-30; a Jira token on the shared origin is the shared-origin policy's worst case), so
+this records only what differs here. **Charles's condition: it must roll back cleanly** — so
+it is additive only: no stored field, no SCHEMA bump, no `keepKnown()` change, no CSP change.
+Tag `pre-jira-bookmark` marks the commit before it.
+
+- `jiraBookmarkSrc()` returns the bookmarklet source as a `String.raw` string. It is a
+  FUNCTION, not a const, so it is hoisted, has no TDZ, and tests reach it as
+  `w.jiraBookmarkSrc()`. The app never runs it: `wireJiraBookmark` makes it a draggable link's
+  `href` and a `<pre>`'s text, and a click in the app only toasts.
+- On a Jira tab it reads the board id from `/boards/N` or `rapidView=N` (otherwise it asks),
+  pages `rest/agile/1.0/board/N/sprint?state=closed,active`, offers the 12 most recent, then
+  reads `rest/greenhopper/1.0/rapid/charts/sprintreport` — the UNDOCUMENTED endpoint the Sprint
+  Report page itself uses. It writes the four section headings with Jira's
+  `…InitialEstimateSum → …EstimateSum` totals and one `KEY[*]\t<start → current>` row per
+  issue, which is exactly what `parseJiraSprintReport()` reads. **The parser stays the boundary
+  and still stores no key.** A shape it doesn't know throws ("couldn't read"), never a guess.
+- The source must be **pure ASCII** (non-ASCII as `\u` escapes) and hold no backtick, `${`,
+  line comment or script-ending text. All pinned.
+- Verified: the suite feeds a canned report through `toReport` → `parseJiraSprintReport` →
+  `deriveFromJira`, and the real `href` ran against a local mock Jira (two pages of sprints).
+  **The first real-Jira run is Charles's.** Whether M&T's managed Chrome allows bookmarklets
+  is still unconfirmed.
 ## `[hidden]` Now Wins Globally, Because Remembering Is Not a Rule (2026-09-11)
 
 `.row { display: flex }` sits at the same specificity as the UA's `[hidden]` rule and is

@@ -106,7 +106,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 600;
+const EXPECTED = 602;
 
 /* ── THE SUITE LEAVES STORAGE EXACTLY AS IT FOUND IT (2026-09-15 review) ──────
    The page header says "Read-only: nothing is saved", and it was not true: the
@@ -1712,6 +1712,65 @@ t('rightmost real figure wins; a bare dash only when the row offers nothing else
   eq(w.pointsFromCells(['Summary text', '3', '-']), { start: 3, current: 3 });
   eq(w.pointsFromCells(['Summary text', '-']), { start: 0, current: 0 });
   eq(w.pointsFromCells(['Summary text', 'Story']), null);
+});
+
+group('the Jira bookmark — Jira comes to the app, never the other way');
+t('the app carries the bookmark as text, and its link is that text', () => {
+  const SRC = w.jiraBookmarkSrc();
+  ok(typeof SRC === 'string' && SRC.length > 1000, 'the app carries the bookmark source');
+  ok(!/`|\$\{/.test(SRC), 'no backtick and no ${ — String.raw would cut or splice it');
+  ok(!/^\s*\/\//m.test(SRC), 'no line comment, which a bookmark URL without line breaks would turn into the rest of the script');
+  ok(!/<\/script|<!--/i.test(SRC), 'nothing that would end the app’s script block');
+  ok(/^[\x00-\x7f]*$/.test(SRC), 'it is pure ASCII, so no page encoding can garble it — other characters are \\u escapes');
+  ok(!/summary/i.test(SRC.replace(/\/\*[\s\S]*?\*\//g, '')),
+    'its CODE never reads a summary — only its comment names one, to say so');
+  ok(!/method\s*:\s*['"](POST|PUT|DELETE|PATCH)/i.test(SRC), 'it only ever reads: no write method anywhere');
+  const link = w.document.getElementById('jiraBookmarkLink');
+  /* Compared WHOLE, not by its prefix: a prefix test reads to CodeQL as a
+     URL-scheme filter (js/incomplete-url-scheme-check), and whole is stricter. */
+  eq(link && link.getAttribute('href'), 'javascript:' + encodeURIComponent(SRC),
+    'the drag-to-bookmarks link IS the source, encoded, and nothing else');
+  eq(w.document.getElementById('jiraBookmarkCode').textContent, SRC, 'and the code a reader can open is the same text');
+  /* connect-src 'none' is pinned by the CSP group further down, which still passes. */
+});
+t('a Sprint Report from Jira reads back as the same seven figures', () => {
+  window.SV_JIRA_BOOKMARK_TEST = true;
+  const s = document.createElement('script');
+  s.textContent = w.jiraBookmarkSrc();
+  document.body.appendChild(s);
+  s.remove();
+  const B = window.SV_JIRA_BOOKMARK;
+  delete window.SV_JIRA_BOOKMARK_TEST;
+  delete window.SV_JIRA_BOOKMARK;
+  ok(B && typeof B.toReport === 'function', 'under the test flag it hands over its pure half and fetches nothing');
+  const est = v => ({ statFieldValue: v == null ? {} : { value: v } });
+  const iss = (key, a, b, extra) => Object.assign({ key, summary: 'A SECRET SUMMARY',
+    estimateStatistic: est(a), currentEstimateStatistic: est(b === undefined ? a : b) }, extra || {});
+  const sum = v => ({ value: v, text: String(v) });
+  const contents = {
+    completedIssues: [iss('ABC-1', 5), iss('ABC-2', 5), iss('ABC-3', 8, 3), iss('not a key', 9)],
+    issuesNotCompletedInCurrentSprint: [iss('ABC-4', 3)],
+    puntedIssues: [iss('ABC-5', 2), iss('ABC-6', 4)],
+    issuesCompletedInAnotherSprint: [iss('ABC-7', null)],
+    issueKeysAddedDuringSprint: { 'ABC-2': true, 'ABC-6': true },
+    completedIssuesInitialEstimateSum: sum(18), completedIssuesEstimateSum: sum(13),
+    issuesNotCompletedInitialEstimateSum: sum(3), issuesNotCompletedEstimateSum: sum(3),
+    puntedIssuesInitialEstimateSum: sum(6), puntedIssuesEstimateSum: sum(6)
+  };
+  const r = B.toReport(contents);
+  ok(!/SECRET/.test(r.text), 'a summary never reaches the clipboard text');
+  eq(r.count, 7, 'a row whose key is not key-shaped is left out whole');
+  ok(/^ABC-3\t8 → 3$/m.test(r.text), 'a re-sized story is written start → current, as Jira writes it');
+  ok(/^ABC-7\t-$/m.test(r.text), 'and an unestimated one as a dash');
+  const d = w.deriveFromJira(w.parseJiraSprintReport(r.text));
+  eq([d.committed, d.committedCompleted, d.totalCompleted, d.added, d.removed, d.addedThenRemoved, d.carriedOut],
+     [18, 8, 13, 5, 2, 4, 3], 'committed, committed done, total done, added, removed, in-then-out, carried out');
+  eq(d.resized, 1, 'the re-sized story is seen as one');
+  ok(d.checks.length === 3 && d.checks.every(c => c.ok), 'and every Jira total the bookmark carried reconciles: '
+    + JSON.stringify(d.checks.map(c => [c.section, c.ok])));
+  let threw = false;
+  try { B.toReport({ completedIssues: 'not a list' }); } catch (e) { threw = true; }
+  ok(threw, 'a report in a shape it does not know is refused, never guessed at');
 });
 
 group('parseJiraSprintReport + deriveFromJira — the paste pipeline');

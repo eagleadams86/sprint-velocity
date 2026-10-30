@@ -494,6 +494,38 @@ report look like the other kind. Estimates are read from the rightmost cell hold
 actual figure, so a spare `-` in a column after the points can't mask them; an issue with
 genuinely no estimate still reads as 0.
 
+
+### Or Let a Bookmark Copy the Report for You
+
+Inside **📋 Paste from Jira**, **Or Let a Bookmark Copy It for You** gives you a bookmark that
+fetches the Sprint Report instead of you selecting and copying the page. Drag its button to your
+bookmarks bar once. Then:
+
+1. Open your board in Jira and click the bookmark.
+2. Pick the sprint from the list of the board's twelve most recent.
+3. Press **Copy**, paste into the sprint's Paste from Jira box and press **Read It**.
+
+It copies the same four tables the Sprint Report page shows, with Jira's own section totals,
+so the checksum works exactly as it does on a hand copy. It copies only each issue's key, its
+`*` (joined after the sprint started) and its story points. Summaries never reach the
+clipboard.
+
+**Why a bookmark and not a button in the app.** Jira Cloud refuses requests from other
+websites, so this app could not reach Jira even with a token. Keeping a Jira token here would
+also be a bad trade: every page on this GitHub Pages site shares one storage area, and a token
+would give any of them full access to work Jira. The bookmark runs *inside* Jira on the sign-in
+you already have, and the app still connects to nothing (`connect-src 'none'`), online or as a
+single file. One caveat: the data comes from the endpoint Jira's own Sprint Report page uses,
+which Atlassian doesn't document. If it ever changes shape, the bookmark says it couldn't read
+the sprint rather than guessing, and copying the page by hand still works.
+
+#### Removing the Jira Bookmark
+
+- **To stop using it:** delete the bookmark. It stores nothing and writes nothing to Jira.
+- **To take it out of the app:** the feature is one commit on `main`, and the commit before it
+  is tagged `pre-jira-bookmark`. Run `git revert <that commit>` and push. No stored field or
+  schema changed, so saved data, backups and share links are untouched either way.
+
 ## Recording a Sprint Before It's Over
 
 You can create a sprint at planning time and top it up as it runs. An unfinished sprint is
