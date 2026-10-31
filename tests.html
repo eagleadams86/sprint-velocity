@@ -9693,9 +9693,10 @@ t('the content well: every chart’s plot area is one fill with the tiles, in al
        so the print block has to take the well's fill off it. */
     const media = [];
     for (const sh of D.styleSheets) { try { for (const r of sh.cssRules) if (r.media && /print/.test(r.media.mediaText)) media.push(...r.cssRules); } catch (e) { /* none cross-origin */ } }
-    ok(media.some(r => r.selectorText === '.chartbox' && /none/.test(r.style.background)
-         && r.style.getPropertyPriority('background') === 'important'),
-       'on paper the plot area prints on the card, with no tinted box');
+    const bare = (sel) => media.some(r => (r.selectorText || '').split(/\s*,\s*/).includes(sel)
+         && /none/.test(r.style.background) && r.style.getPropertyPriority('background') === 'important');
+    ok(bare('.chartbox'), 'on paper the plot area prints on the card, with no tinted box');
+    ok(bare('.card > .tablewrap > table'), 'and so does a table’s well, though `table` asks for exact colour');
     /* No plate painted in the card colour: the only reads of --surface in
        the script are the bar tint's (pack rule 3), and nothing reads --bg-card. */
     const src = [...D.scripts].map(x => x.textContent).join('\n');

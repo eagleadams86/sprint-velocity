@@ -2092,8 +2092,10 @@ footer .applink { margin: 0 19px 0 auto; }
   .chartbox { break-inside: avoid; page-break-inside: avoid; }
   /* The plot area's well is a screen thing (rule 21): `.chartbox` is asked for
      in exact colour above, so its fill is taken off here and the chart prints
-     on the card, as it always did. */
-  .chartbox { background: none !important; }
+     on the card, as it always did. The table well goes the same way: `table` is
+     on the exact-colour list for its RAG cells, which printed every table's
+     --surface-alt box too (rule 21: paper prints no tinted box). */
+  .chartbox, .card > .tablewrap > table { background: none !important; }
   thead { display: table-header-group; }
   tr { break-inside: avoid; page-break-inside: avoid; }
   /* The scroll boxes have to open out, or a wide table prints clipped at the edge
