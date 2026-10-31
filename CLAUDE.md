@@ -3514,3 +3514,21 @@ every table in a `<dialog>` (Teams & PIs, the Jira preview, the import preview).
 content well" test, which walks all six table views with the sample (on the team with the most
 sprints, so History is offered) in four themes.
 
+**Charts became wells the same day (2026-10-31, rule 21's "charts are wells too").** Every chart's
+plot area — `.chartbox`: Sprint, Team PI, Rolling 5 / History (velocity + instability), the
+history chart, PI Trend, PI by Team, Compare Teams — is `--surface-alt`, `--border`,
+`--radius-sm`, 10px padding, **`box-sizing: content-box`** so 320px / 260px stays the PLOT's
+(Chart.js measures the content box; the global `* { border-box }` would have taken 22px out of
+every chart). Same CSS as Flow Metrics' `.chart-wrap`. The ⤢ view moves the same card, so it
+keeps the well. **Nothing in the chart code paints in a ground colour**, so no plate moved: the
+only `cssVar('--surface')` reads are `tintOf()` and the texture cache key (pack rule 3's bar
+fill), and the threshold bands are status tints; the test counts those reads so a plate added
+later has to choose `--surface-alt`. **Print:** `.chartbox` is in the print block's
+`print-color-adjust: exact` list, so the print block sets `.chartbox { background: none
+!important }` and a chart prints on its card. (The TABLE wells are in that exact list too and
+still print their tint — not changed here.) No app-own token: both colours are the pack's and
+follow Auto. No chart sits in a `<dialog>`. **The tiles were already wells**, inside view cards on
+`--bg-card-alt`; their `.tile-help:hover` is still the family's `--surface-alt`, which is no fill
+on a tile — Flow Metrics moved its dot hover to `--border-strong` the same day; not ported here.
+Pinned by "the content well: every chart's plot area…" (every chart view, four themes, plus the
+⤢ view and the print rule); proven red with the `.chartbox` fill removed. EXPECTED 604 → 605.

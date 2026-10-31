@@ -1437,6 +1437,25 @@ td.trend { white-space: nowrap; color: var(--text-secondary); }
 /* ── Charts ─────────────────────────────────────────────────────────────── */
 .chartbox { position: relative; height: 320px; margin-top: 8px; }
 .chartbox.short { height: 260px; }
+/* ── THE PLOT AREA IS A WELL TOO (theme pack rule 21, 2026-10-31) ──────────
+   The chart card keeps its heading on the card; the box the canvas sits in is
+   the well — --surface-alt, edged in --border at --radius-sm — so a tile, a
+   table and a chart are one fill on every view, in every theme. Charles, on
+   the mock-up that boxed the tables and left the charts bare: "this makes the
+   charts a different color than the other major items". 10px of padding keeps
+   the axis labels off the edge. `content-box` because this sheet sizes
+   everything border-box: the 320px (260px short) stays the PLOT's height
+   (Chart.js measures the box's content box), and the edge and padding are
+   added outside it rather than taken out of the chart. Every chart on every
+   view is a `.chartbox`, and the full-screen (⤢) view moves this same card
+   into the overlay — so it keeps the well. Mirrored from Flow Metrics' `.chart-wrap`.
+   Nothing here is painted in the card's colour, so no plate had to move: the
+   bar tint mixes toward --surface by pack rule 3 and the threshold bands are
+   status tints. Paper prints no tinted box: the print block asks for exact
+   colour on `.chartbox`, so it takes the box's fill off there. No app-own
+   token — both are the pack's and follow Auto. No new colour, no shadow. */
+.chartbox { box-sizing: content-box; padding: 10px;
+  background: var(--surface-alt); border: 1px solid var(--border); border-radius: var(--radius-sm); }
 
 /* ── One chart, filling the window ───────────────────────────────────────────
    Flow Metrics' feature (2026-08-21), ported here on 2026-08-30 — the two apps
@@ -2071,6 +2090,10 @@ footer .applink { margin: 0 19px 0 auto; }
   .card { break-inside: avoid; page-break-inside: avoid;
     border: 1px solid #999 !important; margin-bottom: 6mm; }
   .chartbox { break-inside: avoid; page-break-inside: avoid; }
+  /* The plot area's well is a screen thing (rule 21): `.chartbox` is asked for
+     in exact colour above, so its fill is taken off here and the chart prints
+     on the card, as it always did. */
+  .chartbox { background: none !important; }
   thead { display: table-header-group; }
   tr { break-inside: avoid; page-break-inside: avoid; }
   /* The scroll boxes have to open out, or a wide table prints clipped at the edge
