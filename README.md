@@ -29,6 +29,11 @@ card surface, where Flow Metrics has one state and no targets) and because these
 the box around them. The 4px-to-6px **left edge** that came with that change in Flow Metrics did
 cross over: it is a mark rather than a fill, and it reads the same in both.
 
+**Every table sits in a shaded box inside its card**, the same shade as the tiles, with a lighter
+heading band — so tiles and tables read as one family of boxes in all four themes. Flow Metrics
+does the same; the only difference is where the box is drawn (here on the table itself, there on
+the table's scroll box).
+
 ---
 
 ## What It Tracks

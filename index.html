@@ -1270,6 +1270,40 @@ tbody tr:hover { background: var(--bg-card-alt); }
    beneath it to absorb it, and was unmissable on Compare Teams when you support a
    single team and that row is the table. */
 tbody tr:last-child td, tbody tr:last-child th { border-bottom: none; }
+/* ── THE CONTENT WELL (theme pack rule 21, 2026-10-31) ───────────────────────
+   Every table set on a card sits in a ruled box filled with --surface-alt, the
+   fill the tab, button and chip faces already wear, so every box of content
+   inside a card is one colour in every theme. Never --bg and never a bare
+   --surface: the pack's surfaces climb bg < surface < surfaceAlt in Midnight
+   and Dark but sit surfaceAlt ≈ bg < surface in Light and Sepia, so either one
+   matches in one pair of themes and is the odd one out in the other. Inside a
+   well the heading band, row hover and a selected row are --surface — the old
+   hover colour IS the well now — so in the dark themes a hovered row goes a
+   shade darker. Never --accent-bg behind these rows: muted text on it is
+   3.43:1 in Dark. Nothing new to gate: the pack holds every text and status
+   colour at 4.5:1 on surfaceAlt. No shadow (rule 14). A sort button fills its
+   cell, so inside the box its focus ring is drawn inset, where the well's edge
+   cannot clip it. A table inside a window (<dialog>) stays bare.
+   Here: every table on a card. The tiles already are wells — they sit inside
+   cards on --bg-card-alt, which is --surface-alt. THE TABLE IS THE WELL, not
+   its `.tablewrap` as in Flow Metrics: the wrapper's 4px of padding cancelled
+   by -4px of margin is the sort rings' room and the keyboard reveal's edge
+   (both pinned), and a ruled wrapper would stand 4px proud of the card's text
+   with a 4px moat inside it. So the box goes on the table — `separate` with
+   no spacing, which is what lets a table take a radius — its corner cells
+   rounded to match, since a table does not clip its cells. */
+:is(.card > .tablewrap > table) {
+  border-collapse: separate; border-spacing: 0;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-alt); }
+:is(.card > .tablewrap > table) thead th { background: var(--surface); }
+:is(.card > .tablewrap > table) :is(tbody tr:hover > *) { background: var(--surface); }
+:is(.card > .tablewrap > table) tbody tr:hover { background: none; }
+:is(.card > .tablewrap > table) tbody tr:last-child :is(th, td) { border-bottom: 0; }
+:is(.card > .tablewrap > table) th.sortable button:not(.tile-help):focus-visible { outline-offset: -2px; }
+:is(.card > .tablewrap > table) > :first-child > tr:first-child > :first-child { border-top-left-radius: calc(var(--radius-sm) - 1px); }
+:is(.card > .tablewrap > table) > :first-child > tr:first-child > :last-child { border-top-right-radius: calc(var(--radius-sm) - 1px); }
+:is(.card > .tablewrap > table) > :last-child > tr:last-child > :first-child { border-bottom-left-radius: calc(var(--radius-sm) - 1px); }
+:is(.card > .tablewrap > table) > :last-child > tr:last-child > :last-child { border-bottom-right-radius: calc(var(--radius-sm) - 1px); }
 /* ── A HEADING YOU CAN PRESS TO SORT BY IT (2026-09-08) ──────────────────────
    Ported from Flow Metrics, whose All Teams table has sorted this way since it
    was built; Charles asked for the same on Compare Teams. Every rule here is

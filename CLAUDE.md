@@ -3493,3 +3493,24 @@ proven red on the commit before it. Nothing here stores anything new.
   accent edge, and its name says which it is; it stays without `aria-pressed` for the reason in the
   markup comment (the state would be announced twice). Nothing app-level was added for forced
   colours — that belongs to the pack.
+
+## The Content Well (2026-10-31) — theme pack rule 21, no schema change
+
+Every table on a card is a ruled `--surface-alt` box (`--border`, `--radius-sm`) — the tiles'
+own fill, since these tiles already sit inside cards on `--bg-card-alt`. Inside it the heading
+band and row hover are `--surface`, and the last row drops its rule. Selector:
+`:is(.card > .tablewrap > table)` — Team PI's business value and sprint tables, Rolling 5,
+History, PI Trend's table and capacity table, PI by Team and Compare Teams. **The TABLE is the
+well, not `.tablewrap`** (Flow Metrics boxes its wrapper): the wrapper's 4px padding / -4px
+margin is the sort rings' room and the edge `focusin` reveal measures against, both pinned by
+tests, and a ruled wrapper would stand 4px proud of the card's text with a moat inside. So the
+table goes `border-collapse: separate; border-spacing: 0` (the only way a table takes a
+radius; it only ever had bottom/top rules, so nothing doubles) and its four corner cells take
+`radius - 1px`, since a table does not clip its cells. Hover is painted on the cells and the
+row's own global hover is cleared inside a well, or the square row corner would poke past the
+rounded edge. The inset sort ring (`outline-offset: -2px`) is mirrored from Flow Metrics.
+No app-own token: `--surface-alt`/`--surface` are the pack's and follow Auto. **Left bare:**
+every table in a `<dialog>` (Teams & PIs, the Jira preview, the import preview). Pinned by "the
+content well" test, which walks all six table views with the sample (on the team with the most
+sprints, so History is offered) in four themes.
+

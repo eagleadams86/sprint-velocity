@@ -106,7 +106,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 603;
+const EXPECTED = 604;
 
 /* ── THE SUITE LEAVES STORAGE EXACTLY AS IT FOUND IT (2026-09-15 review) ──────
    The page header says "Read-only: nothing is saved", and it was not true: the
@@ -9569,6 +9569,62 @@ t('a placeholder is text: every box draws it in --text-hint on all four themes',
         .map(b => b.id || b.tagName);
       eq(wrong.join(','), '', theme + ': every placeholder is drawn in --text-hint, not the browser’s grey');
     }
+  });
+});
+/* ── The content well: every table on a card is one fill, in all four themes ──
+   Theme pack rule 21 (2026-10-31). Every table set on a card, on every tab,
+   is a ruled --surface-alt box — the tiles' own fill, since these tiles sit
+   inside cards too — with a --surface heading band. Here the TABLE is the box,
+   not its .tablewrap: that wrapper's padding is the rings' room (see index.html). Walked on every view
+   with the sample, and on the team with the most sprints so History is on
+   offer; a view whose table is missing fails by name rather than passing on
+   nothing. Pinned as RELATIONSHIPS, never a hex: the colours are the pack's. */
+t('the content well: every table on a card is one fill, in all four themes', async () => {
+  await inFrame('wells', { sample: true }, async (W, D) => {
+    const WELL = '.card > .tablewrap > table';
+    const st = W.svGet();
+    const most = st.teams.map(tm => [tm.id, st.sprints.filter(s => s.teamId === tm.id).length])
+      .sort((a, b) => b[1] - a[1])[0][0];
+    st.settings.activeTeamId = most; W.render(); await wait(200);
+    const probe = D.createElement('div'); D.body.appendChild(probe);
+    const tok = (name) => { probe.style.background = 'var(' + name + ')'; return W.getComputedStyle(probe).backgroundColor; };
+    const bg = (e) => W.getComputedStyle(e).backgroundColor;
+    const seen = {};
+    for (const v of ['pi', 'rolling', 'history', 'trend', 'art', 'teams']) {
+      const tab = D.querySelector('.tab[data-view="' + v + '"]');
+      ok(tab && !tab.hidden, v + ': the tab is on offer with the sample');
+      tab.click(); await wait(300);
+      const tables = [...D.querySelectorAll('#views table')].filter(x => !x.closest('dialog'));
+      seen[v] = tables.length;
+      ok(tables.length > 0, v + ': the view draws a table to check');
+      ok(tables.every(x => x.matches(WELL)), v + ': each table is a well',
+         tables.filter(x => !x.matches(WELL)).map(x => x.id || x.getAttribute('aria-label')).join(','));
+      for (const theme of ['midnight', 'dark', 'light', 'sepia']) {
+        D.documentElement.setAttribute('data-theme', theme);
+        const alt = tok('--surface-alt'), surf = tok('--surface');
+        const tile = D.querySelector('#views .tile:not(.hero):not(.green):not(.yellow):not(.red)');
+        const fills = tables.map(bg);
+        eq(fills.filter(c => c !== alt).length, 0, v + '/' + theme + ': every well is --surface-alt — ' + fills.join(' / '));
+        if (tile) eq(bg(tile), alt, v + '/' + theme + ': and a neutral tile is the same fill');
+        const bands = tables.map(x => x.querySelector('thead th')).filter(Boolean);
+        ok(bands.length && bands.every(th => bg(th) === surf), v + '/' + theme + ': the heading band is --surface, apart from the well');
+        ok(tables.every(x => parseFloat(W.getComputedStyle(x).borderTopWidth) === 1
+          && W.getComputedStyle(x).borderCollapse === 'separate'),
+           v + '/' + theme + ': edged in a 1px rule, on a table that can take a radius');
+        const corner = tables.map(x => x.querySelector('thead tr:first-child > :first-child')).filter(Boolean);
+        ok(corner.length && corner.every(c => parseFloat(W.getComputedStyle(c).borderTopLeftRadius) > 0),
+           v + '/' + theme + ': the heading band’s corner is rounded to the well’s');
+      }
+      D.documentElement.setAttribute('data-theme', 'auto');
+    }
+    probe.remove();
+    const dialogWells = [...D.querySelectorAll('dialog table')].filter(w => w.matches(WELL));
+    eq(dialogWells.length, 0, 'a table inside a window stays bare');
+    /* Hover cannot be computed, so the rule itself is read. */
+    const rules = [];
+    for (const s of D.styleSheets) { try { rules.push(...s.cssRules); } catch (e) { /* none cross-origin */ } }
+    ok(rules.some(r => r.selectorText && /\.card > \.tablewrap > table/.test(r.selectorText) && /tbody tr:hover/.test(r.selectorText)
+         && /var\(--surface\)/.test(r.style.background)), 'a hovered row inside a well is --surface');
   });
 });
 t('the copy fallback hands the focus back to the button that pressed it', async () => {
