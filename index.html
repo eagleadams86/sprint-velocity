@@ -12938,6 +12938,33 @@ function cadenceDates(teamId, piId, num) {
   return { startDate: isoDay(start), endDate: isoDay(start + c.length), from: c.anchor, stride: c.stride };
 }
 
+/* Back-fills the team's SAVED dateless sprints once one of them has dates (2026-11-03).
+   The form's prefill only ever helped a new sprint, so a team entered dateless and
+   dated afterwards had to type every sprint's dates by hand. Two guards keep the
+   lifecycle rule above intact: a sprint is filled only if the projected dates leave
+   its status where it was (a dateless sprint is complete, so a projection that lands
+   on today or later is left blank rather than pulled out of the averages), and only
+   when BOTH boxes are empty — a half-dated sprint is somebody's own typing. Every
+   projection is worked out before any is written, so they all count from the one
+   cadence rather than from each other. Returns { filled, skipped }. */
+function fillUndatedSprints(teamId) {
+  const plan = teamSprints(teamId)
+    .filter(s => !s.startDate && !s.endDate)
+    .map(s => ({ s, d: cadenceDates(teamId, s.piId, s.sprintNumber) }))
+    .filter(p => p.d);
+  let filled = 0, skipped = 0;
+  plan.forEach(({ s, d }) => {
+    const was = sprintStatus(s);
+    if (sprintStatus({ ...s, startDate: d.startDate, endDate: d.endDate }) !== was) { skipped++; return; }
+    s.startDate = d.startDate;
+    s.endDate = d.endDate;
+    filled++;
+  });
+  return { filled, skipped };
+}
+const undatedSprintCount = (teamId) =>
+  teamSprints(teamId).filter(s => !s.startDate && !s.endDate && cadenceDates(teamId, s.piId, s.sprintNumber)).length;
+
 function maybePrefillDates() {
   const startEl = F('f_start'), endEl = F('f_end');
   const hint = F('dateHint');
@@ -13609,6 +13636,21 @@ F('sprintSaveBtn').onclick = () => {
   /* The close handed the focus to the button that opened the form and the render
      threw that button away (2026-09-18) — see landRowFocus. */
   landRowFocus(editing && editing.from, 'editSprintBtn');
+  /* Dates on this sprint may be the first the team has had: offer the rest of its
+     dateless sprints the same projection, with the toast's Undo as the way back.
+     The Undo takes back the fill only — the sprint just saved stays saved. */
+  if (record.startDate && record.endDate && !viewOnly && undatedSprintCount(record.teamId)) {
+    let r;
+    const step = undoable(() => { r = fillUndatedSprints(record.teamId); });
+    if (r.filled) {
+      render();
+      const n = (k) => `${k} other sprint${k === 1 ? '' : 's'}`;
+      toast(`Sprint saved — dates filled in for ${n(r.filled)}`
+        + (r.skipped ? `; ${r.skipped} left blank (would land today or later)` : ''),
+        { label: 'Undo', onClick: () => { step.restore(); toast('Filled-in dates taken back'); } });
+      return;
+    }
+  }
   toast('Sprint saved');
 };
 

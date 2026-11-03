@@ -409,6 +409,14 @@ but Charles had ever actually signed in.)
   complete and silently pull history from the averages, which is the one thing the lifecycle
   rules exist to prevent. `f_start.dataset.auto` marks a projection as still ours, so changing
   the sprint number re-projects but a hand-typed date survives.
+  **Saved dateless sprints are back-filled on SAVE, not by the form (2026-11-03)** — Charles
+  had a history entered dateless and dating it meant typing every sprint by hand.
+  `fillUndatedSprints()` runs from the Save Sprint handler whenever the saved record has both
+  dates, and keeps the lifecycle rule by a different route: a sprint is filled only if the
+  projection leaves `sprintStatus()` where it was (so a dateless = complete sprint is never
+  dated into the future), and only when BOTH boxes are empty. All projections are worked out
+  before any is written, so they count from one cadence. The toast's Undo is `undoable()`
+  around the fill alone, so it never takes back the sprint just saved.
 - `isCounted()` also honours `settings.includeInProgress` (default off), which opts running
   sprints into every figure for last-day planning, and every view that counts one SAYS so —
   the cross-team three through `countedRunningSentence()`, which names team and sprint. It's

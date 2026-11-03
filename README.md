@@ -642,9 +642,16 @@ yet. A note under the fields says which sprint the dates came from. Type your ow
 stick — including through a change of sprint number. Moving a new sprint into a different PI
 first puts its number on a slot that PI has, then projects the dates for *that* slot — until
 2026-09-01 the dates were projected for the old number first, so a sprint 7 moved into a PI
-saved as Sprint 1 carrying slot 7's dates, which put it in the future and out of the averages. **Sprints already recorded without
-dates are left alone**, deliberately: dating them would flip them out of "complete" and pull
-real history out of your averages.
+saved as Sprint 1 carrying slot 7's dates, which put it in the future and out of the averages.
+
+**Recorded your sprints without dates and want them now?** Open any one of them, give it its
+dates and press Save Sprint: the team's other dateless sprints are filled in from it, backwards
+and forwards at the same cadence, and the toast says how many (with an **Undo** that takes
+back just the filled-in dates — the sprint you saved keeps its own). Two things are left
+blank on purpose (since 2026-11-03): a sprint with only one of its two dates, which is your own
+typing; and any sprint whose projected dates would land today or later — a dateless sprint
+counts as finished, and dating it into the future would quietly pull it out of your averages.
+Sprints on the other track (in a PI vs. not in one) are not counted across, either.
 
 ### Carried In Fills Itself
 

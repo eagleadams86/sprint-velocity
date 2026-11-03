@@ -11178,6 +11178,25 @@ t('one holiday gap, or one long sprint, does not become the team’s rhythm (202
   withState(mixed, () => eq(w.teamCadence('t1').stride, 14, 'only the pair inside the anchor’s own track counts'));
 });
 
+t('dating one saved sprint fills the team’s other dateless ones (2026-11-03)', () => {
+  /* The form's prefill only ever helped a NEW sprint, so a history entered
+     dateless and dated later had to be typed in by hand, sprint by sprint. */
+  const row = (n, start, end) => ({ id: 's' + n, teamId: 't1', piId: null, sprintNumber: n,
+    startDate: start || '', endDate: end || '', committed: 20, committedCompleted: 20, totalCompleted: 20,
+    added: 0, removed: 0, carriedIn: 0, carriedOut: 0, addedThenRemoved: 0 });
+  withState({ teams: [{ id: 't1', name: 'Team One' }], arts: [], pis: [], plans: [],
+    sprints: [row(1), row(2), row(3, '2026-06-01', '2026-06-12'), row(4), row(5, '2026-06-29'), row(40)] }, () => {
+    const r = w.fillUndatedSprints('t1');
+    const by = (n) => w.svGet().sprints.find((s) => s.sprintNumber === n);
+    eq([by(1).startDate, by(1).endDate], ['2026-05-04', '2026-05-15'], 'backwards a fortnight at a time');
+    eq([by(4).startDate, by(4).endDate], ['2026-06-15', '2026-06-26'], 'and forwards, Mon–Fri kept');
+    eq(by(5).endDate, '', 'a half-dated sprint is somebody’s own typing and is left alone');
+    eq(by(40).startDate, '', 'a projection that would land today or later stays blank, so it stays complete');
+    eq([r.filled, r.skipped], [3, 1], 'and the counts say so');
+    ok(w.svGet().sprints.every((s) => w.sprintStatus(s) === 'complete'), 'nothing left the averages');
+  });
+});
+
 /* ═══════════════════ 2026-09-18 review — block D ═══════════════════════════
    One fix per commit, each test proven red against the commit before it. Tests
    for this block go DIRECTLY under its group() line and above the next banner,
