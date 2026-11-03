@@ -889,6 +889,24 @@ It asks before it loads, and everything it adds is ordinary data you can edit or
 clears the lot. Don't load it into a browser that already holds real sprints you care
 about: it's added alongside them, not instead of them, and unpicking it is manual.
 
+### Folding a Card Away
+
+Every card with a heading folds up to that heading, as in Money Map and Wine Cellar (since
+2026-11-03). Press the heading bar — or Tab to it and press Enter or Space — and the card
+shrinks to its title; press it again to bring it back. The ▶ points right when a card is
+folded and down when it is open, so the state never depends on colour.
+
+- **It is remembered on this device only**, under its own key beside the theme, the pinned
+  tab row and the table sorts. It is never in your saved board, a backup or a share link, so
+  someone you send a link to sees every card open.
+- **One fold holds as you move about.** Fold Rolling 5's chart for one team and it is folded
+  for every team; the team name, the PI name and the sprint counts are left out of what it
+  remembers. The same heading on a different tab is a different card.
+- **Left alone on purpose:** the picker cards at the top of a tab, the ◐ / ⚑ notices (they
+  are the reason a figure moved) and the empty states.
+- A folded chart has no full-screen button until it is opened again, and a folded card
+  **prints open**: a heading with nothing under it says nothing on paper.
+
 ## The Whole Run: History, with No Window
 
 Every other per-team view looks through a window. Rolling 5 takes the last five sprints;
@@ -1935,7 +1953,7 @@ shouldn't sit a mis-click away from Export. Pressing it opens a confirmation of 
 says exactly how much is going ("This deletes 2 teams, 1 PI and 3 recorded sprints") and
 offers the same JSON export as a last chance to keep any of it. There is no "…and every
 device you own" line any more: since sync was removed there is exactly one copy, and it is
-the one in this browser. Your theme survives, and so do the pinned tab row and your table sorts; each lives under its own key rather than with the data.
+the one in this browser. Your theme survives, and so do the pinned tab row, your table sorts and which cards you have folded; each lives under its own key rather than with the data.
 
 **If one device is behind** — every saved copy carries the data format the app that wrote
 it understood. A copy written by a *newer* version than the one you're running won't be

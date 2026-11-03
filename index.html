@@ -853,6 +853,46 @@ h1, h2, h3 { font-weight: var(--fw-semibold); }
    button beside it. */
 .card > .row.cardhead { margin: 0 0 4px; }
 .card > .row.cardhead > h2 { margin: 0; font-size: var(--fs-md); letter-spacing: -.01em; }
+/* ── Folding a card (2026-11-03) ─────────────────────────────────────────────
+   Every card with a heading folds up to it, as in Money Map and Wine Cellar;
+   wireBoxes() builds this shape out of whatever a renderer wrote, so no renderer
+   knows about it. The heading — an h2, or the `.row.cardhead` an h2 shares with an
+   export button — becomes a BAND in its own shade across the top of the card,
+   pulled out to the card's edges with negative margins (the card pads by 18px)
+   and padded back so the title lands where it always did. The whole band is the
+   hit area; the toggle does not stretch across it, so an ⓘ stays beside its words
+   and an export button stays at the far end. `:is()` lifts this over the
+   `.row.cardhead` margin rule above. Money Map's block, at this app's sizes. */
+.card > :is(h2, .row.cardhead).boxhead {
+  margin: -18px -18px 14px; padding: 11px 18px;
+  background: var(--bg-card-alt); border-bottom: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0 0;
+  cursor: pointer; user-select: none; -webkit-user-select: none;
+  transition: background-color .12s ease; }
+.card > h2.boxhead, .card > .row.cardhead.boxhead > h2 { display: flex; align-items: baseline; }
+/* Folded, the band IS the card. */
+.card.boxshut > :is(h2, .row.cardhead).boxhead { margin-bottom: -18px; border-bottom: 0;
+  border-radius: calc(var(--radius) - 1px); }
+.box-toggle { flex: 0 1 auto; min-width: 0; min-height: 0; display: flex; align-items: baseline;
+  gap: 8px; margin: 0; padding: 0; border: 0; background: none; cursor: pointer;
+  font: inherit; color: inherit; text-align: left; letter-spacing: inherit; }
+/* Hover is the band's shade, the accent and an underline — the underline because in
+   Dark and Sepia the pack's --accent is essentially --text-primary. No new colour:
+   --accent on --accent-bg is the pack's own checked pair. */
+.card > .boxhead:hover { background: var(--accent-bg); }
+.card > .boxhead:hover .box-title { text-decoration: underline; }
+.card > .boxhead:hover :is(.box-title, .chev) { color: var(--accent); }
+.box-toggle:focus-visible { outline: 2px solid var(--focus-border);
+  outline-offset: 3px; border-radius: var(--radius-sm); }
+/* Open or shut is the chevron's ANGLE, never a hue. */
+.chev { flex: 0 0 auto; font-size: var(--fs-xs); line-height: 1; color: var(--text-secondary);
+  transform: rotate(90deg); transition: transform .15s ease; }
+.card.boxshut .chev { transform: rotate(0deg); }
+/* Folded, everything under the band goes — the full-screen button with it. Nothing
+   is moved into a wrapper (Money Map's way), so every `.card > x` rule in this
+   file and every test that reads a card's children still sees what it always did. */
+@media screen { .card.boxshut > :not(.boxhead) { display: none !important; } }
+.chev::before { content: '\25B6'; }
 /* `.sub` is the app's secondary-text class, and its look must not depend on where
    it sits. The size and colour were scoped to `.card > .sub` — a DIRECT child of a
    card — so all 21 of the `.sub` paragraphs inside dialogs matched nothing and fell
@@ -1483,6 +1523,9 @@ td.trend { white-space: nowrap; color: var(--text-secondary); }
    it — and the far corner is what keeps the button apart from a heading's ⓘ,
    which stays beside the words it explains. */
 .card:has(> .chartbox, > figure .chartbox) > h2 { padding-right: 34px; }
+/* Folded into a band (see "Folding a card"), the heading carries the band's own 18px
+   inside the card edge, so it clears the 26px button by the same 34px from there. */
+.card:has(> .chartbox, > figure .chartbox) > .boxhead { padding-right: 52px; }
 .chart-max { position: absolute; top: 13px; right: 13px; z-index: 1; }
 /* The step arrows further down share this box exactly, and share it from HERE
    rather than by having it typed twice: the three sit in one cluster in the same
@@ -2091,6 +2134,9 @@ footer .applink { margin: 0 19px 0 auto; }
   .brand span { display: none; }   /* the strapline is branding, not information */
   /* A card is the unit a reader thinks in, so it is the unit that shouldn't be cut
      in half. Tables keep their heading row on every page they run onto. */
+  /* A folded card prints OPEN — the hiding rule is screen-only — because a heading
+     with nothing under it says nothing on paper; the chevron is a control. */
+  .chev { display: none !important; }
   .card { break-inside: avoid; page-break-inside: avoid;
     border: 1px solid #999 !important; margin-bottom: 6mm; }
   .chartbox { break-inside: avoid; page-break-inside: avoid; }
@@ -6997,7 +7043,7 @@ function chartIn(card) {
    nothing to plot draws the card and no chart, and a bigger box shows no more of
    an empty state than a small one does. */
 function maxiReady(card) {
-  return !!card && !!chartIn(card);
+  return !!card && !card.classList.contains('boxshut') && !!chartIn(card);
 }
 
 /* The chart's name, without the ⓘ that shares the line with some of them. */
@@ -7005,7 +7051,8 @@ function maxiName(card) {
   const h2 = card.querySelector(':scope > h2, :scope > .cardhead > h2');
   if (!h2) return 'this chart';
   const clone = h2.cloneNode(true);
-  clone.querySelectorAll('button, a').forEach(el => el.remove());
+  /* A folding heading's words sit inside its toggle button — keep them. */
+  clone.querySelectorAll('button:not(.box-toggle), a').forEach(el => el.remove());
   return clone.textContent.trim() || 'this chart';
 }
 
@@ -7046,6 +7093,108 @@ function syncMaxiButtons() {
   /* A render can take a chart off the view or put one back — and a tab change is
      a render — so the arrows are re-read here rather than only on the way up. */
   dressStepBtns();
+}
+
+/* ── Folding a card (2026-11-03) ─────────────────────────────────────────────
+   Charles: "make all of the sections collapsable like wine cellar and money map".
+   Money Map's wireBoxes(), ported: it walks the freshly drawn markup after every
+   render and turns the heading into a band carrying a toggle, so no renderer knows
+   about it and the next card added folds without anyone remembering to opt it in.
+   UNLIKE Money Map nothing is moved into a `.card-body`: a folded card hides its
+   own children past the band (see the CSS), so the card's shape never changes. The
+   chevron is drawn by CSS, so a heading's textContent is still just its words.
+
+   Left alone: a card with no heading of its own (the pickers' `.toolbarcard`s,
+   the welcome card), the `.banner` notes (a ◐ or ⚑ is the thing to read, and a
+   folded one hides the reason a figure moved), and the `.empty` states (folding
+   "Nothing Recorded Yet" leaves a bar that explains nothing).
+
+   PER DEVICE, Wine Cellar's way rather than Money Map's — one `sv-folded` key via
+   lsGet/lsSet beside the sort and the pin, never in `state`: a fold is how one
+   person reads a page, so it has no business in a share link or a backup, and it
+   needs no SCHEMA bump. Stored SHUT, never open, so a card that is new, renamed or
+   unknown opens by default and a corrupt list means everything visible. */
+const FOLD_STORE = 'sv-folded';
+const FOLD_KEY_OK = /^[a-z]+\/[a-z-]{1,60}(~\d{1,2})?$/;
+function cleanFolds(list) {
+  return [...new Set((Array.isArray(list) ? list : [])
+    .filter(x => typeof x === 'string' && FOLD_KEY_OK.test(x)))].sort();
+}
+let foldedBoxes = cleanFolds(String(lsGet(FOLD_STORE) || '').split('|'));
+
+/* A box's key is the view plus its heading, with what CHANGES taken out so one
+   fold holds as you move about: the team name in front of " — " (fold Team
+   Baseline's summary and Team Headroom's is folded too), the PI names, sprint
+   slots like S4, and every digit ("Last 5 Sprints" and "Last 3 Sprints" are one
+   box). A heading left with nothing is the view's summary card. A renamed
+   heading gets a new key and so re-opens — the harmless direction to fail. */
+function boxKey(view, heading, piNames) {
+  let t = String(heading || '');
+  const dash = t.indexOf(' — ');
+  if (dash >= 0) t = t.slice(dash + 3);
+  for (const n of piNames || []) if (n) t = t.split(n).join(' ');
+  const slug = t.replace(/\bS\d+\b/g, ' ').toLowerCase()
+    .replace(/[^a-z]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60).replace(/-+$/, '');
+  return `${view}/${slug || 'summary'}`;
+}
+
+function wireBoxes(view) {
+  const used = new Map();
+  const piNames = state.pis.map(p => p.name);
+  for (const card of document.querySelectorAll('#views .card')) {
+    if (card.matches('.toolbarcard, .banner, .empty, .welcome')) continue;
+    const head = card.querySelector(':scope > h2, :scope > .row.cardhead');
+    const h2 = head && (head.matches('h2') ? head : head.querySelector(':scope > h2'));
+    if (!h2) continue;
+    /* The heading's own buttons (an ⓘ) stay OUTSIDE the toggle: a button inside a
+       button is invalid and the inner one stops being clickable. */
+    const title = document.createElement('span');
+    title.className = 'box-title';
+    for (const node of [...h2.childNodes])
+      if (!(node.nodeType === 1 && node.matches('button, a, input, select'))) title.appendChild(node);
+    /* Badges are state, not the name: "⚑ Adjusted to 50%" must not re-key the box. */
+    const named = title.cloneNode(true);
+    named.querySelectorAll('.badge, .sr-only').forEach(el => el.remove());
+    const base = boxKey(view, named.textContent.replace(/\s+/g, ' ').trim(), piNames);
+    const n = (used.get(base) || 0) + 1;
+    used.set(base, n);
+    const key = n === 1 ? base : `${base}~${n}`;
+    const shut = foldedBoxes.includes(key);
+
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'box-toggle';
+    toggle.setAttribute('aria-expanded', shut ? 'false' : 'true');
+    toggle.innerHTML = '<span class="chev" aria-hidden="true"></span>';
+    toggle.appendChild(title);
+    h2.insertBefore(toggle, h2.firstChild);
+    head.classList.add('boxhead');
+    card.classList.toggle('boxshut', shut);
+    card.dataset.boxkey = key;
+    toggle.onclick = () => setBoxShut(card, !card.classList.contains('boxshut'));
+    /* The whole band is the hit area; a press on a control in it is left alone. */
+    head.onclick = (e) => {
+      if (e.target.closest('button, a, input, select, label')) return;
+      setBoxShut(card, !card.classList.contains('boxshut'));
+    };
+  }
+}
+
+function setBoxShut(card, shut) {
+  card.classList.toggle('boxshut', shut);
+  const t = card.querySelector(':scope > .boxhead .box-toggle');
+  if (t) t.setAttribute('aria-expanded', shut ? 'false' : 'true');
+  const key = card.dataset.boxkey;
+  foldedBoxes = cleanFolds(shut ? foldedBoxes.concat(key) : foldedBoxes.filter(k => k !== key));
+  lsSet(FOLD_STORE, foldedBoxes.join('|'));
+  /* A folded card offers no full-screen button, and one that was filling the
+     window comes back down with it. */
+  syncMaxiButtons();
+  if (shut) return;
+  /* A chart drawn inside a folded card sized itself to nothing; on the way open
+     it measures again. */
+  for (const ch of Object.values(charts))
+    if (ch && ch.canvas && card.contains(ch.canvas)) ch.resize();
 }
 
 /* The header wraps to two or three rows on a phone, and its height is the one
@@ -7957,6 +8106,7 @@ function render() {
      Rolling 5 where the rest of that team's figures are. */
   if (!state.teams.length) {
     if (state.settings.forecastPlanning && !viewOnly) renderPlanning(); else renderWelcome();
+    wireBoxes('planning');
     maxiResume(wasMaxi);
     measurePinTop();
     return;
@@ -7969,6 +8119,9 @@ function render() {
   else if (view === 'trend')   renderPiTrendView();
   else if (view === 'art')     renderArtPiView();
   else                         renderTeamsView();
+  /* Before the full-screen buttons are handed out, which ask whether a card is
+     folded — see "Folding a card". */
+  wireBoxes(view);
   /* After the view, because that is where the charts are built and a card with
      no chart under it offers no button. */
   maxiResume(wasMaxi);

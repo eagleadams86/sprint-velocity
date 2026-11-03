@@ -106,7 +106,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 605;
+const EXPECTED = 607;
 
 /* ── THE SUITE LEAVES STORAGE EXACTLY AS IT FOUND IT (2026-09-15 review) ──────
    The page header says "Read-only: nothing is saved", and it was not true: the
@@ -11176,6 +11176,38 @@ t('one holiday gap, or one long sprint, does not become the team’s rhythm (202
   const mixed = team(F14);
   mixed.sprints[0].piId = null; mixed.sprints[0].sprintNumber = 40;
   withState(mixed, () => eq(w.teamCadence('t1').stride, 14, 'only the pair inside the anchor’s own track counts'));
+});
+
+t('every card with a heading folds, and the fold is remembered per device (2026-11-03)', () => {
+  /* Money Map's wireBoxes(), ported: built from the rendered markup, so a card
+     nobody opted in still folds. The key drops what changes as you move about. */
+  eq(w.boxKey('rolling', 'Team Baseline — Last 5 Sprints', []), 'rolling/last-sprints',
+    'the team name and the count come out of the key');
+  eq(w.boxKey('pi', 'Team One — PI 2026.3', ['PI 2026.3']), 'pi/summary', 'a heading left empty is the summary card');
+  eq(w.boxKey('sprint', 'Q3 Increment · S4', ['Q3 Increment']), 'sprint/summary', 'a PI name with no digits comes out too');
+  eq(w.cleanFolds(['rolling/x', 'bad key', 7, '<b>/x', 'rolling/x']), ['rolling/x'], 'the stored list is shape-checked');
+  {
+    withRenderedSample((st) => {
+      st.settings.view = 'rolling'; w.render();
+      const doc = w.document;
+      const cards = [...doc.querySelectorAll('#views .card')];
+      ok(cards.filter((c) => c.dataset.boxkey).length >= 5, 'the Rolling 5 cards fold');
+      ok(cards.filter((c) => c.matches('.toolbarcard')).every((c) => !c.dataset.boxkey), 'the picker card does not');
+      const key = 'rolling/the-numbers';
+      const card = () => doc.querySelector(`#views .card[data-boxkey="${key}"]`);
+      ok(card() && card().querySelector(':scope > .tablewrap table'), 'nothing was moved out of the card');
+      card().querySelector('.box-toggle').click();
+      ok(card().classList.contains('boxshut'), 'pressing the heading folds it');
+      eq(card().querySelector('.box-toggle').getAttribute('aria-expanded'), 'false', 'and says so');
+      const stored = LS_WRITES.filter(([k]) => k === 'sv-folded').pop();
+      ok(stored && stored[1].split('|').includes(key), 'stored per device, under its own key');
+      ok(!('folded' in st.settings), 'never in the saved board');
+      w.render();
+      ok(card().classList.contains('boxshut'), 'and still folded after a render');
+      card().querySelector(':scope > .boxhead').click();
+      ok(!card().classList.contains('boxshut'), 'a press on the band opens it again');
+    });
+  }
 });
 
 t('dating one saved sprint fills the team’s other dateless ones (2026-11-03)', () => {

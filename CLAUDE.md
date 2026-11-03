@@ -3540,3 +3540,30 @@ follow Auto. No chart sits in a `<dialog>`. **The tiles were already wells**, in
 on a tile — Flow Metrics moved its dot hover to `--border-strong` the same day; not ported here.
 Pinned by "the content well: every chart's plot area…" (every chart view, four themes, plus the
 ⤢ view and the print rule); proven red with the `.chartbox` fill removed. EXPECTED 604 → 605.
+
+## Every Card Folds (2026-11-03) — no schema change
+
+Charles: *"make all of the sections collapsable like wine cellar and money map"*. Money Map's
+`wireBoxes()` shape, with two deliberate differences:
+- **Nothing is reparented.** Money Map moves a card's contents into `.card-body`; here a folded
+  card hides its own children past the band (`@media screen { .card.boxshut > :not(.boxhead)
+  { display: none !important } }`). The first cut wrapped, and 16 tests went red — every
+  `.card > x` rule in this file and every test reading `:scope > .chart-max` or `> .tablewrap`
+  depends on the card's children staying its children. Being screen-only is also what makes a
+  folded card print open. The chevron is a CSS `::before`, so `h2.textContent` is still only
+  the words (several tests and `maxiName()` read it).
+- **Per device, Wine Cellar's way** — `sv-folded`, one `|`-joined list via `lsGet`/`lsSet`
+  beside `sv-tablesort`, shape-checked by `cleanFolds()` (`FOLD_KEY_OK`). Never in `state`, a
+  backup or a share link; listed in `privacy.html`. Stored SHUT, so a new or renamed card opens.
+- `wireBoxes(view)` runs in `render()` after the view and BEFORE `maxiResume()`, because
+  `maxiReady()` now refuses a folded card (no ⤢ on a folded chart). Skipped: `.toolbarcard`,
+  `.banner`, `.empty`, `.welcome`, and any card without `> h2` or `> .row.cardhead > h2`.
+  The band is the `h2` or the whole `.row.cardhead`, so export buttons and inputs stay at its
+  far end; the heading's own buttons (an ⓘ) stay outside the toggle, and `maxiName()` keeps
+  `.box-toggle`'s words when it strips buttons from a heading.
+- `boxKey(view, heading, piNames)` drops everything before " — " (the team name), the PI
+  names, `S<n>` slots and digits, so one fold holds across teams; an empty result is
+  `<view>/summary`, and a repeat gets an ordinal (`~2`). Badges and `.sr-only` are left out of
+  the key. `setBoxShut()` re-runs `syncMaxiButtons()` and `resize()`s charts on the way open.
+- **Flow Metrics shares this chrome and does NOT have it yet** — mirror it there if asked.
+
