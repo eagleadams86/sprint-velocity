@@ -3565,5 +3565,7 @@ Charles: *"make all of the sections collapsable like wine cellar and money map"*
   names, `S<n>` slots and digits, so one fold holds across teams; an empty result is
   `<view>/summary`, and a repeat gets an ordinal (`~2`). Badges and `.sr-only` are left out of
   the key. `setBoxShut()` re-runs `syncMaxiButtons()` and `resize()`s charts on the way open.
-- **Flow Metrics shares this chrome and does NOT have it yet** — mirror it there if asked.
+- **Flow Metrics has it too (same day)**, wired once at boot because its cards are static
+  markup and its chart names are rewritten each render — see its CLAUDE.md. A change to the
+  band's look belongs in both.
 
