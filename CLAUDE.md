@@ -1635,6 +1635,18 @@ but Charles had ever actually signed in.)
 
 
 
+## The Version in the Footer (2026-11-05) — no schema change
+
+The footer ends with `<p class="privacy app-version">Version <span id="appVersion">YYYY.MM.DD</span></p>`,
+a full-width row right-aligned under the sibling-app button, same 19px right inset. Mirrored in
+Flow Metrics (`~/claude-team-dashboard`). **Bump the date to today in every commit that changes `index.html`** — it is a
+hand-edited literal, deliberately the same shape as the dated release tags (tag `2026-11-05`
+= version `2026.11.05`), so a release's file and the website agree on what to call a build.
+A second commit on the same day keeps the same version, just as a second release that day
+refreshes the same tag. An automatic pre-commit hook (`core.hooksPath`) was considered and
+not installed: it needs Charles's go-ahead, since it changes how every commit in the clone runs.
+It is NOT `SCHEMA` — that counts the saved-data shape and must never follow the version.
+
 ## The Jira Paste Reads Itself (2026-10-30) — no schema change
 
 Charles: *"add the same auto read functionality that flow metrics has to the sprint paste to

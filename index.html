@@ -2065,6 +2065,12 @@ legend { font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: .04
 footer { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
 .footnotes { flex: 1 1 320px; min-width: 0; }
 footer .applink { margin: 0 19px 0 auto; }
+/* The version line: its own full-width row under the sibling-app button,
+   right-aligned to the same 19px inset so it sits at the footer's bottom-right
+   corner. The number is the date of the last change to this file, the same
+   shape as the release tags (tag 2026-11-05 = version 2026.11.05). Bump it in
+   any commit that changes index.html — see CLAUDE.md. */
+footer .app-version { flex: 1 1 100%; margin: 0 19px 0 0; text-align: right; }
 
 /* ── On paper ───────────────────────────────────────────────────────────────
    The PI by Team page IS the Inspect & Adapt slide, and until now getting it onto one
@@ -2509,6 +2515,10 @@ input:is([type="checkbox"], [type="radio"]) { flex: none; width: 1.25rem; height
        links back here. -->
   <a class="btn small applink" href="https://eagleadams86.github.io/team-dashboard/"
     title="Flow Metrics — the sibling app: throughput, cycle time, WIP and work item age by week, grouped into Flow, Delivery and Health">↗ Flow&nbsp;Metrics</a>
+  <!-- The version: today's date in any commit that changes this file (see
+       CLAUDE.md). Plain text, so it adds nothing to the tab order. Mirrored in
+       the sibling app. -->
+  <p class="privacy app-version">Version <span id="appVersion">2026.11.05</span></p>
   </footer>
 
 </div>

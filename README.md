@@ -10,6 +10,12 @@ completion, break-in, carryover and velocity, and flags each one against your ta
 runs, with no server, no install and no internet.
 [What differs from the website](#a-single-file-you-can-send-someone).
 
+**Which version am I on?** The bottom-right corner of the page, under the link to the
+Flow Metrics, reads *Version* and a date such as `2026.11.05` — the day the app was last changed.
+It is the same date as the [release](https://github.com/eagleadams86/sprint-velocity/releases) a
+downloaded copy came from (release `2026-11-05` says `2026.11.05`), so you can tell at a
+glance whether an open tab or a saved file is behind the website.
+
 Built for Scrum Masters running several teams on a SAFe-style cadence: six sprints to a
 Program Increment, with sprint 6 reserved for innovation and planning — though
 [**PIs are entirely optional**](#pis-are-optional), and a team running plain Scrum with
