@@ -406,7 +406,12 @@ whole thing, and paste it into **📋 Paste from Jira** at the top of the sprint
 
 There is no Read button: the report is read as soon as it lands in the box (a moment after the
 box stops changing, so typing into it doesn't flicker), and the figures appear underneath with
-**Use These Numbers**. Clear empties the box and takes the figures away.
+**Use These Numbers**. Clear empties the box and takes the figures away. Paste a different
+report over the first and press the button before the new one has been read, and the press
+reads the box instead of saving the figures still on screen — press again once you've seen
+them. Once you use the numbers, the pasted text is cleared from the box: the figures are in
+the form, and the paste (which can hold issue summaries if you copied the Jira page rather
+than using the bookmark) does not linger in the page.
 
 It works out every figure and shows you exactly how before filling anything in:
 
@@ -651,7 +656,11 @@ back just the filled-in dates — the sprint you saved keeps its own). Two thing
 blank on purpose (since 2026-11-03): a sprint with only one of its two dates, which is your own
 typing; and any sprint whose projected dates would land today or later — a dateless sprint
 counts as finished, and dating it into the future would quietly pull it out of your averages.
-Sprints on the other track (in a PI vs. not in one) are not counted across, either.
+Sprints on the other track (in a PI vs. not in one) are not counted across, either. A sprint
+you set to Complete by hand is judged by its dates too, so it never gets future dates under
+a "Complete". And the fill is offered only by the save that **gave** a sprint its dates: press
+Undo, and later edits to that sprint leave the others blank (since 2026-11-06 — before that,
+every later save dated them all over again).
 
 ### Carried In Fills Itself
 
@@ -906,6 +915,8 @@ folded and down when it is open, so the state never depends on colour.
   are the reason a figure moved) and the empty states.
 - A folded chart has no full-screen button until it is opened again, and a folded card
   **prints open**: a heading with nothing under it says nothing on paper.
+- **⌕ Find opens the card it lands on.** A hit goes to the view's first card, and if you had
+  folded it, it is opened for you rather than leaving you on a bare heading.
 
 ## The Whole Run: History, with No Window
 

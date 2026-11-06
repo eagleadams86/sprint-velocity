@@ -106,7 +106,7 @@ function ok(cond, note, detail) {
    registers today, so ADDING a test never fails the build; removing one does,
    which is the moment to ask whether it should have gone. Lower it deliberately
    when a test is deliberately retired. */
-const EXPECTED = 607;
+const EXPECTED = 616;
 
 /* ── THE SUITE LEAVES STORAGE EXACTLY AS IT FOUND IT (2026-09-15 review) ──────
    The page header says "Read-only: nothing is saved", and it was not true: the
@@ -10506,6 +10506,46 @@ t('a Jira paste is read as it arrives — no Read It button to press', async () 
   });
 });
 
+t('Use These Numbers pressed before a new paste is read never saves the old one', async () => {
+  await formFrame('staleuse', formFixture([{ sprintNumber: 1 }]), async (W, D, st) => {
+    W.confirm = () => true;
+    W.toast = () => {};
+    W.openSprint('t1', 'p1', 2);
+    D.getElementById('jiraBlock').open = true;
+    const box = D.getElementById('jiraText');
+    box.value = TABBED;
+    W.svReadJiraNow();
+    const before = st.sprints.length;
+    /* A different paste lands; within the 300ms the old table and its button are still up. */
+    box.value = 'nothing Jira-shaped in here at all';
+    fire(W, box, 'input');
+    const use = D.getElementById('jiraApplyBtn');
+    ok(use, 'the old table is still on screen for a moment');
+    use.click();
+    eq(st.sprints.length, before, 'the press saved nothing from text no longer in the box');
+    eq(D.getElementById('f_committed').value, '', 'and filled in no figures');
+    ok(/Couldn.t find any issue rows/.test(D.getElementById('jiraPreview').textContent),
+       'the box is read there and then, so what it now holds is what shows');
+    D.getElementById('sprintDialog').close();
+  });
+});
+
+t('Use These Numbers empties the paste box, which never asks a browser to restore it', async () => {
+  await formFrame('clearuse', formFixture([{ sprintNumber: 1 }]), async (W, D) => {
+    W.confirm = () => true;
+    W.toast = () => {};
+    const box = D.getElementById('jiraText');
+    eq(box.getAttribute('autocomplete'), 'off', 'the box opts out of form restore');
+    W.openSprint('t1', 'p1', 2);
+    box.value = TABBED;
+    W.svReadJiraNow();
+    D.getElementById('jiraApplyBtn').click();
+    eq(box.value, '', 'the pasted text is gone once its numbers are used');
+    ok(D.getElementById('f_committed').value !== '', 'and the numbers it gave are in the form');
+    D.getElementById('sprintDialog').close();
+  });
+});
+
 t('Save Sprint after Use These Numbers on a brand-new sprint asks nothing; a re-paste over a saved one still asks', async () => {
   await formFrame('b4new', formFixture([{ sprintNumber: 1 }]), async (W, D, st) => {
     const asked = [];
@@ -11227,6 +11267,119 @@ t('dating one saved sprint fills the team’s other dateless ones (2026-11-03)',
     eq([r.filled, r.skipped], [3, 1], 'and the counts say so');
     ok(w.svGet().sprints.every((s) => w.sprintStatus(s) === 'complete'), 'nothing left the averages');
   });
+});
+
+group('2026-11-06 review');
+t('the dateless fill is offered only by the save that gave the dates, so its Undo sticks', async () => {
+  await formFrame('fillonce', formFixture([1, 2, 3].map((n) => ({ sprintNumber: n }))), async (W, D, st) => {
+    const toasts = [];
+    W.confirm = () => true;
+    W.toast = (msg, action) => toasts.push({ msg, action });
+    const by = (n) => st.sprints.find((x) => x.sprintNumber === n);
+    W.openSprint('t1', 'p1', 1);
+    D.getElementById('f_start').value = '2026-01-05';
+    D.getElementById('f_end').value = '2026-01-16';
+    fire(W, D.getElementById('f_end'), 'change');
+    D.getElementById('sprintSaveBtn').click();
+    await wait(30);
+    ok(by(2).startDate, 'dating S1 filled S2');
+    const offer = toasts.pop();
+    ok(offer && offer.action, 'with an Undo on the toast');
+    offer.action.onClick();
+    ok(!W.svGet().sprints.find((x) => x.sprintNumber === 2).startDate, 'Undo takes the filled dates back');
+    W.openSprint('t1', 'p1', 1);
+    const c = D.getElementById('f_committed');
+    c.value = '31'; fire(W, c, 'input');
+    D.getElementById('sprintSaveBtn').click();
+    await wait(30);
+    const now = W.svGet().sprints;
+    eq(now.find((x) => x.sprintNumber === 1).committed, 31, 'the later edit saved');
+    ok(!now.find((x) => x.sprintNumber === 2).startDate, 'and did NOT date the others all over again');
+  });
+});
+
+t('the dateless fill never puts future dates under a by-hand "Complete"', () => {
+  const DAY = 86400000;
+  const dayNum = (iso) => Math.round(Date.parse(iso + 'T00:00:00Z') / DAY);
+  const isoDay = (n) => new Date(n * DAY).toISOString().slice(0, 10);
+  const t0 = new Date(), today = isoDay(dayNum(
+    `${t0.getFullYear()}-${String(t0.getMonth() + 1).padStart(2, '0')}-${String(t0.getDate()).padStart(2, '0')}`));
+  const ago = isoDay(dayNum(today) - 3), on = isoDay(dayNum(today) + 8);
+  const row = (n, extra) => Object.assign({ id: 's' + n, teamId: 't1', piId: null, sprintNumber: n,
+    startDate: '', endDate: '', committed: 20, committedCompleted: 20, totalCompleted: 20,
+    added: 0, removed: 0, carriedIn: 0, carriedOut: 0, addedThenRemoved: 0 }, extra);
+  withState({ teams: [{ id: 't1', name: 'Team One' }], arts: [], pis: [], plans: [],
+    sprints: [row(1, { startDate: isoDay(dayNum(ago) - 14), endDate: isoDay(dayNum(ago) - 3) }),
+      row(2, { startDate: ago, endDate: on }), row(3, { status: 'complete' })] }, () => {
+    const r = w.fillUndatedSprints('t1');
+    const s3 = w.svGet().sprints.find((s) => s.sprintNumber === 3);
+    eq(s3.startDate, '', 'S3 would land in the future, so it stays dateless');
+    eq(r.skipped, 1, 'and is counted as left blank');
+  });
+});
+
+t('a Find hit opens the folded card it lands in', () => {
+  withRenderedSample((st) => {
+    st.settings.view = 'sprint'; w.render();
+    const first = () => w.document.querySelector('#views .card[data-boxkey]');
+    const key = first().dataset.boxkey;
+    w.setBoxShut(first(), true);
+    try {
+      const other = st.teams.find((x) => x.id !== st.settings.activeTeamId);
+      const sp = st.sprints.filter((x) => x.teamId === other.id).slice(-1)[0];
+      w.goToSearchHit({ kind: 'Sprint', teamId: other.id, piId: sp.piId, sprintNumber: sp.sprintNumber, view: 'sprint' });
+      ok(first() && !first().classList.contains('boxshut'), 'the card the hit lands in is open',
+         key + ' → ' + (first() && first().dataset.boxkey) + ' view=' + st.settings.view);
+    } finally {
+      const c = w.document.querySelector(`#views .card[data-boxkey="${key}"]`);
+      if (c) w.setBoxShut(c, false);
+    }
+  });
+});
+
+t('a capacity plan with no figure is dropped at the boundary, not shown as "undefined%"', () => {
+  const out = w.sanitizeIds(w.coerceShape({
+    teams: [{ id: 't1', name: 'Team One' }], pis: [], sprints: [],
+    plans: [{ id: 'pl', teamId: 't1', piId: null, sprintNumber: 3, availability: null, reason: 'leave' },
+      { id: 'pm', teamId: 't1', piId: null, sprintNumber: 4, availability: 'abc', reason: 'leave' },
+      { id: 'pn', teamId: 't1', piId: null, sprintNumber: 5, availability: 60, reason: 'leave' }] }));
+  eq(out.plans.map((p) => p.id), ['pn'], 'only the plan with a figure is kept');
+  eq(w.sanitizeIds.droppedPlans, 0, 'and adjustmentNote() is not told the team went missing');
+});
+
+t('a share link carries the next sprint’s adjustment when its PI has nothing recorded yet', () => {
+  const sp = (n) => ({ id: 's' + n, teamId: 't1', piId: 'p1', sprintNumber: n, committed: 20,
+    committedCompleted: 20, totalCompleted: 20, added: 0, removed: 0, carriedIn: 0, carriedOut: 0, addedThenRemoved: 0 });
+  withState({ teams: [{ id: 't1', name: 'Team One' }], arts: [],
+    pis: [{ id: 'p1', name: 'PI 1' }, { id: 'p2', name: 'PI 2' }],
+    sprints: [1, 2, 3, 4, 5, 6].map(sp),
+    plans: [{ id: 'pl', teamId: 't1', piId: 'p2', sprintNumber: 1, availability: 60, reason: 'leave' }] }, () => {
+    const slot = w.targetSprintSlot('t1');
+    eq([slot.piId, slot.sprintNumber], ['p2', 1], 'the next sprint is PI 2’s S1, which has no record');
+    for (const scope of [{ kind: 'all' }, { kind: 'sprint', n: 5 }]) {
+      const p = w.buildSharePayload({ teamIds: ['t1'], includeAllTeams: false, scope });
+      eq(p.plans.map((x) => x.id), ['pl'], `the adjustment travels (${scope.kind})`);
+      ok(p.pis.some((x) => x.id === 'p2'), `with its PI, so the far end keeps it (${scope.kind})`);
+      const back = w.sanitizeIds(w.coerceShape(JSON.parse(JSON.stringify(p))));
+      eq(back.plans.length, 1, `and it survives the recipient’s boundary (${scope.kind})`);
+    }
+  });
+});
+
+t('sprint figures from a file are clamped to 0 – 1,000,000; the sprint number is not', () => {
+  const out = w.sanitizeIds(w.coerceShape({
+    teams: [{ id: 't1', name: 'Team One' }], pis: [],
+    sprints: [{ id: 's1', teamId: 't1', piId: null, sprintNumber: 1500, committed: 1e308,
+      committedCompleted: -40, totalCompleted: 5.5 }] }));
+  const s = out.sprints[0];
+  eq([s.committed, s.committedCompleted, s.totalCompleted], [1e6, 0, 5.5], 'clamped, and a half point kept');
+  eq(s.sprintNumber, 1500, 'the sprint number goes through untouched');
+});
+
+t('the share window indents an ART’s teams off the tick box’s own size', async () => {
+  const css = await (await bustFetch('index.html')).text();
+  ok(/\.checklist \.checkline\.in-art \{ padding-left: calc\(1\.25rem \+ 11px\); \}/.test(css),
+     'the indent is the 20px box plus 11px, not the 24px measured against the old 13px box');
 });
 
 /* ═══════════════════ 2026-09-18 review — block D ═══════════════════════════

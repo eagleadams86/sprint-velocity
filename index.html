@@ -2226,13 +2226,15 @@ footer .applink { margin: 0 19px 0 auto; }
 #shareHistory { max-width: 100%; }
 /* The share window's list grouped by ART: a heading line per ART, its teams
    indented so each team's box sits under the ART's NAME rather than under the
-   ART's own box. 24px is measured, not summed from the box alone: the browser
-   gives a checkbox 4px of margin before it and 3px after, so the heading's name
-   starts 4 + 13 + 3 + 8 = 28px in and a team's box at 24 + 4. The space above a
-   heading (not the first) is where one ART visibly ends. Mirrored from Flow
-   Metrics. */
+   ART's own box. The browser gives a checkbox 4px of margin before it and 3px
+   after, so the heading's name starts 4 + box + 3 + 8 (the gap) in and a team's
+   box at the indent + 4: the indent is the box plus 11px. Written off the box's
+   own 1.25rem (the tick-box rule at the end of the sheet) since 2026-11-06 — a
+   plain 24px was measured against the old 13px box and left every team's box
+   half under the ART's once the box grew to 20px. The space above a heading
+   (not the first) is where one ART visibly ends. Mirrored from Flow Metrics. */
 .checklist .art-head:not(:first-child) { margin-top: 8px; }
-.checklist .checkline.in-art { padding-left: 24px; }
+.checklist .checkline.in-art { padding-left: calc(1.25rem + 11px); }
 #shareLink {
   width: 100%; font-family: var(--font-mono);
   font-size: var(--fs-xs); color: var(--text-secondary);
@@ -2585,7 +2587,7 @@ input:is([type="checkbox"], [type="radio"]) { flex: none; width: 1.25rem; height
         </details>
       </details>
       <label class="sr-only" for="jiraText">Pasted Jira Sprint Report</label>
-      <textarea id="jiraText" rows="5" placeholder="Paste the whole Sprint Report here, including the
+      <textarea id="jiraText" rows="5" autocomplete="off" spellcheck="false" placeholder="Paste the whole Sprint Report here, including the
  &quot;Completed Issues&quot; / &quot;Issues Not Completed&quot; / &quot;Issues Removed From Sprint&quot; headings"></textarea>
       <!-- READ AS IT ARRIVES (2026-10-30, Charles: "add the same auto read
            functionality that flow metrics has"). There was a Read It button; the
@@ -3774,6 +3776,17 @@ function sanitizeIds(data) {
       } else if (kind === 'num') {
         const n = Number(v);
         if (Number.isFinite(n)) out[k] = n;
+      } else if (kind === 'points') {
+        /* A sprint's points figure (2026-11-06 review). The form and the importer
+           both refuse a negative, so only a file or a link could bring one — and
+           -40 completed came out as a recommended commitment of "-40 points",
+           while two sprints of 1e308 summed to Infinity in pooled() and printed a
+           red 0% where the answer is "—". Clamped, not dropped: blank means 0
+           here, and a figure that was there should stay a figure. The ceiling is
+           a literal on purpose — a const declared below `let state = load()`
+           would still be in its dead zone when boot runs this. */
+        const n = Number(v);
+        if (Number.isFinite(n)) out[k] = Math.min(1e6, Math.max(0, n));
       } else if (kind === 'numOrBlank') {
         /* A number, or '' meaning "nothing typed" — the typed forecast fields,
            which blankState() states as '' and the planning card reads back as
@@ -3888,7 +3901,9 @@ function sanitizeIds(data) {
   };
   const NUMS = {};
   ['sprintNumber', 'committed', 'committedCompleted', 'totalCompleted', 'added',
-   'removed', 'carriedIn', 'carriedOut', 'addedThenRemoved'].forEach(k => { NUMS[k] = 'num'; });
+   'removed', 'carriedIn', 'carriedOut', 'addedThenRemoved'].forEach(k => { NUMS[k] = 'points'; });
+  /* sprintNumber stays 'num' — never clamped; see the PI-optional notes. */
+  NUMS.sprintNumber = 'num';
   const objects = (v) => list(v).filter(x => x && typeof x === 'object');
   data.teams = objects(data.teams).map(t => keepKnown(t, { id: 'id', name: 'label', artId: 'idOrNull',
     availability: 'pct', availabilityReason: 'reason' }));
@@ -4078,6 +4093,15 @@ function sanitizeIds(data) {
      Counted apart from the sprints. orphanNote() is a sentence about sprints and
      a plan is not one — see adjustmentNote(). */
   if (Array.isArray(data.plans)) {
+    /* A PLAN WITH NO FIGURE SAYS NOTHING (2026-11-06 review). keepKnown() drops an
+       availability that is null, '' or not a number rather than reading it as 0%,
+       which left a plan with no `availability` at all: it still won its slot, and the
+       card printed "⚑ Adjusted to undefined%" over a "—" recommendation. Damage, not
+       a team gone missing, so it is a silent repair (`pruned`) and stays out of
+       adjustmentNote()'s count, whose sentence would be false about it. */
+    const numbered = data.plans.filter(p => p && typeof p.availability === 'number');
+    sanitizeIds.pruned += data.plans.length - numbered.length;
+    data.plans = numbered;
     const seen = new Set();
     const kept = data.plans.filter(p => {
       if (!p || !teamIds.has(p.teamId)) return false;
@@ -5199,7 +5223,8 @@ function planFor(teamId, piId, num) {
    nothing is set, which is what the UI keys off to stay quiet. */
 function availabilityFor(teamId, piId, num) {
   const plan = planFor(teamId, piId, num);
-  if (plan) return { pct: plan.availability, reason: plan.reason, source: 'sprint' };
+  if (plan && typeof plan.availability === 'number')
+    return { pct: plan.availability, reason: plan.reason, source: 'sprint' };
   const team = teamById(teamId);
   if (team && typeof team.availability === 'number' && team.availability !== 100)
     return { pct: team.availability, reason: team.availabilityReason, source: 'team' };
@@ -12325,6 +12350,12 @@ function goToSearchHit(h) {
   state.settings.view = h.view;
   save();
   render();
+  /* A HIT NEVER LANDS ON A FOLDED CARD (2026-11-06 review). The view's first card is
+     the one every hit points into (the sprint, the PI, the team); folded, the hit
+     arrived on a bare band with no sign of where it went. Opened through
+     setBoxShut() so a chart inside measures again. */
+  const firstBox = document.querySelector('#views .card[data-boxkey]');
+  if (firstBox && firstBox.classList.contains('boxshut')) setBoxShut(firstBox, false);
   /* Where the keyboard is after the hit (2026-09-04). Closing the window hands
      the focus back to whatever had it before — and after a ⌘K pressed from
      nowhere in particular that is <body>, or the search box itself, now inside
@@ -12824,6 +12855,7 @@ function jiraBookmarkSrc() {
 let jiraReadTimer = 0;
 function readJiraPaste() {
   clearTimeout(jiraReadTimer);
+  jiraReadTimer = 0;               // nothing pending: applyJiraNumbers() reads this
   const box = F('jiraPreview');
   const status = F('jiraReadStatus');
   if (!F('jiraText').value.trim()) {
@@ -13107,8 +13139,14 @@ function fillUndatedSprints(teamId) {
     .filter(p => p.d);
   let filled = 0, skipped = 0;
   plan.forEach(({ s, d }) => {
-    const was = sprintStatus(s);
-    if (sprintStatus({ ...s, startDate: d.startDate, endDate: d.endDate }) !== was) { skipped++; return; }
+    /* Both sides are compared twice: as the sprint reads now, and as its DATES alone
+       would read it (2026-11-06 review). A by-hand status answers sprintStatus()
+       before the dates are looked at, so a sprint set to Complete by hand passed the
+       first check whatever it was given — future dates under a "Complete" that drops
+       out of the averages the day anyone sets it back to Auto. */
+    const dated = { ...s, startDate: d.startDate, endDate: d.endDate };
+    const auto = (x) => sprintStatus({ ...x, status: 'auto' });
+    if (sprintStatus(dated) !== sprintStatus(s) || auto(dated) !== auto(s)) { skipped++; return; }
     s.startDate = d.startDate;
     s.endDate = d.endDate;
     filled++;
@@ -13147,6 +13185,12 @@ function maybePrefillDates() {
 }
 
 function applyJiraNumbers() {
+  /* A PRESS THAT BEATS THE 300ms READ (2026-11-06 review). The table and this button
+     belong to the text as it was at the last read; paste over it and, until the timer
+     fires, a press here would save the OLD report onto this sprint. So a pending read
+     is done now and the press stops there — the reader sees what the box holds now and
+     presses again for those figures. */
+  if (jiraReadTimer) { readJiraPaste(); return; }
   if (!jiraDerived) return;
   const d = jiraDerived;
   const set = (id, v) => {
@@ -13165,6 +13209,11 @@ function applyJiraNumbers() {
   if (prev !== null && F('f_carriedIn').value.trim() === '') set('f_carriedIn', prev);
   checkSprintForm();
   F('jiraBlock').open = false;
+  /* Its numbers are in the boxes now; the paste itself is the one thing here that may
+     hold a summary (copied off the Jira page rather than by the bookmark), so it does
+     not sit on in the page once used. Never stored, and now not kept either. */
+  F('jiraText').value = '';
+  readJiraPaste();
   toast(autoSaveJiraNumbers()
     ? 'Numbers saved — press Cancel & Undo Save if that’s wrong'
     : 'Numbers filled in — review, then Save sprint');
@@ -13781,6 +13830,11 @@ F('sprintSaveBtn').onclick = () => {
   const bornHere = !!pendingJiraSave && pendingJiraSave.before === null
     && pendingJiraSave.recordId === record.id;
   if (!bornHere && !confirmOverwrite(i >= 0 ? state.sprints[i] : null, record)) return;
+  /* What the dates were when this form opened — the Jira auto-save may already have
+     written this record, so its snapshot is the truth when there is one. */
+  const prior = pendingJiraSave && pendingJiraSave.recordId === record.id
+    ? pendingJiraSave.before : (i >= 0 ? state.sprints[i] : null);
+  const datesMoved = !prior || prior.startDate !== record.startDate || prior.endDate !== record.endDate;
   if (!commitSprint(record)) return;
 
   clearPendingJiraSave();
@@ -13792,7 +13846,11 @@ F('sprintSaveBtn').onclick = () => {
   /* Dates on this sprint may be the first the team has had: offer the rest of its
      dateless sprints the same projection, with the toast's Undo as the way back.
      The Undo takes back the fill only — the sprint just saved stays saved. */
-  if (record.startDate && record.endDate && !viewOnly && undatedSprintCount(record.teamId)) {
+  /* ONLY WHEN THIS SAVE GAVE THE DATES (2026-11-06 review). Offered on every save of
+     a dated sprint, an Undo never stuck: the next edit of the same sprint — a points
+     fix, a goal — dated the rest all over again, so keeping them blank meant pressing
+     Undo after every save for ever. */
+  if (record.startDate && record.endDate && datesMoved && !viewOnly && undatedSprintCount(record.teamId)) {
     let r;
     const step = undoable(() => { r = fillUndatedSprints(record.teamId); });
     if (r.filled) {
@@ -15344,6 +15402,15 @@ function buildSharePayload({ teamIds, includeAllTeams, scope }) {
      whose ART didn't make it would be un-grouped by sanitizeIds() at the far end,
      which is why this filters from the final `teams` list rather than from `picked`. */
   const usedArts = new Set(teams.map(t => t.artId).filter(Boolean));
+  /* THE PI EACH TEAM'S NEXT SPRINT IS IN TRAVELS TOO (2026-11-06 review). At PI
+     planning that PI has nothing recorded yet, so `usedPis` never named it — and
+     the leave the sender had planned against its S1 was left out of a full-history
+     link, or (under a window) sent and then dropped at the far end for naming a PI
+     the link did not hold. Either way the recipient's card aimed somewhere else and
+     showed a different figure from the sender's. One PI per team, and only the one
+     the capacity card is already titled with on the sender's screen. */
+  const nextPis = new Set(teams.map(t => targetSprintSlot(t.id))
+    .filter(sl => sl && sl.piId).map(sl => sl.piId));
   return {
     v: SHARE_PAYLOAD_V,
     sharedAt: Date.now(),
@@ -15351,7 +15418,7 @@ function buildSharePayload({ teamIds, includeAllTeams, scope }) {
     allTeams: !!includeAllTeams && teams.length > 1,
     teams,
     arts: state.arts.filter(a => usedArts.has(a.id)),
-    pis: state.pis.filter(p => usedPis.has(p.id)),
+    pis: state.pis.filter(p => usedPis.has(p.id) || nextPis.has(p.id)),
     sprints,
     /* The planned adjustments for the teams and PIs that made it through, so the
        recipient's Target Capacity card shows the same figure the sender is looking
@@ -15365,7 +15432,7 @@ function buildSharePayload({ teamIds, includeAllTeams, scope }) {
        of the trimmed sprints was itself unassigned — dropped a PI-less team's
        adjustment out of the link for reasons that had nothing to do with it. */
     plans: state.plans.filter(pl => teams.some(t => t.id === pl.teamId)
-      && (!pl.piId || (windowed ? ownPi(pl) || isNextSlot(pl) : usedPis.has(pl.piId)))),
+      && (!pl.piId || isNextSlot(pl) || (windowed ? ownPi(pl) : usedPis.has(pl.piId)))),
     /* Business value for the teams and PIs that made it through — three numbers
        and two ids, nothing identifying, exactly like a plan. It travels for the
        same reason: without it a shared link's Team PI and PI by Team views would

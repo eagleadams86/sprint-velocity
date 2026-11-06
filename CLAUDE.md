@@ -1048,8 +1048,10 @@ but Charles had ever actually signed in.)
 - **Live regions must stay in the tree.** `#sprintWarn`, `#shareMeta` and `#shareWarn` are
   `role="status"` and are emptied rather than `hidden` — an element toggled out of the tree
   announces nothing on the way back — with `.warn:empty` collapsing them visually. The Jira
-  preview is deliberately *not* a live region: it's far too long to read aloud, so `box.focus()`
-  moves the user to it instead.
+  preview TABLE is deliberately *not* a live region: it's far too long to read aloud. Since the
+  read-as-it-arrives change (#19, 2026-10-30) focus is NOT moved to it either — that would pull
+  the caret out of a box being typed in — so `#jiraReadStatus` (`role="status"`) announces one
+  line and the table is the next thing Tab reaches.
 - **Shapes from outside are not trusted either.** `coerceShape()` runs in front of
   `sanitizeIds()` at every entry point, forcing `teams`/`arts`/`pis`/`sprints` to arrays of
   objects and `settings` to an object — without it, `Object.assign(blankState(), parsed)`
@@ -3583,3 +3585,52 @@ Charles: *"make all of the sections collapsable like wine cellar and money map"*
   markup and its chart names are rewritten each render — see its CLAUDE.md. A change to the
   band's look belongs in both.
 
+
+## Fixes From the 2026-11-06 Review — no schema change
+
+Four read-only reviewers over everything since the 2026-09-24 audit (the Jira bookmark and
+paste-as-it-arrives, card folding, the dateless back-fill, the release version, the field and
+well styling, the wheel guard, `sw.js`/CSP) plus a fresh pass over the figures and the data
+boundary. Eight findings, all fixed; each test proven red against the pre-fix `index.html`.
+EXPECTED 607 → 616. Clean: the bookmarklet (textContent only, digit-only ids, keys/points
+only), every CSP, the service worker, the wheel guard, the touch-select fix, rag()/fmtPct
+rounding at every band edge, every innerHTML site taking a name.
+- **A press that beats the 300ms read never saves the old paste.** `applyJiraNumbers()` saved
+  whatever `jiraDerived` held, and for 300ms after any change that was the PREVIOUS text — paste
+  report B over A, press (or Tab, Tab, Enter) and A's figures went onto B's sprint, with no
+  overwrite question on a new or running one. `readJiraPaste()` now zeroes `jiraReadTimer`, and
+  a press with a read pending does that read and STOPS, so the reader sees what the box holds.
+- **The paste box is emptied once its numbers are used, and is `autocomplete="off"`.** The paste
+  can hold summaries (copied off the Jira page rather than by the bookmark); it sat in the page
+  until the next `openSprint()`, and Firefox's form restore could write it to disk.
+- **The dateless fill is offered only by the save that gave the dates.** It ran on every Save
+  Sprint of a dated sprint, so after Undo the next points fix dated the rest all over again —
+  keeping them blank meant pressing Undo for ever. `datesMoved` compares against the record as
+  the form found it (`pendingJiraSave.before` when the Jira auto-save has already written it).
+- **The fill's status guard reads the dates as well as the status.** `sprintStatus()` returns a
+  by-hand status before looking at dates, so a dateless sprint set to Complete passed whatever
+  it was given — future dates under a Complete that leaves the averages the day it goes back
+  to Auto. Both sides are now also compared with `status: 'auto'`.
+- **A Find hit opens a folded first card** (`setBoxShut(…, false)` in `goToSearchHit`, so a
+  chart in it re-measures). Folding the sprint card and jumping to another team's sprint landed
+  on a bare band.
+- **A capacity plan with no figure is dropped at the boundary.** Since 09-18's `stated()` a null
+  or non-numeric availability is dropped as a key, which left a plan with no `availability` that
+  still won its slot: "⚑ Adjusted to undefined%" over a "—" recommendation. Counted in `pruned`
+  (silent repair), NOT `droppedPlans` — `adjustmentNote()` would say the team was missing.
+  `availabilityFor()` checks `typeof` on a plan now, as it already did on a team.
+- **A share link carries the PI each team's next sprint is in.** At PI planning that PI has no
+  sprints, so `usedPis` never named it: the plan against its S1 was left out of a full-history
+  link, or sent under a window and dropped at the far end for pointing at a PI the link lacked.
+  `nextPis` (one per team, from `targetSprintSlot()`) joins `pis`, and `isNextSlot` now passes a
+  plan under either branch. Objectives for that PI still do not travel — no view can show them
+  until it has a sprint.
+- **Sprint figures are clamped at the boundary** — new `keepKnown` kind `points`, 0 to 1e6
+  (fractions kept). Only a file or a link could bring a negative (the form and importer refuse
+  one): -40 completed recommended "-40 points", and 1e308 summed to Infinity and printed a red
+  0%. The ceiling is a LITERAL because a const below `let state = load()` is in its TDZ at boot.
+  `sprintNumber` stays `num`, unclamped, per the PI-optional rules.
+- **The share window's ART indent is `calc(1.25rem + 11px)`**, off the tick box's own size. The
+  24px was measured against the old 13px box; after the 20px tick-box rule (2026-10-27) every
+  team's box sat half under the ART's. Measured live: the team box and the ART name now both
+  start at the same x. **Flow Metrics carries the same block and got the same change.**
